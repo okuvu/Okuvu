@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Backend (Node.js / TypeScript)
+  # Configured fully in E0-S01 (Sprint 1, Story 1)
+  # ─────────────────────────────────────────────
+  backend:
+    name: Backend — typecheck + test
+    runs-on: ubuntu-latest
+
+    services:
+      # CI runs against the Neon develop branch (set via secret)
+      # No local Postgres needed
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: cd apps/api && npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+
+      - name: TypeScript typecheck — api
+        run: cd apps/api && npx tsc --noEmit
+
+      - name: TypeScript typecheck — worker
+        run: cd apps/worker && npx tsc --noEmit
+
+      - name: TypeScript typecheck — therapist-portal
+        run: cd apps/therapist-portal && npx tsc --noEmit
+
+      - name: TypeScript typecheck — shared-types
+        run: cd packages/shared-types && npx tsc --noEmit
+
+      - name: Vitest — unit tests
+        run: cd apps/api && npx vitest run
+        env:
+          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+          NODE_ENV: test
+          # Never set LOCAL_DEV_BYPASS_AUTH in CI
+
+  # ─────────────────────────────────────────────
+  # Flutter (mobile app)
+  # Configured fully in E0-S01 (Sprint 1, Story 1)
+  # ─────────────────────────────────────────────
+  flutter:
+    name: Flutter — analyze + widget tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+
+      - name: Install Flutter dependencies
+        run: cd apps/mobile && flutter pub get
+
+      - name: Flutter analyze
+        run: cd apps/mobile && flutter analyze
+
+      - name: Flutter widget tests
+        run: cd apps/mobile && flutter test test/widget/
+
+  # ─────────────────────────────────────────────
+  # Security gate — never allow credential leaks
+  # ─────────────────────────────────────────────
+  security:
+    name: Security — credential scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for committed .env files
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.env$|\.env\.'; then
+            echo "ERROR: .env file committed. Remove it and check .gitignore."
+            exit 1
+          fi
+
+      - name: Check for GCP credential files
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E 'service-account\.json|keyfile\.json|firebase-admin|adminsdk'; then
+            echo "ERROR: GCP service account or Firebase credentials file committed."
+            echo "These files must NEVER be committed. Remove from git history if accidentally added."
+            exit 1
+          fi
+
+      - name: Check LOCAL_DEV_BYPASS_AUTH is not hardcoded as true
+        run: |
+          if grep -r 'LOCAL_DEV_BYPASS_AUTH.*=.*true' apps/api/src/ apps/worker/src/ apps/therapist-portal/src/ 2>/dev/null; then
+            echo "ERROR: LOCAL_DEV_BYPASS_AUTH hardcoded as true in production code path."
+            echo "This must only be set via .env for local development, never in source code."
+            exit 1
+          fi
