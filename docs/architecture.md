@@ -117,7 +117,7 @@ The full schema is in `packages/prisma/schema.prisma`.
 | Decision | What was decided | Why |
 |---|---|---|
 | Cloud provider | GCP only, no AWS | Single DPA for DPDP 2026 compliance; Vertex AI is already GCP |
-| Monorepo tool | Plain npm workspaces, not Turborepo/Nx | Team size doesn't justify build-system overhead |
+| Monorepo tool | Plain pnpm workspaces, not Turborepo/Nx | Team size doesn't justify build-system overhead |
 | Mobile framework | Flutter (Android-first) | Cross-platform coverage from one codebase |
 | Backend framework | Fastify (not Express) | Better TypeScript support, lower overhead for WebSocket-heavy workload |
 | ORM | Prisma | Type safety, migration management, Neon compatibility |

@@ -11,7 +11,7 @@ This guide is for the Evia engineering team. It covers local setup, our git work
 Install these before cloning the repo:
 
 - **Node.js 20+** — check with `node -v`
-- **npm 10+** — check with `npm -v`
+- **pnpm 9+** — install with `npm install -g pnpm`, then check with `pnpm -v`
 - **Flutter 3.x (stable)** — check with `flutter doctor`
 - **Git** — check with `git --version`
 - A **Neon account** at [neon.tech](https://neon.tech) (free tier)
@@ -22,10 +22,10 @@ Install these before cloning the repo:
 ```bash
 git clone https://github.com/suvoksystems/evia.git
 cd evia
-npm install
+pnpm install
 ```
 
-`npm install` at the repo root installs dependencies for all workspace packages at once.
+`pnpm install` at the repo root installs dependencies for all workspace packages at once.
 
 ### 3. Set up your local database
 
@@ -47,7 +47,7 @@ Open `.env` and fill in at minimum:
 
 ```bash
 cd apps/api
-npx prisma migrate dev
+pnpm prisma migrate dev
 cd ../..
 ```
 
@@ -57,10 +57,10 @@ This creates all the tables in your Neon branch.
 
 ```bash
 # Backend API (from apps/api/)
-cd apps/api && npm run dev
+cd apps/api && pnpm dev
 
 # Therapist portal (from apps/therapist-portal/)
-cd apps/therapist-portal && npm run dev
+cd apps/therapist-portal && pnpm dev
 
 # Flutter app (from apps/mobile/)
 cd apps/mobile && flutter run --flavor dev
@@ -143,7 +143,7 @@ Examples:
 ```
 feat(E4-S02): WebSocket turn pipeline with A8 routing
 fix(E6-S02): crisis screen renders correctly in airplane mode
-chore(E0-S01): monorepo npm workspace setup
+chore(E0-S01): monorepo pnpm workspace setup
 test(E12-S01): Vitest rate limiter concurrency test
 ```
 
@@ -203,7 +203,7 @@ Reviewers will specifically check:
 
 - Never edit `packages/prisma/schema.prisma` without first checking with the Senior Engineer
 - Never write raw SQL in application code — use Prisma's type-safe query API
-- New migrations run via `npx prisma migrate dev` locally, `npx prisma migrate deploy` in CI
+- New migrations run via `pnpm prisma migrate dev` locally, `pnpm prisma migrate deploy` in CI
 
 ### Security rules (non-negotiable)
 

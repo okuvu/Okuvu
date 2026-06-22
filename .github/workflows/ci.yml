@@ -26,34 +26,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: cd apps/api && npx prisma generate
+        run: cd apps/api && pnpm prisma generate
         env:
           DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
 
       - name: TypeScript typecheck — api
-        run: cd apps/api && npx tsc --noEmit
+        run: cd apps/api && pnpm tsc --noEmit
 
       - name: TypeScript typecheck — worker
-        run: cd apps/worker && npx tsc --noEmit
+        run: cd apps/worker && pnpm tsc --noEmit
 
       - name: TypeScript typecheck — therapist-portal
-        run: cd apps/therapist-portal && npx tsc --noEmit
+        run: cd apps/therapist-portal && pnpm tsc --noEmit
 
       - name: TypeScript typecheck — shared-types
-        run: cd packages/shared-types && npx tsc --noEmit
+        run: cd packages/shared-types && pnpm tsc --noEmit
 
       - name: Vitest — unit tests
-        run: cd apps/api && npx vitest run
+        run: cd apps/api && pnpm vitest run
         env:
           DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
           NODE_ENV: test

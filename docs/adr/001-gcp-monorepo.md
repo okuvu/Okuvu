@@ -1,4 +1,4 @@
-# ADR-001 — GCP Full Consolidation + npm Workspaces Monorepo
+# ADR-001 — GCP Full Consolidation + pnpm Workspaces Monorepo
 
 **Date:** June 2026
 **Status:** ACCEPTED — implemented from Day 0, no migration cost
@@ -42,26 +42,26 @@ Consolidate everything to GCP before writing any code. Since no AWS infrastructu
 
 ---
 
-## ADR-001b — npm Workspaces Monorepo (Not Turborepo, Not Nx)
+## ADR-001b — pnpm Workspaces Monorepo (Not Turborepo, Not Nx)
 
 ### Decision
 
-The Evia codebase is a monorepo managed with plain npm workspaces. No build-system tooling (Turborepo, Nx, Lerna) is used.
+The Evia codebase is a monorepo managed with pnpm workspaces. No build-system tooling (Turborepo, Nx, Lerna) is used.
 
 ### Context
 
 The team considered three monorepo approaches:
 1. **Polyrepo** — separate repositories per app
-2. **npm workspaces** — single repo, npm manages dependencies across packages
-3. **npm workspaces + Turborepo or Nx** — adds a build orchestration layer on top
+2. **pnpm workspaces** — single repo, pnpm manages dependencies across packages
+3. **pnpm workspaces + Turborepo or Nx** — adds a build orchestration layer on top
 
 ### Decision
 
-Plain npm workspaces. No Turborepo or Nx.
+Plain pnpm workspaces. No Turborepo or Nx.
 
 ### Rationale
 
-The primary reason to use a monorepo in this project is **shared types and shared Prisma schema** — when a backend type or schema field changes, the change needs to be visible to the therapist portal in the same PR. npm workspaces alone achieves this.
+The primary reason to use a monorepo in this project is **shared types and shared Prisma schema** — when a backend type or schema field changes, the change needs to be visible to the therapist portal in the same PR. pnpm workspaces alone achieves this.
 
 Turborepo and Nx are valuable at larger scales where:
 - Build times are long enough that caching across tasks matters
@@ -70,13 +70,13 @@ Turborepo and Nx are valuable at larger scales where:
 
 None of these conditions apply to a 4-week build with a 10-person team. Adding Turborepo would add a configuration layer to learn, debug, and maintain for negligible benefit.
 
-AI coding tools (Claude/Cursor) also work better with simpler, more conventional structures — a standard npm workspace is something they understand deeply; a Turborepo configuration with custom pipeline definitions is an additional abstraction layer that increases the chance of generated code missing the right build configuration.
+AI coding tools (Claude/Cursor) also work better with simpler, more conventional structures — a standard pnpm workspace is something they understand deeply; a Turborepo configuration with custom pipeline definitions is an additional abstraction layer that increases the chance of generated code missing the right build configuration.
 
 ### Consequences
 
 **Positive:**
 - Simpler `package.json` at root — just `"workspaces": ["apps/*", "packages/*"]`
-- `npm install` at root installs everything — no build tool to configure
+- `pnpm install` at root installs everything — no build tool to configure
 - AI coding tools work with familiar patterns
 - Any future migration to Turborepo is straightforward if the team decides it's needed
 
