@@ -60,7 +60,7 @@ Once the Prisma schema exists (after E0-S03 is merged to `develop`), run:
 
 ```bash
 cd apps/api
-npx prisma migrate dev
+pnpm prisma migrate dev
 ```
 
 This creates all the tables in your Neon branch. If E0-S03 hasn't landed yet, this step will fail — wait for it.
@@ -71,7 +71,7 @@ This creates all the tables in your Neon branch. If E0-S03 hasn't landed yet, th
 
 ```bash
 cd apps/api
-npx prisma studio
+pnpm prisma studio
 ```
 
 This opens a browser-based GUI for your Neon database at `http://localhost:5555`. If you can see the tables, the connection is working correctly.
@@ -84,7 +84,7 @@ When new migrations land in `develop` and you pull them to your local git branch
 
 ```bash
 cd apps/api
-npx prisma migrate dev
+pnpm prisma migrate dev
 ```
 
 This applies any new migrations to your Neon branch. You don't need to manually sync your Neon branch with the `main` Neon branch — Prisma migrations handle this.
@@ -98,7 +98,7 @@ If your local database gets into a bad state (e.g. from a failed migration or te
 **Option 1 — Reset migrations locally (keeps your Neon branch):**
 ```bash
 cd apps/api
-npx prisma migrate reset
+pnpm prisma migrate reset
 # This drops all tables and re-runs all migrations from scratch
 # Your Neon branch data is lost, but the schema is clean
 ```
@@ -107,7 +107,7 @@ npx prisma migrate reset
 1. In Neon dashboard → Branches → your branch → Delete
 2. Create a new branch from `main` with the same name
 3. Update `DATABASE_URL` in your `.env` with the new connection string
-4. Run `npx prisma migrate dev` again
+4. Run `pnpm prisma migrate dev` again
 
 Option 2 is slower but gives you a completely fresh database.
 
@@ -123,12 +123,12 @@ Option 2 is slower but gives you a completely fresh database.
 - Add `?sslmode=require` to the end of your DATABASE_URL if it's missing
 
 **"Migration failed"**
-- Run `npx prisma migrate reset` to start fresh, then `npx prisma migrate dev` again
+- Run `pnpm prisma migrate reset` to start fresh, then `pnpm prisma migrate dev` again
 - If the migration itself has an error, check with the Senior Engineer — don't try to manually patch the database
 
 **"Cannot find module '@prisma/client'"**
-- Run `npm install` from the repo root
-- Then `cd apps/api && npx prisma generate` to regenerate the Prisma client
+- Run `pnpm install` from the repo root
+- Then `cd apps/api && pnpm prisma generate` to regenerate the Prisma client
 
 **Neon branch is slow or timing out**
 - Neon's free tier has a compute budget. If your branch is idle for a while, the first connection takes a few seconds to wake it up. This is normal — the second connection will be fast.

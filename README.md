@@ -54,7 +54,7 @@ evia/
 
 Before you can run anything locally, you need:
 
-1. **Node.js 20+** and **npm 10+**
+1. **Node.js 20+** and **pnpm 9+** — install pnpm with `npm install -g pnpm`, then check with `pnpm -v`
 2. **Flutter 3.x** (stable channel)
 3. **A Neon account** — [neon.tech](https://neon.tech) (free tier is enough)
 4. **GCP credentials** for evia-dev — ask the Senior Engineer
@@ -76,13 +76,13 @@ cp .env.example .env
 # Edit .env with your Neon DATABASE_URL and dev credentials
 
 # 3. Install all dependencies (runs from monorepo root)
-npm install
+pnpm install
 
 # 4. Run the first database migration
-cd apps/api && npx prisma migrate dev && cd ../..
+cd apps/api && pnpm prisma migrate dev && cd ../..
 
 # 5. Start the backend (from apps/api/)
-cd apps/api && npm run dev
+cd apps/api && pnpm dev
 
 # 6. Start the Flutter app (from apps/mobile/)
 cd apps/mobile && flutter run --flavor dev

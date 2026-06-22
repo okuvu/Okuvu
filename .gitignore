@@ -33,6 +33,10 @@ apps/mobile/ios/Runner/GoogleService-Info.plist
 # ----------------------------
 # Node / TypeScript
 # ----------------------------
+
+# pnpm lockfile is committed — do not ignore (pnpm-lock.yaml)
+# npm lockfile should NOT exist — if you see package-lock.json, delete it
+package-lock.json
 node_modules/
 dist/
 build/
