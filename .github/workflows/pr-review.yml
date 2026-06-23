@@ -2,7 +2,7 @@ name: PR Review (OpenCode)
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, synchronize, edited]
+    types: [opened, reopened, ready_for_review, edited]
   issue_comment:
     types: [created]
 
@@ -43,15 +43,6 @@ jobs:
           key: npx-cache-${{ runner.os }}-${{ hashFiles('package.json') }}
           restore-keys: |
             npx-cache-${{ runner.os }}-
-
-      # ─────────────────────────────────────────────
-      # Cache: OpenCode binary
-      # ─────────────────────────────────────────────
-      - name: Cache OpenCode binary
-        uses: actions/cache@v4
-        with:
-          path: ~/.opencode/bin
-          key: opencode-bin-${{ runner.os }}
 
       # ─────────────────────────────────────────────
       # Pre-flight: validate PR template is filled
@@ -174,7 +165,13 @@ jobs:
       # ─────────────────────────────────────────────
       # OpenCode PR review
       # ─────────────────────────────────────────────
-      - id: opencode
+      - name: OpenCode PR review
+        id: opencode
+        if: |
+          steps.validate.outputs.template_valid == 'true' &&
+          (github.event_name != 'pull_request' ||
+           (github.event.pull_request.draft != true &&
+            github.event.action != 'edited'))
         uses: anomalyco/opencode/github@latest
         env:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
@@ -313,6 +310,30 @@ jobs:
             Write the entire verdict to /tmp/review.md.
 
             Execute all steps now.
+
+      # ─────────────────────────────────────────────
+      # Post full review to PR
+      # ─────────────────────────────────────────────
+      - name: Post review to PR
+        if: steps.opencode.outcome == 'success'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const reviewPath = '/tmp/review.md';
+            let body;
+            try {
+              body = fs.readFileSync(reviewPath, 'utf8');
+            } catch {
+              core.warning('review.md not found — skipping PR comment');
+              return;
+            }
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: prNumber,
+              body,
+            });
 
       # ─────────────────────────────────────────────
       # Discord notification
