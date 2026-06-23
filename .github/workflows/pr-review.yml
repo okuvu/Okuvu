@@ -97,6 +97,14 @@ jobs:
             }
 
       # ─────────────────────────────────────────────
+      # Git identity (needed by OpenCode's internal commit)
+      # ─────────────────────────────────────────────
+      - name: Configure git identity
+        run: |
+          git config user.name "opencode-bot"
+          git config user.email "opencode-bot@users.noreply.github.com"
+
+      # ─────────────────────────────────────────────
       # OpenCode PR review
       # ─────────────────────────────────────────────
       - id: opencode
