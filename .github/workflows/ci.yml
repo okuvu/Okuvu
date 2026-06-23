@@ -20,17 +20,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
-          version: 9
+          version: 11.8.0
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -78,13 +78,16 @@ jobs:
           channel: 'stable'
 
       - name: Install Flutter dependencies
-        run: cd apps/mobile && flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
 
       - name: Flutter analyze
-        run: cd apps/mobile && flutter analyze
+        working-directory: apps/mobile
+        run: flutter analyze
 
       - name: Flutter widget tests
-        run: cd apps/mobile && flutter test test/widget/
+        working-directory: apps/mobile
+        run: flutter test test/widget/
 
   # ─────────────────────────────────────────────
   # Security gate — never allow credential leaks
@@ -94,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
