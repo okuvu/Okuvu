@@ -1,26 +1,24 @@
+> [!IMPORTANT]
+> Replace all placeholder text below with your actual content. Do not use HTML comments (`<!-- -->`) to hide or wrap content — the CI validation strips them and will reject empty sections. If you need to re-trigger the PR review after fixing the description, comment `/opencode review`.
+
 ## Story
 
-<!-- ClickUp story ID — e.g. E4-S02 -->
-**Story:**
-
-<!-- Link to the ClickUp task -->
-**ClickUp task:**
+**Story:** (e.g. E4-S02)
+**ClickUp task:** (paste full URL)
 
 ---
 
 ## What changed
 
-<!-- Brief description of what you built in this PR. 2-4 sentences is enough. -->
+(2-4 sentences describing what you built in this PR.)
 
 
 ---
 
 ## Test evidence
 
-<!-- How did you verify this works? This section is required — a PR without test evidence will not be reviewed. -->
-
 **For backend stories:**
-- [ ] Endpoint responds correctly (paste curl command or screenshot)
+- [ ] Endpoint responds correctly (paste curl command or screenshot link)
 - [ ] Acceptance criteria from the ClickUp task are met (copy and check off each one below)
 
 **For Flutter stories:**

@@ -2,7 +2,7 @@ name: PR Review (OpenCode)
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize, edited]
   issue_comment:
     types: [created]
 
@@ -61,28 +61,95 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const body = context.payload.pull_request?.body || context.payload.issue?.body || '';
+            const rawBody = context.payload.pull_request?.body || context.payload.issue?.body || '';
+            const body = rawBody.replace(/\r\n/g, '\n');
+            const stripHtml = (s) => s.replace(/<!--[\s\S]*?-->/g, '');
+            const hasHtml = (s) => /<!--[\s\S]*?-->/.test(s);
+            const isBlank = (s) => !s.trim();
+
             const issues = [];
 
-            const storyMatch = body.match(/\*\*Story:\*\*\s*(.+)/);
-            const storyValue = storyMatch ? storyMatch[1].trim() : '';
-            if (!storyValue || storyValue.startsWith('<!--')) {
-              issues.push('- **Story:** - missing ClickUp story ID');
+            // ── Story field ──────────────────────────
+            const boldStoryMatch = body.match(/\*\*Story:\*\*\s*(.+)/);
+            const bodyHasBold = /\*\*Story:\*\*/.test(body);
+            const bodyHasPlain = /^Story:\s*\S/m.test(body);
+
+            if (boldStoryMatch) {
+              const raw = boldStoryMatch[1].trim();
+              if (hasHtml(raw) && isBlank(stripHtml(raw))) {
+                issues.push('- **Story:** — Story value is an HTML comment (`<!-- ... -->`).\n  Replace it with your actual story ID, e.g., `**Story:** E4-S02`');
+              }
+            } else if (bodyHasBold) {
+              const idx = body.indexOf('**Story:**');
+              const rest = body.slice(idx + 9).trim();
+              if (!rest || rest.startsWith('<!--')) {
+                issues.push('- **Story:** — Found `**Story:**` but no story ID after it.\n  Write the ID on the same line: `**Story:** E4-S02`');
+              }
+            } else if (bodyHasPlain) {
+              const current = body.match(/^Story:\s*\S+/m)?.[0] || 'Story: <value>';
+              issues.push('- **Story:** — Use `**Story:**` instead of `Story:`.\n  Expected: `**Story:** E4-S02`\n  Current: `' + current + '`');
+            } else {
+              issues.push('- **Story:** — Missing `**Story:**` field entirely.\n  Add it under the `## Story` heading: `**Story:** E4-S02`');
             }
 
-            const whatChangedSection = body.match(/## What changed\n+([\s\S]*?)(?:\n+---|\n+## )/);
-            if (!whatChangedSection || !whatChangedSection[1].trim()) {
-              issues.push('- **What changed** - section is empty or missing');
+            // ── Section diagnostic helper ────────────
+            function extractContent(body, heading) {
+              const boundaries = [
+                '\n## Story', '\n## What changed', '\n## Test evidence', '\n## Checklist',
+                '\n---',
+                '\nStory:', '\nWhat changed', '\nTest evidence', '\nChecklist'
+              ];
+
+              // Try markdown heading first, then plain heading
+              let startIdx = body.indexOf('## ' + heading);
+              let isMarkdown = true;
+              if (startIdx === -1) {
+                startIdx = body.indexOf('\n' + heading);
+                isMarkdown = false;
+                // Also try start-of-string
+                if (startIdx === -1 && body.startsWith(heading + '\n')) startIdx = 0;
+              }
+              if (startIdx === -1) return { content: '', isMarkdown: false };
+
+              const afterHeading = body.slice(startIdx + heading.length + (isMarkdown ? 3 : 0));
+              const contentStart = afterHeading.search(/\S/);
+              if (contentStart === -1) return { content: '', isMarkdown };
+              const after = afterHeading.slice(contentStart);
+
+              let endIdx = after.length;
+              for (const b of boundaries) {
+                const bi = after.indexOf(b);
+                if (bi !== -1 && bi < endIdx) endIdx = bi;
+              }
+
+              return { content: after.slice(0, endIdx).trim(), isMarkdown };
             }
 
-            const testEvidenceSection = body.match(/## Test evidence\n+([\s\S]*?)(?:\n+---|\n+## )/);
-            if (!testEvidenceSection || !testEvidenceSection[1].trim()) {
-              issues.push('- **Test evidence** - section is empty or missing');
+            function diagnoseSection(heading, label) {
+              const { content: rawContent, isMarkdown } = extractContent(body, heading);
+              const hasMarkdown = body.includes('## ' + heading);
+              const hasPlain = body.includes('\n' + heading) || body.startsWith(heading + '\n');
+
+              if (!rawContent && !hasMarkdown && !hasPlain) {
+                issues.push('- **' + label + '** — Missing `## ' + heading + '` section entirely.\n  Add a `## ' + heading + '` heading with content describing the PR\'s changes.');
+              } else if (!rawContent && hasMarkdown) {
+                issues.push('- **' + label + '** — `## ' + heading + '` is empty (no content after the heading).\n  Write 2-4 sentences describing the PR\'s changes.');
+              } else if (!rawContent && hasPlain) {
+                issues.push('- **' + label + '** — `' + heading + '` (plain text) is empty.\n  Use `## ' + heading + '` with 2-4 sentences describing the PR\'s changes.');
+              } else if (hasHtml(rawContent) && isBlank(stripHtml(rawContent))) {
+                issues.push('- **' + label + '** — `' + (isMarkdown ? '## ' : '') + heading + '` contains only HTML comments (`<!-- ... -->`).\n  Remove the comment markers and write real content.');
+              } else if (hasPlain && !hasMarkdown) {
+                issues.push('- **' + label + '** — Use `## ' + heading + '` instead of `' + heading + '`.\n  (needs the `## ` markdown heading prefix for CI to recognize it).');
+              }
             }
 
+            diagnoseSection('What changed', 'What changed');
+            diagnoseSection('Test evidence', 'Test evidence');
+
+            // ── Report ──────────────────────────────
             if (issues.length > 0) {
               const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
-              const commentBody = `## ⚠️ PR Review Skipped\n\nThe PR template is missing required sections:\n\n${issues.join('\n')}\n\nPlease update the PR description and comment \`/opencode review\` to trigger the review.`;
+              const commentBody = `## ⚠️ PR Review Skipped\n\nThe PR template has issues that must be fixed:\n\n${issues.join('\n\n')}\n\nPlease update the PR description and comment \`/opencode review\` to trigger the review.`;
 
               await github.rest.issues.createComment({
                 ...context.repo,
@@ -259,7 +326,7 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login || github.event.issue.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           VALIDATION_RESULT: ${{ steps.validate.outputs.template_valid }}
-          REVIEW_OUTCOME: ${{ steps.opencode.outcome }}
+          REVIEW_OUTCOME: ${{ steps.opencode.outcome || 'skipped' }}
         run: |
           echo "DEBUG: WEBHOOK_LENGTH=${#DISCORD_WEBHOOK}"
           echo "DEBUG: VALIDATION_RESULT=$VALIDATION_RESULT"

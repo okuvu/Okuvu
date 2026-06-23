@@ -108,6 +108,9 @@ git rebase origin/develop
 1. Push your story branch: `git push origin story/E4-S02-websocket-turn-pipeline`
 2. Open a PR on GitHub targeting **`develop`** (not `main`)
 3. Fill in the PR template — all three sections are required
+   - Replace placeholder text with real content — do **not** leave HTML comments (`<!-- -->`) in place
+   - Use the exact heading format (`## Story`, `## What changed`, `## Test evidence`) for the CI to validate
+   - If the PR body is edited after opening, comment `/opencode review` to re-trigger the review
 4. Assign a reviewer:
    - Backend/infra stories → Senior Engineer
    - Flutter/portal stories → Lead Developer
@@ -159,10 +162,16 @@ One story = one PR. If a story is too large for one PR, split it into sub-tasks 
 
 ### PR template
 
-Every PR must fill in all three sections of the template:
-1. **Story** — the ClickUp story ID (e.g. `E4-S02`)
-2. **What changed** — a brief description of what you built
-3. **Test evidence** — how you verified it works
+Every PR must fill in all sections of the template. The CI validation checks for these exact heading formats:
+- `## Story` — includes `**Story:**` (story ID) and `**ClickUp task:**` (full URL)
+- `## What changed` — 2-4 sentences describing what you built
+- `## Test evidence` — how you verified it works, with checked acceptance criteria
+- `## Checklist` — all items must be addressed
+
+**Format rules (enforced by CI):**
+- Use the exact `##` markdown headings — plain text headings will fail validation
+- Replace all HTML comments with real content — HTML comments are stripped before validation and sections wrapped in `<!-- -->` will be rejected as empty
+- If the PR body is edited after opening, comment `/opencode review` to re-trigger the review (the CI does not re-run on body edits automatically)
 
 For backend stories, test evidence should include:
 - A curl command or Postman screenshot showing the endpoint responding correctly
