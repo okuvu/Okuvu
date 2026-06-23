@@ -1,0 +1,8 @@
+{
+  "name": "evia",
+  "private": true,
+  "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

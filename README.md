@@ -18,13 +18,13 @@ Evia is an AI-powered mental wellness companion for Indian Gen Z, built on a sup
 ```
 evia/
 ├── apps/
-│   ├── mobile/               Flutter app (Android-first MVP)
-│   ├── api/                  Node.js/TypeScript backend (Cloud Run)
-│   ├── worker/               evia-worker background jobs (Cloud Run)
-│   └── therapist-portal/     Next.js therapist portal
+│   ├── mobile/               Flutter app (Android-first MVP) — not an npm workspace member
+│   ├── backend/              Node.js/TypeScript backend (Cloud Run) — @evia/backend
+│   └── therapist-portal/     Next.js therapist portal — @evia/therapist-portal
 ├── packages/
-│   ├── prisma/               Prisma schema + generated client (shared)
-│   └── shared-types/         TypeScript types shared across apps
+│   ├── prisma/               Prisma schema + generated client (shared) — @evia/prisma
+│   └── shared-types/         TypeScript types shared across apps — @evia/shared-types
+├── scripts/                  Deploy and utility scripts
 ├── infra/                    Cloud Build + Cloud Run configs
 ├── load-tests/               k6 WebSocket load test scripts
 └── docs/                     Architecture decisions, setup guides
@@ -68,7 +68,7 @@ See [docs/neon-setup.md](docs/neon-setup.md) for the full local database setup g
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/suvoksystems/evia.git
+git clone https://github.com/EviaAI/evia.git
 cd evia
 
 # 2. Copy env template and fill in your values
@@ -78,11 +78,11 @@ cp .env.example .env
 # 3. Install all dependencies (runs from monorepo root)
 pnpm install
 
-# 4. Run the first database migration
-cd apps/api && pnpm prisma migrate dev && cd ../..
+# 4. Run the first database migration (once Prisma is configured — E0-S03)
+cd apps/backend && pnpm prisma migrate dev && cd ../..
 
-# 5. Start the backend (from apps/api/)
-cd apps/api && pnpm dev
+# 5. Start the backend (from apps/backend/)
+cd apps/backend && pnpm run dev
 
 # 6. Start the Flutter app (from apps/mobile/)
 cd apps/mobile && flutter run --flavor dev

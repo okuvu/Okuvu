@@ -1,0 +1,8 @@
+{
+  "name": "@evia/therapist-portal",
+  "private": true,
+  "dependencies": {
+    "@evia/prisma": "workspace:*",
+    "@evia/shared-types": "workspace:*"
+  }
+}

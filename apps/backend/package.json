@@ -1,0 +1,11 @@
+{
+  "name": "@evia/backend",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Backend dev server — implemented in E0-S02' && exit 0"
+  },
+  "dependencies": {
+    "@evia/prisma": "workspace:*",
+    "@evia/shared-types": "workspace:*"
+  }
+}

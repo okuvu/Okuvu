@@ -1,0 +1,31 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/backend:
+    dependencies:
+      '@evia/prisma':
+        specifier: workspace:*
+        version: link:../../packages/prisma
+      '@evia/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+
+  apps/therapist-portal:
+    dependencies:
+      '@evia/prisma':
+        specifier: workspace:*
+        version: link:../../packages/prisma
+      '@evia/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+
+  packages/prisma: {}
+
+  packages/shared-types: {}

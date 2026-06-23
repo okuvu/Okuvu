@@ -1,7 +1,14 @@
 # ============================================================
 # EVIA — .gitignore
-# Covers: Flutter, Node/TypeScript, GCP credentials, env files
+# Covers: Flutter, Node/TypeScript, GCP credentials, env files, dev tooling
 # ============================================================
+
+# ----------------------------
+# Developer tooling (local only — never committed)
+# ----------------------------
+.opencode/
+graphify-out/
+AGENTS.md
 
 # ----------------------------
 # CRITICAL — NEVER COMMIT THESE
@@ -34,7 +41,7 @@ apps/mobile/ios/Runner/GoogleService-Info.plist
 # Node / TypeScript
 # ----------------------------
 
-# pnpm lockfile is committed — do not ignore (pnpm-lock.yaml)
+# pnpm lockfile is committed (pnpm-lock.yaml) — do not ignore
 # npm lockfile should NOT exist — if you see package-lock.json, delete it
 package-lock.json
 node_modules/
