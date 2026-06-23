@@ -315,6 +315,30 @@ jobs:
             Execute all steps now.
 
       # ─────────────────────────────────────────────
+      # Post full review to PR
+      # ─────────────────────────────────────────────
+      - name: Post review to PR
+        if: steps.validate.outputs.template_valid == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const reviewPath = '/tmp/review.md';
+            let body;
+            try {
+              body = fs.readFileSync(reviewPath, 'utf8');
+            } catch {
+              core.warning('review.md not found — skipping PR comment');
+              return;
+            }
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: prNumber,
+              body,
+            });
+
+      # ─────────────────────────────────────────────
       # Discord notification
       # ─────────────────────────────────────────────
       - name: Discord notification
