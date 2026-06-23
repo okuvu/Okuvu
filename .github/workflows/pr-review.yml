@@ -264,6 +264,10 @@ jobs:
           VALIDATION_RESULT: ${{ steps.validate.outputs.template_valid }}
           REVIEW_OUTCOME: ${{ steps.opencode.outcome }}
         run: |
+          echo "DEBUG: WEBHOOK_LENGTH=${#DISCORD_WEBHOOK}"
+          echo "DEBUG: VALIDATION_RESULT=$VALIDATION_RESULT"
+          echo "DEBUG: REVIEW_OUTCOME=$REVIEW_OUTCOME"
+
           if [ "$VALIDATION_RESULT" = "false" ]; then
             COLOR=15548997
             TITLE="⚠️ PR Review Skipped - #$PR_NUMBER"
@@ -278,6 +282,9 @@ jobs:
             DESC="**$PR_TITLE**"
           fi
 
-          jq -n --arg title "$TITLE" --arg url "$PR_URL" --arg desc "$DESC" --arg author "$PR_AUTHOR" --argjson color "$COLOR" \
-            '{embeds: [{title: $title, url: $url, description: ($desc + "\nAuthor: " + $author), color: $color}]}' \
-            | curl -s -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK"
+          PAYLOAD=$(jq -n --arg title "$TITLE" --arg url "$PR_URL" --arg desc "$DESC" --arg author "$PR_AUTHOR" --argjson color "$COLOR" \
+            '{embeds: [{title: $title, url: $url, description: ($desc + "\nAuthor: " + $author), color: $color}]}')
+
+          echo "DEBUG: Sending payload to Discord..."
+          curl -sS --fail -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK"
+          echo "DEBUG: Discord notification sent successfully"
