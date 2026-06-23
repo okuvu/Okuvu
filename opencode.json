@@ -1,5 +1,8 @@
 {
   "model": "minimax/MiniMax-M2.7",
+  "permission": {
+    "external_directory": "allow"
+  },
   "mcp": {
     "clickup": {
       "type": "local",

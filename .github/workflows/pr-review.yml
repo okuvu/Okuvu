@@ -19,6 +19,7 @@ jobs:
        contains(github.event.comment.body, '/opencode review'))
     name: OpenCode PR Review
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       id-token: write
       contents: read
@@ -31,6 +32,26 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
           ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/merge', github.event.issue.number) }}
+
+      # ─────────────────────────────────────────────
+      # Cache: NPX packages (ClickUp MCP, etc.)
+      # ─────────────────────────────────────────────
+      - name: Cache NPX packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm/_npx
+          key: npx-cache-${{ runner.os }}-${{ hashFiles('package.json') }}
+          restore-keys: |
+            npx-cache-${{ runner.os }}-
+
+      # ─────────────────────────────────────────────
+      # Cache: OpenCode binary
+      # ─────────────────────────────────────────────
+      - name: Cache OpenCode binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.opencode/bin
+          key: opencode-bin-${{ runner.os }}
 
       # ─────────────────────────────────────────────
       # Pre-flight: validate PR template is filled
