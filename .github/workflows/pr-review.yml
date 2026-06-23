@@ -241,12 +241,9 @@ jobs:
             {APPROVE / REQUEST CHANGES / BLOCK with reasoning}
             ---
 
-            ## Step 7 — Post the review
+            ## Step 7 — Save the review
 
             Write the entire verdict to /tmp/review.md.
-            Then post it as a PR comment:
-
-            gh pr comment ${{ github.event.pull_request.number || github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/review.md
 
             Execute all steps now.
 
