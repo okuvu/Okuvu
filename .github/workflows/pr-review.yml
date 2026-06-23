@@ -1,0 +1,253 @@
+name: PR Review (OpenCode)
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != '' &&
+       contains(github.event.comment.body, '/opencode review'))
+    name: OpenCode PR Review
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+      issues: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/merge', github.event.issue.number) }}
+
+      # ─────────────────────────────────────────────
+      # Pre-flight: validate PR template is filled
+      # ─────────────────────────────────────────────
+      - name: Validate PR template
+        id: validate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request?.body || context.payload.issue?.body || '';
+            const issues = [];
+
+            const storyMatch = body.match(/\*\*Story:\*\*\s*(.+)/);
+            const storyValue = storyMatch ? storyMatch[1].trim() : '';
+            if (!storyValue || storyValue.startsWith('<!--')) {
+              issues.push('- **Story:** - missing ClickUp story ID');
+            }
+
+            const whatChangedSection = body.match(/## What changed\n+([\s\S]*?)(?:\n+---|\n+## )/);
+            if (!whatChangedSection || !whatChangedSection[1].trim()) {
+              issues.push('- **What changed** - section is empty or missing');
+            }
+
+            const testEvidenceSection = body.match(/## Test evidence\n+([\s\S]*?)(?:\n+---|\n+## )/);
+            if (!testEvidenceSection || !testEvidenceSection[1].trim()) {
+              issues.push('- **Test evidence** - section is empty or missing');
+            }
+
+            if (issues.length > 0) {
+              const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+              const commentBody = `## ⚠️ PR Review Skipped\n\nThe PR template is missing required sections:\n\n${issues.join('\n')}\n\nPlease update the PR description and comment \`/opencode review\` to trigger the review.`;
+
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+
+              core.setOutput('template_valid', 'false');
+              core.setFailed('PR template is incomplete - review skipped');
+            } else {
+              core.setOutput('template_valid', 'true');
+            }
+
+      # ─────────────────────────────────────────────
+      # OpenCode PR review
+      # ─────────────────────────────────────────────
+      - id: opencode
+        uses: anomalyco/opencode/github@latest
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: minimax/minimax-m2-7
+          use_github_token: true
+          prompt: |
+            You are the Senior Engineer reviewing a PR for the EVIA project.
+
+            ## Context
+            - Repo: ${{ github.repository }}
+            - PR: #${{ github.event.pull_request.number || github.event.issue.number }}
+            - Base branch: ${{ github.base_ref }}
+
+            ## Step 1 — Read the PR
+
+            Read the event payload at $GITHUB_EVENT_PATH using jq.
+            Extract: PR body (.pull_request.body or .issue.body), title, author, head branch ref.
+
+            From the body, extract the ClickUp story ID from the `**Story:**` field.
+
+            ## Step 2 — Verify conventions
+
+            Check:
+            - Branch follows convention: story/E{epic}-S{story}-description
+            - PR targets develop (not main), unless it's a hotfix/* branch
+            - PR template is filled (Story ID present, What Changed has content, Test Evidence has content)
+
+            ## Step 3 — Fetch the ClickUp story
+
+            Use the clickup MCP tools to fetch the full task for the story ID.
+            Get all sections: Functional Requirements, Acceptance Criteria, AI Coding Notes, Definition of Done.
+
+            If the story ID is "N/A", "none", or clearly not a real story ID:
+            - This is an intentional non-story PR (chore / hotfix / tooling change)
+            - Skip the ClickUp fetch
+            - Review against general best practices only
+            - Note that spec comparison is not applicable
+
+            If the story ID looks real but the ClickUp fetch fails:
+            - Flag the fetch failure
+            - Review against general best practices only
+
+            ## Step 4 — Read the diff
+
+            Run: git diff origin/${{ github.base_ref }}...HEAD --stat
+            Then: git diff origin/${{ github.base_ref }}...HEAD
+
+            Categorize all changed files by app (api, mobile, therapist-portal, worker, shared-types, etc.).
+
+            ## Step 5 — Run the structured review
+
+            Review every changed file against the spec. Structure your analysis:
+
+            ### 5a. Scope check
+            - Does the PR do exactly what the story spec describes?
+            - Any out-of-scope changes?
+            - Any required pieces missing?
+
+            ### 5b. Functional requirements check
+            Go through every item from the spec's Functional Requirements.
+            For each: ✅ IMPLEMENTED, ❌ MISSING, ⚠️ PARTIAL
+
+            ### 5c. Acceptance criteria check
+            Go through every item from the spec's Acceptance Criteria.
+            For each: ✅ MET, ❌ NOT MET, ⚠️ CANNOT VERIFY
+
+            ### 5d. AI Coding Notes compliance
+            Check Common mistakes, Hidden requirements, Security considerations, Performance considerations.
+
+            ### 5e. Security check (non-negotiable)
+            - Hardcoded secrets or .env values?
+            - LOCAL_DEV_BYPASS_AUTH hardcoded as true?
+            - JWT validation enforced?
+            - Self-only authorization present?
+            - AES-256-GCM used correctly (E9-S02)?
+            - Therapist-to-client scoping server-side (therapist portal)?
+            - E11-S03: notes table NOT referenced in agent context code?
+
+            ### 5f. Database check
+            - No raw SQL (Prisma only)?
+            - Upserts used where idempotency required?
+            - Queries filtered to authenticated user?
+
+            ### 5g. TypeScript / code quality check
+            - No `any` types (use `unknown`)?
+            - No duplicate types from packages/shared-types/?
+            - No unused imports/variables?
+            - Error handling on all async operations?
+            - No console.log in production paths?
+
+            ### 5h. Test evidence check
+            - PR template Test Evidence section filled with real output?
+            - If DoD includes specific tests, is evidence provided?
+            - For E12 stories: do test assertions actually test what they claim?
+
+            ## Step 6 — Produce the verdict
+
+            Format your verdict exactly like this:
+
+            ---
+            ## PR Review — E{epic}-S{story}: {story title}
+            **PR:** #{number} by {author}
+            **Verdict:** APPROVE
+
+            ### Summary
+            {2-3 sentence summary}
+
+            ### Functional Requirements
+            {checklist from 5b}
+
+            ### Acceptance Criteria
+            {checklist from 5c}
+
+            ### AI Coding Notes Compliance
+            {checklist from 5d}
+
+            ### Issues Found
+            {numbered list with severity, file:line, problem, fix}
+
+            ### Security
+            {PASS or list of BLOCK-level findings}
+
+            ### Definition of Done
+            {checklist}
+
+            ### Merge Decision
+            {APPROVE / REQUEST CHANGES / BLOCK with reasoning}
+            ---
+
+            ## Step 7 — Post the review
+
+            Write the entire verdict to /tmp/review.md.
+            Then post it as a PR comment:
+
+            gh pr comment ${{ github.event.pull_request.number || github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/review.md
+
+            Execute all steps now.
+
+      # ─────────────────────────────────────────────
+      # Discord notification
+      # ─────────────────────────────────────────────
+      - name: Discord notification
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          PR_TITLE: ${{ github.event.pull_request.title || github.event.issue.title }}
+          PR_URL: ${{ github.event.pull_request.html_url || github.event.issue.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login || github.event.issue.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          VALIDATION_RESULT: ${{ steps.validate.outputs.template_valid }}
+          REVIEW_OUTCOME: ${{ steps.opencode.outcome }}
+        run: |
+          if [ "$VALIDATION_RESULT" = "false" ]; then
+            COLOR=15548997
+            TITLE="⚠️ PR Review Skipped - #$PR_NUMBER"
+            DESC='**Template incomplete** - fix and comment /opencode review'
+          elif [ "$REVIEW_OUTCOME" = "success" ]; then
+            COLOR=5814783
+            TITLE="🔍 PR Review Complete - #$PR_NUMBER"
+            DESC="**$PR_TITLE**"
+          else
+            COLOR=15548997
+            TITLE="❌ PR Review Failed - #$PR_NUMBER"
+            DESC="**$PR_TITLE**"
+          fi
+
+          jq -n --arg title "$TITLE" --arg url "$PR_URL" --arg desc "$DESC" --arg author "$PR_AUTHOR" --argjson color "$COLOR" \
+            '{embeds: [{title: $title, url: $url, description: ($desc + "\nAuthor: " + $author), color: $color}]}' \
+            | curl -s -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK"

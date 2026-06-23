@@ -19,10 +19,6 @@ jobs:
     name: Backend — typecheck + test
     runs-on: ubuntu-latest
 
-    services:
-      # CI runs against the Neon develop branch (set via secret)
-      # No local Postgres needed
-
     steps:
       - uses: actions/checkout@v4
 

@@ -1,0 +1,17 @@
+{
+  "model": "minimax/MiniMax-M2.7",
+  "mcp": {
+    "clickup": {
+      "type": "local",
+      "command": ["npx", "-y", "@anthropic/mcp-clickup"],
+      "enabled": true,
+      "environment": {
+        "CLICKUP_API_KEY": "{env:CLICKUP_API_KEY}"
+      }
+    }
+  },
+  "instructions": [
+    "CONTRIBUTING.md",
+    ".github/PULL_REQUEST_TEMPLATE.md"
+  ]
+}
