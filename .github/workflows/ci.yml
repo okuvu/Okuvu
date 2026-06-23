@@ -87,7 +87,7 @@ jobs:
 
       - name: Flutter widget tests
         working-directory: apps/mobile
-        run: flutter test test/widget/
+        run: flutter test --dart-define=FLAVOR=dev test/widget_test.dart
 
   # ─────────────────────────────────────────────
   # Security gate — never allow credential leaks

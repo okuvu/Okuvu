@@ -33,9 +33,9 @@ application_default_credentials.json
 service-account.json
 serviceaccount.json
 
-# Firebase config (contains API keys)
-apps/mobile/android/google-services.json
-apps/mobile/ios/Runner/GoogleService-Info.plist
+# Firebase config (contains API keys) — never commit real client config
+apps/**/google-services.json
+apps/**/GoogleService-Info.plist
 
 # ----------------------------
 # Node / TypeScript
