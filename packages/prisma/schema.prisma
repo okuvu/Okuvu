@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// --- ENUMS ---
+enum CarePlan {
+  CP1
+  CP2
+  CP3
+}
+
+enum AssignmentState {
+  provisional
+  confirmed
+}
+
+enum SafetyStateEnum {
+  S0
+  S1
+  S2
+  S3
+  S4
+}
+
+enum Tier {
+  SD
+  TL
+}
+
+// --- MODELS ---
+model User {
+  id           String   @id @default(uuid())
+  firebase_uid String   @unique
+  phone_number String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  clinical_config    ClinicalConfig?
+  safety_state       SafetyState?
+  session_logs       SessionLog[]
+  session_summaries  SessionSummary[]
+  engagement_profile EngagementProfile?
+  session_limits     SessionLimit[]
+  emergency_contact  EmergencyContact?
+
+  // Relations for TherapistNote where User can be either therapist or client
+  notes_authored TherapistNote[] @relation("TherapistToNote")
+  notes_received TherapistNote[] @relation("ClientToNote")
+}
+
+model ClinicalConfig {
+  id                      String          @id @default(uuid())
+  user_id                 String          @unique
+  user                    User            @relation(fields: [user_id], references: [id])
+  care_plan_id            CarePlan
+  assignment_state        AssignmentState @default(provisional)
+  confidence_at_last_eval Float?
+  turns_evaluated         Int             @default(0)
+}
+
+model SafetyState {
+  id                               String           @id @default(uuid())
+  user_id                          String           @unique
+  user                             User             @relation(fields: [user_id], references: [id])
+  safety_state_current             SafetyStateEnum
+  safety_state_at_last_session_end SafetyStateEnum?
+  updated_at                       DateTime         @updatedAt
+}
+
+model SessionLog {
+  id                     String    @id @default(uuid())
+  user_id                String
+  user                   User      @relation(fields: [user_id], references: [id])
+  session_started_at     DateTime  @default(now())
+  session_ended_at       DateTime?
+  turn_count             Int       @default(0)
+  session_feedback_score Int?
+
+  summaries SessionSummary[]
+
+  @@index([user_id, session_started_at(sort: Desc)])
+}
+
+model SessionSummary {
+  id                String     @id @default(uuid())
+  user_id           String
+  user              User       @relation(fields: [user_id], references: [id])
+  session_id        String
+  session           SessionLog @relation(fields: [session_id], references: [id])
+  summary_text      String
+  last_updated_turn Int
+  last_updated_at   DateTime   @updatedAt
+  created_at        DateTime   @default(now())
+
+  @@unique([user_id, session_id])
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+model EngagementProfile {
+  id                 String    @id @default(uuid())
+  user_id            String    @unique
+  user               User      @relation(fields: [user_id], references: [id])
+  current_streak     Int       @default(0)
+  longest_streak     Int       @default(0)
+  last_session_date  DateTime?
+  voice_mode_enabled Boolean   @default(false)
+  consent_1          Boolean   @default(false)
+  consent_2          Boolean   @default(false)
+  consent_3          Boolean   @default(false)
+  consent_4          Boolean   @default(false)
+}
+
+model TherapistNote {
+  id             String   @id @default(uuid())
+  therapist_id   String
+  therapist      User     @relation("TherapistToNote", fields: [therapist_id], references: [id])
+  client_user_id String
+  client         User     @relation("ClientToNote", fields: [client_user_id], references: [id])
+  note_text      String
+  created_at     DateTime @default(now())
+
+  @@index([client_user_id, created_at(sort: Desc)])
+}
+
+model SessionLimit {
+  id            String   @id @default(uuid())
+  user_id       String
+  user          User     @relation(fields: [user_id], references: [id])
+  tier          Tier
+  date_ist      DateTime @db.Date
+  sessions_used Int      @default(0)
+  updated_at    DateTime @updatedAt
+
+  @@unique([user_id, date_ist])
+}
+
+model EmergencyContact {
+  id              String   @id @default(uuid())
+  user_id         String   @unique
+  user            User     @relation(fields: [user_id], references: [id])
+  encrypted_name  String
+  encrypted_phone String
+  created_at      DateTime @default(now())
+}
