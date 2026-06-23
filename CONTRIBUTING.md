@@ -14,7 +14,7 @@ Install these before cloning the repo:
 - **pnpm 9+** — install with `npm install -g pnpm`, then check with `pnpm -v`
 - **Flutter 3.x (stable)** — check with `flutter doctor`
 - **Git** — check with `git --version`
-- A **Neon account** at [neon.tech](https://neon.tech) (free tier)
+- Access to the shared **Neon workspace** — ask the Senior Engineer for an invite
 - A code editor — VS Code with the Flutter and ESLint extensions recommended
 
 ### 2. Clone and install

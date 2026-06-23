@@ -56,7 +56,7 @@ Before you can run anything locally, you need:
 
 1. **Node.js 20+** and **pnpm 9+** — install pnpm with `npm install -g pnpm`, then check with `pnpm -v`
 2. **Flutter 3.x** (stable channel)
-3. **A Neon account** — [neon.tech](https://neon.tech) (free tier is enough)
+3. **Access to the shared Neon workspace** — see [docs/neon-setup.md](docs/neon-setup.md)
 4. **GCP credentials** for evia-dev — ask the Senior Engineer
 5. **Firebase config** for evia-dev — ask the Senior Engineer
 

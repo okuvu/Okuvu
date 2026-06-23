@@ -1,155 +1,71 @@
-# Neon Local Database Setup
+# Local Database Setup via Neon
 
-This guide gets you from zero to a working local PostgreSQL database in about 10 minutes, without needing GCP credentials or Cloud SQL Proxy.
+**⚠️ SECURITY NOTICE: LOCAL DEVELOPMENT ONLY**
+This database environment is strictly for local development. **Never** insert real user data, PII, or sensitive health information into these databases. Use only synthetic/mock data. **Never** commit your `DATABASE_URL` to version control.
 
-**Why Neon instead of Cloud SQL?** Cloud SQL Proxy setup historically takes 1.5–2 hours per developer and is a common source of early debugging time lost to infrastructure. Neon is PostgreSQL-compatible, free for development use, and creates a working database connection in about 2 minutes.
+> **Operational model:** We use a shared team workspace (`evia-dev`) rather than individual Neon accounts. This keeps free-tier branch limits manageable and simplifies credential management during the MVP. Interns do not need to create their own Neon account — the Senior Engineer will add you to the workspace.
 
----
+## Overview
+We use [Neon](https://neon.tech/) to provide zero-friction local Postgres databases via branching. This eliminates the need for local Docker containers or complex Cloud SQL Proxy setups.
 
-## Step 1 — Create a Neon account
+## Step-by-Step Guide (Est. Time: 5 mins)
 
-1. Go to [neon.tech](https://neon.tech) and sign up (free, no credit card required)
-2. Create a new project — name it `evia-dev`
-3. Note the **connection string** shown after project creation — you'll need it in Step 3
+### 1. Access the Project & Account Setup
+1. Go to [Neon.tech](https://neon.tech/) and log in (or create a free account if you don't have one).
+2. Ask the Senior Engineer for an invite to the shared `evia-dev` workspace if you don't already have access.
+3. Navigate to the **evia-dev** project.
 
----
+### 2. Create Your Personal Branch
+*To isolate your work, you will create a personal branch off the main schema.*
+1. On the left sidebar, click **Branches**.
+2. Click the **New Branch** button.
+3. **CRITICAL:** Ensure the **Parent branch** is set to `main`. Do not branch off another intern's branch.
+4. Name your branch using the convention: `<yourname>-dev` (e.g., `ishaan-dev`).
+5. Click **Create branch**.
 
-## Step 2 — Create your personal development branch
+### 3. Connect to Your Database
+1. Copy the `.env.example` file to create your local `.env` file:
+   `cp .env.example .env`
+2. In Neon, once your branch is created, a "Connection Details" modal will appear.
+3. Select **Prisma** from the connection snippet dropdown.
+4. Check the **"Show password"** box.
+5. Copy the entire `DATABASE_URL="postgresql://..."` string.
+6. Paste this directly into your local `.env` file.
 
-Neon has a branching feature similar to Git. Each developer gets their own branch so your migrations and test data don't interfere with others.
-
-1. In the Neon dashboard, go to your `evia-dev` project
-2. Click **Branches** → **New Branch**
-3. Name your branch: `yourname-dev` (e.g. `priya-dev`, `arjun-dev`)
-4. Branch **from**: `main` (the shared schema baseline — always branch from `main`, not from another developer's branch)
-5. Click **Create Branch**
-
-Your branch gets its own connection string. Copy it — you need it in the next step.
-
-**Important:** Your personal Neon branch is your local development database. You work on it across all story branches — you don't create a new Neon branch per git story branch.
-
----
-
-## Step 3 — Configure your local .env
-
+You are now ready for E0-S03's migration step.
+### 4. Verify the Connection (Optional)
+If you want to confirm the database is reachable before E0-S03's migration step:
 ```bash
-# From the repo root
-cp .env.example .env
-```
+psql "$DATABASE_URL" -c "SELECT 1;"
+# Expected: " ?column?  --- 1"
+## Troubleshooting & Cleanup
 
-Open `.env` and set `DATABASE_URL` to your Neon branch connection string:
+### Free Tier Cleanup Protocol
+Neon's free tier is limited to **10 concurrent branches**. To stay under this limit:
+- Keep only your personal branch (`<yourname>-dev`) and avoid creating extra ad-hoc branches.
+- Once a feature is merged to `main` and you no longer need your personal branch for active development, delete it via the Neon dashboard to free up a slot.
+- If you hit the branch limit during normal work, look for stale or unused branches in the dashboard and delete them.
 
-```bash
-DATABASE_URL="postgresql://[user]:[password]@[your-neon-host]/evia?sslmode=require"
-```
+### Corrupted Branch / Resetting
+If your branch becomes corrupted or your schema gets out of sync, simply recreate it:
+1. In the Neon dashboard, delete your personal branch.
+2. Create a fresh branch from `main` using the same name (`<yourname>-dev`).
+3. Copy the new `DATABASE_URL` and update your `.env` file.
+4. Once E0-S03 has landed, run `cd apps/api && pnpm prisma migrate dev` to re-apply the schema.
 
-The connection string comes from Neon's dashboard → your branch → **Connection Details** → copy the **Connection string** (Prisma format).
+### Common Issues
 
-Also set:
-```bash
-LOCAL_DEV_BYPASS_AUTH="true"
-```
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| `ECONNREFUSED` when connecting | Wrong `DATABASE_URL` or branch was deleted | Double-check your `.env` and verify the branch exists in the Neon dashboard |
+| `sslmode` or TLS errors | Missing `sslmode=require` in connection string | Neon requires SSL — ensure your `DATABASE_URL` includes `?sslmode=require`; the Prisma snippet from the dashboard includes it by default |
+| "Branch limit reached" in Neon | Too many branches on the free tier | Follow the Cleanup Protocol above to remove stale branches |
 
-This lets you make API calls without a real Firebase token during local development. Make sure this is never set to `true` in any cloud environment.
-
----
-
-## Step 4 — Run the first migration
-
-Once the Prisma schema exists (after E0-S03 is merged to `develop`), run:
-
-```bash
-cd apps/api
-pnpm prisma migrate dev
-```
-
-This creates all the tables in your Neon branch. If E0-S03 hasn't landed yet, this step will fail — wait for it.
-
----
-
-## Step 5 — Verify the connection
-
-```bash
-cd apps/api
-pnpm prisma studio
-```
-
-This opens a browser-based GUI for your Neon database at `http://localhost:5555`. If you can see the tables, the connection is working correctly.
-
----
-
-## Keeping Your Branch Up to Date
-
-When new migrations land in `develop` and you pull them to your local git branch, run:
-
-```bash
-cd apps/api
-pnpm prisma migrate dev
-```
-
-This applies any new migrations to your Neon branch. You don't need to manually sync your Neon branch with the `main` Neon branch — Prisma migrations handle this.
-
----
-
-## Resetting Your Branch
-
-If your local database gets into a bad state (e.g. from a failed migration or test data corruption):
-
-**Option 1 — Reset migrations locally (keeps your Neon branch):**
-```bash
-cd apps/api
-pnpm prisma migrate reset
-# This drops all tables and re-runs all migrations from scratch
-# Your Neon branch data is lost, but the schema is clean
-```
-
-**Option 2 — Delete and recreate your Neon branch:**
-1. In Neon dashboard → Branches → your branch → Delete
-2. Create a new branch from `main` with the same name
-3. Update `DATABASE_URL` in your `.env` with the new connection string
-4. Run `pnpm prisma migrate dev` again
-
-Option 2 is slower but gives you a completely fresh database.
-
----
-
-## Troubleshooting
-
-**"Connection refused" or "ECONNREFUSED"**
-- Check that `DATABASE_URL` in your `.env` is exactly the Neon connection string (not a placeholder)
-- Make sure `sslmode=require` is at the end of the URL
-
-**"SSL connection required"**
-- Add `?sslmode=require` to the end of your DATABASE_URL if it's missing
-
-**"Migration failed"**
-- Run `pnpm prisma migrate reset` to start fresh, then `pnpm prisma migrate dev` again
-- If the migration itself has an error, check with the Senior Engineer — don't try to manually patch the database
-
-**"Cannot find module '@prisma/client'"**
-- Run `pnpm install` from the repo root
-- Then `cd apps/api && pnpm prisma generate` to regenerate the Prisma client
-
-**Neon branch is slow or timing out**
-- Neon's free tier has a compute budget. If your branch is idle for a while, the first connection takes a few seconds to wake it up. This is normal — the second connection will be fast.
-
----
-
-## CI Database (develop Neon branch)
-
-The CI pipeline (GitHub Actions) runs against a `develop` Neon branch maintained by the Senior Engineer. You don't interact with this branch directly — it exists only for CI. When your PR's CI run passes, it means your migrations and tests work against the shared `develop` schema state.
-
-If CI fails with a database error on your PR but your local tests pass, tell the Senior Engineer — it likely means the `develop` Neon branch needs to have migrations re-applied.
-
----
-
-## Staging and Production
-
-| Environment | Database |
-|---|---|
-| Local dev | Neon (your personal branch) |
-| CI | Neon (`develop` branch) |
-| Staging (evia-beta) | Cloud SQL PostgreSQL (asia-south1) |
-| Production (evia-production) | Cloud SQL PostgreSQL Multi-zone (asia-south1) |
-
-Staging and production databases are managed by the Senior Engineer. You never connect directly to Cloud SQL from your local machine.
+CI Database (develop Neon branch)
+CI runs against a develop Neon branch maintained by the Senior Engineer. You don't interact with this branch directly — it exists only for CI.
+Environment Overview
+Environment	Database	Managed By
+Local dev	Neon (your personal branch)	You
+CI	Neon (develop branch)	Senior Engineer
+Staging (evia-beta)	Cloud SQL PostgreSQL	Senior Engineer
+Production (evia-production)	Cloud SQL PostgreSQL Multi-zone	Senior Engineer
