@@ -2,7 +2,7 @@
   "name": "@evia/backend",
   "private": true,
   "scripts": {
-    "dev": "echo 'Backend dev server — implemented in E0-S02' && exit 0"
+    "dev": "echo 'INFO: The backend API has moved to apps/api. Run: cd ../api && pnpm dev' && exit 0"
   },
   "dependencies": {
     "@evia/prisma": "workspace:*",
