@@ -1,39 +1,43 @@
 import 'package:flutter/material.dart';
-import 'config/app_config.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'router/router.dart';
+import 'core/providers.dart';
+import 'features/crisis/crisis_overlay.dart';
 
-class App extends StatelessWidget {
+class App extends ConsumerWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+
+    return MaterialApp.router(
       title: 'Evia',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: Colors.teal,
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      routerConfig: router,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            child ?? const SizedBox.shrink(),
+            const _CrisisOverlaySlot(),
+          ],
+        );
+      },
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class _CrisisOverlaySlot extends ConsumerWidget {
+  const _CrisisOverlaySlot();
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Evia')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Environment: ${AppConfig.environment.label}'),
-            Text('Base URL: ${AppConfig.baseUrl}'),
-          ],
-        ),
-      ),
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final showCrisis = ref.watch(crisisOverlayProvider);
+    if (!showCrisis) return const SizedBox.shrink();
+    return const CrisisOverlay();
   }
 }

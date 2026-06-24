@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/app.dart';
 import 'src/config/app_config.dart';
 
@@ -11,5 +12,5 @@ void main() {
   debugPrint('  Base URL:    ${AppConfig.baseUrl}');
   debugPrint('========================================');
 
-  runApp(const App());
+  runApp(const ProviderScope(child: App()));
 }

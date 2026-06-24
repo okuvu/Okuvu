@@ -17,6 +17,7 @@
 
 ## Test evidence
 
+
 **For backend stories:**
 - [ ] Endpoint responds correctly (paste curl command or screenshot link)
 - [ ] Acceptance criteria from the ClickUp task are met (copy and check off each one below)
