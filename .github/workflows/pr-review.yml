@@ -83,6 +83,22 @@ jobs:
               issues.push('- **Story:** — Missing `**Story:**` field entirely.\n  Add it under the `## Story` heading: `**Story:** E4-S02`');
             }
 
+            // ── ClickUp task URL field ──────────────
+            const storyValue = boldStoryMatch ? stripHtml(boldStoryMatch[1]).trim() : '';
+            const isNaStory = /^(n\/a|none|N\/A|NONE|-)$/i.test(storyValue);
+
+            if (!isNaStory && storyValue) {
+              const clickupMatch = body.match(/\*\*ClickUp task:\*\*\s*(\S+)/);
+              const clickupValue = clickupMatch ? stripHtml(clickupMatch[1]).trim() : '';
+              const isClickupUrl = /https:\/\/app\.clickup\.com\/t\/\d+\/[a-z0-9]+/.test(clickupValue);
+
+              if (!clickupValue || clickupValue.startsWith('<!--')) {
+                issues.push('- **ClickUp task:** — Missing or empty.\n  Paste the full ClickUp task URL, e.g., `**ClickUp task:** https://app.clickup.com/t/90161657622/86d3dqmk6`');
+              } else if (!isClickupUrl) {
+                issues.push('- **ClickUp task:** — Value `' + clickupValue + '` doesn\'t look like a ClickUp task URL.\n  Expected format: `https://app.clickup.com/t/{workspace}/{task_id}`');
+              }
+            }
+
             // ── Section diagnostic helper ────────────
             function extractContent(body, heading) {
               const boundaries = [
