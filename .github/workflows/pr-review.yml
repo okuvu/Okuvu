@@ -225,27 +225,38 @@ jobs:
 
             ## Step 3 — Fetch the ClickUp story
 
-            If the story ID is "N/A", "none", or clearly not a real story ID, skip this step and note
-            that spec comparison is not applicable.
+            If the story ID is "N/A", "none", or clearly not a real story ID, log:
+            `[CLICKUP] Skipping fetch — intentional non-story PR`
+            Then skip this step and note that spec comparison is not applicable.
 
-            Otherwise you MUST try ALL of the following attempts in order. Do NOT skip to the review
-            without attempting every one.
+            Otherwise you MUST try ALL of the following attempts in order. Log EACH attempt's result.
+            Do NOT skip to the review without attempting every one.
 
-            **Attempt 1 — MCP get task (use if clickup MCP tools are available):**
+            **Attempt 1 — MCP get task:**
+            Log: `[CLICKUP] Attempting Method 1: MCP get_task with task ID from URL`
             Run `clickup_get_task` with the task ID parsed from the `**ClickUp task:**` URL in Step 1.
+            If successful, log: `[CLICKUP] ✅ Method 1 succeeded — fetched task via MCP get_task`
+            If failed or tools unavailable, log: `[CLICKUP] ❌ Method 1 failed — MCP tools not available or task not found`
 
-            **Attempt 2 — MCP search (use if Attempt 1 failed or no task URL is available):**
-            Run `clickup_search` with the story ID text (e.g. "E3-S04").
+            **Attempt 2 — MCP search:**
+            Log: `[CLICKUP] Attempting Method 2: MCP search with story ID (e.g. E3-S04)`
+            Run `clickup_search` with the story ID text.
+            If successful, log: `[CLICKUP] ✅ Method 2 succeeded — fetched task via MCP search`
+            If failed, log: `[CLICKUP] ❌ Method 2 failed — task not found in MCP search or no MCP tools available`
 
-            **Attempt 3 — curl direct fetch (execute this regardless of whether MCP worked):**
+            **Attempt 3 — curl direct fetch:**
+            Log: `[CLICKUP] Attempting Method 3: curl direct fetch with task ID`
             Parse the task ID from the `**ClickUp task:**` URL (last path segment, e.g. `86d3dqmk6`).
             Run this shell command now:
             ```
             curl -s -H "Authorization: $CLICKUP_API_KEY" \
               "https://api.clickup.com/api/v2/task/TASK_ID_HERE?include_markdown_description=true"
             ```
+            If curl returned valid JSON with a task, log: `[CLICKUP] ✅ Method 3 succeeded — fetched task via curl`
+            If curl returned empty, 404, or error, log: `[CLICKUP] ❌ Method 3 failed — curl returned error or task not found`
 
-            **Attempt 4 — curl search (use if no task URL or Attempt 3 returned an error):**
+            **Attempt 4 — curl search:**
+            Log: `[CLICKUP] Attempting Method 4: curl search by story ID`
             Run these shell commands now:
             ```
             WSID=$(curl -s -H "Authorization: $CLICKUP_API_KEY" \
@@ -253,13 +264,17 @@ jobs:
             curl -s -H "Authorization: $CLICKUP_API_KEY" \
               "https://api.clickup.com/api/v2/team/$WSID/task?text=STORY_ID_HERE&include_closed=true&subtasks=true"
             ```
+            If curl returned task results, log: `[CLICKUP] ✅ Method 4 succeeded — fetched task via curl search`
+            If curl failed or returned no results, log: `[CLICKUP] ❌ Method 4 failed — no results from curl search or API error`
 
             From whichever attempt returns data, extract:
             - Task name and description
             - Custom fields named "Functional Requirements", "Acceptance Criteria", "AI Coding Notes",
               "Definition of Done"
 
-            Only report "unable to fetch" if all 4 attempts produced errors or empty results.
+            Log the final outcome:
+            - If any method succeeded: `[CLICKUP] SUCCESS: Using task data from [Method X]`
+            - If all methods failed: `[CLICKUP] FAILURE: All 4 methods failed. Proceeding with general best practices review only.`
 
             ## Step 4 — Read the diff
 
