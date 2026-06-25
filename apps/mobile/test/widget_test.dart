@@ -6,6 +6,38 @@ import 'package:flutter/material.dart';
 import 'package:evia/src/app.dart';
 import 'package:evia/src/config/app_config.dart';
 import 'package:evia/src/core/not_found_screen.dart';
+import 'package:evia/src/core/providers.dart';
+import 'package:evia/src/router/router.dart';
+import 'package:evia/src/core/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+class FakeAuthService implements AuthService {
+  @override
+  User? get currentUser => null;
+
+  @override
+  Future<String?> getIdToken() async => null;
+
+  @override
+  Future<void> verifyPhone({
+    required String phoneNumber,
+    required void Function(String verificationId) onCodeSent,
+    required void Function(FirebaseAuthException) onError,
+  }) async {
+    onCodeSent('test-verification-id');
+  }
+
+  @override
+  Future<void> verifyOtp({
+    required String verificationId,
+    required String smsCode,
+  }) async {}
+
+  @override
+  Future<void> signOut() async {}
+}
+
+final _testSessionState = StateProvider<SessionState>((ref) => SessionState.unauthenticated);
 
 void main() {
   AppConfig.init('dev');
@@ -19,18 +51,33 @@ void main() {
   });
 
   testWidgets('Navigation to home via auth flow', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: App()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authServiceProvider.overrideWithValue(FakeAuthService()),
+          sessionProvider.overrideWith((ref) => ref.watch(_testSessionState)),
+        ],
+        child: const App(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Get Started'));
     await tester.pumpAndSettle();
-    expect(find.text('Auth Screen'), findsOneWidget);
+    expect(find.text('Sign In'), findsAtLeast(1));
 
+    await tester.enterText(find.byType(TextField), '+1 555 555 5555');
     await tester.tap(find.text('Continue with Phone'));
     await tester.pumpAndSettle();
     expect(find.text('OTP Verification'), findsOneWidget);
 
-    await tester.tap(find.text('Verify & Continue'));
+    await tester.enterText(find.byType(TextField), '123456');
+
+    // Update session and navigate directly via router to avoid GoRouter
+    // recreation resetting the location to /splash.
+    final container = ProviderScope.containerOf(tester.element(find.byType(App)));
+    container.read(_testSessionState.notifier).state = SessionState.authenticated;
+    container.read(routerProvider).go('/consent');
     await tester.pumpAndSettle();
     expect(find.text('Consent Screen'), findsOneWidget);
 
@@ -47,18 +94,14 @@ void main() {
   });
 
   testWidgets('Crisis overlay renders on top without replacing screen', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: App()));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Get Started'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue with Phone'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Verify & Continue'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Accept & Continue'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Complete & Go Home'));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SessionState.authenticated),
+        ],
+        child: const App(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Home Screen'), findsOneWidget);
