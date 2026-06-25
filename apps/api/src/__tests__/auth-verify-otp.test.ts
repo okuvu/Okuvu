@@ -7,7 +7,8 @@ vi.mock('../lib/prisma.js', () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
-      upsert: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -55,7 +56,7 @@ describe('POST /auth/verify-otp', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
-      vi.mocked(prisma.user.upsert).mockResolvedValue(mockUser() as any);
+      vi.mocked(prisma.user.create).mockResolvedValue(mockUser() as any);
       app = buildApp();
     });
 
@@ -72,9 +73,9 @@ describe('POST /auth/verify-otp', () => {
       expect(body.is_new_user).toBe(true);
 
       const prisma = await importMocks();
-      expect(prisma.user.upsert).toHaveBeenCalledWith(
+      expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: expect.objectContaining({ phone_number: '+15550000001' }),
+          data: expect.objectContaining({ phone_number: '+15550000001' }),
         }),
       );
     });
@@ -91,9 +92,9 @@ describe('POST /auth/verify-otp', () => {
       expect(body.is_new_user).toBe(true);
 
       const prisma = await importMocks();
-      expect(prisma.user.upsert).toHaveBeenCalledWith(
+      expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: expect.objectContaining({ phone_number: '+0000000000' }),
+          data: expect.objectContaining({ phone_number: '+0000000000' }),
         }),
       );
     });
@@ -103,7 +104,7 @@ describe('POST /auth/verify-otp', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
       vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser() as any);
-      vi.mocked(prisma.user.upsert).mockResolvedValue(
+      vi.mocked(prisma.user.update).mockResolvedValue(
         mockUser({ created_at: new Date('2026-01-01'), updated_at: new Date('2026-06-01') }) as any,
       );
       app = buildApp();
@@ -123,7 +124,8 @@ describe('POST /auth/verify-otp', () => {
 
       const prisma = await importMocks();
       expect(prisma.user.findUnique).toHaveBeenCalled();
-      expect(prisma.user.upsert).toHaveBeenCalled();
+      expect(prisma.user.update).toHaveBeenCalled();
+      expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
     it('updates phone_number when provided for existing user', async () => {
@@ -136,9 +138,9 @@ describe('POST /auth/verify-otp', () => {
       expect(response.statusCode).toBe(200);
 
       const prisma = await importMocks();
-      expect(prisma.user.upsert).toHaveBeenCalledWith(
+      expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          update: { phone_number: '+15559999999' },
+          data: { phone_number: '+15559999999' },
         }),
       );
     });
@@ -178,7 +180,7 @@ describe('POST /auth/verify-otp', () => {
   });
 
   describe('bypass mode — concurrent requests', () => {
-    it('creates exactly one User row under concurrent calls for same new firebase_uid', async () => {
+    it('handles concurrent requests for the same new firebase_uid', async () => {
       const prisma = await importMocks();
 
       const store = new Map<string, MockUser>();
@@ -188,18 +190,17 @@ describe('POST /auth/verify-otp', () => {
       }) as any);
 
       let createCount = 0;
-      vi.mocked(prisma.user.upsert).mockImplementation((async (args: {
-        where: { firebase_uid: string };
-        create: { firebase_uid: string; phone_number: string };
+      vi.mocked(prisma.user.create).mockImplementation((async (args: {
+        data: { firebase_uid: string; phone_number: string };
       }) => {
-        const uid = args.where.firebase_uid;
+        const uid = args.data.firebase_uid;
         const existing = store.get(uid);
         if (existing) {
           return existing;
         }
         const newUser = mockUser({
           firebase_uid: uid,
-          phone_number: args.create.phone_number,
+          phone_number: args.data.phone_number,
         });
         store.set(uid, newUser);
         createCount++;

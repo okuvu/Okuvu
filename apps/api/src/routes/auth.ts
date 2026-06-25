@@ -18,18 +18,29 @@ export async function authRoute(app: FastifyInstance): Promise<void> {
         select: { id: true },
       });
 
-      const user = await prisma.user.upsert({
-        where: { firebase_uid: uid },
-        create: {
+      if (existingUser) {
+        if (phone_number) {
+          await prisma.user.update({
+            where: { firebase_uid: uid },
+            data: { phone_number },
+          });
+        }
+        return reply.send({
+          user_id: existingUser.id,
+          is_new_user: false,
+        });
+      }
+
+      const user = await prisma.user.create({
+        data: {
           firebase_uid: uid,
           phone_number: phone_number ?? '+0000000000',
         },
-        update: phone_number ? { phone_number } : {},
       });
 
       reply.send({
         user_id: user.id,
-        is_new_user: !existingUser,
+        is_new_user: true,
       });
     },
   });
