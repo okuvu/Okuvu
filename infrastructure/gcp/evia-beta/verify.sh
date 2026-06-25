@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ID="evia-beta"
-SA_EMAIL="evia-beta-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+PROJECT_ID="evia-500215"
+SA_EMAIL="evia-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
-echo "=== Verifying evia-beta GCP project ==="
+echo "=== Verifying evia GCP project ==="
 
 echo ""
 echo "1. Checking project exists and billing is enabled..."

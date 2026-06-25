@@ -1,10 +1,10 @@
 output "project_id" {
-  description = "The evia-beta GCP project ID"
+  description = "The evia GCP project ID"
   value       = google_project.evia_beta.project_id
 }
 
 output "project_number" {
-  description = "The evia-beta GCP project number"
+  description = "The evia GCP project number"
   value       = google_project.evia_beta.number
 }
 

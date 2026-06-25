@@ -51,7 +51,7 @@ resource "google_service_account" "evia_beta_sa" {
   project      = google_project.evia_beta.project_id
   account_id   = var.service_account_id
   display_name = var.service_account_name
-  description  = "Least-privilege service account for evia-beta services. NOT granted Owner or Editor."
+  description  = "Least-privilege service account for evia services. NOT granted Owner or Editor."
 }
 
 resource "google_project_iam_member" "sa_cloud_sql_client" {

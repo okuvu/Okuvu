@@ -38,8 +38,8 @@ Write-Host "[2/5] Verifying service account exists..." -ForegroundColor Yellow
 $saCheck = gcloud iam service-accounts describe $CloudRunServiceAccount --project=$ProjectId 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Service account '$CloudRunServiceAccount' does not exist in project '$ProjectId'."
-    Write-Error "Run E0-S05 (Provisions evia-beta GCP project) first, or create the SA manually:"
-    Write-Error "  gcloud iam service-accounts create evia-beta-sa --project=$ProjectId"
+    Write-Error "Run E0-S05 (GCP project provisioning) first, or create the SA manually:"
+    Write-Error "  gcloud iam service-accounts create evia-sa --project=$ProjectId"
     exit 1
 }
 Write-Host "[2/5] Service account confirmed: $CloudRunServiceAccount" -ForegroundColor Green

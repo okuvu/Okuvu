@@ -67,5 +67,5 @@ Environment Overview
 Environment	Database	Managed By
 Local dev	Neon (your personal branch)	You
 CI	Neon (develop branch)	Senior Engineer
-Staging (evia-beta)	Cloud SQL PostgreSQL	Senior Engineer
+Staging (evia-500215)	Cloud SQL PostgreSQL	Senior Engineer
 Production (evia-production)	Cloud SQL PostgreSQL Multi-zone	Senior Engineer

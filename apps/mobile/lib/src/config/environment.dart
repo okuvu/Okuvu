@@ -5,11 +5,11 @@ enum Environment {
   ),
   beta(
     label: 'beta',
-    baseUrl: 'https://evia-beta-xxxxx-uc.a.run.app',
+    baseUrl: 'https://evia-500215-xxxxx-uc.a.run.app',
   ),
   prod(
     label: 'prod',
-    baseUrl: 'https://evia-beta-xxxxx-uc.a.run.app',
+    baseUrl: 'https://evia-500215-xxxxx-uc.a.run.app',
   );
 
   final String label;

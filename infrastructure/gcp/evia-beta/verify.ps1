@@ -1,7 +1,7 @@
-$ProjectId = "evia-beta"
-$SaEmail = "evia-beta-sa@${ProjectId}.iam.gserviceaccount.com"
+$ProjectId = "evia-500215"
+$SaEmail = "evia-sa@${ProjectId}.iam.gserviceaccount.com"
 
-Write-Host "=== Verifying evia-beta GCP project ===" -ForegroundColor Cyan
+Write-Host "=== Verifying evia GCP project ===" -ForegroundColor Cyan
 
 Write-Host "`n1. Checking project and billing..."
 gcloud projects describe $ProjectId --format="value(projectId, name, lifecycleState)"

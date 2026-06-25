@@ -1,4 +1,4 @@
-# evia-beta — GCP Project Provisioning
+# evia-500215 — GCP Project Provisioning
 
 ## Prerequisites
 
@@ -31,9 +31,9 @@ terraform apply -auto-approve
 
 | Resource | Detail |
 |---|---|
-| Project | `evia-beta` (display name: Evia Beta) |
+| Project | `evia-500215` (display name: Evia) |
 | APIs | Cloud Run, Cloud SQL Admin, Firebase Auth, Cloud Storage, Vertex AI, Secret Manager |
-| Service Account | `evia-beta-sa` with least-privilege IAM (no Owner/Editor) |
+| Service Account | `evia-sa` with least-privilege IAM (no Owner/Editor) |
 | IAM Roles | Cloud SQL Client, Secret Manager Accessor, Vertex AI User, Storage Object Admin |
 | Admin access | Granted to the user specified in `admin_user` |
 
@@ -42,8 +42,8 @@ terraform apply -auto-approve
 After applying, run:
 
 ```bash
-gcloud config set project evia-beta
-gcloud services list --enabled --project=evia-beta
+gcloud config set project evia-500215
+gcloud services list --enabled --project=evia-500215
 ```
 
 Confirm all 6 required APIs appear in the output.

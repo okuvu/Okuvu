@@ -27,7 +27,7 @@ assignees: ''
 ## Environment
 
 - [ ] Local dev (Neon + local API)
-- [ ] evia-beta (staging)
+- [ ] evia-500215 (staging)
 
 **Story/feature this relates to (if known):** E_-S_
 

@@ -95,7 +95,7 @@ cd apps/mobile && flutter run --flavor dev
 | Environment | GCP Project | Deployed from | Purpose |
 |---|---|---|---|
 | **dev** | `evia-dev` | Local machine | Individual story development |
-| **staging** | `evia-beta` | `main` branch (auto) | Integration, dogfooding, supervised beta |
+| **staging** | `evia-500215` | `main` branch (auto) | Integration, dogfooding, supervised beta |
 | **prod** | `evia-production` | Git tag `v*` (manual approval) | Live users |
 
 ---
@@ -103,7 +103,7 @@ cd apps/mobile && flutter run --flavor dev
 ## Branching
 
 ```
-main        ← always deployable to evia-beta (staging)
+main        ← always deployable to evia-500215 (staging)
 develop     ← story branches merge here first
 story/*     ← one branch per ClickUp story (deleted after merge)
 hotfix/*    ← P0 fixes only, direct to main

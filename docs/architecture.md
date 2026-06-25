@@ -105,7 +105,7 @@ The full schema is in `packages/prisma/schema.prisma`.
 
 | | dev | staging | prod |
 |---|---|---|---|
-| GCP Project | `evia-dev` | `evia-beta` | `evia-production` |
+| GCP Project | `evia-dev` | `evia-500215` | `evia-production` |
 | Database | Neon (personal branch) | Cloud SQL | Cloud SQL (Multi-zone) |
 | LLM | Vertex AI (dev quota) | Vertex AI | Vertex AI |
 | Deployed from | Local machine | `main` branch (auto) | Git tag `v*` (manual) |

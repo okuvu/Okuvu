@@ -1,7 +1,7 @@
 variable "project_id" {
-  description = "GCP project ID (evia-beta)"
+  description = "GCP project ID (evia-500215)"
   type        = string
-  default     = "evia-beta"
+  default     = "evia-500215"
 }
 
 variable "region" {
@@ -43,7 +43,7 @@ variable "db_backup_retention_days" {
 variable "cloud_run_service_account" {
   description = "Email of the Cloud Run service account that needs secret access"
   type        = string
-  default     = "evia-beta-sa@evia-beta.iam.gserviceaccount.com"
+  default     = "evia-sa@evia-500215.iam.gserviceaccount.com"
 }
 
 variable "sarvam_api_key" {

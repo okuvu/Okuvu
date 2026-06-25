@@ -18,13 +18,13 @@ variable "organization_id" {
 variable "project_name" {
   description = "Display name for the GCP project"
   type        = string
-  default     = "Evia Beta"
+  default     = "Evia"
 }
 
 variable "project_id" {
   description = "Globally unique GCP project ID"
   type        = string
-  default     = "evia-beta"
+  default     = "evia-500215"
 }
 
 variable "admin_user" {
@@ -35,11 +35,11 @@ variable "admin_user" {
 variable "service_account_name" {
   description = "Display name for the dedicated service account"
   type        = string
-  default     = "evia-beta-sa"
+  default     = "evia-sa"
 }
 
 variable "service_account_id" {
   description = "Unique ID for the service account (must be 6-30 chars, lowercase alphanumeric)"
   type        = string
-  default     = "evia-beta-sa"
+  default     = "evia-sa"
 }

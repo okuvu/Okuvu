@@ -5,7 +5,7 @@
 ## Branch Structure
 
 ```
-main        ← always deployable to evia-beta (staging)
+main        ← always deployable to evia-500215 (staging)
 develop     ← all story branches merge here first
 story/*     ← one branch per ClickUp story (deleted after merge)
 hotfix/*    ← P0 fixes only, direct to main (Sprint 4 only)
@@ -18,8 +18,8 @@ That's it. Two permanent branches. Everything else is transient.
 ## What Each Branch Does
 
 ### `main`
-- Always represents a state that can be deployed to evia-beta (staging)
-- Cloud Build auto-deploys to evia-beta on every merge to `main`
+- Always represents a state that can be deployed to evia-500215 (staging)
+- Cloud Build auto-deploys to evia-500215 on every merge to `main`
 - Git tags on `main` trigger production deploys (`v1.0.0`, etc.)
 - **No direct pushes** — everything goes through a PR
 
@@ -68,7 +68,7 @@ Story branch auto-deleted
         │
         ▼
 Senior Engineer opens PR: develop → main
-Merges → Cloud Build deploys to evia-beta
+Merges → Cloud Build deploys to evia-500215
         │
         │  (After E12-S05 HALT sign-off + E13-S04 P0 fixes complete)
         │
