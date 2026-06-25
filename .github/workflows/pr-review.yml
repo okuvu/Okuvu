@@ -195,7 +195,10 @@ jobs:
             Read the event payload at $GITHUB_EVENT_PATH using jq.
             Extract: PR body (.pull_request.body or .issue.body), title, author, head branch ref.
 
-            From the body, extract the ClickUp story ID from the `**Story:**` field.
+            From the body, extract:
+            - The ClickUp story ID from the `**Story:**` field (e.g. `E3-S01`)
+            - The ClickUp task URL from the `**ClickUp task:**` field (e.g. `https://app.clickup.com/t/90161657622/86d3dqmk6`)
+            - Parse the task ID from the URL: it is the last path segment (e.g. `86d3dqmk6`)
 
             ## Step 2 — Verify conventions
 
@@ -206,18 +209,28 @@ jobs:
 
             ## Step 3 — Fetch the ClickUp story
 
-            Use the clickup MCP tools to fetch the full task for the story ID.
-            Get all sections: Functional Requirements, Acceptance Criteria, AI Coding Notes, Definition of Done.
-
             If the story ID is "N/A", "none", or clearly not a real story ID:
             - This is an intentional non-story PR (chore / hotfix / tooling change)
             - Skip the ClickUp fetch
             - Review against general best practices only
             - Note that spec comparison is not applicable
 
-            If the story ID looks real but the ClickUp fetch fails:
-            - Flag the fetch failure
-            - Review against general best practices only
+            Otherwise, fetch the task using whichever method works first:
+
+            **Method A — MCP tools (preferred):**
+            Use the `clickup_get_task` MCP tool with the task ID parsed from the ClickUp task URL.
+
+            **Method B — REST API (fallback, use if MCP tools are unavailable):**
+            Run:
+            ```
+            curl -s -H "Authorization: $CLICKUP_API_KEY" \
+              "https://api.clickup.com/api/v2/task/{task_id}?include_markdown_description=true"
+            ```
+            Replace `{task_id}` with the task ID parsed from the `**ClickUp task:**` URL in Step 1.
+            Parse the JSON response for: name, description, and custom_fields (look for fields named
+            "Functional Requirements", "Acceptance Criteria", "AI Coding Notes", "Definition of Done").
+
+            If both methods fail, flag the failure and review against general best practices only.
 
             ## Step 4 — Read the diff
 
