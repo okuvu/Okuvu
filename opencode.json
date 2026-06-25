@@ -10,7 +10,7 @@
       "url": "https://mcp.clickup.com/mcp",
       "enabled": true,
       "headers": {
-        "Authorization": "Bearer {env:CLICKUP_API_KEY}"
+        "Authorization": "{env:CLICKUP_API_KEY}"
       }
     }
   },
