@@ -1,0 +1,4 @@
+project_id                = "evia-beta"
+region                    = "asia-south1"
+cloud_run_service_account = "evia-beta-sa@evia-beta.iam.gserviceaccount.com"
+sarvam_api_key            = "placeholder-until-contract-signed"
