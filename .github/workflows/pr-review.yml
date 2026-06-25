@@ -310,6 +310,13 @@ jobs:
 
             Write the entire verdict to /tmp/review.md.
 
+            ## Step 8 — Finish silently
+
+            After writing /tmp/review.md, output ONLY this exact line as your final response and nothing else:
+            `Review saved.`
+
+            Do NOT reproduce the review, the verdict, or any summary in your response text.
+
             Execute all steps now.
 
       # ─────────────────────────────────────────────
