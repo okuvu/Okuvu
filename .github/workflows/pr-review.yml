@@ -225,28 +225,41 @@ jobs:
 
             ## Step 3 — Fetch the ClickUp story
 
-            If the story ID is "N/A", "none", or clearly not a real story ID:
-            - This is an intentional non-story PR (chore / hotfix / tooling change)
-            - Skip the ClickUp fetch
-            - Review against general best practices only
-            - Note that spec comparison is not applicable
+            If the story ID is "N/A", "none", or clearly not a real story ID, skip this step and note
+            that spec comparison is not applicable.
 
-            Otherwise, fetch the task using whichever method works first:
+            Otherwise you MUST try ALL of the following attempts in order. Do NOT skip to the review
+            without attempting every one.
 
-            **Method A — MCP tools (preferred):**
-            Use the `clickup_get_task` MCP tool with the task ID parsed from the ClickUp task URL.
+            **Attempt 1 — MCP get task (use if clickup MCP tools are available):**
+            Run `clickup_get_task` with the task ID parsed from the `**ClickUp task:**` URL in Step 1.
 
-            **Method B — REST API (fallback, use if MCP tools are unavailable):**
-            Run:
+            **Attempt 2 — MCP search (use if Attempt 1 failed or no task URL is available):**
+            Run `clickup_search` with the story ID text (e.g. "E3-S04").
+
+            **Attempt 3 — curl direct fetch (execute this regardless of whether MCP worked):**
+            Parse the task ID from the `**ClickUp task:**` URL (last path segment, e.g. `86d3dqmk6`).
+            Run this shell command now:
             ```
             curl -s -H "Authorization: $CLICKUP_API_KEY" \
-              "https://api.clickup.com/api/v2/task/{task_id}?include_markdown_description=true"
+              "https://api.clickup.com/api/v2/task/TASK_ID_HERE?include_markdown_description=true"
             ```
-            Replace `{task_id}` with the task ID parsed from the `**ClickUp task:**` URL in Step 1.
-            Parse the JSON response for: name, description, and custom_fields (look for fields named
-            "Functional Requirements", "Acceptance Criteria", "AI Coding Notes", "Definition of Done").
 
-            If both methods fail, flag the failure and review against general best practices only.
+            **Attempt 4 — curl search (use if no task URL or Attempt 3 returned an error):**
+            Run these shell commands now:
+            ```
+            WSID=$(curl -s -H "Authorization: $CLICKUP_API_KEY" \
+              "https://api.clickup.com/api/v2/team" | jq -r '.teams[0].id')
+            curl -s -H "Authorization: $CLICKUP_API_KEY" \
+              "https://api.clickup.com/api/v2/team/$WSID/task?text=STORY_ID_HERE&include_closed=true&subtasks=true"
+            ```
+
+            From whichever attempt returns data, extract:
+            - Task name and description
+            - Custom fields named "Functional Requirements", "Acceptance Criteria", "AI Coding Notes",
+              "Definition of Done"
+
+            Only report "unable to fetch" if all 4 attempts produced errors or empty results.
 
             ## Step 4 — Read the diff
 
