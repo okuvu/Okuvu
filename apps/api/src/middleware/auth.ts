@@ -15,7 +15,7 @@ export async function verifyFirebaseJWT(
   reply: FastifyReply,
 ): Promise<void> {
   if (isBypassEnabled()) {
-    (request as any).user = { uid: BYPASS_UID };
+    request.user = { uid: BYPASS_UID };
     return;
   }
 
@@ -37,7 +37,7 @@ export async function verifyFirebaseJWT(
 
   try {
     const payload = await verifyFirebaseToken(token);
-    (request as any).user = payload;
+    request.user = payload;
   } catch {
     reply.status(401).send({
       error: {
