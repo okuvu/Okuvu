@@ -2,8 +2,12 @@ import 'environment.dart';
 
 class AppConfig {
   static late final Environment environment;
-  static late final String baseUrl;
+  static late final String apiBaseUrl;
+  static late final String wsBaseUrl;
   static late final String flavor;
+
+  @Deprecated('Use apiBaseUrl instead')
+  static String get baseUrl => apiBaseUrl;
 
   static void init([String? flavorOverride]) {
     flavor = flavorOverride ?? const String.fromEnvironment('FLAVOR', defaultValue: '');
@@ -11,7 +15,8 @@ class AppConfig {
       throw FlavorNotSpecifiedException();
     }
     environment = Environment.fromString(flavor);
-    baseUrl = environment.baseUrl;
+    apiBaseUrl = environment.apiBaseUrl;
+    wsBaseUrl = environment.wsBaseUrl;
   }
 }
 

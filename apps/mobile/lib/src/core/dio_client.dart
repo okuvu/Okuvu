@@ -3,7 +3,7 @@ import '../config/app_config.dart';
 
 Dio createDioClient() {
   final dio = Dio(BaseOptions(
-    baseUrl: AppConfig.baseUrl,
+    baseUrl: AppConfig.apiBaseUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
     headers: {

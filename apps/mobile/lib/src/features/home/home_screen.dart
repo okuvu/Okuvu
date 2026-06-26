@@ -16,7 +16,7 @@ class HomeScreen extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text('Environment: ${AppConfig.environment.label}'),
-            Text('Base URL: ${AppConfig.baseUrl}'),
+            Text('Base URL: ${AppConfig.apiBaseUrl}'),
             const SizedBox(height: 32),
             Text('Home Screen', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 24),

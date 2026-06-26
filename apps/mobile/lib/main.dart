@@ -14,7 +14,7 @@ void main() async {
   debugPrint('========================================');
   debugPrint('  Evia — Starting up');
   debugPrint('  Environment: ${AppConfig.environment.label}');
-  debugPrint('  Base URL:    ${AppConfig.baseUrl}');
+  debugPrint('  Base URL:    ${AppConfig.apiBaseUrl}');
   debugPrint('========================================');
 
   runApp(const ProviderScope(child: App()));
