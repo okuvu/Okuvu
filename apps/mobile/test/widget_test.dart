@@ -1,7 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 
 import 'package:evia/src/app.dart';
 import 'package:evia/src/config/app_config.dart';
@@ -10,6 +12,26 @@ import 'package:evia/src/core/providers.dart';
 import 'package:evia/src/router/router.dart';
 import 'package:evia/src/core/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+class MockHttpClientAdapter implements HttpClientAdapter {
+  RequestOptions? lastRequest;
+  int _statusCode = 200;
+
+  void setStatus(int code) => _statusCode = code;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    lastRequest = options;
+    return ResponseBody.fromString('{"success": true}', _statusCode);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 class FakeAuthService implements AuthService {
   @override
@@ -51,11 +73,16 @@ void main() {
   });
 
   testWidgets('Navigation to home via auth flow', (WidgetTester tester) async {
+    final adapter = MockHttpClientAdapter();
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+    dio.httpClientAdapter = adapter;
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authServiceProvider.overrideWithValue(FakeAuthService()),
           sessionProvider.overrideWith((ref) => ref.watch(_testSessionState)),
+          dioClientProvider.overrideWithValue(dio),
         ],
         child: const App(),
       ),
