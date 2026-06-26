@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -euo
 
 # =========================================================
 # deploy-beta.sh - Build and deploy apps/api to Cloud Run
@@ -9,7 +9,7 @@ set -euo pipefail
 readonly PROJECT_ID="evia-500215"
 readonly REGION="asia-south1"
 readonly SERVICE_NAME="backend"
-readonly SERVICE_ACCOUNT="evia-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+readonly SERVICE_ACCOUNT="evia-app@${PROJECT_ID}.iam.gserviceaccount.com"
 readonly IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 readonly BACKEND_SOURCE="apps/api"
 readonly SECRETS="DATABASE_URL=DATABASE_URL:latest,SARVAM_API_KEY=SARVAM_API_KEY:latest,GOOGLE_APPLICATION_CREDENTIALS=GOOGLE_APPLICATION_CREDENTIALS:latest"
@@ -70,6 +70,8 @@ gcloud run deploy "${SERVICE_NAME}" \
   --region "${REGION}" \
   --project "${PROJECT_ID}" \
   --service-account "${SERVICE_ACCOUNT}" \
+  --port 8080 \
+  --add-cloudsql-instances evia-500215:asia-south1:evia-db \
   --set-secrets "${SECRETS}" \
   --min-instances 1 \
   --max-instances 4 \

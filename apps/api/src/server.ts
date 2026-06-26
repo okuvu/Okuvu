@@ -27,6 +27,17 @@ const LOCAL_DEV_BYPASS_AUTH = process.env.LOCAL_DEV_BYPASS_AUTH;
 checkProductionBypass(NODE_ENV, LOCAL_DEV_BYPASS_AUTH);
 
 import { buildApp } from './app.js';
+import { prisma } from './lib/prisma.js';
+
+async function checkDatabaseConnection(app: ReturnType<typeof buildApp>): Promise<void> {
+  try {
+    await prisma.$connect();
+    app.log.info('Database connection established');
+  } catch (err) {
+    app.log.error({ err }, 'Database connection failed');
+    throw err;
+  }
+}
 
 async function main() {
   const app = buildApp();
@@ -35,6 +46,8 @@ async function main() {
     { NODE_ENV, bypassEnabled: LOCAL_DEV_BYPASS_AUTH === 'true' },
     'Starting server',
   );
+
+  await checkDatabaseConnection(app);
 
   await app.listen({ port: PORT, host: HOST });
 }
