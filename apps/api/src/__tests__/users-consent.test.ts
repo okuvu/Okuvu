@@ -48,7 +48,7 @@ describe('POST /users/me/consent', () => {
   describe('positive — valid consent values', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
-      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID });
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
       app = buildApp();
     });
 
@@ -122,7 +122,7 @@ describe('POST /users/me/consent', () => {
   describe('negative — safety_monitoring is false', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
-      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID });
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
       app = buildApp();
     });
 
@@ -163,7 +163,7 @@ describe('POST /users/me/consent', () => {
   describe('edge — idempotent double-call', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
-      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID });
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
       app = buildApp();
     });
 
@@ -190,7 +190,7 @@ describe('POST /users/me/consent', () => {
   describe('security — user id from auth, not body', () => {
     it('ignores user_id even if sent in request body', async () => {
       const prisma = await importMocks();
-      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID });
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
       app = buildApp();
 
       const payload = validPayload({ safety_monitoring: true });

@@ -10,7 +10,7 @@ export async function authRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: VerifyOtpBody }>('/auth/verify-otp', {
     preHandler: [verifyFirebaseJWT],
     handler: async (request, reply) => {
-      const { uid } = (request as any).user;
+      const { uid } = request.user;
       const { phone_number } = (request.body ?? {}) as VerifyOtpBody;
 
       const existingUser = await prisma.user.findUnique({

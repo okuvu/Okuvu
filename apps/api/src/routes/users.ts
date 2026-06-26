@@ -13,7 +13,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: ConsentBody }>('/users/me/consent', {
     preHandler: [verifyFirebaseJWT],
     handler: async (request, reply) => {
-      const { uid } = (request as any).user;
+      const { uid } = request.user;
       const body = request.body;
 
       if (body.safety_monitoring !== true) {
