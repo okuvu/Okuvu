@@ -31,6 +31,7 @@ export interface GenerateContentParams {
     parts: Array<{ text: string }>;
   }>;
   timeoutMs?: number;
+  model?: string;
   generationConfig?: Partial<protos.google.cloud.aiplatform.v1beta1.IGenerationConfig>;
 }
 
@@ -53,7 +54,7 @@ export async function generateContent(
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const request = {
-    model: getModelResource(),
+    model: params.model ?? getModelResource(),
     systemInstruction: {
       role: 'system' as const,
       parts: [{ text: params.systemInstruction }],
