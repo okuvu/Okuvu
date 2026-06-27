@@ -31,11 +31,13 @@ export interface GenerateContentParams {
     parts: Array<{ text: string }>;
   }>;
   timeoutMs?: number;
+  generationConfig?: Partial<protos.google.cloud.aiplatform.v1beta1.IGenerationConfig>;
 }
 
 export interface GenerateContentResult {
   text: string;
   fallbackUsed: boolean;
+  failureReason?: 'timeout' | 'api_error';
 }
 
 export async function generateContent(
@@ -60,15 +62,21 @@ export async function generateContent(
     generationConfig: {
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       temperature: 0.7,
+      ...params.generationConfig,
     },
   };
+
+  let timedOut = false;
 
   try {
     const c = getClient();
     const result = await Promise.race([
       c.generateContent(request),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Vertex AI timeout')), timeoutMs),
+        setTimeout(() => {
+          timedOut = true;
+          reject(new Error('Vertex AI timeout'));
+        }, timeoutMs),
       ),
     ]);
 
@@ -80,7 +88,8 @@ export async function generateContent(
     return { text, fallbackUsed: false };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error({ err: message }, 'Vertex AI call failed');
-    return { text: SAFE_FALLBACK, fallbackUsed: true };
+    const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
+    console.error({ reason: failureReason, err: message }, 'Vertex AI call failed');
+    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason };
   }
 }
