@@ -2,8 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/splash/splash_screen.dart';
-import '../features/auth/auth_screen.dart';
-import '../features/auth/otp_screen.dart';
+import '../features/auth/otp_login_screen.dart';
 import '../features/consent/consent_screen.dart';
 import '../features/intake/intake_screen.dart';
 import '../features/home/home_screen.dart';
@@ -30,7 +29,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (session == SessionState.unauthenticated) {
-        final publicRoutes = ['/splash', '/auth', '/otp'];
+        final publicRoutes = ['/splash', '/auth'];
         return publicRoutes.contains(location) ? null : '/auth';
       }
 
@@ -50,11 +49,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/auth',
-        builder: (context, state) => const AuthScreen(),
-      ),
-      GoRoute(
-        path: '/otp',
-        builder: (context, state) => const OtpScreen(),
+        builder: (context, state) => const OtpLoginScreen(),
       ),
       GoRoute(
         path: '/consent',

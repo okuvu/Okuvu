@@ -21,8 +21,9 @@ class FakeAuthService implements AuthService {
   @override
   Future<void> verifyPhone({
     required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
+    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
     required void Function(FirebaseAuthException) onError,
+    int? forceResendingToken,
   }) async {}
 
   @override

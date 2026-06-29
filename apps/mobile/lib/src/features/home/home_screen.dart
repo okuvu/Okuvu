@@ -38,7 +38,7 @@ class HomeScreen extends ConsumerWidget {
                   child: const Text('Settings'),
                 ),
                 FilledButton(
-                  onPressed: () => ref.read(crisisOverlayProvider.notifier).state = true,
+                  onPressed: () => ref.read(crisisOverlayProvider.notifier).show(),
                   child: Text('Crisis Support',
                     style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 ),

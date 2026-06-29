@@ -43,10 +43,11 @@ class FakeAuthService implements AuthService {
   @override
   Future<void> verifyPhone({
     required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
+    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
     required void Function(FirebaseAuthException) onError,
+    int? forceResendingToken,
   }) async {
-    onCodeSent('test-verification-id');
+    onCodeSent('test-verification-id', null);
   }
 
   @override
@@ -59,7 +60,32 @@ class FakeAuthService implements AuthService {
   Future<void> signOut() async {}
 }
 
-final _testSessionState = StateProvider<SessionState>((ref) => SessionState.unauthenticated);
+class _TestSessionState extends Notifier<SessionState> {
+  @override
+  SessionState build() => SessionState.unauthenticated;
+
+  void update(SessionState value) => state = value;
+}
+
+final _testSessionState = NotifierProvider<_TestSessionState, SessionState>(_TestSessionState.new);
+
+Dio _createMockDio() {
+  final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
+  dio.interceptors.add(InterceptorsWrapper(
+    onRequest: (options, handler) {
+      if (options.path == '/auth/verify-otp') {
+        handler.resolve(Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: {'user_id': 'test-id', 'is_new_user': true},
+        ));
+        return;
+      }
+      handler.next(options);
+    },
+  ));
+  return dio;
+}
 
 void main() {
   AppConfig.init('dev');
@@ -82,7 +108,7 @@ void main() {
         overrides: [
           authServiceProvider.overrideWithValue(FakeAuthService()),
           sessionProvider.overrideWith((ref) => ref.watch(_testSessionState)),
-          dioClientProvider.overrideWithValue(dio),
+          dioClientProvider.overrideWithValue(_createMockDio()),
         ],
         child: const App(),
       ),
@@ -93,17 +119,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sign In'), findsAtLeast(1));
 
-    await tester.enterText(find.byType(TextField), '+1 555 555 5555');
+    await tester.enterText(find.byType(TextField), '9999999999');
     await tester.tap(find.text('Continue with Phone'));
     await tester.pumpAndSettle();
     expect(find.text('OTP Verification'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), '123456');
+    for (int i = 0; i < 6; i++) {
+      await tester.enterText(find.byKey(ValueKey('otp_$i')), '${i + 1}');
+    }
+    // Auto-submit triggers verify → backend → navigate → redirect to /auth.
+    // Explicit pumps avoid pumpAndSettle getting stuck on the
+    // CircularProgressIndicator animation and periodic resend timer.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
 
-    // Update session and navigate directly via router to avoid GoRouter
-    // recreation resetting the location to /splash.
+    // After auto-submit, verify + backend both succeed;
+    // session remains unauthenticated, so redirect to /auth would happen.
+    // Manually set session and navigate.
     final container = ProviderScope.containerOf(tester.element(find.byType(App)));
-    container.read(_testSessionState.notifier).state = SessionState.authenticated;
+    container.read(_testSessionState.notifier).update(SessionState.authenticated);
     container.read(routerProvider).go('/consent');
     await tester.pumpAndSettle();
     expect(find.text('Consent Screen'), findsOneWidget);

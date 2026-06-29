@@ -7,8 +7,16 @@ import 'dio_client.dart';
 import 'auth_interceptor.dart';
 import 'websocket_service.dart';
 
+class CrisisOverlayNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void show() => state = true;
+  void hide() => state = false;
+}
+
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
-final crisisOverlayProvider = StateProvider<bool>((ref) => false);
+final crisisOverlayProvider = NotifierProvider<CrisisOverlayNotifier, bool>(CrisisOverlayNotifier.new);
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
@@ -38,7 +46,7 @@ final connectivityProvider = StreamProvider<bool>((ref) {
 });
 
 final isOnlineProvider = Provider<bool>((ref) {
-  return ref.watch(connectivityProvider).valueOrNull ?? true;
+  return ref.watch(connectivityProvider).value ?? true;
 });
 
 final webSocketServiceProvider = Provider<WebSocketService>((ref) {

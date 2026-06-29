@@ -8,7 +8,7 @@ class CrisisOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onTap: () => ref.read(crisisOverlayProvider.notifier).state = false,
+      onTap: () => ref.read(crisisOverlayProvider.notifier).hide(),
       child: Container(
         color: Colors.black38,
         alignment: Alignment.center,
@@ -38,7 +38,7 @@ class CrisisOverlay extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: () => ref.read(crisisOverlayProvider.notifier).state = false,
+                    onPressed: () => ref.read(crisisOverlayProvider.notifier).hide(),
                     child: const Text('Dismiss'),
                   ),
                 ],

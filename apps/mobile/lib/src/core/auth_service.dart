@@ -11,17 +11,19 @@ class AuthService {
 
   Future<void> verifyPhone({
     required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
+    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
     required void Function(FirebaseAuthException) onError,
+    int? forceResendingToken,
   }) async {
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
+      forceResendingToken: forceResendingToken,
       verificationCompleted: (credential) async {
         await _auth.signInWithCredential(credential);
       },
       verificationFailed: (e) => onError(e),
-      codeSent: (verificationId, forceResendingToken) {
-        onCodeSent(verificationId);
+      codeSent: (verificationId, token) {
+        onCodeSent(verificationId, token);
       },
       codeAutoRetrievalTimeout: (verificationId) {},
     );

@@ -7,6 +7,7 @@
 # Developer tooling (local only — never committed)
 # ----------------------------
 .opencode/
+.claude/
 graphify-out/
 AGENTS.md
 
