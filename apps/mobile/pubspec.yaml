@@ -16,6 +16,7 @@ dependencies:
   firebase_auth: ^5.5.1
   firebase_messaging: ^15.2.4
   dio: ^5.7.0
+  web_socket_channel: ^3.0.1
   connectivity_plus: ^6.1.4
 
 dev_dependencies:

@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'auth_service.dart';
 import 'dio_client.dart';
 import 'auth_interceptor.dart';
+import 'websocket_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final crisisOverlayProvider = StateProvider<bool>((ref) => false);
@@ -38,4 +39,8 @@ final connectivityProvider = StreamProvider<bool>((ref) {
 
 final isOnlineProvider = Provider<bool>((ref) {
   return ref.watch(connectivityProvider).valueOrNull ?? true;
+});
+
+final webSocketServiceProvider = Provider<WebSocketService>((ref) {
+  return WebSocketService();
 });
