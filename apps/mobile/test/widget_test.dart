@@ -81,6 +81,14 @@ Dio _createMockDio() {
         ));
         return;
       }
+      if (options.path == '/users/me/consent') {
+        handler.resolve(Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: {'success': true},
+        ));
+        return;
+      }
       handler.next(options);
     },
   ));
