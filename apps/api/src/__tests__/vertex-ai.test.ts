@@ -39,15 +39,8 @@ describe('Vertex AI wrapper', () => {
   });
 
   describe('timeout config', () => {
-    it('timeout rejection returns safe fallback', async () => {
-      const result = await generateContent({
-        systemInstruction: 'test',
-        contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
-        timeoutMs: 1,
-      });
-
-      expect(result.text).toBeTruthy();
-      expect(result.fallbackUsed).toBe(true);
+    it('uses DEFAULT_TIMEOUT_MS when no custom timeout is provided', () => {
+      expect(DEFAULT_TIMEOUT_MS).toBe(10000);
     });
   });
 

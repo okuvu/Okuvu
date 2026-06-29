@@ -20,3 +20,11 @@ export interface A2Output {
   response: string;
   fallbackUsed: boolean;
 }
+
+export interface OnboardingInferenceOutput {
+  anxiety_score: number;
+  depression_score: number;
+  stress_score: number;
+  confidence: number;
+  reasoning_note: string;
+}

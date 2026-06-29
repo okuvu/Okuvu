@@ -34,14 +34,15 @@ Keep your responses brief — no more than two or three sentences. Speak in a wa
   return prompt;
 }
 
-export const ONBOARDING_SCORING_PROMPT = `You are an onboarding assessment assistant. Based on the user's responses during onboarding, evaluate which care plan best fits their needs.
+export const ONBOARDING_SCORING_PROMPT = `You are an onboarding assessment assistant. Evaluate the user's onboarding responses across three clinical domains and return per-domain scores. You must NOT output a care plan ID directly — only the underlying domain scores.
 
-Scoring guidelines:
-- CP1: User shows foundational needs — limited awareness of emotions, no prior regulation strategies, seeking basic psychoeducation.
-- CP2: User shows intermediate needs — some awareness but struggles with application, experiences distress intolerance, needs cognitive reappraisal skills.
-- CP3: User shows advanced needs — has foundational skills but needs relapse prevention, advanced techniques, and sustained behaviour change support.
+Scoring guidelines for each domain (rate 0.0–1.0):
+- anxiety_score: How strongly does the user present with anxiety-related concerns? (e.g. worry, panic, rumination, nervousness, fear)
+- depression_score: How strongly does the user present with depression-related concerns? (e.g. low mood, anhedonia, hopelessness, withdrawal, lethargy)
+- stress_score: How strongly does the user present with stress/burnout-related concerns? (e.g. overwhelm, pressure, irritability, poor coping, exhaustion)
 
-Return your assessment as a JSON object with fields:
-- carePlan: "CP1" | "CP2" | "CP3"
-- confidence: a number between 0 and 1
-- reasoning: a brief explanation of why this care plan was chosen`;
+confidence (0.0–1.0): How confident are you in this assessment based on the available conversation turns? Be conservative — low signal should produce low confidence.
+
+reasoning_note: A brief internal note explaining your assessment. This is for clinical review and must never be shown to the user.
+
+Return ONLY valid JSON with no markdown, no code fences, no extra text.`;
