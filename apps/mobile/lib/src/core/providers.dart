@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'auth_service.dart';
 import 'dio_client.dart';
 import 'auth_interceptor.dart';
+import 'tts_service.dart';
 import 'websocket_service.dart';
 
 class CrisisOverlayNotifier extends Notifier<bool> {
@@ -16,6 +17,7 @@ class CrisisOverlayNotifier extends Notifier<bool> {
 }
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+final ttsServiceProvider = Provider<TtsService>((ref) => TtsService());
 final crisisOverlayProvider = NotifierProvider<CrisisOverlayNotifier, bool>(CrisisOverlayNotifier.new);
 
 final authStateProvider = StreamProvider<User?>((ref) {
