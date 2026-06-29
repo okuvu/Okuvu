@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { realpathSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, '../../../.env') });
@@ -53,7 +54,7 @@ async function main() {
 }
 
 const isMainModule = process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  realpathSync(resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url));
 
 if (isMainModule) {
   main().catch((err) => {

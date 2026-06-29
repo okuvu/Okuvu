@@ -73,7 +73,38 @@ importers:
         version: link:../../packages/shared-types
 
   apps/worker:
+    dependencies:
+      '@evia/prisma':
+        specifier: workspace:*
+        version: link:../../packages/prisma
+      '@evia/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@prisma/adapter-pg':
+        specifier: ^7.8.0
+        version: 7.8.0
+      '@prisma/client':
+        specifier: ^7.8.0
+        version: 7.8.0(prisma@7.8.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3))(typescript@5.9.3)
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      pg:
+        specifier: ^8.22.0
+        version: 8.22.0
     devDependencies:
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.0
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
+      prisma:
+        specifier: ^7.8.0
+        version: 7.8.0(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.3
+        version: 4.22.4
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

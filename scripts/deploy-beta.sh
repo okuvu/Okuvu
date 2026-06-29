@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo
+set -euo pipefail
 
 # =========================================================
 # deploy-beta.sh - Build and deploy apps/api to Cloud Run
