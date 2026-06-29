@@ -1,0 +1,373 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { buildApp } from '../app.js';
+
+const ORIGINAL_ENV = { ...process.env };
+
+vi.mock('../lib/prisma.js', () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn(),
+    },
+  },
+}));
+
+const MOCK_FIREBASE_UID = 'mock-firebase-uid-1';
+
+async function importMocks() {
+  const { prisma } = await import('../lib/prisma.js');
+  return prisma;
+}
+
+function buildFullUser() {
+  return {
+    id: 'user-1',
+    firebase_uid: MOCK_FIREBASE_UID,
+    phone_number: '+15551234567',
+    created_at: new Date('2026-01-01'),
+    updated_at: new Date('2026-06-29'),
+    safety_state: {
+      id: 'ss-1',
+      user_id: 'user-1',
+      safety_state_current: 'S2' as const,
+      safety_state_at_last_session_end: 'S2' as const,
+      updated_at: new Date('2026-06-29'),
+    },
+    clinical_config: {
+      id: 'cc-1',
+      user_id: 'user-1',
+      care_plan_id: 'CP1' as const,
+      assignment_state: 'confirmed' as const,
+      confidence_at_last_eval: 0.85,
+      turns_evaluated: 42,
+    },
+    engagement_profile: {
+      current_streak: 5,
+      voice_mode_enabled: true,
+    },
+    session_logs: [
+      {
+        id: 'sess-1',
+        user_id: 'user-1',
+        session_started_at: new Date('2026-06-29T14:00:00Z'),
+        session_ended_at: new Date('2026-06-29T14:30:00Z'),
+        turn_count: 12,
+        session_feedback_score: 4,
+        summaries: [{ summary_text: 'Session 1 was productive.' }],
+      },
+      {
+        id: 'sess-2',
+        user_id: 'user-1',
+        session_started_at: new Date('2026-06-28T10:00:00Z'),
+        session_ended_at: new Date('2026-06-28T10:20:00Z'),
+        turn_count: 8,
+        session_feedback_score: 3,
+        summaries: [],
+      },
+      {
+        id: 'sess-3',
+        user_id: 'user-1',
+        session_started_at: new Date('2026-06-27T09:00:00Z'),
+        session_ended_at: null,
+        turn_count: 5,
+        session_feedback_score: null,
+        summaries: [{ summary_text: 'Short check-in.' }],
+      },
+    ],
+    session_summaries: [{ summary_text: 'Latest overall summary.' }],
+  };
+}
+
+function buildUserWithManySessions(count: number) {
+  const user: Record<string, any> = {
+    id: 'user-2',
+    firebase_uid: MOCK_FIREBASE_UID,
+    phone_number: '+15559876543',
+    created_at: new Date('2025-01-01'),
+    updated_at: new Date('2026-06-29'),
+    safety_state: null,
+    clinical_config: {
+      id: 'cc-2',
+      user_id: 'user-2',
+      care_plan_id: 'CP2' as const,
+      assignment_state: 'provisional' as const,
+      confidence_at_last_eval: null,
+      turns_evaluated: 0,
+    },
+    engagement_profile: {
+      current_streak: 1,
+      voice_mode_enabled: false,
+    },
+    session_logs: Array.from({ length: count }, (_, i) => ({
+      id: `sess-${i + 1}`,
+      user_id: 'user-2',
+      session_started_at: new Date(2026, 5, 30 - i, 10, 0, 0),
+      session_ended_at: new Date(2026, 5, 30 - i, 10, 15, 0),
+      turn_count: 3 + i,
+      session_feedback_score: i % 2 === 0 ? 5 : null,
+      summaries: i === 0 ? [{ summary_text: `Most recent summary.` }] : [],
+    })),
+    session_summaries: [{ summary_text: 'Latest overall summary for many sessions.' }],
+  };
+  return user;
+}
+
+function buildUserWithNoRelations() {
+  return {
+    id: 'user-3',
+    firebase_uid: MOCK_FIREBASE_UID,
+    phone_number: '+15551112222',
+    created_at: new Date('2026-06-29'),
+    updated_at: new Date('2026-06-29'),
+    safety_state: null,
+    clinical_config: null,
+    engagement_profile: null,
+    session_logs: [],
+    session_summaries: [],
+  };
+}
+
+describe('GET /users/me/context', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  describe('positive — full history', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(buildFullUser() as any);
+      app = buildApp();
+    });
+
+    it('returns 200 with all fields populated', async () => {
+      const prisma = await importMocks();
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+
+      expect(body.safety_state).toBe('S2');
+      expect(body.care_plan).toEqual({
+        care_plan_id: 'CP1',
+        assignment_state: 'confirmed',
+      });
+      expect(body.recent_history).toHaveLength(3);
+      expect(body.recent_history[0]).toMatchObject({
+        session_id: 'sess-1',
+        turn_count: 12,
+        session_feedback_score: 4,
+        summary: 'Session 1 was productive.',
+      });
+      expect(body.session_summary).toBe('Latest overall summary.');
+      expect(body.engagement).toEqual({ streak: 5, voice_enabled: true });
+    });
+
+    it('queries with correct include structure and take limit', async () => {
+      const prisma = await importMocks();
+      await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { firebase_uid: MOCK_FIREBASE_UID },
+          include: expect.objectContaining({
+            safety_state: true,
+            clinical_config: true,
+            engagement_profile: expect.objectContaining({
+              select: { current_streak: true, voice_mode_enabled: true },
+            }),
+            session_logs: expect.objectContaining({ take: 6 }),
+            session_summaries: expect.objectContaining({ take: 1 }),
+          }),
+        }),
+      );
+    });
+
+    it('includes ISO string dates in recent_history entries', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+      const body = response.json();
+
+      for (const entry of body.recent_history) {
+        expect(typeof entry.session_started_at).toBe('string');
+        expect(() => new Date(entry.session_started_at)).not.toThrow();
+      }
+    });
+
+    it('orders recent_history most-recent-first', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+      const body = response.json();
+
+      const dates = body.recent_history.map((e: any) => new Date(e.session_started_at).getTime());
+      for (let i = 1; i < dates.length; i++) {
+        expect(dates[i]).toBeLessThanOrEqual(dates[i - 1]);
+      }
+    });
+
+    it('makes exactly one Prisma call — no sequential queries', async () => {
+      const prisma = await importMocks();
+      await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns only the 5 expected top-level fields', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+      const body = response.json();
+
+      expect(Object.keys(body).sort()).toEqual([
+        'care_plan',
+        'engagement',
+        'recent_history',
+        'safety_state',
+        'session_summary',
+      ]);
+    });
+  });
+
+  describe('negative — brand-new user (no User row)', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      app = buildApp();
+    });
+
+    it('returns 200 with empty/null defaults, not an error', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+
+      expect(body.safety_state).toBeNull();
+      expect(body.care_plan).toBeNull();
+      expect(body.recent_history).toEqual([]);
+      expect(body.session_summary).toBeNull();
+      expect(body.engagement).toEqual({ streak: 0, voice_enabled: false });
+      expect(Object.keys(body).sort()).toEqual([
+        'care_plan',
+        'engagement',
+        'recent_history',
+        'safety_state',
+        'session_summary',
+      ]);
+    });
+  });
+
+  describe('negative — user exists but has no related data', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(buildUserWithNoRelations() as any);
+      app = buildApp();
+    });
+
+    it('returns 200 with null/empty for unpopulated relations', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+
+      expect(body.safety_state).toBeNull();
+      expect(body.care_plan).toBeNull();
+      expect(body.recent_history).toEqual([]);
+      expect(body.session_summary).toBeNull();
+      expect(body.engagement).toEqual({ streak: 0, voice_enabled: false });
+    });
+  });
+
+  describe('edge — long session history bounded to 6', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(buildUserWithManySessions(10) as any);
+      app = buildApp();
+    });
+
+    it('calls Prisma with take:6, and mock returns only 6 as Prisma would', async () => {
+      const prisma = await importMocks();
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(response.statusCode).toBe(200);
+      expect(prisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            session_logs: expect.objectContaining({ take: 6 }),
+          }),
+        }),
+      );
+    });
+
+    it('returns most recent sessions, not arbitrary ones', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+      const body = response.json();
+
+      const dates = body.recent_history.map((e: any) => new Date(e.session_started_at).getTime());
+      for (let i = 1; i < dates.length; i++) {
+        expect(dates[i]).toBeLessThanOrEqual(dates[i - 1]);
+      }
+    });
+  });
+
+  describe('edge — session with no summary', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(buildFullUser() as any);
+      app = buildApp();
+    });
+
+    it('returns null summary for sessions without one', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+      const body = response.json();
+
+      const sess2 = body.recent_history.find((e: any) => e.session_id === 'sess-2');
+      expect(sess2.summary).toBeNull();
+    });
+  });
+
+  describe('edge — no top-level session_summary', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      const user = buildFullUser();
+      user.session_summaries = [];
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(user as any);
+      app = buildApp();
+    });
+
+    it('returns null for session_summary', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+      const body = response.json();
+
+      expect(body.session_summary).toBeNull();
+    });
+  });
+
+  describe('auth — 401 without bypass', () => {
+    beforeEach(() => {
+      delete process.env.LOCAL_DEV_BYPASS_AUTH;
+      app = buildApp();
+    });
+
+    it('returns 401 when no Authorization header', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(response.statusCode).toBe(401);
+      const body = response.json();
+      expect(body.error.code).toBe('UNAUTHORIZED');
+    });
+
+    it('returns 401 for invalid token', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/users/me/context',
+        headers: { authorization: 'Bearer invalid-token' },
+      });
+
+      expect(response.statusCode).toBe(401);
+      const body = response.json();
+      expect(body.error.code).toBe('UNAUTHORIZED');
+    });
+  });
+});

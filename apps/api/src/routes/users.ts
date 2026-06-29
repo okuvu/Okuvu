@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { getAgentContextBundle } from '../lib/agent-context.js';
 
 interface ConsentBody {
   safety_monitoring: boolean;
@@ -59,6 +60,15 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       );
 
       reply.send({ success: true });
+    },
+  });
+
+  app.get('/users/me/context', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const bundle = await getAgentContextBundle(uid);
+      return reply.send(bundle);
     },
   });
 }
