@@ -29,6 +29,7 @@ checkProductionBypass(NODE_ENV, LOCAL_DEV_BYPASS_AUTH);
 
 import { buildApp } from './app.js';
 import { prisma } from './lib/prisma.js';
+import { validateSessionConfig } from './lib/session-limits.js';
 
 async function checkDatabaseConnection(app: ReturnType<typeof buildApp>): Promise<void> {
   try {
@@ -41,6 +42,8 @@ async function checkDatabaseConnection(app: ReturnType<typeof buildApp>): Promis
 }
 
 async function main() {
+  validateSessionConfig();
+
   const app = buildApp();
 
   app.log.info(
@@ -49,6 +52,12 @@ async function main() {
   );
 
   await checkDatabaseConnection(app);
+
+  process.on('SIGTERM', async () => {
+    app.log.info('Shutting down gracefully');
+    await app.close();
+    process.exit(0);
+  });
 
   await app.listen({ port: PORT, host: HOST });
 }

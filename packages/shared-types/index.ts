@@ -13,6 +13,47 @@ export interface RouterDecision {
   mode?: 'normal' | 'grounding-only' | 'alliance-building'
 }
 
+// ─── WebSocket Frame Types ───────────────────────────────────────
+
+export interface SessionOpenFrame {
+  type: 'SESSION_OPEN'
+  payload: Record<string, never>
+}
+
+export type SessionOpenRejectionReason =
+  | 'DAILY_LIMIT_EXCEEDED'
+  | 'USER_NOT_FOUND'
+  | 'INTERNAL_ERROR'
+
+export interface SessionOpenConfirmedFrame {
+  type: 'SESSION_OPEN_CONFIRMED'
+  payload: {
+    session_id: string
+    session_started_at: string
+    crisis_bypass: boolean
+  }
+}
+
+export interface SessionOpenRejectedFrame {
+  type: 'SESSION_OPEN_REJECTED'
+  payload: {
+    reason: SessionOpenRejectionReason
+    retry_after?: string
+  }
+}
+
+export interface ErrorFrame {
+  type: 'ERROR'
+  payload: {
+    reason: 'INVALID_JSON' | 'UNKNOWN_FRAME_TYPE'
+  }
+}
+
+export type ClientFrame = SessionOpenFrame
+export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame | ErrorFrame
+
+// ─── Agent Context Bundle ────────────────────────────────────────
+
 export interface AgentContextBundle {
   safety_state: SafetyState | null
   care_plan: {
