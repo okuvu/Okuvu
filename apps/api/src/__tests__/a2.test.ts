@@ -166,6 +166,40 @@ describe('A2 Emotion Regulation Agent', () => {
       expect(callArgs.systemInstruction).not.toContain('grounding exercises');
       expect(callArgs.systemInstruction).not.toContain('therapeutic alliance');
     });
+
+    it('grounding-only prompt includes user-pushback redirection guidance', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Lets try a grounding exercise.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ mode: 'grounding-only' }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('acknowledge their feelings');
+      expect(callArgs.systemInstruction).toContain('gently guide');
+      expect(callArgs.systemInstruction).toContain('Do not engage');
+    });
+
+    it('logs when grounding-only mode is active', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Lets ground ourselves.', fallbackUsed: false });
+
+      const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+      await handleTurn(makeInput({ mode: 'grounding-only' }));
+
+      expect(spy).toHaveBeenCalledWith(
+        { mode: 'grounding-only' },
+        'A2: grounding mode active for turn',
+      );
+      spy.mockRestore();
+    });
+
+    it('does not log grounding mode when mode is normal', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Tell me more.', fallbackUsed: false });
+
+      const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+      await handleTurn(makeInput({ mode: 'normal' }));
+
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
   });
 
   describe('Gemini timeout / failure fallback', () => {

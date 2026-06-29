@@ -17,6 +17,10 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     mode,
   });
 
+  if (mode === 'grounding-only') {
+    console.info({ mode: 'grounding-only' }, 'A2: grounding mode active for turn');
+  }
+
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> =
     recentHistory.map((turn) => ({
       role: turn.role === 'assistant' ? 'model' : 'user',

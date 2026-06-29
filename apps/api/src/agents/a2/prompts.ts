@@ -8,7 +8,7 @@ const CARE_PLAN_DESCRIPTIONS: Record<CarePlan, string> = {
 
 const MODE_APPENDICES: Record<AgentMode, string> = {
   'normal': '',
-  'grounding-only': `\n\nIn this turn, focus your response on grounding exercises, psychoeducation, and practical coping strategies. Minimise exploratory or insight-oriented dialogue. Keep the conversation concrete and skills-focused.`,
+  'grounding-only': `\n\nIn this turn, focus your response on grounding exercises, psychoeducation, and practical coping strategies. Minimise exploratory or insight-oriented dialogue. Keep the conversation concrete and skills-focused. If the user insists on discussing distressing or traumatic material, acknowledge their feelings briefly with compassion, then gently guide the conversation back to grounding techniques. Do not engage in detailed exploration of traumatic content.`,
   'alliance-building': `\n\nIn this turn, prioritise therapeutic alliance and rapport. Use validation, warmth, and engagement-focused language. Be more conversational and less directive. The goal is to make the user feel heard and safe.`,
 };
 
