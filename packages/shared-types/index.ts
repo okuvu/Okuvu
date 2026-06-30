@@ -2,8 +2,11 @@ export const VERSION = '1.0.0'
 
 export type SafetyState = 'S0' | 'S1' | 'S2' | 'S3' | 'S4'
 
+export type GovernanceState = 'Active' | 'Restricted' | 'Blocked'
+
 export interface RouterInput {
   safety_state: SafetyState | null | undefined
+  governance_state?: GovernanceState | null
   session_count: number | undefined
   turn_count: number | undefined
 }
@@ -42,15 +45,42 @@ export interface SessionOpenRejectedFrame {
   }
 }
 
+export type ErrorReason = 'INVALID_JSON' | 'UNKNOWN_FRAME_TYPE' | 'INVALID_PAYLOAD' | 'SESSION_CLOSED' | 'TURN_FAILED'
+
 export interface ErrorFrame {
   type: 'ERROR'
   payload: {
-    reason: 'INVALID_JSON' | 'UNKNOWN_FRAME_TYPE'
+    reason: ErrorReason
   }
 }
 
-export type ClientFrame = SessionOpenFrame
-export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame | ErrorFrame
+export interface UserTurnFrame {
+  type: 'USER_TURN'
+  payload: {
+    session_id: string
+    message: string
+  }
+}
+
+export interface AgentTurnFrame {
+  type: 'AGENT_TURN'
+  payload: {
+    session_id: string
+    message: string
+    turn_count: number
+    tts_url: string | null
+  }
+}
+
+export interface CrisisSignalFrame {
+  type: 'CRISIS_SIGNAL'
+  payload: {
+    session_id: string
+  }
+}
+
+export type ClientFrame = SessionOpenFrame | UserTurnFrame
+export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame | ErrorFrame | AgentTurnFrame | CrisisSignalFrame
 
 // ─── Agent Context Bundle ────────────────────────────────────────
 

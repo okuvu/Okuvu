@@ -41,6 +41,7 @@ model User {
   clinical_config    ClinicalConfig?
   safety_state       SafetyState?
   session_logs       SessionLog[]
+  turns              Turn[]
   session_summaries  SessionSummary[]
   engagement_profile EngagementProfile?
   session_limits     SessionLimit[]
@@ -80,8 +81,24 @@ model SessionLog {
   session_feedback_score Int?
 
   summaries SessionSummary[]
+  turns      Turn[]
 
   @@index([user_id, session_started_at(sort: Desc)])
+}
+
+model Turn {
+  id          String   @id @default(uuid())
+  session_id  String
+  session     SessionLog @relation(fields: [session_id], references: [id])
+  user_id     String
+  user        User       @relation(fields: [user_id], references: [id])
+  turn_number Int
+  role        String
+  content     String
+  created_at  DateTime   @default(now())
+
+  @@index([session_id, turn_number])
+  @@index([user_id, created_at(sort: Desc)])
 }
 
 model SessionSummary {
