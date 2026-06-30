@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,10 +17,45 @@ import '../features/settings/about_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
+class _CrisisAwareBackButtonDispatcher extends RootBackButtonDispatcher {
+  _CrisisAwareBackButtonDispatcher(this._isCrisisActive);
+  final bool Function() _isCrisisActive;
+
+  @override
+  Future<bool> didPopRoute() {
+    if (_isCrisisActive()) return Future<bool>.value(true);
+    return super.didPopRoute();
+  }
+}
+
+class _CrisisAwareRouterConfig implements RouterConfig<RouteMatchList> {
+  _CrisisAwareRouterConfig(this._goRouter, this._isCrisisActive);
+
+  final GoRouter _goRouter;
+  final bool Function() _isCrisisActive;
+  late final _CrisisAwareBackButtonDispatcher _dispatcher =
+      _CrisisAwareBackButtonDispatcher(_isCrisisActive);
+
+  @override
+  BackButtonDispatcher? get backButtonDispatcher => _dispatcher;
+
+  @override
+  RouteInformationProvider? get routeInformationProvider =>
+      _goRouter.routeInformationProvider;
+
+  @override
+  RouteInformationParser<RouteMatchList>? get routeInformationParser =>
+      _goRouter.routeInformationParser;
+
+  @override
+  RouterDelegate<RouteMatchList> get routerDelegate =>
+      _goRouter.routerDelegate;
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(sessionProvider);
 
-  return GoRouter(
+  final goRouter = GoRouter(
     initialLocation: '/splash',
     redirect: (context, state) {
       final location = state.matchedLocation;
@@ -94,5 +130,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
     ],
+  );
+
+  return goRouter;
+});
+
+final routerConfigProvider = Provider<RouterConfig<RouteMatchList>>((ref) {
+  final goRouter = ref.watch(routerProvider);
+  return _CrisisAwareRouterConfig(
+    goRouter,
+    () => ref.read(crisisOverlayProvider),
   );
 });

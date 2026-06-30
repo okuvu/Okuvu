@@ -163,7 +163,7 @@ void main() {
     expect(find.textContaining('Base URL:'), findsOneWidget);
   });
 
-  testWidgets('Crisis overlay renders on top without replacing screen', (WidgetTester tester) async {
+  testWidgets('Crisis overlay shows all 5 crisis resources', (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -174,20 +174,74 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Home Screen'), findsOneWidget);
-
-    final crisisButton = find.text('Crisis Support');
-    await tester.ensureVisible(crisisButton);
-    await tester.tap(crisisButton);
+    await tester.tap(find.text('Crisis Support'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Home Screen'), findsOneWidget);
+    expect(find.text('9152987821'), findsOneWidget);
+    expect(find.text('18602662345'), findsOneWidget);
+    expect(find.text('08046110007'), findsOneWidget);
+    expect(find.text('04424640050'), findsOneWidget);
+    expect(find.text('112'), findsOneWidget);
+  });
+
+  testWidgets('Crisis overlay has no dismiss button', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SessionState.authenticated),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Crisis Support'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dismiss'), findsNothing);
+  });
+
+  testWidgets('Crisis overlay does not dismiss when tapped',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SessionState.authenticated),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Crisis Support'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.emergency));
+    await tester.pumpAndSettle();
+
+    expect(find.text('9152987821'), findsOneWidget);
     expect(find.text('Crisis Support'), findsAtLeast(1));
+  });
 
-    await tester.tap(find.text('Dismiss'));
+  testWidgets('Crisis overlay requires no network dependencies',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SessionState.authenticated),
+        ],
+        child: const App(),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Home Screen'), findsOneWidget);
+    // No dioClientProvider or authServiceProvider override is needed.
+    // The crisis overlay renders with zero network calls.
+    await tester.tap(find.text('Crisis Support'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Crisis Support'), findsAtLeast(1));
+    expect(find.text('9152987821'), findsOneWidget);
   });
 
   testWidgets('Unknown route shows not-found page', (WidgetTester tester) async {

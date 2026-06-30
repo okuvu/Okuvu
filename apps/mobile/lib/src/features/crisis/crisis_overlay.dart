@@ -1,48 +1,95 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/providers.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class CrisisOverlay extends ConsumerWidget {
+class CrisisOverlay extends StatelessWidget {
   const CrisisOverlay({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      onTap: () => ref.read(crisisOverlayProvider.notifier).hide(),
-      child: Container(
-        color: Colors.black38,
-        alignment: Alignment.center,
-        child: GestureDetector(
-          onTap: () {},
-          child: Card(
-            margin: const EdgeInsets.all(32),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.emergency, size: 48,
-                    color: Theme.of(context).colorScheme.error),
-                  const SizedBox(height: 16),
-                  Text('Crisis Support',
-                    style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'If you\'re in immediate danger, please call emergency services.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Crisis overlay content — coming in E6-S02.',
-                    style: TextStyle(fontStyle: FontStyle.italic),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: () => ref.read(crisisOverlayProvider.notifier).hide(),
-                    child: const Text('Dismiss'),
-                  ),
-                ],
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.emergency, size: 40,
+                color: Theme.of(context).colorScheme.error),
+              const SizedBox(height: 12),
+              Text('Crisis Support',
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 8),
+              const Text(
+                "If you're in immediate danger, please call emergency services.",
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              const _ResourceTile(
+                name: 'iCall (IIT Bombay)',
+                phone: '9152987821',
+              ),
+              const _ResourceTile(
+                name: 'Vandrevala Foundation',
+                phone: '18602662345',
+              ),
+              const _ResourceTile(
+                name: 'NIMHANS',
+                phone: '08046110007',
+              ),
+              const _ResourceTile(
+                name: 'Snehi',
+                phone: '04424640050',
+              ),
+              const _ResourceTile(
+                name: 'Emergency Services',
+                phone: '112',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResourceTile extends StatelessWidget {
+  final String name;
+  final String phone;
+
+  const _ResourceTile({required this.name, required this.phone});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () async {
+            final uri = Uri(scheme: 'tel', path: phone);
+            try {
+              await launchUrl(uri);
+            } catch (_) {}
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(name),
+                ),
+                Text(phone,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
