@@ -81,6 +81,48 @@ describe('A8 Router — 4 Gates', () => {
     });
   });
 
+  describe('Governance state — routing influence', () => {
+    it('returns crisis when governance is Blocked (safety S0)', () => {
+      const input: RouterInput = { safety_state: 'S0', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'crisis' });
+    });
+
+    it('returns crisis when governance is Blocked (safety S2)', () => {
+      const input: RouterInput = { safety_state: 'S2', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'crisis' });
+    });
+
+    it('routes grounding-only when governance is Restricted (safety S0)', () => {
+      const input: RouterInput = { safety_state: 'S0', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+    });
+
+    it('routes grounding-only when governance is Restricted (safety S2)', () => {
+      const input: RouterInput = { safety_state: 'S2', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+    });
+
+    it('alliance-building takes precedence over Restricted governance', () => {
+      const input: RouterInput = { safety_state: 'S0', governance_state: 'Restricted', session_count: 1, turn_count: 1 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'alliance-building' });
+    });
+
+    it('S3 grounding-only takes precedence over Restricted governance', () => {
+      const input: RouterInput = { safety_state: 'S3', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+    });
+
+    it('normal behavior when governance is Active', () => {
+      const input: RouterInput = { safety_state: 'S0', governance_state: 'Active', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'normal' });
+    });
+
+    it('normal behavior when governance is undefined', () => {
+      const input: RouterInput = { safety_state: 'S0', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'normal' });
+    });
+  });
+
   describe('Determinism', () => {
     it('returns identical output for identical input across 100 calls', () => {
       const input: RouterInput = { safety_state: 'S0', session_count: 5, turn_count: 10 };

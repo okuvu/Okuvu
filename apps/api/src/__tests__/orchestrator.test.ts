@@ -89,6 +89,9 @@ describe('processTurn — normal flow', () => {
     }
     expect(classifySafety).toHaveBeenCalledTimes(1);
     expect(classifyGovernance).toHaveBeenCalledTimes(1);
+    expect(routeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ governance_state: 'Active' }),
+    );
     expect(routeTurn).toHaveBeenCalledTimes(1);
     expect(handleTurn).toHaveBeenCalledTimes(1);
     expect(renderText).toHaveBeenCalledTimes(1);
@@ -152,6 +155,24 @@ describe('processTurn — A1 timeout', () => {
     expect(result.type).toBe('agent_turn');
     expect(routeTurn).toHaveBeenCalledWith(
       expect.objectContaining({ safety_state: 'S2' }),
+    );
+    expect(handleTurn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('processTurn — A9-pre failure', () => {
+  it('uses A9 fallback Restricted when A9 throws and continues pipeline', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockRejectedValue(new Error('A9 timeout'));
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({ response: 'I hear you.', fallbackUsed: false });
+    vi.mocked(renderText).mockResolvedValue({ text: 'I hear you.', fallbackUsed: false, provider: 'gemini' });
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    expect(routeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ governance_state: 'Restricted' }),
     );
     expect(handleTurn).toHaveBeenCalledTimes(1);
   });

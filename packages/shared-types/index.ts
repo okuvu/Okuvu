@@ -2,8 +2,11 @@ export const VERSION = '1.0.0'
 
 export type SafetyState = 'S0' | 'S1' | 'S2' | 'S3' | 'S4'
 
+export type GovernanceState = 'Active' | 'Restricted' | 'Blocked'
+
 export interface RouterInput {
   safety_state: SafetyState | null | undefined
+  governance_state?: GovernanceState | null
   session_count: number | undefined
   turn_count: number | undefined
 }

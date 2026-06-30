@@ -1,4 +1,4 @@
-import type { SafetyState, RouterDecision } from '@evia/shared-types';
+import type { SafetyState, GovernanceState, RouterDecision } from '@evia/shared-types';
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
@@ -37,22 +37,29 @@ export async function processTurn(
 
   const contextBundle = await getAgentContextBundle(uid);
 
-  const a1a9Start = now();
-  const [a1Result, a9Result] = await Promise.allSettled([
-    classifySafety({
+  async function timedA1() {
+    const start = now();
+    try { return await classifySafety({
       message,
       recentHistory: (contextBundle.recent_history ?? []) as unknown as ConversationTurn[],
-    }),
-    classifyGovernance({
+    }); } finally { recordTiming(timing, 'A1', start, now()); }
+  }
+
+  async function timedA9() {
+    const start = now();
+    try { return await classifyGovernance({
       userId: uid,
       message,
-    }),
-  ]);
-  const a1a9End = now();
-  recordTiming(timing, 'A1_A9_parallel', a1a9Start, a1a9End);
+    }); } finally { recordTiming(timing, 'A9_pre', start, now()); }
+  }
+
+  const [a1Result, a9Result] = await Promise.allSettled([timedA1(), timedA9()]);
 
   const safetyState: SafetyState =
     a1Result.status === 'fulfilled' ? a1Result.value.safetyState : 'S2';
+
+  const governanceState: GovernanceState =
+    a9Result.status === 'fulfilled' ? a9Result.value.governanceState : 'Restricted';
 
   const a8Start = now();
 
@@ -65,6 +72,7 @@ export async function processTurn(
 
   const decision: RouterDecision = routeTurn({
     safety_state: safetyState,
+    governance_state: governanceState,
     session_count: sessionCount,
     turn_count: nextTurnNumber,
   });
