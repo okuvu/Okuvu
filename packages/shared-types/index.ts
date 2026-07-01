@@ -79,8 +79,24 @@ export interface CrisisSignalFrame {
   }
 }
 
-export type ClientFrame = SessionOpenFrame | UserTurnFrame
-export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame | ErrorFrame | AgentTurnFrame | CrisisSignalFrame
+export type CloseReason = 'TURN_CAP' | 'IDLE_TIMEOUT' | 'USER_REQUESTED'
+
+export interface SessionCloseFrame {
+  type: 'SESSION_CLOSE'
+  payload: Record<string, never>
+}
+
+export interface SessionClosedFrame {
+  type: 'SESSION_CLOSED'
+  payload: {
+    session_id: string
+    reason: CloseReason
+    session_ended_at: string
+  }
+}
+
+export type ClientFrame = SessionOpenFrame | UserTurnFrame | SessionCloseFrame
+export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame | ErrorFrame | AgentTurnFrame | CrisisSignalFrame | SessionClosedFrame
 
 // ─── Agent Context Bundle ────────────────────────────────────────
 

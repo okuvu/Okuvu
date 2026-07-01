@@ -18,6 +18,7 @@ export interface SessionOpenContext {
     error: LogFn;
   };
   send: SendFrame;
+  onSessionOpened?: (sessionId: string) => void;
 }
 
 export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> {
@@ -71,6 +72,7 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
         crisis_bypass: true,
       },
     });
+    ctx.onSessionOpened?.(sessionLog.id);
     log.info({ event: 'session_open', request_id: requestId, user_id: user.id, outcome: 'crisis_bypass' }, 'Crisis bypass session opened');
     return;
   }
@@ -106,6 +108,7 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
         crisis_bypass: false,
       },
     });
+    ctx.onSessionOpened?.(txResult.session_id);
     log.info({ event: 'session_open', request_id: requestId, user_id: user.id, outcome: 'allowed', sessions_used: txResult.sessions_used }, 'Session opened');
   } else {
     send({

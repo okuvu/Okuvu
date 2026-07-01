@@ -3,8 +3,58 @@ import type { WebSocket } from 'ws';
 import websocketPlugin from '@fastify/websocket';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { handleSessionOpen, type SendFrame } from '../lib/session-handler.js';
-import type { ServerFrame, UserTurnFrame } from '@evia/shared-types';
+import { closeSession } from '../lib/session-close.js';
+import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@evia/shared-types';
 import { processTurn } from '../pipeline/orchestrator.js';
+
+const CAP_TURN_LIMIT = 10;
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+
+interface IdleEntry {
+  timer: ReturnType<typeof setTimeout>;
+  sessionId: string;
+}
+
+const idleTimers = new Map<string, IdleEntry>();
+
+function clearIdleTimerByConnection(connId: string): void {
+  const entry = idleTimers.get(connId);
+  if (entry) {
+    clearTimeout(entry.timer);
+    idleTimers.delete(connId);
+  }
+}
+
+function setIdleTimer(
+  connId: string,
+  sessionId: string,
+  socket: WebSocket,
+  uid: string,
+  log: FastifyRequest['log'],
+): void {
+  clearIdleTimerByConnection(connId);
+
+  const timer = setTimeout(async () => {
+    idleTimers.delete(connId);
+    const result = await closeSession(sessionId, 'IDLE_TIMEOUT', log);
+    if (!result.alreadyClosed) {
+      try {
+        socket.send(JSON.stringify({
+          type: 'SESSION_CLOSED',
+          payload: {
+            session_id: sessionId,
+            reason: 'IDLE_TIMEOUT' satisfies CloseReason,
+            session_ended_at: result.session_ended_at,
+          },
+        }));
+      } catch {
+        log.warn({ event: 'session_close', session_id: sessionId, outcome: 'idle_timer_send_failed' }, 'Failed to send SESSION_CLOSED for idle timeout');
+      }
+    }
+  }, IDLE_TIMEOUT_MS);
+
+  idleTimers.set(connId, { timer, sessionId });
+}
 
 export async function websocketRoute(app: FastifyInstance): Promise<void> {
   await app.register(websocketPlugin);
@@ -15,12 +65,15 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
   }, (socket: WebSocket, req: FastifyRequest) => {
     const connectionStart = Date.now();
     const { uid } = req.user;
+    const connId = crypto.randomUUID();
 
-    req.log.info({ event: 'ws_connect', user_id: uid }, 'WebSocket connected');
+    req.log.info({ event: 'ws_connect', user_id: uid, conn_id: connId }, 'WebSocket connected');
 
     const send = (frame: ServerFrame): void => {
       socket.send(JSON.stringify(frame));
     };
+
+    let currentSessionId: string | null = null;
 
     socket.on('message', async (rawData: Buffer | string) => {
       const requestId = crypto.randomUUID();
@@ -44,6 +97,9 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             requestId,
             log: req.log,
             send,
+            onSessionOpened: (sessionId: string) => {
+              currentSessionId = sessionId;
+            },
           });
         } catch (err) {
           req.log.error({ event: 'session_open', request_id: requestId, user_id: uid, err }, 'Unexpected error during session open');
@@ -110,6 +166,24 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             fallback_used: result.fallbackUsed,
             timing: result.timing,
           }, 'Turn completed');
+
+          setIdleTimer(connId, session_id, socket, uid, req.log);
+
+          if (result.turnCount >= CAP_TURN_LIMIT) {
+            closeSession(session_id, 'TURN_CAP', req.log).then((closeResult) => {
+              if (!closeResult.alreadyClosed) {
+                send({
+                  type: 'SESSION_CLOSED',
+                  payload: {
+                    session_id,
+                    reason: 'TURN_CAP',
+                    session_ended_at: closeResult.session_ended_at!,
+                  },
+                });
+                clearIdleTimerByConnection(connId);
+              }
+            });
+          }
         } catch (err) {
           req.log.error({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, err }, 'Unexpected error during turn');
           send({
@@ -117,6 +191,37 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             payload: { reason: 'TURN_FAILED' },
           });
         }
+        return;
+      }
+
+      if (parsed.type === 'SESSION_CLOSE') {
+        const frame = parsed as SessionCloseFrame;
+
+        if (!currentSessionId) {
+          send({
+            type: 'ERROR',
+            payload: { reason: 'INVALID_PAYLOAD' },
+          });
+          req.log.warn({ event: 'session_close', request_id: requestId, user_id: uid, outcome: 'no_active_session' }, 'No active session to close');
+          return;
+        }
+
+        const closeResult = await closeSession(currentSessionId, 'USER_REQUESTED', req.log);
+
+        if (closeResult.alreadyClosed) {
+          req.log.info({ event: 'session_close', request_id: requestId, user_id: uid, session_id: currentSessionId, outcome: 'already_closed' }, 'Session already closed — no-op');
+          return;
+        }
+
+        send({
+          type: 'SESSION_CLOSED',
+          payload: {
+            session_id: currentSessionId,
+            reason: 'USER_REQUESTED',
+            session_ended_at: closeResult.session_ended_at!,
+          },
+        });
+        clearIdleTimerByConnection(connId);
         return;
       }
 
@@ -129,7 +234,8 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
 
     socket.on('close', () => {
       const durationMs = Date.now() - connectionStart;
-      req.log.info({ event: 'ws_disconnect', user_id: uid, duration_ms: durationMs }, 'WebSocket disconnected');
+      req.log.info({ event: 'ws_disconnect', user_id: uid, conn_id: connId, duration_ms: durationMs }, 'WebSocket disconnected');
+      clearIdleTimerByConnection(connId);
     });
   });
 }
