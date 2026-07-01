@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'websocket_constants.dart';
+import '../features/chat/models/agent_turn_frame.dart';
 
 enum WsConnectionState {
   disconnected,
@@ -24,11 +25,14 @@ class WebSocketService {
       StreamController<WsConnectionState>.broadcast();
   final StreamController<String?> _errorTypeController =
       StreamController<String?>.broadcast();
+  final StreamController<AgentTurnFrame> _agentTurnController =
+      StreamController<AgentTurnFrame>.broadcast();
 
   WsConnectionState get currentState => _state;
   String? get errorType => _errorType;
   Stream<WsConnectionState> get stateStream => _stateController.stream;
   Stream<String?> get errorTypeStream => _errorTypeController.stream;
+  Stream<AgentTurnFrame> get agentTurnStream => _agentTurnController.stream;
 
   void _setState(WsConnectionState newState, {String? errorType}) {
     _state = newState;
@@ -84,9 +88,14 @@ class WebSocketService {
       switch (type) {
         case 'session_open_confirmed':
           _setState(WsConnectionState.sessionActive);
+          break;
         case 'session_rejected':
           final reason = data['reason'] as String?;
           _setState(WsConnectionState.error, errorType: reason ?? 'rate_limited');
+          break;
+        case 'agent_turn':
+          _handleAgentTurn(data);
+          break;
         default:
           if (kDebugMode) debugPrint('[WebSocketService] Unknown message type: $type');
       }
@@ -117,11 +126,31 @@ class WebSocketService {
       return;
     }
 
+    if (kDebugMode) debugPrint('[WebSocketService] Sending user_turn: $content');
     _sendFrame({
       'type': 'user_turn',
       'content': content,
       'timestamp': DateTime.now().toUtc().toIso8601String(),
     });
+  }
+
+  void injectMockAgentTurn(String content) {
+    if (kDebugMode) debugPrint('[WebSocketService] Injecting mock agent_turn: $content');
+    final frame = AgentTurnFrame(
+      content: content,
+      turnId: 'mock_${DateTime.now().millisecondsSinceEpoch}',
+      timestamp: DateTime.now().toUtc().toIso8601String(),
+    );
+    _agentTurnController.add(frame);
+  }
+
+  void _handleAgentTurn(Map<String, dynamic> data) {
+    try {
+      final frame = AgentTurnFrame.fromJson(data);
+      _agentTurnController.add(frame);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[WebSocketService] Failed to parse agent_turn frame: $e');
+    }
   }
 
   void disconnect() {
@@ -143,5 +172,6 @@ class WebSocketService {
     disconnect();
     _stateController.close();
     _errorTypeController.close();
+    _agentTurnController.close();
   }
 }
