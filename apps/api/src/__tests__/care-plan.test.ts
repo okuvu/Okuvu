@@ -286,12 +286,15 @@ describe('PATCH /users/:id/care-plan', () => {
         turns_evaluated: 1,
         assignment_state: 'provisional',
       } as any);
-      vi.mocked(prisma.clinicalConfig.upsert).mockImplementation(
-        async ({ create }) => ({
-          care_plan_id: create.care_plan_id,
-          assignment_state: create.assignment_state,
-        }) as any,
-      );
+      vi.mocked(prisma.clinicalConfig.upsert).mockResolvedValue({
+        id: 'mock-id',
+        user_id: MOCK_USER_ID,
+        care_plan_id: 'CP1',
+        assignment_state: 'provisional',
+        confidence_at_last_eval: null,
+        turns_evaluated: 1,
+        user: null,
+      } as any);
       app = buildApp();
     });
 
@@ -319,6 +322,20 @@ describe('PATCH /users/:id/care-plan', () => {
         payload: payload1,
       });
       expect(res1.statusCode).toBe(200);
+
+      vi.mocked(prisma.clinicalConfig.findUnique).mockResolvedValueOnce({
+        turns_evaluated: 1,
+        assignment_state: 'provisional',
+      } as any);
+      vi.mocked(prisma.clinicalConfig.upsert).mockResolvedValueOnce({
+        id: 'mock-id',
+        user_id: MOCK_USER_ID,
+        care_plan_id: 'CP1',
+        assignment_state: 'confirmed',
+        confidence_at_last_eval: null,
+        turns_evaluated: 2,
+        user: null,
+      } as any);
 
       const res2 = await app.inject({
         method: 'PATCH',
