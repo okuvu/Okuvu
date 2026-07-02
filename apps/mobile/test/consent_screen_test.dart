@@ -183,16 +183,15 @@ void main() {
 
       await tester.tap(find.text('Mood inference'));
       await tester.tap(find.text('Assessment'));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       await tester.ensureVisible(find.text('Accept & Continue'));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      await tester.runAsync(() async {
-        await tester.tap(find.text('Accept & Continue'));
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
-      await tester.pumpAndSettle();
+      await tester.tap(find.text('Accept & Continue'));
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump(const Duration(seconds: 1));
 
       expect(adapter.lastRequest, isNotNull);
       expect(adapter.lastRequest!.path, '/users/me/consent');
@@ -219,7 +218,7 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      expect(find.text('Intake Screen'), findsOneWidget);
+      expect(find.text("What's been weighing on your mind lately?"), findsOneWidget);
     });
 
     testWidgets('on failure shows error message and preserves state',
@@ -245,7 +244,7 @@ void main() {
         find.text('Something went wrong. Please try again.'),
         findsOneWidget,
       );
-      expect(find.textContaining('Intake Screen'), findsNothing);
+      expect(find.textContaining("What's been weighing"), findsNothing);
 
       final checkboxes = find.byType(CheckboxListTile);
       final moodTile = tester.widget<CheckboxListTile>(checkboxes.at(1));
