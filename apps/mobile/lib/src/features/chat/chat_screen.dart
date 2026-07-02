@@ -6,6 +6,8 @@ import '../../config/app_config.dart';
 import '../../config/flavor_config.dart';
 import '../../core/providers.dart';
 import 'models/chat_message.dart';
+import 'models/chat_state.dart';
+import 'widgets/srs_modal.dart';
 
 const bool _useMockResponses = kDebugMode;
 
@@ -19,6 +21,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
   final _textController = TextEditingController();
+  bool _srsTriggered = false;
 
   @override
   void initState() {
@@ -50,6 +53,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _sendMessage() {
+    if (ref.read(chatMessagesProvider).isSessionClosed) return;
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
@@ -72,8 +76,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = ref.watch(chatMessagesProvider);
-    final ws = ref.watch(webSocketServiceProvider);
+    final chatState = ref.watch(chatMessagesProvider);
     final isOnline = ref.watch(isOnlineProvider);
 
     ref.listen<bool>(crisisOverlayProvider, (_, show) {
@@ -82,18 +85,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (messages.isNotEmpty) _scrollToBottom();
+    ref.listen<ChatState>(chatMessagesProvider, (previous, next) {
+      if (previous != null && !previous.isSessionClosed && next.isSessionClosed) {
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (context.mounted &&
+              ref.read(chatMessagesProvider).isSessionClosed &&
+              !_srsTriggered) {
+            _srsTriggered = true;
+            showSrsModal(context);
+          }
+        });
+      }
     });
 
-    if (kDebugMode) {
-      debugPrint('[ChatScreen] build — messages: ${messages.length}');
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (chatState.messages.isNotEmpty) _scrollToBottom();
+    });
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Evia'),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Text(
+              '${chatState.turnCount}/10 turns',
+              style: TextStyle(
+                fontSize: 13,
+                color: chatState.turnCount >= 10
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           if (!isOnline)
             const Padding(
               padding: EdgeInsets.only(right: 12),
@@ -111,18 +135,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: messages.isEmpty
+            child: chatState.messages.isEmpty
                 ? _buildEmptyState(context)
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: messages.length,
+                    itemCount: chatState.messages.length,
                     itemBuilder: (context, index) {
-                      return _ChatBubble(message: messages[index]);
+                      return _ChatBubble(message: chatState.messages[index]);
                     },
                   ),
           ),
-          _buildInputBar(context, ws.currentState.toString()),
+          _buildInputBar(context, chatState.isSessionClosed),
         ],
       ),
     );
@@ -150,7 +174,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildInputBar(BuildContext context, String wsState) {
+  Widget _buildInputBar(BuildContext context, bool sessionClosed) {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -174,20 +198,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: TextField(
               controller: _textController,
               textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendMessage(),
-              decoration: const InputDecoration(
-                hintText: 'Type a message...',
+              onSubmitted: sessionClosed ? null : (_) => _sendMessage(),
+              enabled: !sessionClosed,
+              decoration: InputDecoration(
+                hintText: sessionClosed ? 'Session ended' : 'Type a message...',
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
           ),
           IconButton(
-            onPressed: _sendMessage,
+            onPressed: sessionClosed ? null : _sendMessage,
             icon: const Icon(Icons.send_rounded),
             style: IconButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              backgroundColor: sessionClosed
+                  ? Theme.of(context).colorScheme.surfaceContainerHighest
+                  : Theme.of(context).colorScheme.primary,
+              foregroundColor: sessionClosed
+                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                  : Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ],

@@ -11,6 +11,7 @@ import 'tts_service.dart';
 import 'websocket_service.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
+import '../features/chat/models/chat_state.dart';
 
 class CrisisOverlayNotifier extends Notifier<bool> {
   @override
@@ -59,15 +60,22 @@ final webSocketServiceProvider = Provider<WebSocketService>((ref) {
   return WebSocketService();
 });
 
-class ChatNotifier extends Notifier<List<ChatMessage>> {
-  StreamSubscription<AgentTurnFrame>? _subscription;
+class ChatNotifier extends Notifier<ChatState> {
+  StreamSubscription<AgentTurnFrame>? _turnSub;
+  StreamSubscription<void>? _sessionSub;
 
   @override
-  List<ChatMessage> build() {
+  ChatState build() {
     final ws = ref.watch(webSocketServiceProvider);
-    _subscription = ws.agentTurnStream.listen(_onAgentTurn);
-    ref.onDispose(() => _subscription?.cancel());
-    return [];
+    _turnSub = ws.agentTurnStream.listen(_onAgentTurn);
+    _sessionSub = ws.sessionClosedStream.listen((_) {
+      state = state.copyWith(isSessionClosed: true);
+    });
+    ref.onDispose(() {
+      _turnSub?.cancel();
+      _sessionSub?.cancel();
+    });
+    return const ChatState(messages: []);
   }
 
   void _onAgentTurn(AgentTurnFrame frame) {
@@ -75,28 +83,41 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
       ref.read(crisisOverlayProvider.notifier).show();
       return;
     }
-    state = [
-      ...state,
-      ChatMessage(
-        id: frame.turnId ?? DateTime.now().toIso8601String(),
-        sender: MessageSender.agent,
-        content: frame.content,
-        timestamp: DateTime.now(),
-      ),
-    ];
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          id: frame.turnId ?? DateTime.now().toIso8601String(),
+          sender: MessageSender.agent,
+          content: frame.content,
+          timestamp: DateTime.now(),
+        ),
+      ],
+      turnCount: frame.turnCount,
+    );
   }
 
   void addUserMessage(String content) {
-    state = [
-      ...state,
-      ChatMessage(
-        id: DateTime.now().toIso8601String(),
-        sender: MessageSender.user,
-        content: content,
-        timestamp: DateTime.now(),
-      ),
-    ];
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          id: DateTime.now().toIso8601String(),
+          sender: MessageSender.user,
+          content: content,
+          timestamp: DateTime.now(),
+        ),
+      ],
+    );
+  }
+
+  void setSessionFeedback(int score) {
+    state = state.copyWith(sessionFeedback: () => score);
   }
 }
 
-final chatMessagesProvider = NotifierProvider<ChatNotifier, List<ChatMessage>>(ChatNotifier.new);
+final chatMessagesProvider = NotifierProvider<ChatNotifier, ChatState>(ChatNotifier.new);
+
+final sessionIdProvider = Provider<String?>((ref) {
+  return ref.watch(webSocketServiceProvider).sessionId;
+});

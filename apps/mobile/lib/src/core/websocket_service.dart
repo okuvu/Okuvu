@@ -20,6 +20,8 @@ class WebSocketService {
   WsConnectionState _state = WsConnectionState.disconnected;
   String? _errorType;
   bool _hadError = false;
+  int _mockTurnCount = 0;
+  String? _sessionId;
 
   final StreamController<WsConnectionState> _stateController =
       StreamController<WsConnectionState>.broadcast();
@@ -27,12 +29,16 @@ class WebSocketService {
       StreamController<String?>.broadcast();
   final StreamController<AgentTurnFrame> _agentTurnController =
       StreamController<AgentTurnFrame>.broadcast();
+  final StreamController<void> _sessionClosedController =
+      StreamController<void>.broadcast();
 
   WsConnectionState get currentState => _state;
   String? get errorType => _errorType;
+  String? get sessionId => _sessionId;
   Stream<WsConnectionState> get stateStream => _stateController.stream;
   Stream<String?> get errorTypeStream => _errorTypeController.stream;
   Stream<AgentTurnFrame> get agentTurnStream => _agentTurnController.stream;
+  Stream<void> get sessionClosedStream => _sessionClosedController.stream;
 
   void _setState(WsConnectionState newState, {String? errorType}) {
     _state = newState;
@@ -71,6 +77,7 @@ class WebSocketService {
       );
 
       _setState(WsConnectionState.connected);
+      _mockTurnCount = 0;
       _sendFrame({'type': 'session_open'});
     } catch (e) {
       if (kDebugMode) debugPrint('[WebSocketService] Connection failed: $e');
@@ -88,6 +95,8 @@ class WebSocketService {
       switch (type) {
         case 'session_open_confirmed':
           _setState(WsConnectionState.sessionActive);
+          final payload = data['payload'] as Map<String, dynamic>?;
+          _sessionId = payload?['session_id'] as String?;
           break;
         case 'session_rejected':
           final reason = data['reason'] as String?;
@@ -95,6 +104,11 @@ class WebSocketService {
           break;
         case 'agent_turn':
           _handleAgentTurn(data);
+          break;
+        case 'session_closed':
+          _setState(WsConnectionState.disconnected);
+          _mockTurnCount = 0;
+          _sessionClosedController.add(null);
           break;
         default:
           if (kDebugMode) debugPrint('[WebSocketService] Unknown message type: $type');
@@ -135,13 +149,19 @@ class WebSocketService {
   }
 
   void injectMockAgentTurn(String content) {
-    if (kDebugMode) debugPrint('[WebSocketService] Injecting mock agent_turn: $content');
+    _mockTurnCount = (_mockTurnCount + 1).clamp(0, 10);
     final frame = AgentTurnFrame(
       content: content,
       turnId: 'mock_${DateTime.now().millisecondsSinceEpoch}',
       timestamp: DateTime.now().toUtc().toIso8601String(),
+      turnCount: _mockTurnCount,
     );
     _agentTurnController.add(frame);
+
+    if (_mockTurnCount >= 10) {
+      _mockTurnCount = 0;
+      _sessionClosedController.add(null);
+    }
   }
 
   void _handleAgentTurn(Map<String, dynamic> data) {
@@ -173,5 +193,6 @@ class WebSocketService {
     _stateController.close();
     _errorTypeController.close();
     _agentTurnController.close();
+    _sessionClosedController.close();
   }
 }
