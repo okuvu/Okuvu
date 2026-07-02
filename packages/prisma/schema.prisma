@@ -30,6 +30,12 @@ enum Tier {
   TL
 }
 
+enum SummaryStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 // --- MODELS ---
 model User {
   id           String   @id @default(uuid())
@@ -102,15 +108,16 @@ model Turn {
 }
 
 model SessionSummary {
-  id                String     @id @default(uuid())
+  id                String          @id @default(uuid())
   user_id           String
-  user              User       @relation(fields: [user_id], references: [id])
+  user              User            @relation(fields: [user_id], references: [id])
   session_id        String
-  session           SessionLog @relation(fields: [session_id], references: [id])
-  summary_text      String
+  session           SessionLog      @relation(fields: [session_id], references: [id])
+  summary_text      String?
+  status            SummaryStatus   @default(PENDING)
   last_updated_turn Int
-  last_updated_at   DateTime   @updatedAt
-  created_at        DateTime   @default(now())
+  last_updated_at   DateTime        @updatedAt
+  created_at        DateTime        @default(now())
 
   @@unique([user_id, session_id])
   @@index([user_id, created_at(sort: Desc)])
