@@ -12,6 +12,7 @@ enum WsConnectionState {
   connecting,
   connected,
   sessionActive,
+  reconnecting,
   error,
 }
 
@@ -22,6 +23,14 @@ class WebSocketService {
   bool _hadError = false;
   int _mockTurnCount = 0;
   String? _sessionId;
+  String? _wsBaseUrl;
+  String? _token;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 3;
+  Timer? _reconnectTimer;
+  bool _intentionalDisconnect = false;
+  bool _showBanner = false;
+  Timer? _bannerDebounceTimer;
 
   final StreamController<WsConnectionState> _stateController =
       StreamController<WsConnectionState>.broadcast();
@@ -31,19 +40,26 @@ class WebSocketService {
       StreamController<AgentTurnFrame>.broadcast();
   final StreamController<void> _sessionClosedController =
       StreamController<void>.broadcast();
+  final StreamController<bool> _showBannerController =
+      StreamController<bool>.broadcast();
 
   WsConnectionState get currentState => _state;
   String? get errorType => _errorType;
   String? get sessionId => _sessionId;
+  bool get showBanner => _showBanner;
   Stream<WsConnectionState> get stateStream => _stateController.stream;
   Stream<String?> get errorTypeStream => _errorTypeController.stream;
   Stream<AgentTurnFrame> get agentTurnStream => _agentTurnController.stream;
   Stream<void> get sessionClosedStream => _sessionClosedController.stream;
+  Stream<bool> get showBannerStream => _showBannerController.stream;
 
   void _setState(WsConnectionState newState, {String? errorType}) {
     _state = newState;
     _errorType = errorType;
     _stateController.add(newState);
+    if (newState == WsConnectionState.sessionActive) {
+      _hideBanner();
+    }
     if (errorType != null) {
       _errorTypeController.add(errorType);
     }
@@ -61,7 +77,10 @@ class WebSocketService {
       return;
     }
 
+    _wsBaseUrl = wsBaseUrl;
+    _token = token;
     _hadError = false;
+    _intentionalDisconnect = false;
     _setState(WsConnectionState.connecting);
 
     final uri = Uri.parse('$wsBaseUrl${WsConstants.sessionPath}?token=$token');
@@ -82,6 +101,7 @@ class WebSocketService {
     } catch (e) {
       if (kDebugMode) debugPrint('[WebSocketService] Connection failed: $e');
       _setState(WsConnectionState.error, errorType: 'connection_failure');
+      _startReconnect();
     }
   }
 
@@ -94,6 +114,7 @@ class WebSocketService {
 
       switch (type) {
         case 'session_open_confirmed':
+          _reconnectAttempts = 0;
           _setState(WsConnectionState.sessionActive);
           final payload = data['payload'] as Map<String, dynamic>?;
           _sessionId = payload?['session_id'] as String?;
@@ -106,6 +127,9 @@ class WebSocketService {
           _handleAgentTurn(data);
           break;
         case 'session_closed':
+          _intentionalDisconnect = true;
+          _cancelReconnect();
+          _hideBanner();
           _setState(WsConnectionState.disconnected);
           _mockTurnCount = 0;
           _sessionClosedController.add(null);
@@ -122,6 +146,7 @@ class WebSocketService {
     if (kDebugMode) debugPrint('[WebSocketService] Stream error: $error');
     _hadError = true;
     _setState(WsConnectionState.error, errorType: 'connection_failure');
+    _startReconnect();
   }
 
   void _onDone() {
@@ -132,6 +157,9 @@ class WebSocketService {
       return;
     }
     _setState(WsConnectionState.disconnected);
+    if (!_intentionalDisconnect) {
+      _startReconnect();
+    }
   }
 
   void sendUserTurn(String content) {
@@ -173,8 +201,71 @@ class WebSocketService {
     }
   }
 
+  void _startBannerDebounce() {
+    _bannerDebounceTimer?.cancel();
+    _bannerDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _showBanner = true;
+      _showBannerController.add(true);
+    });
+  }
+
+  void _hideBanner() {
+    _bannerDebounceTimer?.cancel();
+    if (_showBanner) {
+      _showBanner = false;
+      _showBannerController.add(false);
+    }
+  }
+
+  void _cancelReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _bannerDebounceTimer?.cancel();
+    _bannerDebounceTimer = null;
+  }
+
+  void _startReconnect() {
+    if (_intentionalDisconnect) return;
+
+    _cancelReconnect();
+    _startBannerDebounce();
+
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      _setState(WsConnectionState.error, errorType: 'max_retries_exceeded');
+      return;
+    }
+
+    _reconnectAttempts++;
+    final delay = Duration(seconds: 1 << (_reconnectAttempts - 1));
+
+    if (kDebugMode) {
+      debugPrint(
+        '[WebSocketService] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempts/$_maxReconnectAttempts)',
+      );
+    }
+
+    _reconnectTimer = Timer(delay, () {
+      _setState(WsConnectionState.reconnecting);
+      if (_wsBaseUrl != null && _token != null) {
+        connect(wsBaseUrl: _wsBaseUrl!, token: _token!);
+      }
+    });
+  }
+
+  void retry() {
+    if (kDebugMode) debugPrint('[WebSocketService] Manual retry requested');
+    _cancelReconnect();
+    _reconnectAttempts = 0;
+    _intentionalDisconnect = false;
+    _startReconnect();
+  }
+
   void disconnect() {
     if (_channel == null) return;
+
+    _intentionalDisconnect = true;
+    _cancelReconnect();
+    _hideBanner();
 
     _sendFrame({'type': 'session_close'});
     _channel!.sink.close();
@@ -194,5 +285,6 @@ class WebSocketService {
     _errorTypeController.close();
     _agentTurnController.close();
     _sessionClosedController.close();
+    _showBannerController.close();
   }
 }

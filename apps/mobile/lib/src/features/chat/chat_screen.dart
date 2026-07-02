@@ -7,6 +7,7 @@ import '../../config/flavor_config.dart';
 import '../../core/providers.dart';
 import 'models/chat_message.dart';
 import 'models/chat_state.dart';
+import 'widgets/reconnect_banner.dart';
 import 'widgets/srs_modal.dart';
 
 const bool _useMockResponses = kDebugMode;
@@ -132,21 +133,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: chatState.messages.isEmpty
-                ? _buildEmptyState(context)
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: chatState.messages.length,
-                    itemBuilder: (context, index) {
-                      return _ChatBubble(message: chatState.messages[index]);
-                    },
-                  ),
+          Column(
+            children: [
+              Expanded(
+                child: chatState.messages.isEmpty
+                    ? _buildEmptyState(context)
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: chatState.messages.length,
+                        itemBuilder: (context, index) {
+                          return _ChatBubble(message: chatState.messages[index]);
+                        },
+                      ),
+              ),
+              _buildInputBar(context, chatState.isSessionClosed),
+            ],
           ),
-          _buildInputBar(context, chatState.isSessionClosed),
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ReconnectBanner(),
+          ),
         ],
       ),
     );

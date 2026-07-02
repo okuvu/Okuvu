@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'websocket_service.dart';
 import 'auth_service.dart';
 import 'dio_client.dart';
 import 'auth_interceptor.dart';
 import 'tts_service.dart';
-import 'websocket_service.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
 import '../features/chat/models/chat_state.dart';
@@ -59,6 +59,37 @@ final isOnlineProvider = Provider<bool>((ref) {
 final webSocketServiceProvider = Provider<WebSocketService>((ref) {
   return WebSocketService();
 });
+
+class WsConnectionStateNotifier extends Notifier<WsConnectionState> {
+  StreamSubscription<WsConnectionState>? _sub;
+
+  @override
+  WsConnectionState build() {
+    final ws = ref.watch(webSocketServiceProvider);
+    _sub = ws.stateStream.listen((s) => state = s);
+    ref.onDispose(() => _sub?.cancel());
+    return ws.currentState;
+  }
+}
+
+final wsConnectionStateProvider =
+    NotifierProvider<WsConnectionStateNotifier, WsConnectionState>(
+        WsConnectionStateNotifier.new);
+
+class WsShowBannerNotifier extends Notifier<bool> {
+  StreamSubscription<bool>? _sub;
+
+  @override
+  bool build() {
+    final ws = ref.watch(webSocketServiceProvider);
+    _sub = ws.showBannerStream.listen((show) => state = show);
+    ref.onDispose(() => _sub?.cancel());
+    return ws.showBanner;
+  }
+}
+
+final wsShowBannerProvider =
+    NotifierProvider<WsShowBannerNotifier, bool>(WsShowBannerNotifier.new);
 
 class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<AgentTurnFrame>? _turnSub;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/websocket_service.dart';
+import '../chat/widgets/reconnect_banner.dart';
 import 'intake_message.dart';
 import 'intake_notifier.dart';
 
@@ -87,44 +87,44 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
         automaticallyImplyLeading: false,
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            if (state.isReconnecting)
-              _ReconnectBanner(
-                onTap: () => _intakeNotifier?.reconnect(),
-              ),
-            Expanded(
-              child: state.wsState == WsConnectionState.error &&
-                      state.messages.isEmpty
-                  ? _ConnectionError(
-                      onRetry: () => _intakeNotifier?.reconnect(),
-                      theme: theme,
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      itemCount: state.messages.length,
-                      itemBuilder: (context, index) {
-                        final message = state.messages[index];
-                        return _MessageBubble(
-                          message: message,
-                          theme: theme,
-                        );
-                      },
+            Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
+                    itemCount: state.messages.length,
+                    itemBuilder: (context, index) {
+                      final message = state.messages[index];
+                      return _MessageBubble(
+                        message: message,
+                        theme: theme,
+                      );
+                    },
+                  ),
+                ),
+                _BottomBar(
+                  controller: _textController,
+                  textIsEmpty: _textIsEmpty,
+                  isSending: state.isSending,
+                  isComplete: state.isComplete,
+                  turnCount: state.turnCount,
+                  error: state.error,
+                  onSend: _onSend,
+                  theme: theme,
+                ),
+              ],
             ),
-            _BottomBar(
-              controller: _textController,
-              textIsEmpty: _textIsEmpty,
-              isSending: state.isSending,
-              isComplete: state.isComplete,
-              turnCount: state.turnCount,
-              error: state.error,
-              onSend: _onSend,
-              theme: theme,
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ReconnectBanner(),
             ),
           ],
         ),
@@ -250,82 +250,4 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
-class _ReconnectBanner extends StatelessWidget {
-  final VoidCallback onTap;
 
-  const _ReconnectBanner({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        color: Theme.of(context).colorScheme.errorContainer,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.onErrorContainer,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Connection lost \u2014 tap to reconnect',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onErrorContainer,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ConnectionError extends StatelessWidget {
-  final VoidCallback onRetry;
-  final ThemeData theme;
-
-  const _ConnectionError({
-    required this.onRetry,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.wifi_off_rounded,
-              size: 48,
-              color: theme.colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Unable to connect. Please check your internet connection and try again.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

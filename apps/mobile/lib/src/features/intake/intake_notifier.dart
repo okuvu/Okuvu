@@ -13,7 +13,6 @@ class IntakeState {
   final int turnCount;
   final bool isSending;
   final bool isComplete;
-  final bool isReconnecting;
   final bool hasNavigated;
   final String? error;
   final WsConnectionState wsState;
@@ -23,7 +22,6 @@ class IntakeState {
     required this.turnCount,
     required this.isSending,
     required this.isComplete,
-    required this.isReconnecting,
     required this.hasNavigated,
     this.error,
     required this.wsState,
@@ -40,7 +38,6 @@ class IntakeState {
         turnCount = 0,
         isSending = false,
         isComplete = false,
-        isReconnecting = false,
         hasNavigated = false,
         error = null,
         wsState = WsConnectionState.disconnected;
@@ -50,7 +47,6 @@ class IntakeState {
     int? turnCount,
     bool? isSending,
     bool? isComplete,
-    bool? isReconnecting,
     bool? hasNavigated,
     String? error,
     bool clearError = false,
@@ -61,7 +57,6 @@ class IntakeState {
       turnCount: turnCount ?? this.turnCount,
       isSending: isSending ?? this.isSending,
       isComplete: isComplete ?? this.isComplete,
-      isReconnecting: isReconnecting ?? this.isReconnecting,
       hasNavigated: hasNavigated ?? this.hasNavigated,
       error: clearError ? null : (error ?? this.error),
       wsState: wsState ?? this.wsState,
@@ -169,30 +164,9 @@ class IntakeNotifier extends Notifier<IntakeState> {
     );
   }
 
-  void reconnect() async {
-    state = state.copyWith(isReconnecting: true, error: null, clearError: true);
-
-    final authService = ref.read(authServiceProvider);
-    final wsService = ref.read(webSocketServiceProvider);
-    final token = await authService.getIdToken();
-
-    if (token == null) {
-      state = state.copyWith(
-        isReconnecting: false,
-        error: 'Unable to authenticate. Please sign in again.',
-      );
-      return;
-    }
-
-    _frameSub?.cancel();
-    _stateSub?.cancel();
-
-    wsService.connect(wsBaseUrl: AppConfig.wsBaseUrl, token: token);
-
-    _frameSub = wsService.agentTurnStream.listen(_onFrame);
-    _stateSub = wsService.stateStream.listen((wsState) {
-      state = state.copyWith(wsState: wsState);
-    });
+  void reconnect() {
+    state = state.copyWith(error: null, clearError: true);
+    ref.read(webSocketServiceProvider).retry();
   }
 
   void cleanup() {
