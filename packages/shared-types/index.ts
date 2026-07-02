@@ -20,7 +20,9 @@ export interface RouterDecision {
 
 export interface SessionOpenFrame {
   type: 'SESSION_OPEN'
-  payload: Record<string, never>
+  payload?: {
+    session_id?: string
+  }
 }
 
 export type SessionOpenRejectionReason =
@@ -68,6 +70,7 @@ export interface AgentTurnFrame {
     session_id: string
     message: string
     turn_count: number
+    turn_id: string | null
     tts_url: string | null
   }
 }

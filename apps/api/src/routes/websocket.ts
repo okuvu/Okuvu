@@ -91,12 +91,18 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
       }
 
       if (parsed.type === 'SESSION_OPEN') {
-        try {
+        const payload = (parsed.payload ?? {}) as { session_id?: unknown };
+        const sessionId = typeof payload.session_id === 'string' && payload.session_id.trim().length > 0
+          ? payload.session_id.trim()
+          : undefined;
+
+                try {
           await handleSessionOpen({
             uid,
             requestId,
             log: req.log,
             send,
+            sessionId,
             onSessionOpened: (sessionId: string) => {
               currentSessionId = sessionId;
             },
@@ -153,6 +159,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
               session_id,
               message: result.message,
               turn_count: result.turnCount,
+              turn_id: result.turnId,
               tts_url: null,
             },
           });

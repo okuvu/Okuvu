@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../agents/a1/agent.js', () => ({
@@ -33,7 +34,10 @@ vi.mock('../pipeline/session.js', () => ({
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
     sessionLog: { findUnique: vi.fn(), update: vi.fn() },
-    turn: { createMany: vi.fn() },
+    turn: {
+      createMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
     safetyState: { upsert: vi.fn() },
   },
 }));
@@ -70,6 +74,7 @@ function setupBaseMocks(): void {
   vi.mocked(getAgentContextBundle).mockResolvedValue(defaultContext);
   vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 3 } as never);
   vi.mocked(prisma.turn.createMany).mockResolvedValue({ count: 2 } as never);
+  vi.mocked(prisma.turn.findFirst).mockResolvedValue({ id: 'assistant-turn-1' } as never);
   vi.mocked(prisma.safetyState.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
   vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });

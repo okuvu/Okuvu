@@ -8,6 +8,7 @@ export type PipelineResult =
       type: 'agent_turn'
       message: string
       turnCount: number
+      turnId: string | null
       timing: StageTiming[]
       fallbackUsed: boolean
     }

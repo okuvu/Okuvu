@@ -12,8 +12,12 @@ vi.mock('../lib/prisma.js', () => ({
       findUnique: vi.fn(),
     },
     sessionLog: {
-      create: vi.fn(),
-    },
+  create: vi.fn(),
+  findFirst: vi.fn(),
+},
+turn: {
+  findFirst: vi.fn(),
+},
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
   },
@@ -32,7 +36,13 @@ async function importMocks() {
   return prisma as unknown as {
     user: { findUnique: ReturnType<typeof vi.fn> };
     safetyState: { findUnique: ReturnType<typeof vi.fn> };
-    sessionLog: { create: ReturnType<typeof vi.fn> };
+    sessionLog: {
+  create: ReturnType<typeof vi.fn>;
+  findFirst: ReturnType<typeof vi.fn>;
+};
+turn: {
+  findFirst: ReturnType<typeof vi.fn>;
+};
     $transaction: ReturnType<typeof vi.fn>;
     $queryRaw: ReturnType<typeof vi.fn>;
   };
@@ -501,5 +511,53 @@ describe('concurrency', () => {
       c.send.mock.calls.some((call: any[]) => call[0]?.type === 'SESSION_OPEN_REJECTED'),
     );
     expect(anyCalled).toBe(false);
+  });
+  it('replays the same assistant turn across rapid reconnect cycling', async () => {
+    const startedAt = new Date('2026-07-02T10:00:00.000Z');
+
+    mockPrisma.user.findUnique.mockResolvedValue({ id: MOCK_USER_ID });
+    mockPrisma.sessionLog.findFirst.mockResolvedValue({
+      id: 'existing-session-1',
+      session_started_at: startedAt,
+    });
+
+    mockPrisma.turn.findFirst
+      .mockResolvedValueOnce({
+        id: 'user-turn-1',
+        turn_number: 1,
+      })
+      .mockResolvedValue({
+        id: 'assistant-turn-1',
+        content: 'This is the saved assistant response.',
+        turn_number: 1,
+      });
+
+    const { handleSessionOpen } = await import('../lib/session-handler.js');
+
+    for (let reconnect = 0; reconnect < 3; reconnect++) {
+      const send = vi.fn();
+
+      await handleSessionOpen({
+        uid: 'mock-firebase-uid-1',
+        requestId: `reconnect-${reconnect}`,
+        sessionId: 'existing-session-1',
+        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        send,
+      });
+
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(send.mock.calls[0][0]).toMatchObject({
+        type: 'SESSION_OPEN_CONFIRMED',
+        payload: { session_id: 'existing-session-1' },
+      });
+      expect(send.mock.calls[1][0]).toMatchObject({
+        type: 'AGENT_TURN',
+        payload: {
+          session_id: 'existing-session-1',
+          message: 'This is the saved assistant response.',
+          turn_id: 'assistant-turn-1',
+        },
+      });
+    }
   });
 });

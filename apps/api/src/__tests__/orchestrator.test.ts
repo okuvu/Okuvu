@@ -33,7 +33,7 @@ vi.mock('../pipeline/session.js', () => ({
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
     sessionLog: { findUnique: vi.fn(), update: vi.fn() },
-    turn: { createMany: vi.fn() },
+    turn: { createMany: vi.fn(), findFirst: vi.fn() },
     safetyState: { upsert: vi.fn() },
   },
 }));
@@ -68,6 +68,7 @@ beforeEach(() => {
   vi.mocked(getAgentContextBundle).mockResolvedValue(defaultContext);
   vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 3 } as never);
   vi.mocked(prisma.turn.createMany).mockResolvedValue({ count: 2 } as never);
+  vi.mocked(prisma.turn.findFirst).mockResolvedValue({ id: 'assistant-turn-1' } as never);
   vi.mocked(prisma.safetyState.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
 });
@@ -86,6 +87,7 @@ describe('processTurn — normal flow', () => {
     if (result.type === 'agent_turn') {
       expect(result.message).toBe('I hear you, tell me more.');
       expect(result.fallbackUsed).toBe(false);
+      expect(result.turnId).toBe('assistant-turn-1');
     }
     expect(classifySafety).toHaveBeenCalledTimes(1);
     expect(classifyGovernance).toHaveBeenCalledTimes(1);

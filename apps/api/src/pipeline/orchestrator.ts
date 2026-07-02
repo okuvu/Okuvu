@@ -129,6 +129,16 @@ export async function processTurn(
     ],
   });
 
+  const assistantTurn = await prisma.turn.findFirst({
+    where: {
+      session_id: sessionId,
+      role: 'assistant',
+      turn_number: newTurnCount,
+    },
+    orderBy: [{ created_at: 'asc' }],
+    select: { id: true },
+  });
+
   await prisma.safetyState.upsert({
     where: { user_id: uid },
     update: { safety_state_current: safetyState },
@@ -145,6 +155,7 @@ export async function processTurn(
     type: 'agent_turn',
     message: finalText,
     turnCount: newTurnCount,
+    turnId: assistantTurn?.id ?? null,
     timing,
     fallbackUsed: a2Fallback || a12Fallback,
   };
