@@ -22,6 +22,9 @@ importers:
       '@google-cloud/aiplatform':
         specifier: ^6.8.1
         version: 6.8.1
+      '@google-cloud/tasks':
+        specifier: ^6.2.3
+        version: 6.2.3
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0
@@ -496,6 +499,10 @@ packages:
 
   '@google-cloud/aiplatform@6.8.1':
     resolution: {integrity: sha512-8O64485bzBzQQ1VlgEhaLJcOvVlfC/V8MB5nQ5y2Dcl8UAfGXW5LkXK1CEfZ7c6IZYxpkJ9U818ldc8pg7eteg==}
+    engines: {node: '>=18'}
+
+  '@google-cloud/tasks@6.2.3':
+    resolution: {integrity: sha512-US4162TMwam5QXKmZAzoiHIBpdc5K+eDKxfO2hjBsPM1UxuB8feIZQ8kbrTxgp6mggrnUukfbrXetIEMnWfBvw==}
     engines: {node: '>=18'}
 
   '@grpc/grpc-js@1.14.4':
@@ -2048,6 +2055,12 @@ snapshots:
       - utf-8-validate
 
   '@google-cloud/aiplatform@6.8.1':
+    dependencies:
+      google-gax: 5.0.7
+    transitivePeerDependencies:
+      - supports-color
+
+  '@google-cloud/tasks@6.2.3':
     dependencies:
       google-gax: 5.0.7
     transitivePeerDependencies:

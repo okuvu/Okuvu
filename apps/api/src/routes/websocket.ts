@@ -36,7 +36,7 @@ function setIdleTimer(
 
   const timer = setTimeout(async () => {
     idleTimers.delete(connId);
-    const result = await closeSession(sessionId, 'IDLE_TIMEOUT', log);
+    const result = await closeSession(sessionId, uid, 'IDLE_TIMEOUT', log);
     if (!result.alreadyClosed) {
       try {
         socket.send(JSON.stringify({
@@ -177,7 +177,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           setIdleTimer(connId, session_id, socket, uid, req.log);
 
           if (result.turnCount >= CAP_TURN_LIMIT) {
-            closeSession(session_id, 'TURN_CAP', req.log).then((closeResult) => {
+            closeSession(session_id, req.user.uid, 'TURN_CAP', req.log).then((closeResult) => {
               if (!closeResult.alreadyClosed) {
                 send({
                   type: 'SESSION_CLOSED',
@@ -213,7 +213,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           return;
         }
 
-        const closeResult = await closeSession(currentSessionId, 'USER_REQUESTED', req.log);
+        const closeResult = await closeSession(currentSessionId, req.user.uid, 'USER_REQUESTED', req.log);
 
         if (closeResult.alreadyClosed) {
           req.log.info({ event: 'session_close', request_id: requestId, user_id: uid, session_id: currentSessionId, outcome: 'already_closed' }, 'Session already closed — no-op');

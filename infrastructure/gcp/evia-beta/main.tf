@@ -47,6 +47,12 @@ resource "google_project_service" "secret_manager" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "cloud_tasks" {
+  project            = google_project.evia_beta.project_id
+  service            = "cloudtasks.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_service_account" "evia_beta_sa" {
   project      = google_project.evia_beta.project_id
   account_id   = var.service_account_id
@@ -76,6 +82,38 @@ resource "google_project_iam_member" "sa_storage_object_admin" {
   project = google_project.evia_beta.project_id
   role    = "roles/storage.objectAdmin"
   member  = "serviceAccount:${google_service_account.evia_beta_sa.email}"
+}
+
+resource "google_project_iam_member" "sa_cloud_tasks_enqueuer" {
+  project = google_project.evia_beta.project_id
+  role    = "roles/cloudtasks.enqueuer"
+  member  = "serviceAccount:${google_service_account.evia_beta_sa.email}"
+}
+
+resource "google_project_iam_member" "sa_cloud_tasks_invoker" {
+  project = google_project.evia_beta.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.evia_beta_sa.email}"
+}
+
+resource "google_cloud_tasks_queue" "summary_queue" {
+  depends_on = [google_project_service.cloud_tasks]
+  project  = google_project.evia_beta.project_id
+  name     = "evia-summary-queue-beta"
+  location = var.gcp_region
+
+  rate_limits {
+    max_concurrent_dispatches = 10
+    max_dispatches_per_second = 50
+  }
+
+  retry_config {
+    max_attempts        = 3
+    min_backoff         = "10s"
+    max_backoff         = "300s"
+    max_retry_duration  = "600s"
+    max_doublings       = 2
+  }
 }
 
 resource "google_project_iam_member" "admin_owner" {

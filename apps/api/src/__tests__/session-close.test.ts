@@ -34,8 +34,9 @@ describe('closeSession()', () => {
   describe('positive — session is open', () => {
     it('updates session_ended_at and enqueues exactly one summary job', async () => {
       mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockEnqueueJob.mockResolvedValue(undefined);
 
-      const result = await closeSession('sess-1', 'USER_REQUESTED');
+      const result = await closeSession('sess-1', 'user-1', 'USER_REQUESTED');
 
       expect(result.alreadyClosed).toBe(false);
       expect(result.reason).toBe('USER_REQUESTED');
@@ -45,23 +46,25 @@ describe('closeSession()', () => {
         data: { session_ended_at: expect.any(Date) },
       });
       expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
-      expect(mockEnqueueJob).toHaveBeenCalledWith('sess-1', undefined);
+      expect(mockEnqueueJob).toHaveBeenCalledWith('sess-1', 'user-1', undefined);
     });
 
-    it('auto-closes at turn cap with exactly one A10A enqueue', async () => {
+    it('auto-closes at turn cap with exactly one enqueue', async () => {
       mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockEnqueueJob.mockResolvedValue(undefined);
 
-      const result = await closeSession('sess-cap', 'TURN_CAP');
+      const result = await closeSession('sess-cap', 'user-1', 'TURN_CAP');
 
       expect(result.alreadyClosed).toBe(false);
       expect(result.reason).toBe('TURN_CAP');
       expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
     });
 
-    it('auto-closes after idle timeout with exactly one A10A enqueue', async () => {
+    it('auto-closes after idle timeout with exactly one enqueue', async () => {
       mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockEnqueueJob.mockResolvedValue(undefined);
 
-      const result = await closeSession('sess-idle', 'IDLE_TIMEOUT');
+      const result = await closeSession('sess-idle', 'user-1', 'IDLE_TIMEOUT');
 
       expect(result.alreadyClosed).toBe(false);
       expect(result.reason).toBe('IDLE_TIMEOUT');
@@ -70,10 +73,11 @@ describe('closeSession()', () => {
   });
 
   describe('positive — explicit close mid-conversation', () => {
-    it('immediately closes session with exactly one A10A enqueue', async () => {
+    it('immediately closes session with exactly one enqueue', async () => {
       mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockEnqueueJob.mockResolvedValue(undefined);
 
-      const result = await closeSession('sess-explicit', 'USER_REQUESTED');
+      const result = await closeSession('sess-explicit', 'user-1', 'USER_REQUESTED');
 
       expect(result.alreadyClosed).toBe(false);
       expect(result.reason).toBe('USER_REQUESTED');
@@ -85,7 +89,7 @@ describe('closeSession()', () => {
     it('no-ops and does not enqueue when updateMany returns count 0', async () => {
       mockUpdateMany.mockResolvedValue({ count: 0 });
 
-      const result = await closeSession('sess-1', 'USER_REQUESTED');
+      const result = await closeSession('sess-1', 'user-1', 'USER_REQUESTED');
 
       expect(result.alreadyClosed).toBe(true);
       expect(mockEnqueueJob).not.toHaveBeenCalled();
@@ -94,7 +98,7 @@ describe('closeSession()', () => {
     it('explicit close for already-closed session no-ops', async () => {
       mockUpdateMany.mockResolvedValue({ count: 0 });
 
-      const result = await closeSession('sess-closed', 'USER_REQUESTED');
+      const result = await closeSession('sess-closed', 'user-1', 'USER_REQUESTED');
 
       expect(result.alreadyClosed).toBe(true);
     });
@@ -105,9 +109,10 @@ describe('closeSession()', () => {
       mockUpdateMany
         .mockResolvedValueOnce({ count: 1 })
         .mockResolvedValueOnce({ count: 0 });
+      mockEnqueueJob.mockResolvedValue(undefined);
 
-      const first = await closeSession('sess-idemp', 'USER_REQUESTED');
-      const second = await closeSession('sess-idemp', 'USER_REQUESTED');
+      const first = await closeSession('sess-idemp', 'user-1', 'USER_REQUESTED');
+      const second = await closeSession('sess-idemp', 'user-1', 'USER_REQUESTED');
 
       expect(first.alreadyClosed).toBe(false);
       expect(second.alreadyClosed).toBe(true);
@@ -120,10 +125,11 @@ describe('closeSession()', () => {
       mockUpdateMany
         .mockResolvedValueOnce({ count: 1 })
         .mockResolvedValueOnce({ count: 0 });
+      mockEnqueueJob.mockResolvedValue(undefined);
 
       const [first, second] = await Promise.all([
-        closeSession('sess-race', 'TURN_CAP'),
-        closeSession('sess-race', 'IDLE_TIMEOUT'),
+        closeSession('sess-race', 'user-1', 'TURN_CAP'),
+        closeSession('sess-race', 'user-1', 'IDLE_TIMEOUT'),
       ]);
 
       const successes = [first, second].filter(r => !r.alreadyClosed);
@@ -132,14 +138,16 @@ describe('closeSession()', () => {
     });
   });
 
-  describe('edge — turn cap fires at correct threshold', () => {
-    it('triggers auto-close after turn 10', async () => {
+  describe('fire-and-forget — enqueue failure does not block closeSession result', () => {
+    it('returns success even when enqueueSummaryJob throws', async () => {
       mockUpdateMany.mockResolvedValue({ count: 1 });
+      mockEnqueueJob.mockRejectedValue(new Error('transient failure'));
 
-      const result = await closeSession('sess-cap-edge', 'TURN_CAP');
+      const result = await closeSession('sess-ff', 'user-1', 'USER_REQUESTED');
 
       expect(result.alreadyClosed).toBe(false);
-      expect(result.reason).toBe('TURN_CAP');
+      expect(result.reason).toBe('USER_REQUESTED');
+      expect(result.session_ended_at).toBeDefined();
       expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
     });
   });
@@ -156,8 +164,9 @@ describe('idle timeout', () => {
     vi.useRealTimers();
   });
 
-  it('fires closeSession after 15 minutes of inactivity with exactly one A10A enqueue', async () => {
+  it('fires closeSession after 15 minutes of inactivity with exactly one enqueue', async () => {
     mockUpdateMany.mockResolvedValue({ count: 1 });
+    mockEnqueueJob.mockResolvedValue(undefined);
 
     const { closeSession: realClose } = await import('../lib/session-close.js');
 
@@ -169,7 +178,7 @@ describe('idle timeout', () => {
 
     const timer = setTimeout(async () => {
       timerFired = true;
-      capturedResult = await realClose('sess-idle', 'IDLE_TIMEOUT', log);
+      capturedResult = await realClose('sess-idle', 'user-1', 'IDLE_TIMEOUT', log);
     }, IDLE_TIMEOUT_MS);
 
     vi.advanceTimersByTime(IDLE_TIMEOUT_MS + 100);
