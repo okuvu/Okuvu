@@ -12,6 +12,9 @@ import 'tts_service.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
 import '../features/chat/models/chat_state.dart';
+import '../features/settings/voice_settings_notifier.dart';
+
+export '../features/settings/voice_settings_notifier.dart' show voiceSettingsProvider, voiceSettingsStateProvider;
 
 class CrisisOverlayNotifier extends Notifier<bool> {
   @override
@@ -151,4 +154,10 @@ final chatMessagesProvider = NotifierProvider<ChatNotifier, ChatState>(ChatNotif
 
 final sessionIdProvider = Provider<String?>((ref) {
   return ref.watch(webSocketServiceProvider).sessionId;
+});
+
+final voiceSyncProvider = Provider<void>((ref) {
+  final voiceSettings = ref.watch(voiceSettingsStateProvider);
+  final ttsService = ref.read(ttsServiceProvider);
+  ttsService.setVoiceEnabled(voiceSettings.voiceEnabled);
 });

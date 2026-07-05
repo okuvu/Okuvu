@@ -10,6 +10,7 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerConfigProvider);
+    ref.watch(voiceSyncProvider);
 
     return MaterialApp.router(
       title: 'Evia',
