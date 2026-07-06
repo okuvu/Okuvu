@@ -163,9 +163,11 @@ void main() {
     container.read(routerProvider).go('/home');
     await tester.pumpAndSettle();
 
-    expect(find.text('Home Screen'), findsOneWidget);
-    expect(find.textContaining('Environment:'), findsOneWidget);
-    expect(find.textContaining('Base URL:'), findsOneWidget);
+    expect(find.text('Check In'), findsOneWidget);
+    expect(find.text('Progress'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('How are you feeling today?'), findsOneWidget);
+    expect(find.text('Insights'), findsOneWidget);
   });
 
   testWidgets('Crisis overlay shows all 5 crisis resources', (WidgetTester tester) async {

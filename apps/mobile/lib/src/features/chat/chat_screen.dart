@@ -88,12 +88,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     ref.listen<ChatState>(chatMessagesProvider, (previous, next) {
       if (previous != null && !previous.isSessionClosed && next.isSessionClosed) {
-        Future.delayed(const Duration(milliseconds: 400), () {
+        Future.delayed(const Duration(milliseconds: 400), () async {
           if (context.mounted &&
               ref.read(chatMessagesProvider).isSessionClosed &&
               !_srsTriggered) {
             _srsTriggered = true;
-            showSrsModal(context);
+            await showSrsModal(context);
+            if (context.mounted) context.go('/home');
           }
         });
       }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../config/app_config.dart';
 import '../../core/providers.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -9,43 +8,139 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Evia')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
-            Text('Environment: ${AppConfig.environment.label}'),
-            Text('Base URL: ${AppConfig.apiBaseUrl}'),
-            const SizedBox(height: 32),
-            Text('Home Screen', style: Theme.of(context).textTheme.headlineMedium),
+            const _MoodCheckInSlot(),
+            const SizedBox(height: 16),
+            const _InsightSlot(),
             const SizedBox(height: 24),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              alignment: WrapAlignment.center,
+            Text(
+              'What would you like to do?',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => context.go('/chat'),
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Check In'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                FilledButton(
-                  onPressed: () => context.go('/chat'),
-                  child: const Text('Chat'),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.go('/progress'),
+                    icon: const Icon(Icons.trending_up),
+                    label: const Text('Progress'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
                 ),
-                FilledButton(
-                  onPressed: () => context.go('/progress'),
-                  child: const Text('Progress'),
-                ),
-                FilledButton(
-                  onPressed: () => context.go('/settings'),
-                  child: const Text('Settings'),
-                ),
-                FilledButton(
-                  onPressed: () => ref.read(crisisOverlayProvider.notifier).show(),
-                  child: Text('Crisis Support',
-                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.go('/settings'),
+                    icon: const Icon(Icons.settings_outlined),
+                    label: const Text('Settings'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: () =>
+                  ref.read(crisisOverlayProvider.notifier).show(),
+              child: Text(
+                'Crisis Support',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MoodCheckInSlot extends StatelessWidget {
+  const _MoodCheckInSlot();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.mood, size: 32, color: theme.colorScheme.primary),
+          const SizedBox(height: 8),
+          Text(
+            'How are you feeling today?',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Daily check-in coming soon',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightSlot extends StatelessWidget {
+  const _InsightSlot();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.lightbulb_outline,
+            size: 32,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(height: 8),
+          Text('Insights', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Your daily insights will appear here',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
