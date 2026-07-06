@@ -54,9 +54,19 @@ model User {
   emergency_contact  EmergencyContact?
   mood_logs          MoodLog[]
 
-  // Relations for TherapistNote where User can be either therapist or client
-  notes_authored TherapistNote[] @relation("TherapistToNote")
+  // Client receives TherapistNote
   notes_received TherapistNote[] @relation("ClientToNote")
+}
+
+model Therapist {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  name       String?
+  image      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  notes TherapistNote[] @relation("TherapistToNote")
 }
 
 model ClinicalConfig {
@@ -141,7 +151,7 @@ model EngagementProfile {
 model TherapistNote {
   id             String   @id @default(uuid())
   therapist_id   String
-  therapist      User     @relation("TherapistToNote", fields: [therapist_id], references: [id])
+  therapist      Therapist @relation("TherapistToNote", fields: [therapist_id], references: [id])
   client_user_id String
   client         User     @relation("ClientToNote", fields: [client_user_id], references: [id])
   note_text      String
