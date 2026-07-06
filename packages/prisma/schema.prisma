@@ -39,11 +39,12 @@ enum SummaryStatus {
 
 // --- MODELS ---
 model User {
-  id           String   @id @default(uuid())
-  firebase_uid String   @unique
+  id           String     @id @default(uuid())
+  firebase_uid String     @unique
   phone_number String
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
+  deleted_at   DateTime?
 
   clinical_config    ClinicalConfig?
   safety_state       SafetyState?

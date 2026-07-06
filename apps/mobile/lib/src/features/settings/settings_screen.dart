@@ -37,6 +37,13 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/settings/about'),
           ),
+          const Divider(height: 32),
+          ListTile(
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            title: const Text('Delete Account', style: TextStyle(color: Colors.red)),
+            trailing: const Icon(Icons.chevron_right, color: Colors.red),
+            onTap: () => context.go('/settings/delete-account'),
+          ),
         ],
       ),
     );
