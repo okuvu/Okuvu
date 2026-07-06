@@ -71,7 +71,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (session == SessionState.authenticated) {
-        if (location == '/splash' || location == '/auth') {
+        if (location == '/auth') {
           return '/home';
         }
       }

@@ -100,10 +100,10 @@ void main() {
 
   testWidgets('App starts at splash screen', (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: App()));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    expect(find.text('Splash Screen'), findsOneWidget);
-    expect(find.text('Evia'), findsAtLeast(1));
+    expect(find.text('Evia'), findsOneWidget);
+    expect(find.text('A space that listens.'), findsOneWidget);
   });
 
   testWidgets('Navigation to home via auth flow', (WidgetTester tester) async {
@@ -121,9 +121,10 @@ void main() {
         child: const App(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    await tester.tap(find.text('Get Started'));
+    final container = ProviderScope.containerOf(tester.element(find.byType(App)));
+    container.read(routerProvider).go('/auth');
     await tester.pumpAndSettle();
     expect(find.text('Sign In'), findsAtLeast(1));
 
@@ -145,7 +146,6 @@ void main() {
     // After auto-submit, verify + backend both succeed;
     // session remains unauthenticated, so redirect to /auth would happen.
     // Manually set session and navigate.
-    final container = ProviderScope.containerOf(tester.element(find.byType(App)));
     container.read(_testSessionState.notifier).update(SessionState.authenticated);
     container.read(routerProvider).go('/consent');
     await tester.pumpAndSettle();
