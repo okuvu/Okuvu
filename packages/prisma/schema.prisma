@@ -34,6 +34,7 @@ enum SummaryStatus {
   PENDING
   COMPLETED
   FAILED
+  SKIPPED_TRIVIAL
 }
 
 // --- MODELS ---

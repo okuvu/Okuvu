@@ -141,6 +141,9 @@ importers:
       '@evia/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
+      '@google-cloud/aiplatform':
+        specifier: ^6.8.1
+        version: 6.8.1
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0
@@ -175,6 +178,9 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.2.6(@types/node@22.20.0)(jiti@2.7.0)(tsx@4.22.4)
 
   packages/prisma:
     dependencies:
