@@ -2,26 +2,20 @@ import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-
-interface ConsentBody {
-  safety_monitoring: boolean;
-  mood_inference: boolean;
-  assessment: boolean;
-  emergency_contact: boolean;
-}
+import type { UserConsent, CarePlanId, AssignmentState } from '@evia/shared-types';
 
 interface CarePlanBody {
-  care_plan_id: 'CP1' | 'CP2' | 'CP3';
-  assignment_state: 'provisional' | 'confirmed';
+  care_plan_id: CarePlanId;
+  assignment_state: AssignmentState;
   confidence_at_last_eval: number;
   turns_evaluated: number;
 }
 
-const VALID_CARE_PLANS = ['CP1', 'CP2', 'CP3'] as const;
-const VALID_ASSIGNMENT_STATES = ['provisional', 'confirmed'] as const;
+const VALID_CARE_PLANS: CarePlanId[] = ['CP1', 'CP2', 'CP3'];
+const VALID_ASSIGNMENT_STATES: AssignmentState[] = ['provisional', 'confirmed'];
 
 export async function userRoute(app: FastifyInstance): Promise<void> {
-  app.post<{ Body: ConsentBody }>('/users/me/consent', {
+  app.post<{ Body: UserConsent }>('/users/me/consent', {
     preHandler: [verifyFirebaseJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;

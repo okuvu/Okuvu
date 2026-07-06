@@ -7,3 +7,4 @@ allowBuilds:
   esbuild: true
   prisma: false
   protobufjs: true
+  sharp: true

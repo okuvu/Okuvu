@@ -2,22 +2,10 @@ import { config } from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
+import { checkProductionBypass } from './lib/check-production-bypass.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(__dirname, '../../../.env') });
-
-export function checkProductionBypass(
-  nodeEnv: string | undefined,
-  bypassFlag: string | undefined,
-): void {
-  if (nodeEnv === 'production' && bypassFlag === 'true') {
-    console.error(
-      'FATAL: LOCAL_DEV_BYPASS_AUTH is set to "true" in NODE_ENV=production. ' +
-      'This would leave the entire API unprotected. Refusing to start.',
-    );
-    process.exit(1);
-  }
-}
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -25,7 +13,14 @@ const HOST = process.env.HOST ?? '0.0.0.0';
 const NODE_ENV = process.env.NODE_ENV ?? 'development';
 const LOCAL_DEV_BYPASS_AUTH = process.env.LOCAL_DEV_BYPASS_AUTH;
 
-checkProductionBypass(NODE_ENV, LOCAL_DEV_BYPASS_AUTH);
+try {
+  checkProductionBypass(NODE_ENV, LOCAL_DEV_BYPASS_AUTH);
+} catch (err) {
+  console.error(
+    'FATAL: ' + (err instanceof Error ? err.message : String(err)),
+  );
+  process.exit(1);
+}
 
 import { buildApp } from './app.js';
 import { prisma } from './lib/prisma.js';
