@@ -101,24 +101,47 @@ export interface SessionClosedFrame {
 export type ClientFrame = SessionOpenFrame | UserTurnFrame | SessionCloseFrame
 export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame | ErrorFrame | AgentTurnFrame | CrisisSignalFrame | SessionClosedFrame
 
+// ─── Care Plan Types ─────────────────────────────────────────────
+
+export type CarePlanId = 'CP1' | 'CP2' | 'CP3'
+export type AssignmentState = 'provisional' | 'confirmed'
+
+// ─── Consent Types ───────────────────────────────────────────────
+
+export interface UserConsent {
+  safety_monitoring: boolean
+  mood_inference: boolean
+  assessment: boolean
+  emergency_contact: boolean
+}
+
+// ─── Session Summary ─────────────────────────────────────────────
+
+export interface SessionSummaryView {
+  session_id: string
+  session_started_at: string
+  turn_count: number
+  summary: string | null
+  session_feedback_score: number | null
+}
+
+// ─── Engagement Types ────────────────────────────────────────────
+
+export interface EngagementStats {
+  current_streak: number
+  longest_streak: number
+  voice_mode_enabled: boolean
+}
+
 // ─── Agent Context Bundle ────────────────────────────────────────
 
 export interface AgentContextBundle {
   safety_state: SafetyState | null
   care_plan: {
-    care_plan_id: 'CP1' | 'CP2' | 'CP3'
-    assignment_state: 'provisional' | 'confirmed'
+    care_plan_id: CarePlanId
+    assignment_state: AssignmentState
   } | null
-  recent_history: Array<{
-    session_id: string
-    session_started_at: string
-    turn_count: number
-    session_feedback_score: number | null
-    summary: string | null
-  }>
+  recent_history: SessionSummaryView[]
   session_summary: string | null
-  engagement: {
-    streak: number
-    voice_enabled: boolean
-  }
+  engagement: EngagementStats
 }

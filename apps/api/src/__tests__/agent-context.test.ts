@@ -169,7 +169,7 @@ describe('GET /users/me/context', () => {
         summary: 'Session 1 was productive.',
       });
       expect(body.session_summary).toBe('Latest overall summary.');
-      expect(body.engagement).toEqual({ streak: 5, voice_enabled: true });
+      expect(body.engagement).toEqual({ current_streak: 5, longest_streak: 0, voice_mode_enabled: true });
     });
 
     it('queries with correct include structure and take limit', async () => {
@@ -183,7 +183,7 @@ describe('GET /users/me/context', () => {
             safety_state: true,
             clinical_config: true,
             engagement_profile: expect.objectContaining({
-              select: { current_streak: true, voice_mode_enabled: true },
+              select: { current_streak: true, longest_streak: true, voice_mode_enabled: true },
             }),
             session_logs: expect.objectContaining({ take: 6 }),
             session_summaries: expect.objectContaining({ take: 1 }),
@@ -250,7 +250,7 @@ describe('GET /users/me/context', () => {
       expect(body.care_plan).toBeNull();
       expect(body.recent_history).toEqual([]);
       expect(body.session_summary).toBeNull();
-      expect(body.engagement).toEqual({ streak: 0, voice_enabled: false });
+      expect(body.engagement).toEqual({ current_streak: 0, longest_streak: 0, voice_mode_enabled: false });
       expect(Object.keys(body).sort()).toEqual([
         'care_plan',
         'engagement',
@@ -278,7 +278,7 @@ describe('GET /users/me/context', () => {
       expect(body.care_plan).toBeNull();
       expect(body.recent_history).toEqual([]);
       expect(body.session_summary).toBeNull();
-      expect(body.engagement).toEqual({ streak: 0, voice_enabled: false });
+      expect(body.engagement).toEqual({ current_streak: 0, longest_streak: 0, voice_mode_enabled: false });
     });
   });
 
