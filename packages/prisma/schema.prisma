@@ -55,8 +55,6 @@ model User {
   session_limits     SessionLimit[]
   emergency_contact  EmergencyContact?
 
-  mood_logs MoodLog[]
-
   // Client receives TherapistNote
   notes_received TherapistNote[] @relation("ClientToNote")
 
@@ -198,18 +196,4 @@ model EmergencyContact {
   encrypted_name  String
   encrypted_phone String
   created_at      DateTime @default(now())
-}
-
-model MoodLog {
-  id         String   @id @default(uuid())
-  user_id    String
-  user       User     @relation(fields: [user_id], references: [id])
-  mood_value Int
-  date_ist   DateTime @db.Date
-  source     String   @default("user_input")
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@unique([user_id, date_ist])
-  @@index([user_id, date_ist(sort: Desc)])
 }
