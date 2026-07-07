@@ -9,6 +9,7 @@ import 'models/chat_message.dart';
 import 'models/chat_state.dart';
 import 'widgets/reconnect_banner.dart';
 import 'widgets/srs_modal.dart';
+import '../../widgets/voice_toggle.dart';
 
 const bool _useMockResponses = kDebugMode;
 
@@ -88,12 +89,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     ref.listen<ChatState>(chatMessagesProvider, (previous, next) {
       if (previous != null && !previous.isSessionClosed && next.isSessionClosed) {
-        Future.delayed(const Duration(milliseconds: 400), () {
+        Future.delayed(const Duration(milliseconds: 400), () async {
           if (context.mounted &&
               ref.read(chatMessagesProvider).isSessionClosed &&
               !_srsTriggered) {
             _srsTriggered = true;
-            showSrsModal(context);
+            await showSrsModal(context);
+            if (context.mounted) context.go('/home');
           }
         });
       }
@@ -137,6 +139,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Column(
             children: [
+              const VoiceToggle(),
+              const Divider(height: 1),
               Expanded(
                 child: chatState.messages.isEmpty
                     ? _buildEmptyState(context)

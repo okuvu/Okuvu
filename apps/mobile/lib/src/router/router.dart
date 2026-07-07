@@ -14,6 +14,8 @@ import '../features/settings/profile_screen.dart';
 import '../features/settings/notifications_screen.dart';
 import '../features/settings/privacy_screen.dart';
 import '../features/settings/about_screen.dart';
+import '../features/settings/account_deletion_screen.dart';
+import '../features/settings/emergency_contact_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
@@ -70,7 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (session == SessionState.authenticated) {
-        if (location == '/splash' || location == '/auth') {
+        if (location == '/auth') {
           return '/home';
         }
       }
@@ -126,6 +128,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'about',
             builder: (context, state) => const AboutScreen(),
+          ),
+          GoRoute(
+            path: 'delete-account',
+            builder: (context, state) => const AccountDeletionScreen(),
+          ),
+          GoRoute(
+            path: 'emergency-contact',
+            builder: (context, state) => const EmergencyContactScreen(),
           ),
         ],
       ),

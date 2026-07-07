@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 
-void showSrsModal(BuildContext context) {
-  showModalBottomSheet<void>(
+Future<void> showSrsModal(BuildContext context) {
+  return showModalBottomSheet<void>(
     context: context,
     isDismissible: true,
     enableDrag: true,
@@ -35,21 +35,21 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
     final sessionId = ref.read(sessionIdProvider);
     final dio = ref.read(dioClientProvider);
     if (sessionId != null) {
-  unawaited(() async {
-    try {
-      await dio.patch(
-        '/sessions/$sessionId/srs',
-        data: {'score': avg},
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[SRS] PATCH failed: $e');
-      }
+      unawaited(() async {
+        try {
+          await dio.patch(
+            '/sessions/$sessionId/srs',
+            data: {'score': avg},
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('[SRS] PATCH failed: $e');
+          }
+        }
+      }());
+    } else if (kDebugMode) {
+      debugPrint('[SRS] No session ID available, skipping PATCH');
     }
-  }());
-} else if (kDebugMode) {
-  debugPrint('[SRS] No session ID available, skipping PATCH');
-}
 
     Navigator.of(context).pop();
   }

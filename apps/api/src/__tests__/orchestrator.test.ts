@@ -56,7 +56,7 @@ const defaultContext = {
   care_plan: { care_plan_id: 'CP1' as const, assignment_state: 'provisional' as const },
   recent_history: [],
   session_summary: null,
-  engagement: { streak: 0, voice_enabled: false },
+  engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false },
 };
 
 beforeEach(() => {

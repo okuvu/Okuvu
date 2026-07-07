@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { verifyOidcToken } from '../middleware/oidc-auth.js';
+import { generateSessionSummary } from '../lib/summary.js';
 
 interface SummaryTaskPayload {
   session_id: string;
@@ -21,14 +22,40 @@ export async function summaryTaskRoute(app: FastifyInstance): Promise<void> {
     },
     handler: async (request, reply) => {
       const { session_id, user_id } = request.body;
+      const start = Date.now();
 
       request.log.info({
-        event: 'summary_task_received',
+        event: 'summary_job_started',
         session_id,
         user_id,
-      }, 'Summary task received');
+      }, 'Summary job started');
 
-      reply.status(200).send({ received: true });
+      try {
+        const result = await generateSessionSummary(session_id, user_id, request.log);
+        const elapsed = Date.now() - start;
+
+        request.log.info({
+          event: 'summary_job_completed',
+          session_id,
+          user_id,
+          status: result.status,
+          elapsed_ms: elapsed,
+        }, 'Summary job completed');
+
+        return reply.status(200).send({ processed: true, status: result.status });
+      } catch (err) {
+        const elapsed = Date.now() - start;
+
+        request.log.error({
+          event: 'summary_job_failed',
+          session_id,
+          user_id,
+          err: err instanceof Error ? err.message : String(err),
+          elapsed_ms: elapsed,
+        }, 'Summary job failed');
+
+        throw err;
+      }
     },
   });
 }

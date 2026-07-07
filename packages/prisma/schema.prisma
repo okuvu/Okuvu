@@ -34,15 +34,17 @@ enum SummaryStatus {
   PENDING
   COMPLETED
   FAILED
+  SKIPPED_TRIVIAL
 }
 
 // --- MODELS ---
 model User {
-  id           String   @id @default(uuid())
-  firebase_uid String   @unique
+  id           String     @id @default(uuid())
+  firebase_uid String     @unique
   phone_number String
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
+  deleted_at   DateTime?
 
   clinical_config    ClinicalConfig?
   safety_state       SafetyState?
@@ -52,11 +54,24 @@ model User {
   engagement_profile EngagementProfile?
   session_limits     SessionLimit[]
   emergency_contact  EmergencyContact?
-  mood_logs          MoodLog[]
 
-  // Relations for TherapistNote where User can be either therapist or client
-  notes_authored TherapistNote[] @relation("TherapistToNote")
+  // Client receives TherapistNote
   notes_received TherapistNote[] @relation("ClientToNote")
+
+  assigned_therapists TherapistClient[]
+}
+
+model Therapist {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  name       String?
+  image      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  notes TherapistNote[] @relation("TherapistToNote")
+
+  client_assignments TherapistClient[]
 }
 
 model ClinicalConfig {
@@ -141,13 +156,25 @@ model EngagementProfile {
 model TherapistNote {
   id             String   @id @default(uuid())
   therapist_id   String
-  therapist      User     @relation("TherapistToNote", fields: [therapist_id], references: [id])
+  therapist      Therapist @relation("TherapistToNote", fields: [therapist_id], references: [id])
   client_user_id String
   client         User     @relation("ClientToNote", fields: [client_user_id], references: [id])
   note_text      String
   created_at     DateTime @default(now())
 
   @@index([client_user_id, created_at(sort: Desc)])
+}
+
+model TherapistClient {
+  id             String   @id @default(uuid())
+  therapist_id   String
+  therapist      Therapist @relation(fields: [therapist_id], references: [id])
+  client_user_id String
+  client         User     @relation(fields: [client_user_id], references: [id])
+  created_at     DateTime @default(now())
+
+  @@unique([therapist_id, client_user_id])
+  @@index([client_user_id])
 }
 
 model SessionLimit {
@@ -169,18 +196,4 @@ model EmergencyContact {
   encrypted_name  String
   encrypted_phone String
   created_at      DateTime @default(now())
-}
-
-model MoodLog {
-  id         String   @id @default(uuid())
-  user_id    String
-  user       User     @relation(fields: [user_id], references: [id])
-  mood_value Int
-  date_ist   DateTime @db.Date
-  source     String   @default("user_input")
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@unique([user_id, date_ist])
-  @@index([user_id, date_ist(sort: Desc)])
 }

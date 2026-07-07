@@ -12,6 +12,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       engagement_profile: {
         select: {
           current_streak: true,
+          longest_streak: true,
           voice_mode_enabled: true,
         },
       },
@@ -40,7 +41,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       care_plan: null,
       recent_history: [],
       session_summary: null,
-      engagement: { streak: 0, voice_enabled: false },
+      engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false },
     };
   }
 
@@ -84,8 +85,9 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
     recent_history: recentHistory,
     session_summary: user.session_summaries[0]?.summary_text ?? null,
     engagement: {
-      streak: user.engagement_profile?.current_streak ?? 0,
-      voice_enabled: user.engagement_profile?.voice_mode_enabled ?? false,
+      current_streak: user.engagement_profile?.current_streak ?? 0,
+      longest_streak: user.engagement_profile?.longest_streak ?? 0,
+      voice_mode_enabled: user.engagement_profile?.voice_mode_enabled ?? false,
     },
   };
 }

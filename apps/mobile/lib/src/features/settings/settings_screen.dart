@@ -32,10 +32,23 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.go('/settings/privacy'),
           ),
           ListTile(
+            leading: const Icon(Icons.contact_emergency),
+            title: const Text('Emergency Contact'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/emergency-contact'),
+          ),
+          ListTile(
             leading: const Icon(Icons.info),
             title: const Text('About'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.go('/settings/about'),
+          ),
+          const Divider(height: 32),
+          ListTile(
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            title: const Text('Delete Account', style: TextStyle(color: Colors.red)),
+            trailing: const Icon(Icons.chevron_right, color: Colors.red),
+            onTap: () => context.go('/settings/delete-account'),
           ),
         ],
       ),
