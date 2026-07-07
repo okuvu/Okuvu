@@ -72,7 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (session == SessionState.authenticated) {
         if (location == '/auth') {
-          return '/onboarding/consent';
+          return '/home';
         }
       }
 
@@ -89,7 +89,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const OtpLoginScreen(),
       ),
       GoRoute(
-        path: '/onboarding/consent',
+        path: '/consent',
         builder: (context, state) => const ConsentScreen(),
       ),
       GoRoute(
@@ -125,16 +125,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const PrivacyScreen(),
           ),
           GoRoute(
+            path: 'emergency-contact',
+            builder: (context, state) => const EmergencyContactScreen(),
+          ),
+          GoRoute(
             path: 'about',
             builder: (context, state) => const AboutScreen(),
           ),
           GoRoute(
             path: 'delete-account',
             builder: (context, state) => const AccountDeletionScreen(),
-          ),
-          GoRoute(
-            path: 'emergency-contact',
-            builder: (context, state) => const EmergencyContactScreen(),
           ),
         ],
       ),
