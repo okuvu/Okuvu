@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { TRPCProvider } from '@/trpc/provider';
+import AuthProvider from '@/lib/auth-provider';
 
 export const metadata: Metadata = {
   title: 'Evia — Therapist Portal',
@@ -11,7 +12,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <TRPCProvider>{children}</TRPCProvider>
+        <TRPCProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </TRPCProvider>
       </body>
     </html>
   );
