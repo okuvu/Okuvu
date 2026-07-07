@@ -32,6 +32,12 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.go('/settings/privacy'),
           ),
           ListTile(
+            leading: const Icon(Icons.contact_emergency),
+            title: const Text('Emergency Contact'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.go('/settings/emergency-contact'),
+          ),
+          ListTile(
             leading: const Icon(Icons.info),
             title: const Text('About'),
             trailing: const Icon(Icons.chevron_right),
