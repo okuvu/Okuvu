@@ -98,7 +98,8 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
   Future<void> _sendOtp() async {
     final phone = _phoneController.text.trim();
     if (!_isValidPhone(phone)) {
-      setState(() => _phoneError = 'Enter a valid 10-digit Indian phone number');
+      setState(
+          () => _phoneError = 'Enter a valid 10-digit Indian phone number');
       return;
     }
 
@@ -108,52 +109,54 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
     });
 
     ref.read(authServiceProvider).verifyPhone(
-      phoneNumber: _normalizePhone(phone),
-      onCodeSent: (verificationId, token) {
-        if (!mounted) return;
-        setState(() {
-          _isSending = false;
-          _verificationId = verificationId;
-          _forceResendingToken = token;
-          _step = _AuthStep.otp;
-        });
-        _startResendTimer();
-      },
-      onError: (FirebaseAuthException e) {
-        if (!mounted) return;
-        setState(() {
-          _isSending = false;
-          _phoneError = e.message ?? 'Verification failed. Please try again.';
-        });
-      },
-    );
+          phoneNumber: _normalizePhone(phone),
+          onCodeSent: (verificationId, token) {
+            if (!mounted) return;
+            setState(() {
+              _isSending = false;
+              _verificationId = verificationId;
+              _forceResendingToken = token;
+              _step = _AuthStep.otp;
+            });
+            _startResendTimer();
+          },
+          onError: (FirebaseAuthException e) {
+            if (!mounted) return;
+            setState(() {
+              _isSending = false;
+              _phoneError =
+                  e.message ?? 'Verification failed. Please try again.';
+            });
+          },
+        );
   }
 
   Future<void> _resendCode() async {
     setState(() => _isResending = true);
 
     ref.read(authServiceProvider).verifyPhone(
-      phoneNumber: _normalizePhone(_phoneController.text.trim()),
-      forceResendingToken: _forceResendingToken,
-      onCodeSent: (verificationId, token) {
-        if (!mounted) return;
-        setState(() {
-          _isResending = false;
-          _verificationId = verificationId;
-          _forceResendingToken = token;
-          _otpError = null;
-        });
-        _clearOtpFields();
-        _startResendTimer();
-      },
-      onError: (FirebaseAuthException e) {
-        if (!mounted) return;
-        setState(() {
-          _isResending = false;
-          _otpError = e.message ?? 'Failed to resend code. Please try again.';
-        });
-      },
-    );
+          phoneNumber: _normalizePhone(_phoneController.text.trim()),
+          forceResendingToken: _forceResendingToken,
+          onCodeSent: (verificationId, token) {
+            if (!mounted) return;
+            setState(() {
+              _isResending = false;
+              _verificationId = verificationId;
+              _forceResendingToken = token;
+              _otpError = null;
+            });
+            _clearOtpFields();
+            _startResendTimer();
+          },
+          onError: (FirebaseAuthException e) {
+            if (!mounted) return;
+            setState(() {
+              _isResending = false;
+              _otpError =
+                  e.message ?? 'Failed to resend code. Please try again.';
+            });
+          },
+        );
   }
 
   void _clearOtpFields() {
@@ -176,9 +179,9 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
 
     try {
       await ref.read(authServiceProvider).verifyOtp(
-        verificationId: _verificationId!,
-        smsCode: otp,
-      );
+            verificationId: _verificationId!,
+            smsCode: otp,
+          );
 
       try {
         final dio = ref.read(dioClientProvider);
@@ -194,7 +197,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         return;
       }
 
-      if (mounted) context.go('/consent');
+      if (mounted) context.go('/onboarding/consent');
     } on FirebaseAuthException {
       if (!mounted) return;
       setState(() {
@@ -249,7 +252,8 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         const SizedBox(height: 8),
         Text(
           'Enter your phone number to get started',
-          style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyLarge
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 32),
         TextField(
@@ -295,7 +299,8 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         const SizedBox(height: 8),
         Text(
           'Enter the code sent to ${_normalizePhone(_phoneController.text.trim())}',
-          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 32),
         Row(
@@ -323,8 +328,13 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
                     textAlign: TextAlign.center,
                     keyboardType: TextInputType.number,
                     maxLength: 1,
-                    buildCounter: (_, {required int currentLength, required bool isFocused, int? maxLength}) => null,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    buildCounter: (_,
+                            {required int currentLength,
+                            required bool isFocused,
+                            int? maxLength}) =>
+                        null,
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
                       counterText: '',
                       contentPadding: EdgeInsets.zero,
@@ -366,8 +376,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
                 ),
               ),
             ),
-            if (_isVerifying)
-              const CircularProgressIndicator(),
+            if (_isVerifying) const CircularProgressIndicator(),
           ],
         ),
         const SizedBox(height: 16),

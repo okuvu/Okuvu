@@ -50,8 +50,7 @@ class _CrisisAwareRouterConfig implements RouterConfig<RouteMatchList> {
       _goRouter.routeInformationParser;
 
   @override
-  RouterDelegate<RouteMatchList> get routerDelegate =>
-      _goRouter.routerDelegate;
+  RouterDelegate<RouteMatchList> get routerDelegate => _goRouter.routerDelegate;
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -73,7 +72,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (session == SessionState.authenticated) {
         if (location == '/auth') {
-          return '/home';
+          return '/onboarding/consent';
         }
       }
 
@@ -90,7 +89,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const OtpLoginScreen(),
       ),
       GoRoute(
-        path: '/consent',
+        path: '/onboarding/consent',
         builder: (context, state) => const ConsentScreen(),
       ),
       GoRoute(

@@ -43,7 +43,8 @@ class FakeAuthService implements AuthService {
   @override
   Future<void> verifyPhone({
     required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
+    required void Function(String verificationId, int? forceResendingToken)
+        onCodeSent,
     required void Function(FirebaseAuthException) onError,
     int? forceResendingToken,
   }) async {
@@ -67,7 +68,13 @@ class _TestSessionState extends Notifier<SessionState> {
   void update(SessionState value) => state = value;
 }
 
-final _testSessionState = NotifierProvider<_TestSessionState, SessionState>(_TestSessionState.new);
+class _ShowCrisisNotifier extends CrisisOverlayNotifier {
+  @override
+  bool build() => true;
+}
+
+final _testSessionState =
+    NotifierProvider<_TestSessionState, SessionState>(_TestSessionState.new);
 
 Dio _createMockDio() {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
@@ -123,7 +130,8 @@ void main() {
     );
     await tester.pump();
 
-    final container = ProviderScope.containerOf(tester.element(find.byType(App)));
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(App)));
     container.read(routerProvider).go('/auth');
     await tester.pumpAndSettle();
     expect(find.text('Sign In'), findsAtLeast(1));
@@ -146,14 +154,21 @@ void main() {
     // After auto-submit, verify + backend both succeed;
     // session remains unauthenticated, so redirect to /auth would happen.
     // Manually set session and navigate.
-    container.read(_testSessionState.notifier).update(SessionState.authenticated);
-    container.read(routerProvider).go('/consent');
+    container
+        .read(_testSessionState.notifier)
+        .update(SessionState.authenticated);
+    container.read(routerProvider).go('/onboarding/consent');
     await tester.pumpAndSettle();
-    expect(find.text('Consent Screen'), findsOneWidget);
+    expect(find.text('Before we begin'), findsOneWidget);
 
-    await tester.tap(find.text('Accept & Continue'));
+    // Scroll consent list to bottom to enable the Save button.
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pumpAndSettle();
-    expect(find.text("What's been weighing on your mind lately?"), findsOneWidget);
+
+    await tester.tap(find.text('Save and continue'));
+    await tester.pumpAndSettle();
+    expect(
+        find.text("What's been weighing on your mind lately?"), findsOneWidget);
 
     // Skip the intake screen's 3-turn flow and directly navigate to home
     // by simulating the intake's internal state completion.
@@ -170,11 +185,13 @@ void main() {
     expect(find.text('Insights'), findsOneWidget);
   });
 
-  testWidgets('Crisis overlay shows all 5 crisis resources', (WidgetTester tester) async {
+  testWidgets('Crisis overlay shows all 5 crisis resources',
+      (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           sessionProvider.overrideWith((ref) => SessionState.authenticated),
+          crisisOverlayProvider.overrideWith(_ShowCrisisNotifier.new),
         ],
         child: const App(),
       ),
@@ -191,11 +208,13 @@ void main() {
     expect(find.text('112'), findsOneWidget);
   });
 
-  testWidgets('Crisis overlay has no dismiss button', (WidgetTester tester) async {
+  testWidgets('Crisis overlay has no dismiss button',
+      (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           sessionProvider.overrideWith((ref) => SessionState.authenticated),
+          crisisOverlayProvider.overrideWith(_ShowCrisisNotifier.new),
         ],
         child: const App(),
       ),
@@ -214,6 +233,7 @@ void main() {
       ProviderScope(
         overrides: [
           sessionProvider.overrideWith((ref) => SessionState.authenticated),
+          crisisOverlayProvider.overrideWith(_ShowCrisisNotifier.new),
         ],
         child: const App(),
       ),
@@ -236,6 +256,7 @@ void main() {
       ProviderScope(
         overrides: [
           sessionProvider.overrideWith((ref) => SessionState.authenticated),
+          crisisOverlayProvider.overrideWith(_ShowCrisisNotifier.new),
         ],
         child: const App(),
       ),
@@ -251,7 +272,8 @@ void main() {
     expect(find.text('9152987821'), findsOneWidget);
   });
 
-  testWidgets('Unknown route shows not-found page', (WidgetTester tester) async {
+  testWidgets('Unknown route shows not-found page',
+      (WidgetTester tester) async {
     final router = GoRouter(
       initialLocation: '/nonexistent-route',
       routes: const [],

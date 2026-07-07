@@ -191,7 +191,7 @@ void main() {
       await tester.tap(find.text('Progress'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Progress Screen'), findsOneWidget);
+      expect(find.text('Could not load your mood trend'), findsOneWidget);
     });
 
     testWidgets('Settings navigates to /settings', (tester) async {

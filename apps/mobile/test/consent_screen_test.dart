@@ -23,7 +23,8 @@ class FakeAuthService implements AuthService {
   @override
   Future<void> verifyPhone({
     required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
+    required void Function(String verificationId, int? forceResendingToken)
+        onCodeSent,
     required void Function(FirebaseAuthException) onError,
     int? forceResendingToken,
   }) async {
@@ -68,9 +69,16 @@ Widget createTestApp(Dio dio) {
     ],
     child: MaterialApp.router(
       routerConfig: GoRouter(
-        initialLocation: '/consent',
+        initialLocation: '/onboarding/consent',
         routes: [
-          GoRoute(path: '/consent', builder: (_, __) => const ConsentScreen()),
+          GoRoute(
+            path: '/',
+            builder: (_, __) => const SizedBox.shrink(),
+          ),
+          GoRoute(
+            path: '/onboarding/consent',
+            builder: (_, __) => const ConsentScreen(),
+          ),
           GoRoute(path: '/intake', builder: (_, __) => const IntakeScreen()),
         ],
       ),
@@ -111,86 +119,102 @@ void main() {
       dio.httpClientAdapter = adapter;
     });
 
-    testWidgets('renders all four consent items', (WidgetTester tester) async {
+    Future<void> scrollToBottom(WidgetTester tester) async {
+      final listView = find.byType(ListView);
+      await tester.drag(listView, const Offset(0, -500));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('renders heading, subtitle, progress pill, and all four cards',
+        (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
+      expect(find.text('Before we begin'), findsOneWidget);
+      expect(
+        find.text('A few things to know about how Evia works.'),
+        findsOneWidget,
+      );
+      expect(find.text('Step 1 of 8'), findsOneWidget);
       expect(find.text('Safety monitoring'), findsOneWidget);
-      expect(find.text('Mood inference'), findsOneWidget);
-      expect(find.text('Assessment'), findsOneWidget);
+      expect(find.text('Mood understanding'), findsOneWidget);
+      expect(find.text('Progress tracking'), findsOneWidget);
       expect(find.text('Emergency contact'), findsOneWidget);
     });
 
-    testWidgets('safety monitoring is checked and cannot be toggled off',
+    testWidgets(
+        'safety monitoring is checked, shows Required badge, and cannot be toggled',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      final safetyTile = find.text('Safety monitoring');
-      await tester.tap(safetyTile);
-      await tester.pumpAndSettle();
+      expect(find.text('Required'), findsOneWidget);
 
-      final checkboxes = find.byType(CheckboxListTile);
-      final firstCheckbox = tester.widget<CheckboxListTile>(checkboxes.first);
-      expect(firstCheckbox.value, true);
-      expect(firstCheckbox.onChanged, isNull);
+      final checkboxWidget =
+          tester.widget<Checkbox>(find.byType(Checkbox).first);
+      expect(checkboxWidget.value, true);
+      expect(checkboxWidget.onChanged, isNull);
     });
 
-    testWidgets('optional items toggle independently',
+    testWidgets('optional items show correct defaults and toggle independently',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      final checkboxes = find.byType(CheckboxListTile);
+      final checkboxes = find.byType(Checkbox);
 
-      CheckboxListTile tile(int i) =>
-          tester.widget<CheckboxListTile>(checkboxes.at(i));
+      Checkbox checkbox(int i) => tester.widget<Checkbox>(checkboxes.at(i));
 
-      expect(tile(0).value, true);
-      expect(tile(1).value, false);
-      expect(tile(2).value, false);
-      expect(tile(3).value, false);
+      expect(checkbox(0).value, true);
+      expect(checkbox(1).value, true);
+      expect(checkbox(2).value, true);
+      expect(checkbox(3).value, false);
 
-      await tester.tap(find.text('Mood inference'));
+      // Toggle mood understanding off
+      await tester.tap(find.byType(Checkbox).at(1));
       await tester.pumpAndSettle();
 
-      expect(tile(0).value, true);
-      expect(tile(1).value, true);
-      expect(tile(2).value, false);
-      expect(tile(3).value, false);
+      expect(checkbox(0).value, true);
+      expect(checkbox(1).value, false);
+      expect(checkbox(2).value, true);
+      expect(checkbox(3).value, false);
 
-      await tester.tap(find.text('Assessment'));
+      // Toggle progress tracking off
+      await tester.tap(find.byType(Checkbox).at(2));
       await tester.pumpAndSettle();
 
-      expect(tile(0).value, true);
-      expect(tile(1).value, true);
-      expect(tile(2).value, true);
-      expect(tile(3).value, false);
+      expect(checkbox(0).value, true);
+      expect(checkbox(1).value, false);
+      expect(checkbox(2).value, false);
+      expect(checkbox(3).value, false);
 
-      await tester.tap(find.text('Mood inference'));
+      // Toggle emergency contact on
+      await tester.tap(find.byType(Checkbox).at(3));
       await tester.pumpAndSettle();
 
-      expect(tile(0).value, true);
-      expect(tile(1).value, false);
-      expect(tile(2).value, true);
-      expect(tile(3).value, false);
+      expect(checkbox(0).value, true);
+      expect(checkbox(1).value, false);
+      expect(checkbox(2).value, false);
+      expect(checkbox(3).value, true);
     });
 
-    testWidgets('Continue sends POST /users/me/consent with correct payload',
+    testWidgets(
+        'Save and continue sends POST /users/me/consent with correct payload',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Mood inference'));
-      await tester.tap(find.text('Assessment'));
-      await tester.pump();
+      // Uncheck mood, toggle emergency on
+      await tester.tap(find.byType(Checkbox).at(1));
+      await tester.tap(find.byType(Checkbox).at(3));
+      await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Accept & Continue'));
-      await tester.pump();
+      await scrollToBottom(tester);
 
-      await tester.tap(find.text('Accept & Continue'));
-      await tester.pump();
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.tap(find.text('Save and continue'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
       await tester.pump(const Duration(seconds: 1));
 
       expect(adapter.lastRequest, isNotNull);
@@ -199,26 +223,27 @@ void main() {
 
       final body = adapter.lastRequest!.data as Map<String, dynamic>;
       expect(body['safety_monitoring'], true);
-      expect(body['mood_inference'], true);
+      expect(body['mood_inference'], false);
       expect(body['assessment'], true);
-      expect(body['emergency_contact'], false);
+      expect(body['emergency_contact'], true);
     });
 
-    testWidgets('on success navigates to /intake',
-        (WidgetTester tester) async {
+    testWidgets('on success navigates to /intake', (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Accept & Continue'));
-      await tester.pumpAndSettle();
+      await scrollToBottom(tester);
 
       await tester.runAsync(() async {
-        await tester.tap(find.text('Accept & Continue'));
+        await tester.tap(find.text('Save and continue'));
         await Future<void>.delayed(const Duration(milliseconds: 50));
       });
       await tester.pumpAndSettle();
 
-      expect(find.text("What's been weighing on your mind lately?"), findsOneWidget);
+      expect(
+        find.text("What's been weighing on your mind lately?"),
+        findsOneWidget,
+      );
     });
 
     testWidgets('on failure shows error message and preserves state',
@@ -228,27 +253,39 @@ void main() {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Mood inference'));
-      await tester.pumpAndSettle();
+      await scrollToBottom(tester);
 
-      await tester.ensureVisible(find.text('Accept & Continue'));
-      await tester.pumpAndSettle();
-
-      await tester.runAsync(() async {
-        await tester.tap(find.text('Accept & Continue'));
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
+      await tester.tap(find.text('Save and continue'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
       await tester.pumpAndSettle();
 
       expect(
         find.text('Something went wrong. Please try again.'),
         findsOneWidget,
       );
-      expect(find.textContaining("What's been weighing"), findsNothing);
+      expect(
+        find.textContaining("What's been weighing"),
+        findsNothing,
+      );
 
-      final checkboxes = find.byType(CheckboxListTile);
-      final moodTile = tester.widget<CheckboxListTile>(checkboxes.at(1));
-      expect(moodTile.value, true);
+      final checkboxes = find.byType(Checkbox);
+      final moodCheckbox = tester.widget<Checkbox>(checkboxes.at(1));
+      expect(moodCheckbox.value, true);
+    });
+
+    testWidgets('button is enabled after scrolling to bottom',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+
+      await scrollToBottom(tester);
+
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNotNull,
+      );
     });
 
     testWidgets('Continue button shows loading state during submission',
@@ -256,10 +293,9 @@ void main() {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Accept & Continue'));
-      await tester.pumpAndSettle();
+      await scrollToBottom(tester);
 
-      final continueButton = find.text('Accept & Continue');
+      final continueButton = find.text('Save and continue');
       await tester.tap(continueButton);
       await tester.pump();
 
@@ -269,11 +305,72 @@ void main() {
         isNull,
       );
 
-      // Let the pending Dio request complete to avoid timer leaks.
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 50)),
       );
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('renders all four icons', (WidgetTester tester) async {
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.shield), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(Icons.bar_chart), findsOneWidget);
+      expect(find.byIcon(Icons.phone), findsOneWidget);
+    });
+
+    testWidgets('renders footer text', (WidgetTester tester) async {
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('You can change any of these in Settings > Privacy.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('back arrow navigates to previous route',
+        (WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => const SizedBox.shrink(),
+          ),
+          GoRoute(
+            path: '/onboarding/consent',
+            builder: (_, __) => const ConsentScreen(),
+          ),
+          GoRoute(
+            path: '/intake',
+            builder: (_, __) => const IntakeScreen(),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            dioClientProvider.overrideWithValue(dio),
+            authServiceProvider.overrideWithValue(FakeAuthService()),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      router.push('/onboarding/consent');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConsentScreen), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConsentScreen), findsNothing);
     });
   });
 }
