@@ -58,6 +58,8 @@ model User {
 
   // Client receives TherapistNote
   notes_received TherapistNote[] @relation("ClientToNote")
+
+  assigned_therapists TherapistClient[]
 }
 
 model Therapist {
@@ -69,6 +71,8 @@ model Therapist {
   updated_at DateTime @updatedAt
 
   notes TherapistNote[] @relation("TherapistToNote")
+
+  client_assignments TherapistClient[]
 }
 
 model ClinicalConfig {
@@ -160,6 +164,18 @@ model TherapistNote {
   created_at     DateTime @default(now())
 
   @@index([client_user_id, created_at(sort: Desc)])
+}
+
+model TherapistClient {
+  id             String   @id @default(uuid())
+  therapist_id   String
+  therapist      Therapist @relation(fields: [therapist_id], references: [id])
+  client_user_id String
+  client         User     @relation(fields: [client_user_id], references: [id])
+  created_at     DateTime @default(now())
+
+  @@unique([therapist_id, client_user_id])
+  @@index([client_user_id])
 }
 
 model SessionLimit {
