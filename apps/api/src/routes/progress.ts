@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify';
+
+// Auth, DB, date helpers
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getISTDateString } from '../lib/session-limits.js';
