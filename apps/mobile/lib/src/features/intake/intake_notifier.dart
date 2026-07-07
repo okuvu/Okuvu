@@ -1,65 +1,48 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../config/app_config.dart';
-import '../../core/providers.dart';
-import '../../core/websocket_service.dart';
-import '../chat/models/agent_turn_frame.dart';
 import 'intake_message.dart';
 
 class IntakeState {
+  final int step;
   final List<IntakeMessage> messages;
-  final int turnCount;
-  final bool isSending;
+  final String? selectedCarePlan;
+  final bool isCompleting;
   final bool isComplete;
-  final bool hasNavigated;
-  final String? error;
-  final WsConnectionState wsState;
 
   const IntakeState({
+    required this.step,
     required this.messages,
-    required this.turnCount,
-    required this.isSending,
+    this.selectedCarePlan,
+    required this.isCompleting,
     required this.isComplete,
-    required this.hasNavigated,
-    this.error,
-    required this.wsState,
   });
 
   IntakeState.initial()
-      : messages = const [
+      : step = 1,
+        messages = const [
           IntakeMessage(
             role: 'assistant',
             content: "What's been weighing on your mind lately?",
             timestamp: null,
           ),
         ],
-        turnCount = 0,
-        isSending = false,
-        isComplete = false,
-        hasNavigated = false,
-        error = null,
-        wsState = WsConnectionState.disconnected;
+        selectedCarePlan = null,
+        isCompleting = false,
+        isComplete = false;
 
   IntakeState copyWith({
+    int? step,
     List<IntakeMessage>? messages,
-    int? turnCount,
-    bool? isSending,
+    String? selectedCarePlan,
+    bool? isCompleting,
     bool? isComplete,
-    bool? hasNavigated,
-    String? error,
-    bool clearError = false,
-    WsConnectionState? wsState,
   }) {
     return IntakeState(
+      step: step ?? this.step,
       messages: messages ?? this.messages,
-      turnCount: turnCount ?? this.turnCount,
-      isSending: isSending ?? this.isSending,
+      selectedCarePlan: selectedCarePlan ?? this.selectedCarePlan,
+      isCompleting: isCompleting ?? this.isCompleting,
       isComplete: isComplete ?? this.isComplete,
-      hasNavigated: hasNavigated ?? this.hasNavigated,
-      error: clearError ? null : (error ?? this.error),
-      wsState: wsState ?? this.wsState,
     );
   }
 }
@@ -68,110 +51,67 @@ final intakeProvider =
     NotifierProvider<IntakeNotifier, IntakeState>(IntakeNotifier.new);
 
 class IntakeNotifier extends Notifier<IntakeState> {
-  StreamSubscription<AgentTurnFrame>? _frameSub;
-  StreamSubscription<WsConnectionState>? _stateSub;
-
   @override
   IntakeState build() {
     return IntakeState.initial();
   }
 
-  Future<void> init() async {
-    final authService = ref.read(authServiceProvider);
-    final wsService = ref.read(webSocketServiceProvider);
-    final token = await authService.getIdToken();
-
-    if (token == null) {
-      state = state.copyWith(
-        error: 'Unable to authenticate. Please sign in again.',
-      );
-      return;
-    }
-
-    wsService.connect(wsBaseUrl: AppConfig.wsBaseUrl, token: token);
-
-    _frameSub = wsService.agentTurnStream.listen(_onFrame);
-
-    _stateSub = wsService.stateStream.listen((wsState) {
-      state = state.copyWith(wsState: wsState);
-    });
-  }
-
-  void sendMessage(String text) {
-    if (state.isComplete || state.isSending || text.trim().isEmpty) return;
-
-    if (state.wsState != WsConnectionState.sessionActive) {
-      state = state.copyWith(
-        error: 'Waiting for connection...',
-        clearError: true,
-      );
-      return;
-    }
-
+  void startStep2(String userResponse) {
     state = state.copyWith(
+      step: 2,
       messages: [
         ...state.messages,
         IntakeMessage(
           role: 'user',
-          content: text.trim(),
+          content: userResponse,
+          timestamp: DateTime.now(),
+        ),
+        IntakeMessage(
+          role: 'assistant',
+          content:
+              'Thanks for sharing. Which type of support feels like the best fit right now?',
           timestamp: DateTime.now(),
         ),
       ],
-      isSending: true,
     );
-
-    ref.read(webSocketServiceProvider).sendUserTurn(text.trim());
   }
 
-  void _onFrame(AgentTurnFrame frame) {
-    if (frame.isCrisis) {
-      _onCrisisSignal();
-      return;
+  void selectCarePlan(String plan) {
+    state = state.copyWith(
+      step: 3,
+      selectedCarePlan: plan,
+      messages: [
+        ...state.messages,
+        IntakeMessage(
+          role: 'user',
+          content: plan,
+          timestamp: DateTime.now(),
+        ),
+        IntakeMessage(
+          role: 'assistant',
+          content:
+              "Thanks. I'll tailor your experience around $plan.",
+          timestamp: DateTime.now(),
+        ),
+      ],
+    );
+  }
+
+  void complete() {
+    state = state.copyWith(isComplete: true);
+  }
+
+  void goBack() {
+    if (state.step == 2) {
+      final messages = state.messages.take(state.messages.length - 2).toList();
+      state = state.copyWith(step: 1, messages: messages);
+    } else if (state.step == 3) {
+      final messages = state.messages.take(state.messages.length - 2).toList();
+      state = state.copyWith(
+        step: 2,
+        isCompleting: false,
+        messages: messages,
+      );
     }
-
-    final message = frame.content;
-    if (message.isEmpty) return;
-
-    final newTurnCount = state.turnCount + 1;
-    final isComplete = newTurnCount >= 3;
-
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        IntakeMessage(
-          role: 'assistant',
-          content: message,
-          timestamp: DateTime.now(),
-        ),
-      ],
-      turnCount: newTurnCount,
-      isSending: false,
-      isComplete: isComplete,
-    );
-  }
-  void _onCrisisSignal() {
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        IntakeMessage(
-          role: 'assistant',
-          content: "Let's take a moment.",
-          timestamp: DateTime.now(),
-        ),
-      ],
-      isSending: false,
-      isComplete: true,
-    );
-  }
-
-  void reconnect() {
-    state = state.copyWith(error: null, clearError: true);
-    ref.read(webSocketServiceProvider).retry();
-  }
-
-  void cleanup() {
-    _frameSub?.cancel();
-    _stateSub?.cancel();
-    ref.read(webSocketServiceProvider).disconnect();
   }
 }
