@@ -140,6 +140,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Insights'), findsOneWidget);
+      expect(find.text("I'm here when you're ready to talk."), findsOneWidget);
       expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
     });
 
@@ -159,6 +160,7 @@ void main() {
       expect(find.text('Settings'), findsOneWidget);
       expect(find.text('How are you feeling today?'), findsOneWidget);
       expect(find.text('Insights'), findsOneWidget);
+      expect(find.text("I'm here when you're ready to talk."), findsOneWidget);
       expect(find.byIcon(Icons.mood), findsOneWidget);
       expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
     });
