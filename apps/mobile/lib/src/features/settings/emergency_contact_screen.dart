@@ -19,7 +19,6 @@ class _EmergencyContactScreenState
 
   bool get _hasChanges =>
       _nameController.text.isNotEmpty || _phoneController.text.isNotEmpty;
-
   @override
   void dispose() {
     _nameController.dispose();

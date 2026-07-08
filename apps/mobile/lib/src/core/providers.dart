@@ -13,7 +13,6 @@ import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
 import '../features/chat/models/chat_state.dart';
 import '../features/settings/voice_settings_notifier.dart';
-import '../features/settings/emergency_contact_notifier.dart';
 
 export '../features/settings/voice_settings_notifier.dart' show voiceSettingsProvider, voiceSettingsStateProvider;
 export '../features/settings/emergency_contact_notifier.dart' show emergencyContactProvider;
