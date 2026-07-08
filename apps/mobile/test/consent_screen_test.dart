@@ -9,6 +9,7 @@ import 'package:evia/src/config/app_config.dart';
 import 'package:evia/src/features/consent/consent_screen.dart';
 import 'package:evia/src/features/consent/consent_request.dart';
 import 'package:evia/src/features/intake/intake_screen.dart';
+import 'package:evia/src/features/intake/cold_start_screen.dart';
 import 'package:evia/src/core/providers.dart';
 import 'package:evia/src/core/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -66,6 +67,7 @@ Widget createTestApp(Dio dio) {
     overrides: [
       dioClientProvider.overrideWithValue(dio),
       authServiceProvider.overrideWithValue(FakeAuthService()),
+      userCarePlanProvider.overrideWith((ref) async => null),
     ],
     child: MaterialApp.router(
       routerConfig: GoRouter(
@@ -80,6 +82,10 @@ Widget createTestApp(Dio dio) {
             builder: (_, __) => const ConsentScreen(),
           ),
           GoRoute(path: '/intake', builder: (_, __) => const IntakeScreen()),
+          GoRoute(
+            path: '/onboarding/coldstart',
+            builder: (_, __) => const ColdStartScreen(),
+          ),
         ],
       ),
     ),
@@ -356,6 +362,7 @@ void main() {
           overrides: [
             dioClientProvider.overrideWithValue(dio),
             authServiceProvider.overrideWithValue(FakeAuthService()),
+            userCarePlanProvider.overrideWith((ref) async => null),
           ],
           child: MaterialApp.router(routerConfig: router),
         ),

@@ -157,7 +157,7 @@ void main() {
     container
         .read(_testSessionState.notifier)
         .update(SessionState.authenticated);
-    container.read(routerProvider).go('/consent');
+    container.read(routerProvider).go('/onboarding/consent');
     await tester.pumpAndSettle();
     expect(find.text('Before we begin'), findsOneWidget);
 
