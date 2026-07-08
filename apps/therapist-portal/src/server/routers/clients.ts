@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 import { protectedProcedure, router } from '../trpc';
 
 export const clientsRouter = router({
@@ -129,6 +129,90 @@ export const clientsRouter = router({
           summary_text: latestSummary?.summary_text ?? null,
           session_id: latestSummary?.session_id ?? null,
         },
+      };
+    }),
+
+  setCarePlan: protectedProcedure
+    .input(
+      z.object({
+        client_id: z.string(),
+        care_plan_id: z.enum(['CP1', 'CP2', 'CP3']),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const therapistEmail = ctx.user.email;
+      if (!therapistEmail) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No email on session' });
+      }
+
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+
+      const therapist = await ctx.prisma.therapist.findUnique({
+        where: { email: therapistEmail },
+      });
+
+      if (!therapist) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Therapist not found' });
+      }
+
+      const assignment = await ctx.prisma.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapist.id,
+            client_user_id: input.client_id,
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Client not assigned to therapist' });
+      }
+
+      const existing = await ctx.prisma.clinicalConfig.findUnique({
+        where: { user_id: input.client_id },
+        select: { care_plan_id: true, assignment_state: true },
+      });
+
+      const oldCarePlanId = existing?.care_plan_id ?? null;
+
+      if (existing?.care_plan_id === input.care_plan_id && existing.assignment_state === 'confirmed') {
+        return {
+          success: true,
+          client_id: input.client_id,
+          care_plan_id: input.care_plan_id,
+          assignment_state: 'confirmed' as const,
+        };
+      }
+
+      const result = await ctx.prisma.clinicalConfig.upsert({
+        where: { user_id: input.client_id },
+        create: {
+          user_id: input.client_id,
+          care_plan_id: input.care_plan_id,
+          assignment_state: 'confirmed',
+        },
+        update: {
+          care_plan_id: input.care_plan_id,
+          assignment_state: 'confirmed',
+        },
+      });
+
+      console.log(JSON.stringify({
+        event: 'therapist_care_plan_change',
+        therapist_id: therapist.id,
+        client_id: input.client_id,
+        from: oldCarePlanId,
+        to: input.care_plan_id,
+        timestamp: new Date().toISOString(),
+      }));
+
+      return {
+        success: true,
+        client_id: input.client_id,
+        care_plan_id: result.care_plan_id,
+        assignment_state: result.assignment_state,
       };
     }),
 });
