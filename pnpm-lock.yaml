@@ -22,6 +22,9 @@ importers:
       '@google-cloud/aiplatform':
         specifier: ^6.8.1
         version: 6.8.1
+      '@google-cloud/secret-manager':
+        specifier: ^6.0.1
+        version: 6.2.0
       '@google-cloud/tasks':
         specifier: ^6.2.3
         version: 6.2.3
@@ -645,6 +648,7 @@ packages:
     resolution: {integrity: sha512-8O64485bzBzQQ1VlgEhaLJcOvVlfC/V8MB5nQ5y2Dcl8UAfGXW5LkXK1CEfZ7c6IZYxpkJ9U818ldc8pg7eteg==}
     engines: {node: '>=18'}
 
+
   '@google-cloud/firestore@8.6.0':
     resolution: {integrity: sha512-TdvZHfwQj5B5CSDEgDqyrhdVqtOSupmBXDQPasMAJiC64tjsGvyMooNiC43fdk1TsUHeklyoZ6/vQ1TjWKVMbg==}
     engines: {node: '>=18'}
@@ -664,6 +668,10 @@ packages:
   '@google-cloud/storage@7.21.0':
     resolution: {integrity: sha512-l+IFTkd+6Y5LoAuXyYCKNAKtw/Ci+rAMqgdTB1jv4iZiLhw0rtq+0qjIRbBizXkNzEFmXiXUW0H7sZQQvk1ffA==}
     engines: {node: '>=14'}
+
+  '@google-cloud/secret-manager@6.2.0':
+    resolution: {integrity: sha512-KjusvEON/HLeS7VelJ1aoY4zUOcNnEYCQ69Vnncf3Fnk5OLl6Dl0QKimgw4ajW3CgR7pCUkNPneiK5HgWSGQOw==}
+    engines: {node: '>=18'}
 
   '@google-cloud/tasks@6.2.3':
     resolution: {integrity: sha512-US4162TMwam5QXKmZAzoiHIBpdc5K+eDKxfO2hjBsPM1UxuB8feIZQ8kbrTxgp6mggrnUukfbrXetIEMnWfBvw==}
@@ -3455,6 +3463,12 @@ snapshots:
       - encoding
       - supports-color
     optional: true
+
+  '@google-cloud/secret-manager@6.2.0':
+    dependencies:
+      google-gax: 5.0.7
+    transitivePeerDependencies:
+      - supports-color
 
   '@google-cloud/tasks@6.2.3':
     dependencies:

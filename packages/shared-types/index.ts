@@ -115,6 +115,24 @@ export interface UserConsent {
   emergency_contact: boolean
 }
 
+// ─── Emergency Contact ───────────────────────────────────────────
+
+export interface EmergencyContactData {
+  name: string | null
+  phone: string | null
+}
+
+export interface SaveEmergencyContactBody {
+  name: string
+  phone: string
+}
+
+export interface ClearEmergencyContactBody {
+  clear: true
+}
+
+export type PatchEmergencyContactBody = SaveEmergencyContactBody | ClearEmergencyContactBody
+
 // ─── Session Summary ─────────────────────────────────────────────
 
 export interface SessionSummaryView {
