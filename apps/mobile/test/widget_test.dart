@@ -157,12 +157,11 @@ void main() {
     container
         .read(_testSessionState.notifier)
         .update(SessionState.authenticated);
-    container.read(routerProvider).go('/onboarding/consent');
+    container.read(routerProvider).go('/consent');
     await tester.pumpAndSettle();
     expect(find.text('Before we begin'), findsOneWidget);
 
-    // Scroll consent list to bottom to enable the Save button.
-    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.drag(find.byType(Scrollable), const Offset(0, -500));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Save and continue'));
