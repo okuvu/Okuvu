@@ -145,3 +145,17 @@ export interface AgentContextBundle {
   session_summary: string | null
   engagement: EngagementStats
 }
+
+// ─── Therapist Portal (T-01 Dashboard) ─────────────────────────
+
+export type ClientCarePlan = {
+  care_plan_id: CarePlanId
+  assignment_state: AssignmentState
+}
+
+export interface ClientListItem {
+  id: string
+  phoneNumber: string
+  carePlan: ClientCarePlan | null
+  lastSessionDate: string | null
+}
