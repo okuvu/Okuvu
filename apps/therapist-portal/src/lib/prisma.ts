@@ -1,4 +1,6 @@
 import { PrismaClient } from '@evia/prisma';
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 const globalForPrisma = globalThis as { prisma?: PrismaClient };
 
@@ -8,7 +10,9 @@ function prismaClientSingleton(): PrismaClient | null {
     return null;
   }
   if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient();
+    const pool = new Pool({ connectionString: url });
+    const adapter = new PrismaPg(pool);
+    globalForPrisma.prisma = new PrismaClient({ adapter });
   }
   return globalForPrisma.prisma;
 }

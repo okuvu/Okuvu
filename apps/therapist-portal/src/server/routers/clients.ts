@@ -50,6 +50,88 @@ export const clientsRouter = router({
     }));
   }),
 
+  detail: protectedProcedure
+    .input(z.object({ clientUserId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const therapistEmail = ctx.user.email;
+      if (!therapistEmail) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No email on session' });
+      }
+
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+
+      const therapist = await ctx.prisma.therapist.findUnique({
+        where: { email: therapistEmail },
+      });
+
+      if (!therapist) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Therapist not found' });
+      }
+
+      const assignment = await ctx.prisma.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapist.id,
+            client_user_id: input.clientUserId,
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Client is not assigned to this therapist',
+        });
+      }
+
+      const client = await ctx.prisma.user.findUnique({
+        where: { id: input.clientUserId },
+        include: {
+          clinical_config: true,
+          safety_state: true,
+          session_summaries: {
+            orderBy: { last_updated_at: 'desc' },
+            take: 1,
+            include: {
+              session: true,
+            },
+          },
+        },
+      });
+
+      if (!client) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Client not found' });
+      }
+
+      console.log(
+        `[AUDIT] therapist ${therapist.id} viewed client ${client.id} detail`,
+      );
+
+      const latestSummary = client.session_summaries[0] ?? null;
+      const summaryAvailable =
+        latestSummary?.status === 'COMPLETED' && latestSummary.summary_text !== null;
+
+      return {
+        id: client.id,
+        phoneNumber: client.phone_number,
+        carePlan: client.clinical_config
+          ? {
+              care_plan_id: client.clinical_config.care_plan_id,
+              assignment_state: client.clinical_config.assignment_state,
+              reasoning_note: client.clinical_config.reasoning_note,
+            }
+          : null,
+        safetyState: client.safety_state?.safety_state_current ?? null,
+        summary: {
+          status: summaryAvailable ? 'available' : 'not_available_yet',
+          summary_text: latestSummary?.summary_text ?? null,
+          session_id: latestSummary?.session_id ?? null,
+        },
+      };
+    }),
+
   setCarePlan: protectedProcedure
     .input(
       z.object({

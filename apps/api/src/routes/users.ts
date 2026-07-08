@@ -9,6 +9,7 @@ interface CarePlanBody {
   assignment_state: AssignmentState;
   confidence_at_last_eval: number;
   turns_evaluated: number;
+  reasoning_note: string;
 }
 
 const VALID_CARE_PLANS: CarePlanId[] = ['CP1', 'CP2', 'CP3'];
@@ -143,12 +144,14 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
           assignment_state: body.assignment_state,
           confidence_at_last_eval: body.confidence_at_last_eval,
           turns_evaluated: body.turns_evaluated,
+          reasoning_note: body.reasoning_note,
         },
         update: {
           care_plan_id: body.care_plan_id,
           assignment_state: body.assignment_state,
           confidence_at_last_eval: body.confidence_at_last_eval,
           turns_evaluated: body.turns_evaluated,
+          reasoning_note: body.reasoning_note,
         },
       });
 
