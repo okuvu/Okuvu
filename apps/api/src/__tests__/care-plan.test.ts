@@ -29,6 +29,7 @@ function validPayload(overrides?: Partial<Record<string, unknown>>) {
     assignment_state: 'provisional',
     confidence_at_last_eval: 0.85,
     turns_evaluated: 1,
+    reasoning_note: 'Turn 1: Test assessment note',
     ...overrides,
   };
 }
@@ -54,7 +55,7 @@ describe('PATCH /users/:id/care-plan', () => {
       app = buildApp();
     });
 
-    it('persists all 4 fields on first call', async () => {
+    it('persists all 5 fields on first call', async () => {
       const prisma = await importMocks();
       vi.mocked(prisma.clinicalConfig.upsert).mockResolvedValue({
         care_plan_id: 'CP1',
@@ -82,12 +83,14 @@ describe('PATCH /users/:id/care-plan', () => {
           assignment_state: 'provisional',
           confidence_at_last_eval: 0.85,
           turns_evaluated: 1,
+          reasoning_note: 'Turn 1: Test assessment note',
         },
         update: {
           care_plan_id: 'CP1',
           assignment_state: 'provisional',
           confidence_at_last_eval: 0.85,
           turns_evaluated: 1,
+          reasoning_note: 'Turn 1: Test assessment note',
         },
       });
     });

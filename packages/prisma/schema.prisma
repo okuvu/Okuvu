@@ -83,6 +83,7 @@ model ClinicalConfig {
   care_plan_id            CarePlan
   assignment_state        AssignmentState @default(provisional)
   confidence_at_last_eval Float?
+  reasoning_note          String?
   turns_evaluated         Int             @default(0)
 }
 
