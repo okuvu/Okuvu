@@ -10,7 +10,7 @@ class MoodDataPoint {
   factory MoodDataPoint.fromJson(Map<String, dynamic> json) {
     return MoodDataPoint(
       date: DateTime.parse(json['date'] as String).toLocal(),
-      mood: json['mood'] as int?,
+      mood: json['mood_value'] as int?,
     );
   }
 }

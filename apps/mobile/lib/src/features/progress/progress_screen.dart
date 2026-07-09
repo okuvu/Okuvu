@@ -11,6 +11,7 @@ class ProgressScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final moodProgress = ref.watch(moodProgressProvider);
+    final carePlanAsync = ref.watch(carePlanProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Your Progress')),
@@ -26,24 +27,26 @@ class ProgressScreen extends ConsumerWidget {
             return const _EmptyProgressState();
           }
 
-          return Padding(
+          final isCP2 = carePlanAsync.asData?.value == 'CP2';
+          final hasGaps = days.any((d) => d.mood == null);
+
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Mood over the last 14 days',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Days without a check-in are shown as gaps.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                const _CarePhaseLabels(),
                 const SizedBox(height: 28),
-                Expanded(
+                SizedBox(
+                  height: 300,
                   child: _MoodChart(days: days),
                 ),
+                const SizedBox(height: 8),
+                const _ChartCaption(),
+                if (isCP2 && hasGaps) ...[
+                  const SizedBox(height: 16),
+                  const _StreakBreakText(),
+                ],
               ],
             ),
           );
@@ -99,22 +102,8 @@ class _MoodChart extends StatelessWidget {
           rightTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
           ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 28,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                if (value < 1 || value > 5 || value != value.roundToDouble()) {
-                  return const SizedBox.shrink();
-                }
-
-                return Text(
-                  value.toInt().toString(),
-                  style: Theme.of(context).textTheme.bodySmall,
-                );
-              },
-            ),
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
           ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
@@ -129,10 +118,13 @@ class _MoodChart extends StatelessWidget {
                 }
 
                 final date = days[index].date;
+                const weekdayNames = [
+                  'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+                ];
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '${date.day}/${date.month}',
+                    weekdayNames[date.weekday - 1],
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 );
@@ -156,25 +148,128 @@ class _MoodChart extends StatelessWidget {
           spots: List.of(currentSpots),
           isCurved: false,
           barWidth: 3,
-          dotData: const FlDotData(show: true),
+          color: const Color(0xFF1A6B5A),
+          dotData: FlDotData(
+            show: true,
+            getDotPainter: (spot, percent, barData, index) {
+              return FlDotCirclePainter(
+                radius: 4,
+                color: const Color(0xFF1A6B5A),
+                strokeWidth: 0,
+              );
+            },
+          ),
         ),
       );
 
       currentSpots = [];
     }
 
-        for (var index = 0; index < days.length; index++) {
-  final mood = days[index].mood;
+    for (var index = 0; index < days.length; index++) {
+      final mood = days[index].mood;
 
-  if (mood == null) {
-    addCurrentSegment();
-    continue;
-  }
+      if (mood == null) {
+        addCurrentSegment();
+        continue;
+      }
 
-  currentSpots.add(FlSpot(index.toDouble(), mood.toDouble()));
-}
+      currentSpots.add(FlSpot(index.toDouble(), mood.toDouble()));
+    }
     addCurrentSegment();
     return segments;
+  }
+}
+
+class _CarePhaseLabels extends StatelessWidget {
+  const _CarePhaseLabels();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your care journey',
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          const _PhaseRow(1, 'Getting to know each other'),
+          const _PhaseRow(2, 'Building tools'),
+          const _PhaseRow(3, 'Practising'),
+          const _PhaseRow(4, 'Settling in'),
+          const _PhaseRow(5, 'Maintaining'),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhaseRow extends StatelessWidget {
+  const _PhaseRow(this.stage, this.label);
+
+  final int stage;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(
+            'Stage $stage',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartCaption extends StatelessWidget {
+  const _ChartCaption();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'Each dot is a mood you logged.',
+      style: TextStyle(
+        fontSize: 13,
+        fontStyle: FontStyle.italic,
+        color: Color(0xFF6B6B6B),
+      ),
+    );
+  }
+}
+
+class _StreakBreakText extends StatelessWidget {
+  const _StreakBreakText();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      "Gaps happen. You're still here.",
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: Theme.of(context).colorScheme.primary,
+      ),
+    );
   }
 }
 
