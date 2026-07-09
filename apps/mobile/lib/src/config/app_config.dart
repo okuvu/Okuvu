@@ -15,9 +15,9 @@ class AppConfig {
       throw FlavorNotSpecifiedException();
     }
     environment = Environment.fromString(flavor);
-    final baseUrlOverride = String.fromEnvironment('BASE_URL');
+    const baseUrlOverride = String.fromEnvironment('BASE_URL');
     apiBaseUrl = baseUrlOverride.isNotEmpty ? baseUrlOverride : environment.apiBaseUrl;
-    final wsUrlOverride = String.fromEnvironment('WS_URL');
+    const wsUrlOverride = String.fromEnvironment('WS_URL');
     wsBaseUrl = wsUrlOverride.isNotEmpty ? wsUrlOverride : environment.wsBaseUrl;
   }
 }
