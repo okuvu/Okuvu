@@ -49,6 +49,12 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
+  }
+
   Future<void> _submit() async {
     setState(() {
       _isSubmitting = true;
@@ -68,7 +74,16 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
             data: request.toJson(),
           );
       if (mounted) context.go('/intake');
-    } on DioException {
+    } on DioException catch (e) {
+      debugPrint('[ConsentScreen] POST /users/me/consent failed: $e');
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = 'Something went wrong. Please try again.';
+        });
+      }
+    } catch (e) {
+      debugPrint('[ConsentScreen] Unexpected error: $e');
       if (mounted) {
         setState(() {
           _isSubmitting = false;
@@ -97,7 +112,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _TopBar(onBack: () => context.pop()),
+            _TopBar(onBack: context.canPop() ? () => context.pop() : null),
             const _Header(),
             Expanded(
               child: Stack(
@@ -246,9 +261,9 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
 }
 
 class _TopBar extends StatelessWidget {
-  final VoidCallback onBack;
+  final VoidCallback? onBack;
 
-  const _TopBar({required this.onBack});
+  const _TopBar({this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -259,10 +274,12 @@ class _TopBar extends StatelessWidget {
         children: [
           SizedBox(
             width: 48,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: onBack,
-            ),
+            child: onBack != null
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: onBack,
+                  )
+                : null,
           ),
           Expanded(
             child: Center(
