@@ -45,7 +45,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       if (status != AnimationStatus.completed || !mounted) return;
       final session = ref.read(sessionProvider);
       if (session == SessionState.authenticated) {
-        context.go('/onboarding/coldstart');
+        context.go('/onboarding/consent');
       } else if (session == SessionState.unauthenticated) {
         context.go('/auth');
       }

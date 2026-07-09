@@ -197,7 +197,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         return;
       }
 
-      if (mounted) context.go('/onboarding/coldstart');
+      if (mounted) context.go('/onboarding/consent');
     } on FirebaseAuthException {
       if (!mounted) return;
       setState(() {
