@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../config/app_config.dart';
 import '../../config/flavor_config.dart';
 import '../../core/providers.dart';
+import '../../core/websocket_service.dart';
 import 'models/chat_message.dart';
 import 'models/chat_state.dart';
 import 'widgets/reconnect_banner.dart';
@@ -29,9 +30,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     ref.read(webSocketServiceProvider).connect(
-      wsBaseUrl: AppConfig.wsBaseUrl,
-      token: FlavorConfig.devBypassToken ?? '',
-    );
+          wsBaseUrl: AppConfig.wsBaseUrl,
+          token: FlavorConfig.devBypassToken ?? '',
+        );
     if (kDebugMode) debugPrint('[ChatScreen] initState: WS connect called');
   }
 
@@ -68,10 +69,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (_useMockResponses) {
       Future.delayed(const Duration(milliseconds: 800), () {
-        if (kDebugMode) debugPrint('[ChatScreen] Injecting mock agent response');
+        if (kDebugMode) {
+          debugPrint('[ChatScreen] Injecting mock agent response');
+        }
         ref.read(webSocketServiceProvider).injectMockAgentTurn(
-          'I hear you. Tell me more about how that makes you feel.',
-        );
+              'I hear you. Tell me more about how that makes you feel.',
+            );
       });
     }
   }
@@ -88,14 +91,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
 
     ref.listen<ChatState>(chatMessagesProvider, (previous, next) {
-      if (previous != null && !previous.isSessionClosed && next.isSessionClosed) {
+      if (previous != null &&
+          !previous.isSessionClosed &&
+          next.isSessionClosed) {
+        if (ref.read(crisisOverlayProvider)) {
+          return;
+        }
+        if (ref.read(wsConnectionStateProvider) ==
+            WsConnectionState.reconnecting) {
+          return;
+        }
+
         Future.delayed(const Duration(milliseconds: 400), () async {
           if (context.mounted &&
               ref.read(chatMessagesProvider).isSessionClosed &&
               !_srsTriggered) {
             _srsTriggered = true;
             await showSrsModal(context);
-            if (context.mounted) context.go('/home');
           }
         });
       }
@@ -146,10 +158,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ? _buildEmptyState(context)
                     : ListView.builder(
                         controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         itemCount: chatState.messages.length,
                         itemBuilder: (context, index) {
-                          return _ChatBubble(message: chatState.messages[index]);
+                          return _ChatBubble(
+                              message: chatState.messages[index]);
                         },
                       ),
               ),
@@ -218,7 +232,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               decoration: InputDecoration(
                 hintText: sessionClosed ? 'Session ended' : 'Type a message...',
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
           ),
@@ -248,7 +263,8 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUser = message.sender == MessageSender.user;
-    final alignment = isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final alignment =
+        isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(20),
       topRight: const Radius.circular(20),
