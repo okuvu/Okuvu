@@ -124,6 +124,7 @@ export const clientsRouter = router({
               assignment_state: client.clinical_config.assignment_state,
             }
           : null,
+        reasoningNote: client.clinical_config?.reasoning_note ?? null,
         safetyState: client.safety_state?.safety_state_current ?? null,
         summary: {
           status: summaryAvailable ? "available" : "not_available_yet",
