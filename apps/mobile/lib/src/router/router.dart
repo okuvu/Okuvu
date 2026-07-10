@@ -6,6 +6,7 @@ import '../features/splash/splash_screen.dart';
 import '../features/auth/otp_login_screen.dart';
 import '../features/consent/consent_screen.dart';
 import '../features/intake/intake_screen.dart';
+import '../features/intake/cold_start_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/progress/progress_screen.dart';
@@ -89,12 +90,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const OtpLoginScreen(),
       ),
       GoRoute(
-        path: '/consent',
+        path: '/onboarding/consent',
         builder: (context, state) => const ConsentScreen(),
       ),
       GoRoute(
         path: '/intake',
         builder: (context, state) => const IntakeScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding/coldstart',
+        builder: (context, state) => const ColdStartScreen(),
       ),
       GoRoute(
         path: '/home',

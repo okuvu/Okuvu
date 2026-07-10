@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { trpc } from '@/trpc/client';
-import { ClientRow } from './ClientRow';
+import type { ClientListItem } from "@evia/shared-types";
+import { trpc } from "@/trpc/client";
+import { ClientRow } from "./ClientRow";
 
 export function ClientList() {
   const query = trpc.clients.list.useQuery();
@@ -9,9 +10,9 @@ export function ClientList() {
   if (query.isLoading) {
     return (
       <div className="space-y-3" aria-busy="true" aria-live="polite">
-        {[0, 1, 2].map((i) => (
+        {[0, 1, 2].map((index) => (
           <div
-            key={i}
+            key={index}
             className="h-20 animate-pulse rounded-lg border border-gray-200 bg-gray-50"
           />
         ))}
@@ -26,7 +27,7 @@ export function ClientList() {
           Couldn’t load your caseload
         </p>
         <p className="mt-1 text-xs text-red-600">
-          {query.error.message || 'Please try again.'}
+          {query.error.message || "Please try again."}
         </p>
         <button
           type="button"
@@ -39,7 +40,10 @@ export function ClientList() {
     );
   }
 
-  const clients = query.data ?? [];
+  const clients: ClientListItem[] = (query.data ?? []).map((client: ClientListItem) => ({
+    ...client,
+    phoneNumber: client.phoneNumber ?? "",
+  }));
 
   if (clients.length === 0) {
     return (
@@ -56,7 +60,7 @@ export function ClientList() {
 
   return (
     <div className="space-y-3" aria-label="Caseload">
-      {clients.map((client) => (
+      {clients.map((client: ClientListItem) => (
         <ClientRow key={client.id} client={client} />
       ))}
     </div>

@@ -1,17 +1,82 @@
-# evia
+# Evia — Mobile App
 
-A new Flutter project.
+Flutter app for the Evia platform. Built with Riverpod, Firebase Auth, and WebSocket-based AI conversation.
 
-## Getting Started
+## Prerequisites
 
-This project is a starting point for a Flutter application.
+- Flutter 3.x (stable) — check with `flutter doctor`
+- Android emulator or physical device
+- Backend API running locally (see root-level `CONTRIBUTING.md`)
 
-A few resources to get you started if this is your first Flutter project:
+## Running Locally
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+### 1. Start the backend
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+cd apps/api
+pnpm dev
+```
+
+The API starts on port 8080.
+
+### 2. Run the Flutter app
+
+```bash
+flutter run --flavor dev --dart-define=FLAVOR=dev
+```
+
+### Connecting to the backend
+
+The dev flavor resolves the API at `lib/src/config/environment.dart`. The default URL depends on your target:
+
+| Target | Default URL | Why |
+|---|---|---|
+| **Android emulator** | `http://10.0.2.2:8080` | `10.0.2.2` routes to the host machine's `localhost` |
+| **iOS simulator** | `http://localhost:8080` | Simulator shares the host's network |
+| **Physical device** | `http://<your-LAN-IP>:8080` | Use your PC's LAN IP (e.g. `192.168.1.2`) |
+
+You can override the URL at build time without editing source code:
+
+```bash
+# iOS simulator
+flutter run --flavor dev --dart-define=FLAVOR=dev \
+  --dart-define=BASE_URL=http://localhost:8080 \
+  --dart-define=WS_URL=ws://localhost:8080
+
+# Physical device on same WiFi
+flutter run --flavor dev --dart-define=FLAVOR=dev \
+  --dart-define=BASE_URL=http://192.168.1.2:8080 \
+  --dart-define=WS_URL=ws://192.168.1.2:8080
+```
+
+### Bypassing Firebase Auth (local dev)
+
+Pass the backend's bypass token to skip phone OTP:
+
+```bash
+flutter run --flavor dev --dart-define=FLAVOR=dev \
+  --dart-define=LOCAL_DEV_BYPASS_AUTH=<token>
+```
+
+The backend also needs `LOCAL_DEV_BYPASS_AUTH="true"` in the root `.env` file.
+
+## Project Structure
+
+```
+lib/
+├── main.dart                  # App entry point
+├── src/
+│   ├── app.dart               # MaterialApp widget
+│   ├── config/                # Environment, app_config, flavor_config
+│   ├── core/                  # Dio client, WebSocket service, auth providers
+│   ├── features/              # Feature-specific screens and logic
+│   └── widgets/               # Reusable widgets
+```
+
+## Flavors
+
+| Flavor | Application ID | Backend URL |
+|---|---|---|
+| `dev` | `ai.evia.app.dev` | Localhost (configurable) |
+| `beta` | `ai.evia.app.beta` | GCP Cloud Run (staging) |
+| `prod` | `ai.evia.app` | GCP Cloud Run (production) |

@@ -4,10 +4,11 @@ import { protectedProcedure, router } from "../trpc";
 
 const CARE_PLANS = ["CP1", "CP2", "CP3"] as const;
 
+
 async function getAssignedTherapistId(ctx: {
   user: { email?: string | null };
   prisma: typeof import("@/lib/prisma").prisma;
-}) {
+}){
   const therapistEmail = ctx.user.email;
 
   if (!therapistEmail) {
@@ -23,6 +24,7 @@ async function getAssignedTherapistId(ctx: {
       message: "Database not configured",
     });
   }
+
 
   const therapist = await ctx.prisma.therapist.findUnique({
     where: { email: therapistEmail },
@@ -41,6 +43,7 @@ async function getAssignedTherapistId(ctx: {
 export const clientsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const therapistId = await getAssignedTherapistId(ctx);
+
     const db = ctx.prisma!;
 
     const assignments = await db.therapistClient.findMany({
@@ -58,7 +61,10 @@ export const clientsRouter = router({
       },
     });
 
+
     return assignments.map((assignment) => ({
+ 
+
       id: assignment.client.id,
       phoneNumber: assignment.client.phone_number,
       carePlan: assignment.client.clinical_config
@@ -77,9 +83,11 @@ export const clientsRouter = router({
     .input(z.object({ clientUserId: z.string() }))
     .query(async ({ ctx, input }) => {
       const therapistId = await getAssignedTherapistId(ctx);
+
       const db = ctx.prisma!;
 
       const assignment = await db.therapistClient.findUnique({
+
         where: {
           therapist_id_client_user_id: {
             therapist_id: therapistId,
@@ -96,6 +104,7 @@ export const clientsRouter = router({
       }
 
       const client = await db.user.findUnique({
+
         where: { id: input.clientUserId },
         include: {
           clinical_config: true,
@@ -103,9 +112,7 @@ export const clientsRouter = router({
           session_summaries: {
             orderBy: { last_updated_at: "desc" },
             take: 1,
-            include: {
-              session: true,
-            },
+            include: { session: true },
           },
         },
       });
@@ -144,9 +151,12 @@ export const clientsRouter = router({
     .input(z.object({ clientId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const therapistId = await getAssignedTherapistId(ctx);
+
       const db = ctx.prisma!;
 
       const assignment = await db.therapistClient.findUnique({
+
+
         where: {
           therapist_id_client_user_id: {
             therapist_id: therapistId,
@@ -162,7 +172,9 @@ export const clientsRouter = router({
         });
       }
 
+
       const config = await db.clinicalConfig.findUnique({
+
         where: { user_id: input.clientId },
         select: { care_plan_id: true },
       });
@@ -181,9 +193,11 @@ export const clientsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const therapistId = await getAssignedTherapistId(ctx);
+
       const db = ctx.prisma!;
 
       const assignment = await db.therapistClient.findUnique({
+
         where: {
           therapist_id_client_user_id: {
             therapist_id: therapistId,
@@ -198,6 +212,7 @@ export const clientsRouter = router({
           message: "Client is not assigned to this therapist",
         });
       }
+
 
       const existing = await db.clinicalConfig.findUnique({
         where: { user_id: input.clientId },
@@ -219,6 +234,7 @@ export const clientsRouter = router({
       }
 
       const result = await db.clinicalConfig.upsert({
+
         where: { user_id: input.clientId },
         create: {
           user_id: input.clientId,
@@ -229,6 +245,7 @@ export const clientsRouter = router({
           care_plan_id: input.carePlanId,
           assignment_state: "confirmed",
         },
+
         select: { care_plan_id: true, assignment_state: true },
       });
 

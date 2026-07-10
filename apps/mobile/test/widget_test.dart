@@ -157,7 +157,7 @@ void main() {
     container
         .read(_testSessionState.notifier)
         .update(SessionState.authenticated);
-    container.read(routerProvider).go('/consent');
+    container.read(routerProvider).go('/onboarding/consent');
     await tester.pumpAndSettle();
     expect(find.text('Before we begin'), findsOneWidget);
 
@@ -177,11 +177,14 @@ void main() {
     container.read(routerProvider).go('/home');
     await tester.pumpAndSettle();
 
-    expect(find.text('Check In'), findsOneWidget);
-    expect(find.text('Progress'), findsOneWidget);
-    expect(find.text('Settings'), findsOneWidget);
     expect(find.text('How are you feeling today?'), findsOneWidget);
-    expect(find.text('Insights'), findsOneWidget);
+    expect(find.text('FROM EVIA'), findsOneWidget);
+    expect(
+      find.text(
+        'Your insights will appear here after your first check-in.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Crisis overlay shows all 5 crisis resources',

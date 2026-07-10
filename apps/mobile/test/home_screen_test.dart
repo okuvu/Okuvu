@@ -106,42 +106,41 @@ void main() {
   AppConfig.init('dev');
 
   group('HomeScreen layout', () {
-    testWidgets('renders Check In entry point', (tester) async {
+    testWidgets('renders bottom navigation tabs', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Check In'), findsOneWidget);
-    });
-
-    testWidgets('renders Progress entry point', (tester) async {
-      await tester.pumpWidget(_buildHomeApp());
-      await tester.pumpAndSettle();
-
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Chat'), findsOneWidget);
       expect(find.text('Progress'), findsOneWidget);
-    });
-
-    testWidgets('renders Settings entry point', (tester) async {
-      await tester.pumpWidget(_buildHomeApp());
-      await tester.pumpAndSettle();
-
       expect(find.text('Settings'), findsOneWidget);
     });
 
-    testWidgets('renders Mood Check-In slot', (tester) async {
+    testWidgets('renders from evia label', (tester) async {
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pumpAndSettle();
+
+      expect(find.text('FROM EVIA'), findsOneWidget);
+    });
+
+    testWidgets('renders progress summary empty state', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
       expect(find.text('How are you feeling today?'), findsOneWidget);
-      expect(find.byIcon(Icons.mood), findsOneWidget);
+      expect(find.text('No mood check-ins yet'), findsOneWidget);
     });
 
-    testWidgets('renders Insight slot', (tester) async {
+    testWidgets('renders Insight card message', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Insights'), findsOneWidget);
-      expect(find.text("I'm here when you're ready to talk."), findsOneWidget);
-      expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
+      expect(
+        find.text(
+          'Your insights will appear here after your first check-in.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders AppBar with Evia title', (tester) async {
@@ -155,14 +154,16 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Check In'), findsOneWidget);
-      expect(find.text('Progress'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
       expect(find.text('How are you feeling today?'), findsOneWidget);
-      expect(find.text('Insights'), findsOneWidget);
-      expect(find.text("I'm here when you're ready to talk."), findsOneWidget);
-      expect(find.byIcon(Icons.mood), findsOneWidget);
-      expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
+      expect(
+        find.text(
+          'Your insights will appear here after your first check-in.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('No mood check-ins yet'), findsOneWidget);
+      expect(find.text('FROM EVIA'), findsOneWidget);
+      expect(find.text('Crisis Support'), findsOneWidget);
     });
 
     testWidgets('Crisis Support entry point is present', (tester) async {
@@ -174,11 +175,11 @@ void main() {
   });
 
   group('HomeScreen navigation', () {
-    testWidgets('Check In navigates to /chat', (tester) async {
+    testWidgets('Chat tab navigates to /chat', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Check In'));
+      await tester.tap(find.text('Chat'));
       await tester.pumpAndSettle();
 
       // ChatScreen renders with its characteristic empty state text
@@ -186,7 +187,7 @@ void main() {
       expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
     });
 
-    testWidgets('Progress navigates to /progress', (tester) async {
+    testWidgets('Progress tab navigates to /progress', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
@@ -196,7 +197,7 @@ void main() {
       expect(find.text('Could not load your mood trend'), findsOneWidget);
     });
 
-    testWidgets('Settings navigates to /settings', (tester) async {
+    testWidgets('Settings tab navigates to /settings', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
@@ -273,7 +274,7 @@ void main() {
 
         // Should navigate to /home
         expect(find.byType(HomeScreen), findsOneWidget);
-        expect(find.text('Check In'), findsOneWidget);
+        expect(find.text('How are you feeling today?'), findsOneWidget);
       },
     );
 
@@ -337,7 +338,7 @@ void main() {
 
         // Should navigate to /home
         expect(find.byType(HomeScreen), findsOneWidget);
-        expect(find.text('Check In'), findsOneWidget);
+        expect(find.text('How are you feeling today?'), findsOneWidget);
       },
     );
   });

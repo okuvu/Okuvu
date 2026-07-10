@@ -18,7 +18,7 @@ void main() {
       expect(find.text(testMessage), findsOneWidget);
     });
 
-    testWidgets('renders lightbulb icon', (tester) async {
+    testWidgets('renders FROM EVIA label', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -27,7 +27,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
+      expect(find.text('FROM EVIA'), findsOneWidget);
     });
 
     testWidgets('renders card container with rounded corners', (tester) async {
