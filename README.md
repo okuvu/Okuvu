@@ -20,7 +20,7 @@ evia/
 ├── apps/
 │   ├── mobile/               Flutter app (Android-first MVP) — not an npm workspace member
 │   ├── api/                  Node.js/TypeScript backend (Cloud Run) — @evia/api
-│   └── therapist-portal/     Next.js therapist portal — @evia/therapist-portal
+│   └── therapist-portal/     Next.js therapist portal — @evia/therapist-portal (see apps/therapist-portal/README.md)
 ├── packages/
 │   ├── prisma/               Prisma schema + generated client (shared) — @evia/prisma
 │   └── shared-types/         TypeScript types shared across apps — @evia/shared-types
@@ -84,7 +84,10 @@ cd apps/api && pnpm prisma migrate dev && cd ../..
 # 5. Start the backend (from apps/api/)
 cd apps/api && pnpm run dev
 
-# 6. Start the Flutter app (from apps/mobile/)
+# 6. Start the therapist portal (from apps/therapist-portal/)
+cd apps/therapist-portal && pnpm dev
+
+# 7. Start the Flutter app (from apps/mobile/)
 cd apps/mobile && flutter run --flavor dev
 ```
 
