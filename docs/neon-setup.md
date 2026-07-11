@@ -58,6 +58,7 @@ If your branch becomes corrupted or your schema gets out of sync, simply recreat
 | Symptom | Likely Cause | Fix |
 |---|---|---|
 | `ECONNREFUSED` when connecting | Wrong `DATABASE_URL` or branch was deleted | Double-check your `.env` and verify the branch exists in the Neon dashboard |
+| `ECONNREFUSED` on every request for ~1-3 minutes, then it recovers on its own | Neon's compute auto-suspends after inactivity; the pooler briefly refuses new connections while it cold-starts | Wait a few seconds and retry. If it doesn't recover within a few minutes, then treat it as the row above (wrong URL / deleted branch) |
 | `sslmode` or TLS errors | Missing `sslmode=require` in connection string | Neon requires SSL — ensure your `DATABASE_URL` includes `?sslmode=require`; the Prisma snippet from the dashboard includes it by default |
 | "Branch limit reached" in Neon | Too many branches on the free tier | Follow the Cleanup Protocol above to remove stale branches |
 

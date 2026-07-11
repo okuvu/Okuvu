@@ -11,6 +11,13 @@ function prismaClientSingleton(): PrismaClient | null {
   }
   if (!globalForPrisma.prisma) {
     const pool = new Pool({ connectionString: url });
+
+    // Neon suspends idle compute; without this handler, an idle client dropped by
+    // the server crashes the process via an unhandled 'error' event on the pool.
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle Postgres client', err);
+    });
+
     const adapter = new PrismaPg(pool);
     globalForPrisma.prisma = new PrismaClient({ adapter });
   }
