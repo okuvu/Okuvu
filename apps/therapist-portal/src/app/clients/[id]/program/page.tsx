@@ -37,9 +37,9 @@ export default function ProgramPage() {
 
   const setCarePlan = trpc.clients.setCarePlan.useMutation({
     onSuccess: async (data) => {
-      setMessage(`Care plan saved successfully: ${data.care_plan_id}.`);
+      setMessage(`Care plan saved successfully: ${data.carePlanId}.`);
       setError(null);
-      setSelectedCarePlan(data.care_plan_id as CarePlan);
+      setSelectedCarePlan(data.carePlanId as CarePlan);
       await carePlanQuery.refetch();
     },
     onError: (mutationError) => {
