@@ -7,7 +7,7 @@ import { trpc } from '@/trpc/client';
 interface NoteItem {
   id: string;
   note_text: string;
-  created_at: Date;
+  created_at: string;
   therapist: {
     name: string | null;
   };
@@ -116,7 +116,7 @@ export default function ClientNotesPage() {
                 <div className="mt-2 flex items-center space-x-3 text-xs text-gray-500">
                   <span>{note.therapist?.name ?? 'Therapist'}</span>
                   <time
-                    dateTime={note.created_at.toISOString()}
+                    dateTime={note.created_at}
                     className="ml-3"
                   >
                     {new Date(note.created_at).toLocaleDateString(undefined, {
