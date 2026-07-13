@@ -5,7 +5,176 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-// --- ENUMS ---
+
+model User {
+  id                  String             @id @default(uuid())
+  firebase_uid        String             @unique
+  phone_number        String
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+  deleted_at          DateTime?
+  clinical_config     ClinicalConfig?
+  emergency_contact   EmergencyContact?
+  engagement_profile  EngagementProfile?
+  mood_logs           MoodLog[]
+  safety_state        SafetyState?
+  session_limits      SessionLimit[]
+  session_logs        SessionLog[]
+  session_summaries   SessionSummary[]
+  assigned_therapists TherapistClient[]
+  notes_received      TherapistNote[]    @relation("ClientToNote")
+  turns               Turn[]
+}
+
+model Therapist {
+  id                 String            @id @default(uuid())
+  email              String            @unique
+  name               String?
+  image              String?
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+  client_assignments TherapistClient[]
+  notes              TherapistNote[]   @relation("TherapistToNote")
+}
+
+model ClinicalConfig {
+  id                      String          @id @default(uuid())
+  user_id                 String          @unique
+  care_plan_id            CarePlan
+  assignment_state        AssignmentState @default(provisional)
+  confidence_at_last_eval Float?
+  turns_evaluated         Int             @default(0)
+  reasoning_note          String?
+  user                    User            @relation(fields: [user_id], references: [id])
+}
+
+model SafetyState {
+  id                               String           @id @default(uuid())
+  user_id                          String           @unique
+  safety_state_current             SafetyStateEnum
+  safety_state_at_last_session_end SafetyStateEnum?
+  updated_at                       DateTime         @updatedAt
+  user                             User             @relation(fields: [user_id], references: [id])
+}
+
+model SessionLog {
+  id                     String           @id @default(uuid())
+  user_id                String
+  session_started_at     DateTime         @default(now())
+  session_ended_at       DateTime?
+  turn_count             Int              @default(0)
+  session_feedback_score Int?
+  user                   User             @relation(fields: [user_id], references: [id])
+  summaries              SessionSummary[]
+  turns                  Turn[]
+
+  @@index([user_id, session_started_at(sort: Desc)])
+}
+
+model Turn {
+  id          String     @id @default(uuid())
+  session_id  String
+  user_id     String
+  turn_number Int
+  role        String
+  content     String
+  created_at  DateTime   @default(now())
+  session     SessionLog @relation(fields: [session_id], references: [id])
+  user        User       @relation(fields: [user_id], references: [id])
+
+  @@index([session_id, turn_number])
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+model SessionSummary {
+  id                String        @id @default(uuid())
+  user_id           String
+  session_id        String
+  summary_text      String?
+  last_updated_turn Int
+  last_updated_at   DateTime      @updatedAt
+  created_at        DateTime      @default(now())
+  status            SummaryStatus @default(PENDING)
+  session           SessionLog    @relation(fields: [session_id], references: [id])
+  user              User          @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, session_id])
+  @@index([user_id, created_at(sort: Desc)])
+}
+
+model EngagementProfile {
+  id                 String    @id @default(uuid())
+  user_id            String    @unique
+  current_streak     Int       @default(0)
+  longest_streak     Int       @default(0)
+  last_session_date  DateTime?
+  voice_mode_enabled Boolean   @default(false)
+  consent_1          Boolean   @default(false)
+  consent_2          Boolean   @default(false)
+  consent_3          Boolean   @default(false)
+  consent_4          Boolean   @default(false)
+  user               User      @relation(fields: [user_id], references: [id])
+}
+
+model TherapistNote {
+  id             String    @id @default(uuid())
+  therapist_id   String
+  client_user_id String
+  note_text      String
+  created_at     DateTime  @default(now())
+  client         User      @relation("ClientToNote", fields: [client_user_id], references: [id])
+  therapist      Therapist @relation("TherapistToNote", fields: [therapist_id], references: [id])
+
+  @@index([client_user_id, created_at(sort: Desc)])
+}
+
+model TherapistClient {
+  id             String    @id @default(uuid())
+  therapist_id   String
+  client_user_id String
+  created_at     DateTime  @default(now())
+  client         User      @relation(fields: [client_user_id], references: [id])
+  therapist      Therapist @relation(fields: [therapist_id], references: [id])
+
+  @@unique([therapist_id, client_user_id])
+  @@index([client_user_id])
+}
+
+model SessionLimit {
+  id            String   @id @default(uuid())
+  user_id       String
+  tier          Tier
+  date_ist      DateTime @db.Date
+  sessions_used Int      @default(0)
+  updated_at    DateTime @updatedAt
+  user          User     @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, date_ist])
+}
+
+model EmergencyContact {
+  id              String   @id @default(uuid())
+  user_id         String   @unique
+  encrypted_name  String
+  encrypted_phone String
+  created_at      DateTime @default(now())
+  user            User     @relation(fields: [user_id], references: [id])
+}
+
+model MoodLog {
+  id         String   @id @default(uuid())
+  user_id    String
+  mood_value Int
+  date_ist   DateTime @db.Date
+  source     String   @default("user_input")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  user       User     @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, date_ist])
+  @@index([user_id, date_ist(sort: Desc)])
+}
+
 enum CarePlan {
   CP1
   CP2
@@ -35,182 +204,4 @@ enum SummaryStatus {
   COMPLETED
   FAILED
   SKIPPED_TRIVIAL
-}
-
-// --- MODELS ---
-model User {
-  id           String     @id @default(uuid())
-  firebase_uid String     @unique
-  phone_number String
-  created_at   DateTime   @default(now())
-  updated_at   DateTime   @updatedAt
-  deleted_at   DateTime?
-
-  clinical_config    ClinicalConfig?
-  safety_state       SafetyState?
-  session_logs       SessionLog[]
-  turns              Turn[]
-  session_summaries  SessionSummary[]
-  engagement_profile EngagementProfile?
-  session_limits     SessionLimit[]
-  emergency_contact  EmergencyContact?
-
-  mood_logs MoodLog[]
-
-  // Client receives TherapistNote
-  notes_received TherapistNote[] @relation("ClientToNote")
-
-  assigned_therapists TherapistClient[]
-}
-
-model Therapist {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  name       String?
-  image      String?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  notes TherapistNote[] @relation("TherapistToNote")
-
-  client_assignments TherapistClient[]
-}
-
-model ClinicalConfig {
-  id                      String          @id @default(uuid())
-  user_id                 String          @unique
-  user                    User            @relation(fields: [user_id], references: [id])
-  care_plan_id            CarePlan
-  assignment_state        AssignmentState @default(provisional)
-  confidence_at_last_eval Float?
-  reasoning_note          String?
-  turns_evaluated         Int             @default(0)
-}
-
-model SafetyState {
-  id                               String           @id @default(uuid())
-  user_id                          String           @unique
-  user                             User             @relation(fields: [user_id], references: [id])
-  safety_state_current             SafetyStateEnum
-  safety_state_at_last_session_end SafetyStateEnum?
-  updated_at                       DateTime         @updatedAt
-}
-
-model SessionLog {
-  id                     String    @id @default(uuid())
-  user_id                String
-  user                   User      @relation(fields: [user_id], references: [id])
-  session_started_at     DateTime  @default(now())
-  session_ended_at       DateTime?
-  turn_count             Int       @default(0)
-  session_feedback_score Int?
-
-  summaries SessionSummary[]
-  turns      Turn[]
-
-  @@index([user_id, session_started_at(sort: Desc)])
-}
-
-model Turn {
-  id          String   @id @default(uuid())
-  session_id  String
-  session     SessionLog @relation(fields: [session_id], references: [id])
-  user_id     String
-  user        User       @relation(fields: [user_id], references: [id])
-  turn_number Int
-  role        String
-  content     String
-  created_at  DateTime   @default(now())
-
-  @@index([session_id, turn_number])
-  @@index([user_id, created_at(sort: Desc)])
-}
-
-model SessionSummary {
-  id                String          @id @default(uuid())
-  user_id           String
-  user              User            @relation(fields: [user_id], references: [id])
-  session_id        String
-  session           SessionLog      @relation(fields: [session_id], references: [id])
-  summary_text      String?
-  status            SummaryStatus   @default(PENDING)
-  last_updated_turn Int
-  last_updated_at   DateTime        @updatedAt
-  created_at        DateTime        @default(now())
-
-  @@unique([user_id, session_id])
-  @@index([user_id, created_at(sort: Desc)])
-}
-
-model EngagementProfile {
-  id                 String    @id @default(uuid())
-  user_id            String    @unique
-  user               User      @relation(fields: [user_id], references: [id])
-  current_streak     Int       @default(0)
-  longest_streak     Int       @default(0)
-  last_session_date  DateTime?
-  voice_mode_enabled Boolean   @default(false)
-  consent_1          Boolean   @default(false)
-  consent_2          Boolean   @default(false)
-  consent_3          Boolean   @default(false)
-  consent_4          Boolean   @default(false)
-}
-
-model TherapistNote {
-  id             String   @id @default(uuid())
-  therapist_id   String
-  therapist      Therapist @relation("TherapistToNote", fields: [therapist_id], references: [id])
-  client_user_id String
-  client         User     @relation("ClientToNote", fields: [client_user_id], references: [id])
-  note_text      String
-  created_at     DateTime @default(now())
-
-  @@index([client_user_id, created_at(sort: Desc)])
-}
-
-model TherapistClient {
-  id             String   @id @default(uuid())
-  therapist_id   String
-  therapist      Therapist @relation(fields: [therapist_id], references: [id])
-  client_user_id String
-  client         User     @relation(fields: [client_user_id], references: [id])
-  created_at     DateTime @default(now())
-
-  @@unique([therapist_id, client_user_id])
-  @@index([client_user_id])
-}
-
-model SessionLimit {
-  id            String   @id @default(uuid())
-  user_id       String
-  user          User     @relation(fields: [user_id], references: [id])
-  tier          Tier
-  date_ist      DateTime @db.Date
-  sessions_used Int      @default(0)
-  updated_at    DateTime @updatedAt
-
-  @@unique([user_id, date_ist])
-}
-
-model EmergencyContact {
-  id              String   @id @default(uuid())
-  user_id         String   @unique
-  user            User     @relation(fields: [user_id], references: [id])
-  encrypted_name  String
-  encrypted_phone String
-  created_at      DateTime @default(now())
-}
-
-model MoodLog {
-  id         String   @id @default(uuid())
-  user_id    String
-  user       User     @relation(fields: [user_id], references: [id])
-  mood_value Int
-  date_ist   DateTime @db.Date
-  source     String   @default("user_input")
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@unique([user_id, date_ist])
-  @@index([user_id, date_ist(sort: Desc)])
 }

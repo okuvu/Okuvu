@@ -55,4 +55,63 @@ export const notesRouter = router({
 
       return { id: note.id, created_at: note.created_at };
     }),
+  listNotes: protectedProcedure
+    .input(
+      z.object({
+        clientId: z.string().uuid(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const therapistEmail = ctx.user.email;
+      if (!therapistEmail) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No email on session' });
+      }
+
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+
+      const therapist = await ctx.prisma.therapist.findUnique({
+        where: { email: therapistEmail },
+      });
+
+      if (!therapist) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Therapist not found' });
+      }
+
+      const assignment = await ctx.prisma.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapist.id,
+            client_user_id: input.clientId,
+          },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Client not assigned to therapist' });
+      }
+
+      const notes = await ctx.prisma.therapistNote.findMany({
+        where: {
+          therapist_id: therapist.id,
+          client_user_id: input.clientId,
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+        select: {
+          id: true,
+          note_text: true,
+          created_at: true,
+          therapist: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      return notes;
+    }),
 });

@@ -12,10 +12,6 @@ export async function proxy(request: NextRequest) {
     return undefined;
   }
 
-  if (pathname === '/login') {
-    return NextResponse.redirect(new URL('/auth', request.url));
-  }
-
   const session = await getServerSession(authConfig);
   const isPublic =
     PUBLIC_ROUTES.has(pathname) ||

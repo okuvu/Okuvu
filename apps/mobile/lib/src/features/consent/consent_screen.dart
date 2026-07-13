@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -68,11 +69,26 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
             data: request.toJson(),
           );
       if (mounted) context.go('/intake');
-    } on DioException {
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ConsentScreen] POST /users/me/consent failed: '
+            'status=${e.response?.statusCode} body=${e.response?.data}');
+      }
       if (mounted) {
+        String message;
+        if (e.response?.statusCode == 401) {
+          message = 'Session expired. Please log in again.';
+        } else if (e.response?.statusCode == 400) {
+          message = (e.response?.data is Map)
+              ? (e.response!.data['error']?['message'] as String? ??
+                  'Something went wrong. Please try again.')
+              : 'Something went wrong. Please try again.';
+        } else {
+          message = 'Something went wrong. Please try again.';
+        }
         setState(() {
           _isSubmitting = false;
-          _errorMessage = 'Something went wrong. Please try again.';
+          _errorMessage = message;
         });
       }
     }

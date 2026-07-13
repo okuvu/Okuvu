@@ -260,8 +260,18 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
           controller: _phoneController,
           decoration: InputDecoration(
             labelText: 'Phone Number',
-            hintText: '+91 99999 99999',
+            hintText: '99999 99999',
             prefixIcon: const Icon(Icons.phone),
+            prefix: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              child: Text(
+                '+91',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
             errorText: _phoneError,
           ),
           keyboardType: TextInputType.phone,

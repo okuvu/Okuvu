@@ -40,7 +40,7 @@ cp apps/therapist-portal/.env.example apps/therapist-portal/.env
 | Variable | Required | Description |
 |---|---|---|
 | `DATABASE_URL` | Yes | Your Neon branch connection string (same as the API) |
-| `NEXTAUTH_SECRET` | Yes | Generate with `openssl rand -base64 32` |
+| `NEXTAUTH_SECRET` | Yes | Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` or `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | Yes | `http://localhost:3001` |
 | `GOOGLE_CLIENT_ID` | Yes | From Google Cloud Console OAuth credentials |
 | `GOOGLE_CLIENT_SECRET` | Yes | From Google Cloud Console OAuth credentials |

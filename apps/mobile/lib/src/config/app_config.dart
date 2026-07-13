@@ -10,15 +10,18 @@ class AppConfig {
   static String get baseUrl => apiBaseUrl;
 
   static void init([String? flavorOverride]) {
-    flavor = flavorOverride ?? const String.fromEnvironment('FLAVOR', defaultValue: '');
+    flavor = flavorOverride ??
+        const String.fromEnvironment('FLAVOR', defaultValue: '');
     if (flavor.isEmpty) {
       throw FlavorNotSpecifiedException();
     }
     environment = Environment.fromString(flavor);
-    final baseUrlOverride = String.fromEnvironment('BASE_URL');
-    apiBaseUrl = baseUrlOverride.isNotEmpty ? baseUrlOverride : environment.apiBaseUrl;
-    final wsUrlOverride = String.fromEnvironment('WS_URL');
-    wsBaseUrl = wsUrlOverride.isNotEmpty ? wsUrlOverride : environment.wsBaseUrl;
+    const baseUrlOverride = String.fromEnvironment('BASE_URL');
+    apiBaseUrl =
+        baseUrlOverride.isNotEmpty ? baseUrlOverride : environment.apiBaseUrl;
+    const wsUrlOverride = String.fromEnvironment('WS_URL');
+    wsBaseUrl =
+        wsUrlOverride.isNotEmpty ? wsUrlOverride : environment.wsBaseUrl;
   }
 }
 
