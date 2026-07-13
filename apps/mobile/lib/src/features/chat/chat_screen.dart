@@ -29,9 +29,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     ref.read(webSocketServiceProvider).connect(
-      wsBaseUrl: AppConfig.wsBaseUrl,
-      token: FlavorConfig.devBypassToken ?? '',
-    );
+          wsBaseUrl: AppConfig.wsBaseUrl,
+          token: FlavorConfig.devBypassToken ?? '',
+        );
     if (kDebugMode) debugPrint('[ChatScreen] initState: WS connect called');
   }
 
@@ -54,6 +54,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  Future<void> _confirmEndSession(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('End this session?'),
+        content: const Text('Your conversation will be saved.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Continue')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('End session')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      ref.read(webSocketServiceProvider).disconnect();
+      if (context.mounted) context.go('/home');
+    }
+  }
+
   void _sendMessage() {
     if (ref.read(chatMessagesProvider).isSessionClosed) return;
     final text = _textController.text.trim();
@@ -68,10 +90,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (_useMockResponses) {
       Future.delayed(const Duration(milliseconds: 800), () {
-        if (kDebugMode) debugPrint('[ChatScreen] Injecting mock agent response');
+        if (kDebugMode)
+          debugPrint('[ChatScreen] Injecting mock agent response');
         ref.read(webSocketServiceProvider).injectMockAgentTurn(
-          'I hear you. Tell me more about how that makes you feel.',
-        );
+              'I hear you. Tell me more about how that makes you feel.',
+            );
       });
     }
   }
@@ -80,6 +103,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatMessagesProvider);
     final isOnline = ref.watch(isOnlineProvider);
+    final isCrisisActive = ref.watch(crisisOverlayProvider);
 
     ref.listen<bool>(crisisOverlayProvider, (_, show) {
       if (show) {
@@ -88,7 +112,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
 
     ref.listen<ChatState>(chatMessagesProvider, (previous, next) {
-      if (previous != null && !previous.isSessionClosed && next.isSessionClosed) {
+      if (previous != null &&
+          !previous.isSessionClosed &&
+          next.isSessionClosed) {
         Future.delayed(const Duration(milliseconds: 400), () async {
           if (context.mounted &&
               ref.read(chatMessagesProvider).isSessionClosed &&
@@ -105,64 +131,79 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (chatState.messages.isNotEmpty) _scrollToBottom();
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Evia'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Text(
-              '${chatState.turnCount}/10 turns',
-              style: TextStyle(
-                fontSize: 13,
-                color: chatState.turnCount >= 10
-                    ? Theme.of(context).colorScheme.error
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !isCrisisActive) {
+          _confirmEndSession(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed:
+                isCrisisActive ? null : () => _confirmEndSession(context),
+          ),
+          title: const Text('Evia'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                '${chatState.turnCount}/10 turns',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: chatState.turnCount >= 10
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-          if (!isOnline)
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.cloud_off, size: 18),
-                  SizedBox(width: 4),
-                  Text('Offline', style: TextStyle(fontSize: 12)),
-                ],
+            if (!isOnline)
+              const Padding(
+                padding: EdgeInsets.only(right: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cloud_off, size: 18),
+                    SizedBox(width: 4),
+                    Text('Offline', style: TextStyle(fontSize: 12)),
+                  ],
+                ),
               ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                const VoiceToggle(),
+                const Divider(height: 1),
+                Expanded(
+                  child: chatState.messages.isEmpty
+                      ? _buildEmptyState(context)
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          itemCount: chatState.messages.length,
+                          itemBuilder: (context, index) {
+                            return _ChatBubble(
+                                message: chatState.messages[index]);
+                          },
+                        ),
+                ),
+                _buildInputBar(context, chatState.isSessionClosed),
+              ],
             ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              const VoiceToggle(),
-              const Divider(height: 1),
-              Expanded(
-                child: chatState.messages.isEmpty
-                    ? _buildEmptyState(context)
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        itemCount: chatState.messages.length,
-                        itemBuilder: (context, index) {
-                          return _ChatBubble(message: chatState.messages[index]);
-                        },
-                      ),
-              ),
-              _buildInputBar(context, chatState.isSessionClosed),
-            ],
-          ),
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ReconnectBanner(),
-          ),
-        ],
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ReconnectBanner(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -218,7 +259,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               decoration: InputDecoration(
                 hintText: sessionClosed ? 'Session ended' : 'Type a message...',
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
           ),
@@ -248,7 +290,8 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUser = message.sender == MessageSender.user;
-    final alignment = isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final alignment =
+        isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(20),
       topRight: const Radius.circular(20),

@@ -9,7 +9,8 @@ class AccountDeletionScreen extends ConsumerStatefulWidget {
   const AccountDeletionScreen({super.key});
 
   @override
-  ConsumerState<AccountDeletionScreen> createState() => _AccountDeletionScreenState();
+  ConsumerState<AccountDeletionScreen> createState() =>
+      _AccountDeletionScreenState();
 }
 
 class _AccountDeletionScreenState extends ConsumerState<AccountDeletionScreen> {
@@ -61,7 +62,8 @@ class _AccountDeletionScreenState extends ConsumerState<AccountDeletionScreen> {
       if (e.response?.statusCode == 409) {
         final code = e.response?.data?['error']?['code'];
         if (code == 'ACTIVE_SESSION') {
-          message = 'You have an active chat session. Please close it before deleting your account.';
+          message =
+              'You have an active chat session. Please close it before deleting your account.';
         } else if (code == 'ALREADY_DELETED') {
           message = 'This account has already been deleted.';
           await ref.read(authServiceProvider).signOut();
@@ -83,14 +85,25 @@ class _AccountDeletionScreenState extends ConsumerState<AccountDeletionScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Delete Account')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: _isInfoStep
-              ? _buildInfoStep(theme)
-              : _buildConfirmStep(theme),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.go('/settings');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/settings'),
+          ),
+          title: const Text('Delete Account'),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child:
+                _isInfoStep ? _buildInfoStep(theme) : _buildConfirmStep(theme),
+          ),
         ),
       ),
     );
