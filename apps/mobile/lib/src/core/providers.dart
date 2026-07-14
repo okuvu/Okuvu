@@ -20,7 +20,6 @@ export '../features/settings/voice_settings_notifier.dart'
 export '../features/settings/emergency_contact_notifier.dart'
     show emergencyContactProvider;
 export '../features/intake/care_plan_provider.dart' show userCarePlanProvider;
-export '../features/consent/consent_notifier.dart' show consentProvider;
 
 class CrisisOverlayNotifier extends Notifier<bool> {
   @override

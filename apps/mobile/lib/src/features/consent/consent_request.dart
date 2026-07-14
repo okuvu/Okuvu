@@ -12,9 +12,9 @@ class ConsentRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'safety_monitoring': safetyMonitoring,
-        'mood_inference': moodInference,
-        'assessment': assessment,
-        'emergency_contact': emergencyContact,
-      };
+    'safety_monitoring': safetyMonitoring,
+    'mood_inference': moodInference,
+    'assessment': assessment,
+    'emergency_contact': emergencyContact,
+  };
 }

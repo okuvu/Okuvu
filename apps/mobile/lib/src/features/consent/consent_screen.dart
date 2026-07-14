@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'consent_notifier.dart';
+import 'package:dio/dio.dart';
+import '../../core/providers.dart';
 import 'consent_request.dart';
 
 class ConsentScreen extends ConsumerStatefulWidget {
@@ -49,12 +49,6 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
     }
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
-  }
-
   Future<void> _submit() async {
     setState(() {
       _isSubmitting = true;
@@ -68,21 +62,19 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
       emergencyContact: _emergencyContact,
     );
 
-    await ref.read(consentProvider.notifier).submitConsent(request);
-
-    if (!mounted) return;
-
-    final result = ref.read(consentProvider);
-    if (result.isCompleted) {
-      if (result.usedLocalFallback && kDebugMode) {
-        debugPrint('[ConsentScreen] Proceeding with local-only consent');
+    try {
+      await ref.read(dioClientProvider).post(
+            '/users/me/consent',
+            data: request.toJson(),
+          );
+      if (mounted) context.go('/intake');
+    } on DioException {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _errorMessage = 'Something went wrong. Please try again.';
+        });
       }
-      context.go('/intake');
-    } else if (result.errorMessage != null) {
-      setState(() {
-        _isSubmitting = false;
-        _errorMessage = result.errorMessage;
-      });
     }
   }
 
@@ -105,7 +97,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _TopBar(onBack: context.canPop() ? () => context.pop() : null),
+            _TopBar(onBack: () => context.pop()),
             const _Header(),
             Expanded(
               child: Stack(
@@ -254,9 +246,9 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
 }
 
 class _TopBar extends StatelessWidget {
-  final VoidCallback? onBack;
+  final VoidCallback onBack;
 
-  const _TopBar({this.onBack});
+  const _TopBar({required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -267,12 +259,10 @@ class _TopBar extends StatelessWidget {
         children: [
           SizedBox(
             width: 48,
-            child: onBack != null
-                ? IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: onBack,
-                  )
-                : null,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: onBack,
+            ),
           ),
           Expanded(
             child: Center(

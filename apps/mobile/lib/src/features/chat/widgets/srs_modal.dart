@@ -8,7 +8,7 @@ import '../../../core/providers.dart';
 const _handleHeight = 4.0;
 const _handleWidth = 32.0;
 const _animationDuration = Duration(milliseconds: 200);
-const _confirmationDelay = Duration(milliseconds: 400);
+const _confirmationDelay = Duration.zero;
 const _confirmationDuration = Duration(milliseconds: 800);
 
 Future<void> showSrsModal(BuildContext context) {
@@ -85,16 +85,14 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
     final sessionId = ref.read(sessionIdProvider);
     final dio = ref.read(dioClientProvider);
     if (sessionId != null) {
-      unawaited(() async {
-        try {
-          await dio.patch(
-            '/sessions/$sessionId/srs',
-            data: {'srs_score': score},
-          );
-        } catch (e) {
-          if (kDebugMode) debugPrint('[SRS] PATCH failed: $e');
-        }
-      }());
+      try {
+        unawaited(dio.patch(
+          '/sessions/$sessionId/srs',
+          data: {'srs_score': score},
+        ));
+      } catch (e) {
+        if (kDebugMode) debugPrint('[SRS] PATCH failed: $e');
+      }
     } else if (kDebugMode) {
       debugPrint('[SRS] No session ID available, skipping PATCH');
     }
