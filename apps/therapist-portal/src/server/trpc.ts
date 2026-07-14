@@ -8,6 +8,7 @@ export async function createTRPCContext(opts: { headers: Headers }) {
 }
 
 type Context = Awaited<ReturnType<typeof createTRPCContext>>;
+export type ProtectedContext = Context & { user: NonNullable<Context['session']>['user'] };
 
 const t = initTRPC.context<Context>().create();
 

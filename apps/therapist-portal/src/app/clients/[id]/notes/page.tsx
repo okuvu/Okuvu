@@ -4,15 +4,6 @@ import { useParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { trpc } from '@/trpc/client';
 
-interface NoteItem {
-  id: string;
-  note_text: string;
-  created_at: string;
-  therapist: {
-    name: string | null;
-  };
-}
-
 const STORAGE_PREFIX = 'draft-note-';
 
 function getDraftKey(clientId: string): string {
@@ -154,7 +145,7 @@ export default function ClientNotesPage() {
           </div>
         ) : (
           <ul className="divide-y divide-gray-200">
-            {notes.map((note: NoteItem) => (
+            {notes.map((note) => (
               <li key={note.id} className="px-4 py-5 sm:px-6">
                 <div className="text-base text-gray-900 whitespace-pre-wrap">
                   {note.note_text}

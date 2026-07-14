@@ -58,7 +58,8 @@ export const notesRouter = router({
   listNotes: protectedProcedure
     .input(
       z.object({
-        clientId: z.string().uuid(),
+        // clientId is a phone number, not a UUID — .min(1) is the correct validation
+        clientId: z.string().min(1),
       }),
     )
     .query(async ({ ctx, input }) => {
