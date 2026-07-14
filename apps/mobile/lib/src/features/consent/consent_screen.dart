@@ -2,8 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:dio/dio.dart';
-import '../../core/providers.dart';
+import 'consent_notifier.dart';
 import 'consent_request.dart';
 
 class ConsentScreen extends ConsumerStatefulWidget {
@@ -69,34 +68,21 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
       emergencyContact: _emergencyContact,
     );
 
-    try {
-      await ref.read(dioClientProvider).post(
-            '/users/me/consent',
-            data: request.toJson(),
-          );
-      if (mounted) context.go('/intake');
-    } on DioException catch (e) {
-      if (kDebugMode) {
-        debugPrint('[ConsentScreen] POST /users/me/consent failed: '
-            'status=${e.response?.statusCode} body=${e.response?.data}');
+    await ref.read(consentProvider.notifier).submitConsent(request);
+
+    if (!mounted) return;
+
+    final result = ref.read(consentProvider);
+    if (result.isCompleted) {
+      if (result.usedLocalFallback && kDebugMode) {
+        debugPrint('[ConsentScreen] Proceeding with local-only consent');
       }
-      if (mounted) {
-        String message;
-        if (e.response?.statusCode == 401) {
-          message = 'Session expired. Please log in again.';
-        } else if (e.response?.statusCode == 400) {
-          message = (e.response?.data is Map)
-              ? (e.response!.data['error']?['message'] as String? ??
-                  'Something went wrong. Please try again.')
-              : 'Something went wrong. Please try again.';
-        } else {
-          message = 'Something went wrong. Please try again.';
-        }
-        setState(() {
-          _isSubmitting = false;
-          _errorMessage = message;
-        });
-      }
+      context.go('/intake');
+    } else if (result.errorMessage != null) {
+      setState(() {
+        _isSubmitting = false;
+        _errorMessage = result.errorMessage;
+      });
     }
   }
 
