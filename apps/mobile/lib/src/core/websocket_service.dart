@@ -75,8 +75,9 @@ class WebSocketService {
       {required String wsBaseUrl, required String token}) async {
     if (_state == WsConnectionState.connecting ||
         _state == WsConnectionState.sessionActive) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[WebSocketService] Already connected or connecting');
+      }
       return;
     }
 
@@ -142,12 +143,14 @@ class WebSocketService {
           _sessionClosedController.add(null);
           break;
         default:
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint('[WebSocketService] Unknown message type: $type');
+          }
       }
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[WebSocketService] Failed to parse message: $e');
+      }
     }
   }
 
@@ -173,14 +176,16 @@ class WebSocketService {
 
   void sendUserTurn(String content) {
     if (_state != WsConnectionState.sessionActive) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             '[WebSocketService] Cannot send — not in sessionActive state');
+      }
       return;
     }
 
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint('[WebSocketService] Sending user_turn: $content');
+    }
     _sendFrame({
       'type': 'user_turn',
       'content': content,
@@ -209,8 +214,9 @@ class WebSocketService {
       final frame = AgentTurnFrame.fromJson(data);
       _agentTurnController.add(frame);
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('[WebSocketService] Failed to parse agent_turn frame: $e');
+      }
     }
   }
 
