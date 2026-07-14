@@ -22,52 +22,42 @@ class CrisisOverlay extends StatelessWidget {
                     const SizedBox(height: 24),
                     const _HeaderSection(),
                     const SizedBox(height: 20),
-                    const Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 20),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
                           children: [
-                            Flexible(
-                              child: _ResourceCard(
-                                name: 'iCall (IIT Bombay)',
-                                description: 'Psychosocial helpline for individuals in distress.',
-                                phone: '9152987821',
-                              ),
+                            _ResourceCard(
+                              name: 'iCall (IIT Bombay)',
+                              description: 'Psychosocial helpline for individuals in distress.',
+                              phone: '9152987821',
                             ),
-                            SizedBox(height: 8),
-                            Flexible(
-                              child: _ResourceCard(
-                                name: 'Vandrevala Foundation',
-                                description: '24x7 crisis intervention and mental health support.',
-                                phone: '18602662345',
-                                displayPhone: '1860-2662-345',
-                              ),
+                            const SizedBox(height: 8),
+                            _ResourceCard(
+                              name: 'Vandrevala Foundation',
+                              description: '24x7 crisis intervention and mental health support.',
+                              phone: '18602662345',
+                              displayPhone: '1860-2662-345',
                             ),
-                            SizedBox(height: 8),
-                            Flexible(
-                              child: _ResourceCard(
-                                name: 'NIMHANS',
-                                description: 'Mental health services and emergency support.',
-                                phone: '08046110007',
-                                displayPhone: '080-46110007',
-                              ),
+                            const SizedBox(height: 8),
+                            _ResourceCard(
+                              name: 'NIMHANS',
+                              description: 'Mental health services and emergency support.',
+                              phone: '08046110007',
+                              displayPhone: '080-46110007',
                             ),
-                            SizedBox(height: 8),
-                            Flexible(
-                              child: _ResourceCard(
-                                name: 'Snehi',
-                                description: 'Support for emotional and mental health issues.',
-                                phone: '04424640050',
-                                displayPhone: '044-24640050',
-                              ),
+                            const SizedBox(height: 8),
+                            _ResourceCard(
+                              name: 'Snehi',
+                              description: 'Support for emotional and mental health issues.',
+                              phone: '04424640050',
+                              displayPhone: '044-24640050',
                             ),
-                            SizedBox(height: 8),
-                            Flexible(
-                              child: _ResourceCard(
-                                name: 'Emergency Services',
-                                description: 'Immediate assistance from emergency responders.',
-                                phone: '112',
-                              ),
+                            const SizedBox(height: 8),
+                            _ResourceCard(
+                              name: 'Emergency Services',
+                              description: 'Immediate assistance from emergency responders.',
+                              phone: '112',
                             ),
                           ],
                         ),

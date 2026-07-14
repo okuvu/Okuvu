@@ -200,14 +200,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('9152987821'), findsOneWidget);
-    expect(find.text('18602662345'), findsOneWidget);
-    expect(find.text('08046110007'), findsOneWidget);
-    expect(find.text('04424640050'), findsOneWidget);
-    expect(find.text('112'), findsOneWidget);
+    expect(find.text('iCall (IIT Bombay)'), findsOneWidget);
+    expect(find.text('Vandrevala Foundation'), findsOneWidget);
+    expect(find.text('NIMHANS'), findsOneWidget);
+    expect(find.text('Snehi'), findsOneWidget);
+    expect(find.text('Emergency Services'), findsOneWidget);
   });
 
   testWidgets('Crisis overlay has no dismiss button',
@@ -221,9 +218,6 @@ void main() {
         child: const App(),
       ),
     );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Crisis Support'));
     await tester.pumpAndSettle();
 
     expect(find.text('Dismiss'), findsNothing);
@@ -242,14 +236,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Crisis Support'));
+    await tester.tap(find.text("You're not alone."));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.emergency));
-    await tester.pumpAndSettle();
-
-    expect(find.text('9152987821'), findsOneWidget);
-    expect(find.text('Crisis Support'), findsAtLeast(1));
+    expect(find.text('iCall (IIT Bombay)'), findsOneWidget);
+    expect(find.text("You're not alone."), findsAtLeast(1));
   });
 
   testWidgets('Crisis overlay requires no network dependencies',
@@ -267,11 +258,8 @@ void main() {
 
     // No dioClientProvider or authServiceProvider override is needed.
     // The crisis overlay renders with zero network calls.
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Crisis Support'), findsAtLeast(1));
-    expect(find.text('9152987821'), findsOneWidget);
+    expect(find.text("You're not alone."), findsAtLeast(1));
+    expect(find.text('iCall (IIT Bombay)'), findsOneWidget);
   });
 
   testWidgets('Unknown route shows not-found page',
