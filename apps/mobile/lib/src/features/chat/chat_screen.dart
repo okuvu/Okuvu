@@ -28,9 +28,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    ref.read(webSocketServiceProvider).connect(
+    _connectWebSocket();
+  }
+
+  Future<void> _connectWebSocket() async {
+    final token = AppConfig.flavor == 'dev'
+        ? (FlavorConfig.devBypassToken ?? '')
+        : (await ref.read(authServiceProvider).getIdToken()) ?? '';
+    await ref.read(webSocketServiceProvider).connect(
           wsBaseUrl: AppConfig.wsBaseUrl,
-          token: FlavorConfig.devBypassToken ?? '',
+          token: token,
         );
     if (kDebugMode) debugPrint('[ChatScreen] initState: WS connect called');
   }

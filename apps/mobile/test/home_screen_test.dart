@@ -42,7 +42,7 @@ class FakeWebSocketService implements WebSocketService {
   Stream<bool> get showBannerStream => const Stream.empty();
 
   @override
-  void connect({required String wsBaseUrl, required String token}) {}
+  Future<void> connect({required String wsBaseUrl, required String token}) async {}
 
   @override
   void sendUserTurn(String content) {}
