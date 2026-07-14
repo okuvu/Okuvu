@@ -206,6 +206,11 @@ export const clientsRouter = router({
 
       await assertClientAssigned(db, therapistId, input.clientId);
 
+      const existing = await db.clinicalConfig.findUnique({
+        where: { user_id: input.clientId },
+        select: { care_plan_id: true },
+      });
+
       const result = await db.clinicalConfig.upsert({
         where: { user_id: input.clientId },
         create: {
@@ -219,6 +224,15 @@ export const clientsRouter = router({
         },
         select: { care_plan_id: true, assignment_state: true, created_at: true },
       });
+
+      console.log(JSON.stringify({
+        event: "care_plan_change",
+        therapist_id: therapistId,
+        client_id: input.clientId,
+        old_care_plan: existing?.care_plan_id ?? null,
+        new_care_plan: input.carePlanId,
+        timestamp: new Date().toISOString(),
+      }));
 
       return {
         success: true,

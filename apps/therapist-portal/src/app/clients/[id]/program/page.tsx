@@ -55,6 +55,7 @@ export default function ProgramPage() {
 
   const [selectedCarePlan, setSelectedCarePlan] = useState<CarePlan>("CP1");
   const [showToast, setShowToast] = useState(false);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const carePlanQuery = trpc.clients.getCarePlan.useQuery(
     { clientId },
@@ -82,6 +83,10 @@ export default function ProgramPage() {
       await carePlanQuery.refetch();
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
+    },
+    onError: (error) => {
+      setErrorToast(error.message ?? "Failed to save care plan. Please try again.");
+      setTimeout(() => setErrorToast(null), 5000);
     },
   });
 
@@ -281,17 +286,31 @@ export default function ProgramPage() {
           </div>
 
           {/* Notice Box */}
-          <div className="border-l-4 border-[#14A38C] bg-[#F0FDFA] rounded-lg p-4">
-            <h4 className="font-label-sm text-label-sm font-bold text-[#0D6B5E] mb-1">
+          <div className="border-l-[3px] border-[#1A6B5A] bg-[#F4F6F8] rounded-lg p-4">
+            <h4 className="font-label-sm text-label-sm font-bold text-[#5A6472] mb-1">
               Important
             </h4>
-            <p className="font-body-main text-body-main text-[#0D6B5E]/80 text-sm">
-              Clinical notes entered here are for therapist reference only and
-              are NOT used by Evia&rsquo;s AI or clinical algorithms.
+            <p className="font-body-main text-body-main text-sm text-[#5A6472]">
+              Session notes are for therapist reference only and are not used
+              by Evia&rsquo;s AI or clinical algorithms.
             </p>
           </div>
         </div>
       </div>
+
+      {/* Error Toast */}
+      {errorToast && (
+        <div
+          className="fixed top-16 left-1/2 -translate-x-1/2 bg-red-50 border border-red-400 px-5 py-3 shadow-lg rounded-lg flex items-center gap-2 z-50"
+          style={{
+            animation: "fadeInSlideDown 0.3s ease-out",
+          }}
+        >
+          <span className="text-sm font-semibold text-red-800">
+            {errorToast}
+          </span>
+        </div>
+      )}
 
       {/* Toast (Frame 2 — post-save) */}
       {showToast && (
