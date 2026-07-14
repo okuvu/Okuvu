@@ -80,11 +80,13 @@ export default function ProgramPage() {
 
   const setCarePlan = trpc.clients.setCarePlan.useMutation({
     onSuccess: async () => {
+      setErrorToast(null);
       await carePlanQuery.refetch();
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     },
     onError: (error) => {
+      setShowToast(false);
       setErrorToast(error.message ?? "Failed to save care plan. Please try again.");
       setTimeout(() => setErrorToast(null), 5000);
     },
