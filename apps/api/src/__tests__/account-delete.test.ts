@@ -15,19 +15,28 @@ vi.mock('../lib/prisma.js', () => ({
     },
     $transaction: vi.fn(),
     emergencyContact: {
-      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     engagementProfile: {
-      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     sessionLimit: {
       deleteMany: vi.fn(),
     },
     clinicalConfig: {
-      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     safetyState: {
-      delete: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    turn: {
+      deleteMany: vi.fn(),
+    },
+    sessionSummary: {
+      deleteMany: vi.fn(),
+    },
+    moodLog: {
+      deleteMany: vi.fn(),
     },
   },
 }));
@@ -67,11 +76,14 @@ describe('POST /account/delete', () => {
       vi.mocked(prisma.sessionLog.findFirst).mockResolvedValue(null);
       vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
         const tx = {
-          emergencyContact: { delete: vi.fn().mockResolvedValue(undefined) },
-          engagementProfile: { delete: vi.fn().mockResolvedValue(undefined) },
+          emergencyContact: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+          engagementProfile: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
           sessionLimit: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-          clinicalConfig: { delete: vi.fn().mockResolvedValue(undefined) },
-          safetyState: { delete: vi.fn().mockResolvedValue(undefined) },
+          clinicalConfig: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+          safetyState: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+          turn: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+          sessionSummary: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+          moodLog: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
           sessionLog: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
           user: { update: vi.fn().mockResolvedValue(undefined) },
         };
@@ -103,30 +115,42 @@ describe('POST /account/delete', () => {
       expect(prisma.$transaction).toHaveBeenCalledOnce();
       const txCallback = vi.mocked(prisma.$transaction).mock.calls[0][0] as Function;
       const tx = {
-        emergencyContact: { delete: vi.fn().mockResolvedValue(undefined) },
-        engagementProfile: { delete: vi.fn().mockResolvedValue(undefined) },
+        emergencyContact: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        engagementProfile: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         sessionLimit: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-        clinicalConfig: { delete: vi.fn().mockResolvedValue(undefined) },
-        safetyState: { delete: vi.fn().mockResolvedValue(undefined) },
+        clinicalConfig: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        safetyState: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        turn: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        sessionSummary: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        moodLog: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         sessionLog: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         user: { update: vi.fn().mockResolvedValue(undefined) },
       };
 
       await txCallback(tx);
 
-      expect(tx.emergencyContact.delete).toHaveBeenCalledWith({
+      expect(tx.emergencyContact.deleteMany).toHaveBeenCalledWith({
         where: { user_id: MOCK_USER_ID },
       });
-      expect(tx.engagementProfile.delete).toHaveBeenCalledWith({
+      expect(tx.engagementProfile.deleteMany).toHaveBeenCalledWith({
         where: { user_id: MOCK_USER_ID },
       });
       expect(tx.sessionLimit.deleteMany).toHaveBeenCalledWith({
         where: { user_id: MOCK_USER_ID },
       });
-      expect(tx.clinicalConfig.delete).toHaveBeenCalledWith({
+      expect(tx.clinicalConfig.deleteMany).toHaveBeenCalledWith({
         where: { user_id: MOCK_USER_ID },
       });
-      expect(tx.safetyState.delete).toHaveBeenCalledWith({
+      expect(tx.safetyState.deleteMany).toHaveBeenCalledWith({
+        where: { user_id: MOCK_USER_ID },
+      });
+      expect(tx.turn.deleteMany).toHaveBeenCalledWith({
+        where: { user_id: MOCK_USER_ID },
+      });
+      expect(tx.sessionSummary.deleteMany).toHaveBeenCalledWith({
+        where: { user_id: MOCK_USER_ID },
+      });
+      expect(tx.moodLog.deleteMany).toHaveBeenCalledWith({
         where: { user_id: MOCK_USER_ID },
       });
       expect(tx.sessionLog.deleteMany).toHaveBeenCalledWith({
