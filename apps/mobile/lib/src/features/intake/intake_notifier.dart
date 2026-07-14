@@ -89,8 +89,7 @@ class IntakeNotifier extends Notifier<IntakeState> {
         ),
         IntakeMessage(
           role: 'assistant',
-          content:
-              "Thanks. I'll tailor your experience around $plan.",
+          content: "Thanks. I'll tailor your experience around $plan.",
           timestamp: DateTime.now(),
         ),
       ],

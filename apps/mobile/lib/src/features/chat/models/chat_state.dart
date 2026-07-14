@@ -23,7 +23,8 @@ class ChatState {
       messages: messages ?? this.messages,
       turnCount: turnCount ?? this.turnCount,
       isSessionClosed: isSessionClosed ?? this.isSessionClosed,
-      sessionFeedback: sessionFeedback != null ? sessionFeedback() : this.sessionFeedback,
+      sessionFeedback:
+          sessionFeedback != null ? sessionFeedback() : this.sessionFeedback,
     );
   }
 }

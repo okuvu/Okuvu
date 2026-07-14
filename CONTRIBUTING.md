@@ -61,10 +61,53 @@ cd apps/api && pnpm dev
 
 # Therapist portal (from apps/therapist-portal/)
 cd apps/therapist-portal && pnpm dev
-
-# Flutter app (from apps/mobile/)
-cd apps/mobile && flutter run --flavor dev
 ```
+
+#### Running the Flutter app locally
+
+The Flutter app **must** be launched with `--dart-define=FLAVOR=dev`. Without it, `AppConfig.init()` throws `FlavorNotSpecifiedException` at `apps/mobile/lib/src/config/app_config.dart:15` and the app hangs on the splash screen with no visible error — Android system warnings in Logcat mask the Flutter exception.
+
+##### Prerequisites
+- The backend API running on `localhost:8080` (from step 6 above)
+- An Android emulator, **or** a physical Android device with USB debugging enabled, **or** a physical device on the same WiFi as your laptop
+
+##### Android emulator (easiest)
+The emulator resolves `10.0.2.2` to the host's `localhost`, so no port forwarding is needed.
+
+```bash
+cd apps/mobile
+flutter run --flavor dev --dart-define=FLAVOR=dev
+```
+
+##### Physical device over USB (recommended for hardware-related work)
+Bridge the device's `localhost:8080` to your laptop's `localhost:8080`.
+
+```bash
+adb reverse tcp:8080 tcp:8080
+
+cd apps/mobile
+flutter run --flavor dev --dart-define=FLAVOR=dev
+```
+
+##### Physical device over WiFi
+Find your laptop's LAN IP — the command differs by OS:
+- **Windows (PowerShell):** `(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias "Wi-Fi").IPAddress` (or run `ipconfig` and read the `IPv4 Address` of your active Wi-Fi adapter)
+- **macOS:** `ipconfig getifaddr en0`
+- **Linux:** `hostname -I`
+
+```bash
+cd apps/mobile
+flutter run --flavor dev \
+  --dart-define=FLAVOR=dev \
+  --dart-define=BASE_URL=http://YOUR_LAN_IP:8080 \
+  --dart-define=WS_URL=ws://YOUR_LAN_IP:8080
+```
+
+##### Troubleshooting
+**App hangs on the splash screen with no terminal error.** This is almost always `FlavorNotSpecifiedException` thrown by `AppConfig.init()` at `apps/mobile/lib/src/config/app_config.dart:15`. The exception is raised before `runApp`, and Android system warnings in Logcat mask it.
+
+- Confirm the run command includes `--dart-define=FLAVOR=dev`
+- For a physical device, also confirm `adb reverse tcp:8080 tcp:8080` is in effect, or that `--dart-define=BASE_URL` points to a reachable host
 
 ---
 

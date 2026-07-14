@@ -24,7 +24,8 @@ String _focusAreaNameForId(String id) {
   }
 }
 
-final userCarePlanProvider = FutureProvider.autoDispose<UserCarePlan?>((ref) async {
+final userCarePlanProvider =
+    FutureProvider.autoDispose<UserCarePlan?>((ref) async {
   final dio = ref.read(dioClientProvider);
   final response = await dio.get('/users/me/context');
   final data = response.data as Map<String, dynamic>;

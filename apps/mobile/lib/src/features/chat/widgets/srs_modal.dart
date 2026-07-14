@@ -5,12 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 
+const _handleHeight = 4.0;
+const _handleWidth = 32.0;
+const _animationDuration = Duration(milliseconds: 200);
+const _confirmationDelay = Duration(milliseconds: 400);
+const _confirmationDuration = Duration(milliseconds: 800);
+
 Future<void> showSrsModal(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
     isDismissible: true,
     enableDrag: true,
-    showDragHandle: true,
     backgroundColor: Colors.white,
     barrierColor: const Color(0x661A1A1A),
     shape: const RoundedRectangleBorder(
@@ -30,19 +35,45 @@ class _SrsModalContent extends ConsumerStatefulWidget {
 class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
   int? _selectedIndex;
   bool _showConfirmation = false;
+  bool _analyticsShown = false;
 
   static const _scores = [1, 2, 3, 4];
+  static const _labels = [
+    'Missed the mark',
+    'Not really',
+    'Okay',
+    'Helpful',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_analyticsShown && mounted) {
+        _analyticsShown = true;
+        ref.read(analyticsServiceProvider).logEvent('srs_modal_shown');
+      }
+    });
+  }
 
   void _onOptionTap(int index) {
     if (_selectedIndex != null) return;
     setState(() => _selectedIndex = index);
     _submitScore(_scores[index]);
 
-    Future.delayed(const Duration(milliseconds: 400), () {
+    ref.read(analyticsServiceProvider).logEvent(
+      'srs_rating_selected',
+      properties: {'score': _scores[index], 'label': _labels[index]},
+    );
+
+    Future.delayed(_confirmationDelay, () {
       if (mounted) {
         setState(() => _showConfirmation = true);
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (mounted) Navigator.of(context).pop();
+        Future.delayed(_confirmationDuration, () {
+          if (mounted) {
+            ref.read(analyticsServiceProvider).logEvent('srs_dismissed');
+            Navigator.of(context).pop();
+          }
         });
       }
     });
@@ -58,7 +89,7 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
         try {
           await dio.patch(
             '/sessions/$sessionId/srs',
-            data: {'score': score},
+            data: {'srs_score': score},
           );
         } catch (e) {
           if (kDebugMode) debugPrint('[SRS] PATCH failed: $e');
@@ -67,6 +98,11 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
     } else if (kDebugMode) {
       debugPrint('[SRS] No session ID available, skipping PATCH');
     }
+  }
+
+  void _skip() {
+    ref.read(analyticsServiceProvider).logEvent('srs_skipped');
+    Navigator.of(context).pop();
   }
 
   @override
@@ -80,12 +116,13 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
         padding: EdgeInsets.only(
           left: 24,
           right: 24,
-          top: 32,
+          top: 8,
           bottom: bottomPadding + 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const _SrsHandle(),
             const SizedBox(height: 40),
             Icon(Icons.check_circle, size: 48, color: colorScheme.primary),
             const SizedBox(height: 12),
@@ -113,18 +150,47 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'How was this session?',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Optional \u2014 takes 2 seconds.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
+          const _SrsHandle(),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'How was this session?',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Optional \u2014 takes 2 seconds.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _skip,
+                style: TextButton.styleFrom(
+                  foregroundColor: colorScheme.onSurfaceVariant,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(48, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Skip',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           Row(
@@ -171,19 +237,25 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
             ],
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'Skip',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant),
-                ),
-              ),
-            ],
-          ),
         ],
+      ),
+    );
+  }
+}
+
+class _SrsHandle extends StatelessWidget {
+  const _SrsHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: _handleWidth,
+        height: _handleHeight,
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(51),
+          borderRadius: BorderRadius.circular(2),
+        ),
       ),
     );
   }
@@ -212,7 +284,7 @@ class _SrsRatingOption extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: _animationDuration,
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         decoration: BoxDecoration(
@@ -223,7 +295,7 @@ class _SrsRatingOption extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
+          duration: _animationDuration,
           opacity: isDimmed ? 0.5 : 1.0,
           child: Transform.scale(
             scale: isSelected ? 1.12 : 1.0,

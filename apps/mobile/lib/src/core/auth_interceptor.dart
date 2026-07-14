@@ -11,7 +11,8 @@ class AuthInterceptor extends Interceptor {
   AuthInterceptor(this._authService, this._dioOptions);
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  void onRequest(
+      RequestOptions options, RequestInterceptorHandler handler) async {
     try {
       final bypass = FlavorConfig.devBypassToken;
       if (bypass != null) {
@@ -24,7 +25,9 @@ class AuthInterceptor extends Interceptor {
         }
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('[AuthInterceptor] Failed to attach Authorization header: $e');
+      if (kDebugMode)
+        debugPrint(
+            '[AuthInterceptor] Failed to attach Authorization header: $e');
     }
     handler.next(options);
   }
@@ -56,7 +59,8 @@ class AuthInterceptor extends Interceptor {
         }
 
         if (kDebugMode) {
-          debugPrint('[AuthInterceptor] 503 — retrying in ${delay.inSeconds}s (attempt ${retryCount + 1}/$_maxRetries)');
+          debugPrint(
+              '[AuthInterceptor] 503 — retrying in ${delay.inSeconds}s (attempt ${retryCount + 1}/$_maxRetries)');
         }
 
         await Future.delayed(delay);
@@ -72,14 +76,16 @@ class AuthInterceptor extends Interceptor {
         }
       }
 
-      if (kDebugMode) debugPrint('[AuthInterceptor] 503 — max retries exceeded');
+      if (kDebugMode)
+        debugPrint('[AuthInterceptor] 503 — max retries exceeded');
       handler.next(err);
       return;
     }
 
     if (err.type == DioExceptionType.connectionError ||
         err.type == DioExceptionType.connectionTimeout) {
-      if (kDebugMode) debugPrint('[AuthInterceptor] Network failure: ${err.message}');
+      if (kDebugMode)
+        debugPrint('[AuthInterceptor] Network failure: ${err.message}');
     }
 
     handler.next(err);

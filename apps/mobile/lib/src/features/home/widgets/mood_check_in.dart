@@ -107,7 +107,8 @@ class _MoodCheckInState extends State<MoodCheckIn> {
                       '$mood',
                       style: TextStyle(
                         fontSize: isSelected ? 20 : 16,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
                         color: isSelected ? Colors.white : color,
                       ),
                     ),

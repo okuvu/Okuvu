@@ -16,7 +16,8 @@ class AgentTurnFrame {
   factory AgentTurnFrame.fromJson(Map<String, dynamic> json) {
     final payload = json['payload'] as Map<String, dynamic>?;
 
-    final content = (payload?['message'] as String?) ?? (json['content'] as String?);
+    final content =
+        (payload?['message'] as String?) ?? (json['content'] as String?);
     if (content == null || content.isEmpty) {
       throw const FormatException('AGENT_TURN frame missing or empty content');
     }
@@ -24,9 +25,12 @@ class AgentTurnFrame {
     return AgentTurnFrame(
       content: content,
       turnId: (payload?['turn_id'] as String?) ?? (json['turn_id'] as String?),
-      timestamp: (payload?['timestamp'] as String?) ?? (json['timestamp'] as String?),
-      turnCount: (payload?['turn_count'] as int?) ?? (json['turn_count'] as int?) ?? 0,
-      isCrisis: (payload?['agent'] as String?) == 'crisis' || json['agent'] == 'crisis',
+      timestamp:
+          (payload?['timestamp'] as String?) ?? (json['timestamp'] as String?),
+      turnCount:
+          (payload?['turn_count'] as int?) ?? (json['turn_count'] as int?) ?? 0,
+      isCrisis: (payload?['agent'] as String?) == 'crisis' ||
+          json['agent'] == 'crisis',
     );
   }
 }

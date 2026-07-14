@@ -9,13 +9,16 @@ import 'auth_service.dart';
 import 'dio_client.dart';
 import 'auth_interceptor.dart';
 import 'tts_service.dart';
+import 'analytics_service.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
 import '../features/chat/models/chat_state.dart';
 import '../features/settings/voice_settings_notifier.dart';
 
-export '../features/settings/voice_settings_notifier.dart' show voiceSettingsProvider, voiceSettingsStateProvider;
-export '../features/settings/emergency_contact_notifier.dart' show emergencyContactProvider;
+export '../features/settings/voice_settings_notifier.dart'
+    show voiceSettingsProvider, voiceSettingsStateProvider;
+export '../features/settings/emergency_contact_notifier.dart'
+    show emergencyContactProvider;
 export '../features/intake/care_plan_provider.dart' show userCarePlanProvider;
 
 class CrisisOverlayNotifier extends Notifier<bool> {
@@ -28,7 +31,10 @@ class CrisisOverlayNotifier extends Notifier<bool> {
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final ttsServiceProvider = Provider<TtsService>((ref) => TtsService());
-final crisisOverlayProvider = NotifierProvider<CrisisOverlayNotifier, bool>(CrisisOverlayNotifier.new);
+final analyticsServiceProvider =
+    Provider<AnalyticsService>((ref) => AnalyticsService());
+final crisisOverlayProvider =
+    NotifierProvider<CrisisOverlayNotifier, bool>(CrisisOverlayNotifier.new);
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
@@ -39,7 +45,9 @@ enum SessionState { initial, authenticated, unauthenticated }
 final sessionProvider = Provider<SessionState>((ref) {
   final authState = ref.watch(authStateProvider);
   return authState.when(
-    data: (user) => user != null ? SessionState.authenticated : SessionState.unauthenticated,
+    data: (user) => user != null
+        ? SessionState.authenticated
+        : SessionState.unauthenticated,
     loading: () => SessionState.initial,
     error: (_, __) => SessionState.unauthenticated,
   );
@@ -47,14 +55,15 @@ final sessionProvider = Provider<SessionState>((ref) {
 
 final dioClientProvider = Provider<Dio>((ref) {
   final dio = createDioClient();
-  dio.interceptors.add(AuthInterceptor(ref.read(authServiceProvider), dio.options));
+  dio.interceptors
+      .add(AuthInterceptor(ref.read(authServiceProvider), dio.options));
   return dio;
 });
 
 final connectivityProvider = StreamProvider<bool>((ref) {
   return Connectivity().onConnectivityChanged.map(
-    (results) => results.any((r) => r != ConnectivityResult.none),
-  );
+        (results) => results.any((r) => r != ConnectivityResult.none),
+      );
 });
 
 final isOnlineProvider = Provider<bool>((ref) {
@@ -131,6 +140,8 @@ class ChatNotifier extends Notifier<ChatState> {
       ],
       turnCount: frame.turnCount,
     );
+
+    ref.read(ttsServiceProvider).speak(frame.content);
   }
 
   void addUserMessage(String content) {
@@ -152,7 +163,8 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 }
 
-final chatMessagesProvider = NotifierProvider<ChatNotifier, ChatState>(ChatNotifier.new);
+final chatMessagesProvider =
+    NotifierProvider<ChatNotifier, ChatState>(ChatNotifier.new);
 
 final sessionIdProvider = Provider<String?>((ref) {
   return ref.watch(webSocketServiceProvider).sessionId;

@@ -292,12 +292,9 @@ class _IntakeBubble extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.75,
             ),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: isUser
-                  ? theme.colorScheme.primary
-                  : Colors.white,
+              color: isUser ? theme.colorScheme.primary : Colors.white,
               borderRadius: borderRadius,
             ),
             child: Text(

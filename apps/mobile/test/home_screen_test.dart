@@ -42,7 +42,8 @@ class FakeWebSocketService implements WebSocketService {
   Stream<bool> get showBannerStream => const Stream.empty();
 
   @override
-  void connect({required String wsBaseUrl, required String token}) {}
+  Future<void> connect(
+      {required String wsBaseUrl, required String token}) async {}
 
   @override
   void sendUserTurn(String content) {}
@@ -264,12 +265,17 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
         await tester.pumpAndSettle();
 
-        // SRS modal should be visible
-        expect(find.text('Session Feedback'), findsOneWidget);
+        // SRS modal should be visible with the title
+        expect(find.text('How was this session?'), findsOneWidget);
 
         // Tap Skip to dismiss the modal
         await tester.ensureVisible(find.text('Skip'));
         await tester.tap(find.text('Skip'), warnIfMissed: false);
+        await tester.pumpAndSettle();
+
+        // Tap "Back to Home" button on the chat screen to navigate
+        await tester.ensureVisible(find.text('Back to Home'));
+        await tester.tap(find.text('Back to Home'));
         await tester.pumpAndSettle();
 
         // Should navigate to /home
@@ -279,7 +285,7 @@ void main() {
     );
 
     testWidgets(
-      'SESSION_CLOSED -> SRS modal Submit -> navigates to /home',
+      'SESSION_CLOSED -> SRS modal tap option -> confirmation -> dismiss -> navigates to /home',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 1920);
         tester.view.devicePixelRatio = 1.0;
@@ -329,11 +335,27 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
         await tester.pumpAndSettle();
 
-        expect(find.text('Session Feedback'), findsOneWidget);
+        // SRS modal should be visible
+        expect(find.text('How was this session?'), findsOneWidget);
 
-        // Tap Submit to dismiss the modal
-        await tester.ensureVisible(find.text('Submit'));
-        await tester.tap(find.text('Submit'), warnIfMissed: false);
+        // Tap the "Helpful" option
+        await tester.ensureVisible(find.text('Helpful'));
+        await tester.tap(find.text('Helpful'), warnIfMissed: false);
+        await tester.pump();
+
+        // Wait for confirmation delay (400ms) and confirmation to appear
+        await tester.pump(const Duration(milliseconds: 500));
+
+        // Confirmation screen should show "Got it"
+        expect(find.text('Got it'), findsOneWidget);
+
+        // Wait for auto-dismiss (800ms confirmation duration)
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.pumpAndSettle();
+
+        // Tap "Back to Home" button on the chat screen to navigate
+        await tester.ensureVisible(find.text('Back to Home'));
+        await tester.tap(find.text('Back to Home'));
         await tester.pumpAndSettle();
 
         // Should navigate to /home

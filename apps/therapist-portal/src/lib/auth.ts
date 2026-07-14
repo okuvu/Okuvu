@@ -2,58 +2,17 @@ import NextAuth, { type NextAuthOptions } from 'next-auth';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import GoogleProvider from 'next-auth/providers/google';
-import CredentialsProvider from 'next-auth/providers/credentials';
 
 function buildProviders(): NextAuthOptions['providers'] {
-  const providers: NextAuthOptions['providers'] = [
-    CredentialsProvider({
-      id: 'phone',
-      name: 'Phone',
-      credentials: {
-        idToken: { label: 'Firebase ID Token', type: 'text' },
-        phone: { label: 'Phone Number', type: 'text' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.idToken || !credentials?.phone) return null;
-
-        try {
-          const { getFirebaseAdminAuth } = await import('@/lib/firebase-server');
-          const adminAuth = getFirebaseAdminAuth();
-          const decoded = await adminAuth.verifyIdToken(credentials.idToken, true);
-
-          if (!decoded.phone_number) {
-            console.warn('[AUTH] Token has no phone_number claim');
-            return null;
-          }
-          if (decoded.phone_number !== credentials.phone) {
-            console.warn('[AUTH] Token phone_number does not match credential phone');
-            return null;
-          }
-
-          return {
-            id: decoded.uid,
-            phone: decoded.phone_number,
-            name: 'Therapist',
-            email: `therapist-${decoded.phone_number.replace(/\D/g, '').slice(-4)}@evia.phone`,
-          };
-        } catch (error) {
-          console.error('[AUTH] Token verification failed:', error);
-          return null;
-        }
-      },
-    }),
-  ];
-
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-    providers.push(
+    return [
       GoogleProvider({
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       }),
-    );
+    ];
   }
-
-  return providers;
+  return [];
 }
 
 export const authConfig: NextAuthOptions = {

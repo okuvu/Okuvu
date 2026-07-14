@@ -30,10 +30,13 @@ void main() {
         .setMockMethodCallHandler(channel, handler);
 
     final service = TtsService();
-    return (service, () {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
-    });
+    return (
+      service,
+      () {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      }
+    );
   }
 
   group('voiceEnabled', () {
@@ -157,7 +160,8 @@ void main() {
       expect(log.single.arguments, 'en-US');
     });
 
-    testWidgets('returns false when engine reports unavailable', (tester) async {
+    testWidgets('returns false when engine reports unavailable',
+        (tester) async {
       final (service, cleanup) = createService(languageAvailable: false);
       addTearDown(cleanup);
 

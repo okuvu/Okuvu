@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'models/mood_data_point.dart';
 import 'providers/progress_provider.dart';
@@ -12,42 +13,54 @@ class ProgressScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final moodProgress = ref.watch(moodProgressProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Your Progress')),
-      body: moodProgress.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _ProgressErrorState(
-          onRetry: () => ref.invalidate(moodProgressProvider),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.go('/home');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/home'),
+          ),
+          title: const Text('Your Progress'),
         ),
-        data: (entries) {
-          final days = _buildLast14Days(entries);
+        body: moodProgress.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => _ProgressErrorState(
+            onRetry: () => ref.invalidate(moodProgressProvider),
+          ),
+          data: (entries) {
+            final days = _buildLast14Days(entries);
 
-          if (days.every((day) => day.mood == null)) {
-            return const _EmptyProgressState();
-          }
+            if (days.every((day) => day.mood == null)) {
+              return const _EmptyProgressState();
+            }
 
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Mood over the last 14 days',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Days without a check-in are shown as gaps.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 28),
-                Expanded(
-                  child: _MoodChart(days: days),
-                ),
-              ],
-            ),
-          );
-        },
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mood over the last 14 days',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Days without a check-in are shown as gaps.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 28),
+                  Expanded(
+                    child: _MoodChart(days: days),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -163,16 +176,16 @@ class _MoodChart extends StatelessWidget {
       currentSpots = [];
     }
 
-        for (var index = 0; index < days.length; index++) {
-  final mood = days[index].mood;
+    for (var index = 0; index < days.length; index++) {
+      final mood = days[index].mood;
 
-  if (mood == null) {
-    addCurrentSegment();
-    continue;
-  }
+      if (mood == null) {
+        addCurrentSegment();
+        continue;
+      }
 
-  currentSpots.add(FlSpot(index.toDouble(), mood.toDouble()));
-}
+      currentSpots.add(FlSpot(index.toDouble(), mood.toDouble()));
+    }
     addCurrentSegment();
     return segments;
   }

@@ -21,7 +21,8 @@ class FakeAuthService implements AuthService {
   @override
   Future<void> verifyPhone({
     required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
+    required void Function(String verificationId, int? forceResendingToken)
+        onCodeSent,
     required void Function(FirebaseAuthException) onError,
     int? forceResendingToken,
   }) async {}
@@ -67,7 +68,8 @@ void main() {
   group('AuthInterceptor — validation harness', () {
     /* ───────── 1. Authorization header  ───────── */
 
-    testWidgets('Authorization header: absent for unauthenticated client', (tester) async {
+    testWidgets('Authorization header: absent for unauthenticated client',
+        (tester) async {
       final fakeAuth = FakeAuthService();
       final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
       dio.interceptors.add(AuthInterceptor(fakeAuth, dio.options));
@@ -79,10 +81,11 @@ void main() {
       expect(adapter.lastRequest?.headers['Authorization'], isNull);
     });
 
-    testWidgets('Authorization header: present when user is signed in', (tester) async {
+    testWidgets('Authorization header: present when user is signed in',
+        (tester) async {
       final fakeAuth = FakeAuthService()
-        ..currentUserToReturn = null  // We can't easily mock User, but we
-        ..tokenToReturn = 'fake-id-token';  // test the getIdToken path
+        ..currentUserToReturn = null // We can't easily mock User, but we
+        ..tokenToReturn = 'fake-id-token'; // test the getIdToken path
 
       // Since currentUser is null, the interceptor skips setting the header.
       // This is correct — an authenticated interceptor needs a real User.

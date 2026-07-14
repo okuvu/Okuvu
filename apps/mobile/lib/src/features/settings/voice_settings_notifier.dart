@@ -36,9 +36,9 @@ class VoiceSettingsState {
 class VoiceSettingsNotifier extends Notifier<VoiceSettingsState> {
   @override
   VoiceSettingsState build() {
-  Future.microtask(_fetchVoicePreference);
-  return const VoiceSettingsState.initial();
-}
+    Future.microtask(_fetchVoicePreference);
+    return const VoiceSettingsState.initial();
+  }
 
   Future<void> _fetchVoicePreference() async {
     try {
@@ -46,8 +46,7 @@ class VoiceSettingsNotifier extends Notifier<VoiceSettingsState> {
 
       final response = await dio.get('/settings/voice');
 
-      final voiceEnabled =
-          response.data['voice_enabled'] as bool? ?? false;
+      final voiceEnabled = response.data['voice_enabled'] as bool? ?? false;
 
       state = state.copyWith(
         voiceEnabled: voiceEnabled,

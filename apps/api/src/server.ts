@@ -1,11 +1,13 @@
-import { config } from 'dotenv';
-import { resolve, dirname } from 'node:path';
+// Must be the first import: ESM hoists all static imports above this file's own
+// top-level code, so any later-imported module (e.g. ./app.js -> ./lib/prisma.js,
+// which reads process.env.DATABASE_URL at import time) would otherwise evaluate
+// before dotenv had a chance to populate process.env.
+import './env.js';
+
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { checkProductionBypass } from './lib/check-production-bypass.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, '../../../.env') });
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';

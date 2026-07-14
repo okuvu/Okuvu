@@ -10,6 +10,7 @@ import 'models/chat_message.dart';
 import 'models/chat_state.dart';
 import 'widgets/reconnect_banner.dart';
 import 'widgets/srs_modal.dart';
+import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
 
 const bool _useMockResponses = kDebugMode;
@@ -25,13 +26,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
   final _textController = TextEditingController();
   bool _srsTriggered = false;
+  bool _isAgentTyping = false;
 
   @override
   void initState() {
     super.initState();
-    ref.read(webSocketServiceProvider).connect(
+    _connectWebSocket();
+  }
+
+  Future<void> _connectWebSocket() async {
+    final token = AppConfig.flavor == 'dev'
+        ? (FlavorConfig.devBypassToken ?? '')
+        : (await ref.read(authServiceProvider).getIdToken()) ?? '';
+    await ref.read(webSocketServiceProvider).connect(
           wsBaseUrl: AppConfig.wsBaseUrl,
-          token: FlavorConfig.devBypassToken ?? '',
+          token: token,
         );
     if (kDebugMode) debugPrint('[ChatScreen] initState: WS connect called');
   }
@@ -55,6 +64,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  Future<void> _confirmEndSession(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('End this session?'),
+        content: const Text('Your conversation will be saved.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Continue')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('End session')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      ref.read(webSocketServiceProvider).disconnect();
+      if (context.mounted) context.go('/home');
+    }
+  }
+
   void _sendMessage() {
     if (ref.read(chatMessagesProvider).isSessionClosed) return;
     final text = _textController.text.trim();
@@ -65,6 +96,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatMessagesProvider.notifier).addUserMessage(text);
     ref.read(webSocketServiceProvider).sendUserTurn(text);
     _textController.clear();
+    setState(() => _isAgentTyping = true);
     _scrollToBottom();
 
     if (_useMockResponses) {
@@ -83,6 +115,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatMessagesProvider);
     final isOnline = ref.watch(isOnlineProvider);
+    final isCrisisActive = ref.watch(crisisOverlayProvider);
 
     ref.listen<bool>(crisisOverlayProvider, (_, show) {
       if (show) {
@@ -101,7 +134,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             WsConnectionState.reconnecting) {
           return;
         }
-
+        if (mounted) {
+          setState(() => _isAgentTyping = false);
+        }
         Future.delayed(const Duration(milliseconds: 400), () async {
           if (context.mounted &&
               ref.read(chatMessagesProvider).isSessionClosed &&
@@ -111,72 +146,112 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }
         });
       }
+      if (_isAgentTyping &&
+          previous != null &&
+          next.messages.length > previous.messages.length &&
+          next.messages.last.sender == MessageSender.agent) {
+        setState(() => _isAgentTyping = false);
+      }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (chatState.messages.isNotEmpty) _scrollToBottom();
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Evia'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Text(
-              '${chatState.turnCount}/10 turns',
-              style: TextStyle(
-                fontSize: 13,
-                color: chatState.turnCount >= 10
-                    ? Theme.of(context).colorScheme.error
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !isCrisisActive) {
+          if (chatState.isSessionClosed) {
+            context.go('/home');
+          } else {
+            _confirmEndSession(context);
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: isCrisisActive
+                ? null
+                : chatState.isSessionClosed
+                    ? () => context.go('/home')
+                    : () => _confirmEndSession(context),
           ),
-          if (!isOnline)
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.cloud_off, size: 18),
-                  SizedBox(width: 4),
-                  Text('Offline', style: TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Column(
+          title: Column(
             children: [
-              const VoiceToggle(),
-              const Divider(height: 1),
-              Expanded(
-                child: chatState.messages.isEmpty
-                    ? _buildEmptyState(context)
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        itemCount: chatState.messages.length,
-                        itemBuilder: (context, index) {
-                          return _ChatBubble(
-                              message: chatState.messages[index]);
-                        },
-                      ),
-              ),
-              _buildInputBar(context, chatState.isSessionClosed),
+              Text('Evia',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text('Your session',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ],
           ),
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ReconnectBanner(),
-          ),
-        ],
+          actions: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: chatState.turnCount >= 9
+                    ? const Color(0xFFFEF3E2)
+                    : const Color(0xFFE8E4DF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${chatState.turnCount} of 10',
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87),
+              ),
+            ),
+            if (!isOnline)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Icon(Icons.cloud_off, size: 18),
+              ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                const VoiceToggle(),
+                const Divider(height: 1),
+                Expanded(
+                  child: chatState.messages.isEmpty && !_isAgentTyping
+                      ? _buildEmptyState(context)
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          itemCount: chatState.messages.length +
+                              (_isAgentTyping ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (_isAgentTyping &&
+                                index == chatState.messages.length) {
+                              return const TypingIndicator();
+                            }
+                            return _ChatBubble(
+                                message: chatState.messages[index]);
+                          },
+                        ),
+                ),
+                _buildInputBar(context, chatState.isSessionClosed,
+                    ref.watch(wsConnectionStateProvider)),
+              ],
+            ),
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ReconnectBanner(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -203,7 +278,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildInputBar(BuildContext context, bool sessionClosed) {
+  Widget _buildInputBar(
+      BuildContext context, bool sessionClosed, WsConnectionState wsState) {
+    final isInputDisabled = sessionClosed ||
+        _isAgentTyping ||
+        wsState == WsConnectionState.reconnecting;
+
+    if (sessionClosed) {
+      final theme = Theme.of(context);
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              offset: const Offset(0, -1),
+              blurRadius: 4,
+              color: Colors.black.withAlpha(20),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Session complete for today.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _onBackToHome,
+                child: const Text('Back to Home'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -227,24 +344,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: TextField(
               controller: _textController,
               textInputAction: TextInputAction.send,
-              onSubmitted: sessionClosed ? null : (_) => _sendMessage(),
-              enabled: !sessionClosed,
-              decoration: InputDecoration(
-                hintText: sessionClosed ? 'Session ended' : 'Type a message...',
+              onSubmitted: isInputDisabled ? null : (_) => _sendMessage(),
+              enabled: !isInputDisabled,
+              decoration: const InputDecoration(
+                hintText: 'Type a message...',
                 border: InputBorder.none,
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
           ),
           IconButton(
-            onPressed: sessionClosed ? null : _sendMessage,
+            onPressed: isInputDisabled ? null : _sendMessage,
             icon: const Icon(Icons.send_rounded),
             style: IconButton.styleFrom(
-              backgroundColor: sessionClosed
+              backgroundColor: isInputDisabled
                   ? Theme.of(context).colorScheme.surfaceContainerHighest
                   : Theme.of(context).colorScheme.primary,
-              foregroundColor: sessionClosed
+              foregroundColor: isInputDisabled
                   ? Theme.of(context).colorScheme.onSurfaceVariant
                   : Theme.of(context).colorScheme.onPrimary,
             ),
@@ -252,6 +369,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
     );
+  }
+
+  void _onBackToHome() {
+    if (!_srsTriggered) {
+      _srsTriggered = true;
+      showSrsModal(context).then((_) {
+        if (mounted) context.go('/home');
+      });
+    } else {
+      if (mounted) context.go('/home');
+    }
   }
 }
 
@@ -263,8 +391,7 @@ class _ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUser = message.sender == MessageSender.user;
-    final alignment =
-        isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final theme = Theme.of(context);
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(20),
       topRight: const Radius.circular(20),
@@ -273,30 +400,73 @@ class _ChatBubble extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.only(
+          top: 4, bottom: 4, left: isUser ? 64 : 0, right: isUser ? 0 : 64),
       child: Column(
-        crossAxisAlignment: alignment,
+        crossAxisAlignment:
+            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isUser
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: borderRadius,
-            ),
-            child: Text(
-              message.content,
-              style: TextStyle(
-                color: isUser
-                    ? Theme.of(context).colorScheme.onPrimary
-                    : Theme.of(context).colorScheme.onSurface,
+          if (!isUser)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: theme.colorScheme.primary,
+                    child: Text(
+                      'E',
+                      style: TextStyle(
+                        color: theme.colorScheme.onPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Container(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.75,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: borderRadius,
+                        boxShadow: [
+                          BoxShadow(
+                            offset: const Offset(0, 1),
+                            blurRadius: 2,
+                            color: Colors.black.withAlpha(13),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        message.content,
+                        style: TextStyle(color: theme.colorScheme.onSurface),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
+          if (isUser)
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.75,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: borderRadius,
+              ),
+              child: Text(
+                message.content,
+                style: TextStyle(color: theme.colorScheme.onPrimary),
+              ),
+            ),
         ],
       ),
     );

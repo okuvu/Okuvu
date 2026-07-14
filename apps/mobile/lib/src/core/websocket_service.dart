@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'websocket_constants.dart';
@@ -70,10 +71,12 @@ class WebSocketService {
     }
   }
 
-  void connect({required String wsBaseUrl, required String token}) {
+  Future<void> connect(
+      {required String wsBaseUrl, required String token}) async {
     if (_state == WsConnectionState.connecting ||
         _state == WsConnectionState.sessionActive) {
-      if (kDebugMode) debugPrint('[WebSocketService] Already connected or connecting');
+      if (kDebugMode)
+        debugPrint('[WebSocketService] Already connected or connecting');
       return;
     }
 
@@ -83,10 +86,13 @@ class WebSocketService {
     _intentionalDisconnect = false;
     _setState(WsConnectionState.connecting);
 
-    final uri = Uri.parse('$wsBaseUrl${WsConstants.sessionPath}?token=$token');
+    final uri = Uri.parse('$wsBaseUrl${WsConstants.sessionPath}');
 
     try {
-      _channel = WebSocketChannel.connect(uri);
+      _channel = IOWebSocketChannel.connect(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       _channel!.stream.listen(
         _onMessage,
@@ -97,7 +103,7 @@ class WebSocketService {
 
       _setState(WsConnectionState.connected);
       _mockTurnCount = 0;
-      _sendFrame({'type': 'session_open'});
+      _sendFrame({'type': 'SESSION_OPEN'});
     } catch (e) {
       if (kDebugMode) debugPrint('[WebSocketService] Connection failed: $e');
       _setState(WsConnectionState.error, errorType: 'connection_failure');
@@ -121,7 +127,8 @@ class WebSocketService {
           break;
         case 'session_rejected':
           final reason = data['reason'] as String?;
-          _setState(WsConnectionState.error, errorType: reason ?? 'rate_limited');
+          _setState(WsConnectionState.error,
+              errorType: reason ?? 'rate_limited');
           break;
         case 'agent_turn':
           _handleAgentTurn(data);
@@ -135,10 +142,12 @@ class WebSocketService {
           _sessionClosedController.add(null);
           break;
         default:
-          if (kDebugMode) debugPrint('[WebSocketService] Unknown message type: $type');
+          if (kDebugMode)
+            debugPrint('[WebSocketService] Unknown message type: $type');
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('[WebSocketService] Failed to parse message: $e');
+      if (kDebugMode)
+        debugPrint('[WebSocketService] Failed to parse message: $e');
     }
   }
 
@@ -164,11 +173,14 @@ class WebSocketService {
 
   void sendUserTurn(String content) {
     if (_state != WsConnectionState.sessionActive) {
-      if (kDebugMode) debugPrint('[WebSocketService] Cannot send — not in sessionActive state');
+      if (kDebugMode)
+        debugPrint(
+            '[WebSocketService] Cannot send — not in sessionActive state');
       return;
     }
 
-    if (kDebugMode) debugPrint('[WebSocketService] Sending user_turn: $content');
+    if (kDebugMode)
+      debugPrint('[WebSocketService] Sending user_turn: $content');
     _sendFrame({
       'type': 'user_turn',
       'content': content,
@@ -197,7 +209,8 @@ class WebSocketService {
       final frame = AgentTurnFrame.fromJson(data);
       _agentTurnController.add(frame);
     } catch (e) {
-      if (kDebugMode) debugPrint('[WebSocketService] Failed to parse agent_turn frame: $e');
+      if (kDebugMode)
+        debugPrint('[WebSocketService] Failed to parse agent_turn frame: $e');
     }
   }
 

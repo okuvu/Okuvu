@@ -11,43 +11,46 @@ class CrisisOverlay extends StatelessWidget {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.emergency, size: 40,
-                color: Theme.of(context).colorScheme.error),
-              const SizedBox(height: 12),
-              Text('Crisis Support',
-                style: Theme.of(context).textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "If you're in immediate danger, please call emergency services.",
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              const _ResourceTile(
-                name: 'iCall (IIT Bombay)',
-                phone: '9152987821',
-              ),
-              const _ResourceTile(
-                name: 'Vandrevala Foundation',
-                phone: '18602662345',
-              ),
-              const _ResourceTile(
-                name: 'NIMHANS',
-                phone: '08046110007',
-              ),
-              const _ResourceTile(
-                name: 'Snehi',
-                phone: '04424640050',
-              ),
-              const _ResourceTile(
-                name: 'Emergency Services',
-                phone: '112',
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Icon(Icons.emergency,
+                    size: 40, color: Theme.of(context).colorScheme.error),
+                const SizedBox(height: 12),
+                Text(
+                  'Crisis Support',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "If you're in immediate danger, please call emergency services.",
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                const _ResourceTile(
+                  name: 'iCall (IIT Bombay)',
+                  phone: '9152987821',
+                ),
+                const _ResourceTile(
+                  name: 'Vandrevala Foundation',
+                  phone: '18602662345',
+                ),
+                const _ResourceTile(
+                  name: 'NIMHANS',
+                  phone: '08046110007',
+                ),
+                const _ResourceTile(
+                  name: 'Snehi',
+                  phone: '04424640050',
+                ),
+                const _ResourceTile(
+                  name: 'Emergency Services',
+                  phone: '112',
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -83,7 +86,8 @@ class _ResourceTile extends StatelessWidget {
                 Expanded(
                   child: Text(name),
                 ),
-                Text(phone,
+                Text(
+                  phone,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.primary,
