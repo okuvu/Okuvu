@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class CrisisOverlay extends StatelessWidget {
@@ -6,49 +7,87 @@ class CrisisOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                Icon(Icons.emergency, size: 40,
-                  color: Theme.of(context).colorScheme.error),
-                const SizedBox(height: 12),
-                Text('Crisis Support',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                  textAlign: TextAlign.center,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: PopScope(
+        canPop: false,
+        child: Scaffold(
+          backgroundColor: const Color(0xFFBA1A1A),
+          body: SafeArea(
+            child: Center(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 390),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
+                    const _HeaderSection(),
+                    const SizedBox(height: 20),
+                    const Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          children: [
+                            Flexible(
+                              child: _ResourceCard(
+                                name: 'iCall (IIT Bombay)',
+                                description: 'Psychosocial helpline for individuals in distress.',
+                                phone: '9152987821',
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Flexible(
+                              child: _ResourceCard(
+                                name: 'Vandrevala Foundation',
+                                description: '24x7 crisis intervention and mental health support.',
+                                phone: '18602662345',
+                                displayPhone: '1860-2662-345',
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Flexible(
+                              child: _ResourceCard(
+                                name: 'NIMHANS',
+                                description: 'Mental health services and emergency support.',
+                                phone: '08046110007',
+                                displayPhone: '080-46110007',
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Flexible(
+                              child: _ResourceCard(
+                                name: 'Snehi',
+                                description: 'Support for emotional and mental health issues.',
+                                phone: '04424640050',
+                                displayPhone: '044-24640050',
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Flexible(
+                              child: _ResourceCard(
+                                name: 'Emergency Services',
+                                description: 'Immediate assistance from emergency responders.',
+                                phone: '112',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      child: Text(
+                        "Your next session with Evia will be here when you're ready.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  "If you're in immediate danger, please call emergency services.",
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                const _ResourceTile(
-                  name: 'iCall (IIT Bombay)',
-                  phone: '9152987821',
-                ),
-                const _ResourceTile(
-                  name: 'Vandrevala Foundation',
-                  phone: '18602662345',
-                ),
-                const _ResourceTile(
-                  name: 'NIMHANS',
-                  phone: '08046110007',
-                ),
-                const _ResourceTile(
-                  name: 'Snehi',
-                  phone: '04424640050',
-                ),
-                const _ResourceTile(
-                  name: 'Emergency Services',
-                  phone: '112',
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -57,43 +96,152 @@ class CrisisOverlay extends StatelessWidget {
   }
 }
 
-class _ResourceTile extends StatelessWidget {
-  final String name;
-  final String phone;
-
-  const _ResourceTile({required this.name, required this.phone});
+class _HeaderSection extends StatelessWidget {
+  const _HeaderSection();
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () async {
-            final uri = Uri(scheme: 'tel', path: phone);
-            try {
-              await launchUrl(uri);
-            } catch (_) {}
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(name),
-                ),
-                Text(phone,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ],
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.shield,
+            size: 48,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          "You're not alone.",
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            letterSpacing: -0.56,
+            height: 36 / 28,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Here are some people you can call right now.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.white.withValues(alpha: 0.9),
+              height: 24 / 16,
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ResourceCard extends StatelessWidget {
+  final String name;
+  final String description;
+  final String phone;
+  final String? displayPhone;
+
+  const _ResourceCard({
+    required this.name,
+    required this.description,
+    required this.phone,
+    this.displayPhone,
+  });
+
+  Future<void> _call() async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    try {
+      await launchUrl(uri);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF181C1B),
+                        height: 20 / 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF3F4945),
+                        height: 16 / 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      displayPhone ?? phone,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF005243),
+                        height: 14 / 11,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Material(
+                color: const Color(0xFF005243),
+                borderRadius: BorderRadius.circular(22),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: _call,
+                  child: const Icon(
+                    Icons.call,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
