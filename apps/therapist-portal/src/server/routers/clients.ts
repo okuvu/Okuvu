@@ -1,10 +1,24 @@
+import type { PrismaClient } from "@evia/prisma";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 
 const CARE_PLANS = ["CP1", "CP2", "CP3"] as const;
 
-async function getAssignedTherapistId(ctx: any) {
+function getPrisma(ctx: { prisma: PrismaClient | null }): PrismaClient {
+  if (!ctx.prisma) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Database not configured",
+    });
+  }
+  return ctx.prisma;
+}
+
+async function getTherapistId(ctx: {
+  user: { email?: string | null };
+  prisma: PrismaClient | null;
+}): Promise<string> {
   const therapistEmail = ctx.user.email;
 
   if (!therapistEmail) {
@@ -14,14 +28,8 @@ async function getAssignedTherapistId(ctx: any) {
     });
   }
 
-  if (!ctx.prisma) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Database not configured",
-    });
-  }
-
-  const therapist = await (ctx.prisma as any).therapist.findUnique({
+  const db = getPrisma(ctx);
+  const therapist = await db.therapist.findUnique({
     where: { email: therapistEmail },
   });
 
@@ -35,11 +43,34 @@ async function getAssignedTherapistId(ctx: any) {
   return therapist.id;
 }
 
+async function assertClientAssigned(
+  db: PrismaClient,
+  therapistId: string,
+  clientUserId: string,
+): Promise<void> {
+  const assignment = await db.therapistClient.findUnique({
+    where: {
+      therapist_id_client_user_id: {
+        therapist_id: therapistId,
+        client_user_id: clientUserId,
+      },
+    },
+  });
+
+  if (!assignment) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Client is not assigned to this therapist",
+    });
+  }
+}
+
 export const clientsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
-    const therapistId = await getAssignedTherapistId(ctx);
+    const db = getPrisma(ctx);
+    const therapistId = await getTherapistId(ctx);
 
-    const assignments = await (ctx.prisma as any).therapistClient.findMany({
+    const assignments = await db.therapistClient.findMany({
       where: { therapist_id: therapistId },
       include: {
         client: {
@@ -54,7 +85,7 @@ export const clientsRouter = router({
       },
     });
 
-    return assignments.map((assignment: any) => ({
+    return assignments.map((assignment) => ({
       id: assignment.client.id,
       phoneNumber: assignment.client.phone_number,
       carePlan: assignment.client.clinical_config
@@ -72,25 +103,12 @@ export const clientsRouter = router({
   detail: protectedProcedure
     .input(z.object({ clientUserId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const therapistId = await getAssignedTherapistId(ctx);
+      const db = getPrisma(ctx);
+      const therapistId = await getTherapistId(ctx);
 
-      const assignment = await (ctx.prisma as any).therapistClient.findUnique({
-        where: {
-          therapist_id_client_user_id: {
-            therapist_id: therapistId,
-            client_user_id: input.clientUserId,
-          },
-        },
-      });
+      await assertClientAssigned(db, therapistId, input.clientUserId);
 
-      if (!assignment) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Client is not assigned to this therapist",
-        });
-      }
-
-      const client = await (ctx.prisma as any).user.findUnique({
+      const client = await db.user.findUnique({
         where: { id: input.clientUserId },
         include: {
           clinical_config: true,
@@ -137,25 +155,12 @@ export const clientsRouter = router({
   getCarePlan: protectedProcedure
     .input(z.object({ clientId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      const therapistId = await getAssignedTherapistId(ctx);
+      const db = getPrisma(ctx);
+      const therapistId = await getTherapistId(ctx);
 
-      const assignment = await (ctx.prisma as any).therapistClient.findUnique({
-        where: {
-          therapist_id_client_user_id: {
-            therapist_id: therapistId,
-            client_user_id: input.clientId,
-          },
-        },
-      });
+      await assertClientAssigned(db, therapistId, input.clientId);
 
-      if (!assignment) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Client is not assigned to this therapist",
-        });
-      }
-
-      const config = await (ctx.prisma as any).clinicalConfig.findUnique({
+      const config = await db.clinicalConfig.findUnique({
         where: { user_id: input.clientId },
         select: { care_plan_id: true },
       });
@@ -173,25 +178,12 @@ export const clientsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const therapistId = await getAssignedTherapistId(ctx);
+      const db = getPrisma(ctx);
+      const therapistId = await getTherapistId(ctx);
 
-      const assignment = await (ctx.prisma as any).therapistClient.findUnique({
-        where: {
-          therapist_id_client_user_id: {
-            therapist_id: therapistId,
-            client_user_id: input.clientId,
-          },
-        },
-      });
+      await assertClientAssigned(db, therapistId, input.clientId);
 
-      if (!assignment) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Client is not assigned to this therapist",
-        });
-      }
-
-      const result = await (ctx.prisma as any).clinicalConfig.upsert({
+      const result = await db.clinicalConfig.upsert({
         where: { user_id: input.clientId },
         create: {
           user_id: input.clientId,

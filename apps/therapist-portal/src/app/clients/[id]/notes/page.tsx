@@ -7,10 +7,47 @@ import { trpc } from '@/trpc/client';
 interface NoteItem {
   id: string;
   note_text: string;
-  created_at: Date;
+  created_at: string;
   therapist: {
     name: string | null;
   };
+}
+
+const STORAGE_PREFIX = 'draft-note-';
+
+function getDraftKey(clientId: string): string {
+  return `${STORAGE_PREFIX}${clientId}`;
+}
+
+function loadDraft(clientId: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return sessionStorage.getItem(getDraftKey(clientId)) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveDraft(clientId: string, text: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (text) {
+      sessionStorage.setItem(getDraftKey(clientId), text);
+    } else {
+      sessionStorage.removeItem(getDraftKey(clientId));
+    }
+  } catch {
+    /* storage may be full or unavailable */
+  }
+}
+
+function clearDraft(clientId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(getDraftKey(clientId));
+  } catch {
+    /* noop */
+  }
 }
 
 export default function ClientNotesPage() {
@@ -21,13 +58,22 @@ export default function ClientNotesPage() {
     enabled: !!clientId,
   });
 
-  const [noteText, setNoteText] = useState('');
+  const [noteText, setNoteText] = useState(() => loadDraft(clientId));
   const [submitError, setSubmitError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setNoteText(loadDraft(clientId));
+  }, [clientId]);
+
+  useEffect(() => {
+    saveDraft(clientId, noteText);
+  }, [noteText]);
 
   const addNoteMutation = trpc.notes.addNote.useMutation({
     onSuccess: () => {
       setNoteText('');
+      clearDraft(clientId);
       setSubmitError(null);
       textareaRef.current?.focus();
       notesQuery.refetch();
@@ -116,7 +162,7 @@ export default function ClientNotesPage() {
                 <div className="mt-2 flex items-center space-x-3 text-xs text-gray-500">
                   <span>{note.therapist?.name ?? 'Therapist'}</span>
                   <time
-                    dateTime={note.created_at.toISOString()}
+                    dateTime={note.created_at}
                     className="ml-3"
                   >
                     {new Date(note.created_at).toLocaleDateString(undefined, {
