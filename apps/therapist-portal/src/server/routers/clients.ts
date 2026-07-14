@@ -111,6 +111,8 @@ export const clientsRouter = router({
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
 
+      console.log(`[AUDIT] Therapist ${therapistId} viewed client ${input.clientUserId} detail`);
+
       const client = await db.user.findUnique({
         where: { id: input.clientUserId },
         include: {
@@ -132,9 +134,21 @@ export const clientsRouter = router({
       }
 
       const latestSummary = client.session_summaries[0] ?? null;
-      const summaryAvailable =
+      let summaryStatus: "available" | "generating" | "not_available_yet";
+      if (
         latestSummary?.status === "COMPLETED" &&
-        latestSummary.summary_text !== null;
+        latestSummary.summary_text !== null
+      ) {
+        summaryStatus = "available";
+      } else if (latestSummary?.status === "PENDING") {
+        summaryStatus = "generating";
+      } else if (latestSummary?.status === "FAILED") {
+        summaryStatus = "not_available_yet";
+      } else if (latestSummary?.status === "SKIPPED_TRIVIAL") {
+        summaryStatus = "not_available_yet";
+      } else {
+        summaryStatus = "not_available_yet";
+      }
 
       return {
         id: client.id,
@@ -148,7 +162,7 @@ export const clientsRouter = router({
         reasoningNote: client.clinical_config?.reasoning_note ?? null,
         safetyState: client.safety_state?.safety_state_current ?? null,
         summary: {
-          status: summaryAvailable ? "available" : "not_available_yet",
+          status: summaryStatus,
           summary_text: latestSummary?.summary_text ?? null,
           session_id: latestSummary?.session_id ?? null,
         },
