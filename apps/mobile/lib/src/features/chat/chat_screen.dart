@@ -117,6 +117,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isOnline = ref.watch(isOnlineProvider);
     final isCrisisActive = ref.watch(crisisOverlayProvider);
 
+    ref.listen<bool>(crisisOverlayProvider, (_, show) {
+      if (show) {
+        context.push('/crisis');
+      }
+    });
+
     ref.listen<ChatState>(chatMessagesProvider, (previous, next) {
       if (previous != null &&
           !previous.isSessionClosed &&

@@ -18,8 +18,8 @@ class HomeBottomNav extends ConsumerWidget {
     // approximation: sessionActive matches the lifecycle of an
     // open chat session (set on session_open_confirmed, cleared
     // on session_closed).
-    final hasIncompleteSession = wsState == WsConnectionState.sessionActive &&
-        !chatState.isSessionClosed;
+    final hasIncompleteSession =
+        wsState == WsConnectionState.sessionActive && !chatState.isSessionClosed;
 
     return NavigationBar(
       selectedIndex: 0,

@@ -117,8 +117,7 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: theme.colorScheme.outlineVariant),
+                      border: Border.all(color: theme.colorScheme.outlineVariant),
                     ),
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -208,12 +207,9 @@ class _ConnectedPeoplePainter extends CustomPainter {
     final hy = cy + r * 0.65;
     final hs = size.width * 0.035;
     heartPath.moveTo(hx, hy + hs * 1.5);
-    heartPath.cubicTo(
-        hx, hy + hs * 1.5, hx - hs, hy + hs, hx - hs, hy + hs * 0.3);
-    heartPath.cubicTo(
-        hx - hs, hy - hs * 0.3, hx, hy - hs * 0.6, hx, hy - hs * 0.3);
-    heartPath.cubicTo(
-        hx, hy - hs * 0.6, hx + hs, hy - hs * 0.3, hx + hs, hy + hs * 0.3);
+    heartPath.cubicTo(hx, hy + hs * 1.5, hx - hs, hy + hs, hx - hs, hy + hs * 0.3);
+    heartPath.cubicTo(hx - hs, hy - hs * 0.3, hx, hy - hs * 0.6, hx, hy - hs * 0.3);
+    heartPath.cubicTo(hx, hy - hs * 0.6, hx + hs, hy - hs * 0.3, hx + hs, hy + hs * 0.3);
     heartPath.cubicTo(hx + hs, hy + hs, hx, hy + hs * 1.5, hx, hy + hs * 1.5);
     canvas.drawPath(heartPath, heartPaint);
   }

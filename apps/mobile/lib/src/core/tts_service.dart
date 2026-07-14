@@ -29,8 +29,7 @@ class TtsService {
 
     final available = await isLanguageAvailable();
     if (!available) {
-      debugPrint(
-          'TtsService: en-US language pack not available — silent fallback');
+      debugPrint('TtsService: en-US language pack not available — silent fallback');
       return;
     }
 

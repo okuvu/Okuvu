@@ -24,27 +24,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _formattedDate() {
     final now = DateTime.now();
     const weekdays = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
       'Sunday',
     ];
     const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
     ];
     return '${weekdays[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
   }
@@ -53,8 +38,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    const String insightMessage =
-        'Your insights will appear here after your first check-in.';
+    const String insightMessage = 'Your insights will appear here after your first check-in.';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Evia')),
@@ -95,3 +79,4 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 }
+

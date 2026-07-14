@@ -85,14 +85,16 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
     final sessionId = ref.read(sessionIdProvider);
     final dio = ref.read(dioClientProvider);
     if (sessionId != null) {
-      try {
-        unawaited(dio.patch(
-          '/sessions/$sessionId/srs',
-          data: {'srs_score': score},
-        ));
-      } catch (e) {
-        if (kDebugMode) debugPrint('[SRS] PATCH failed: $e');
-      }
+      unawaited(() async {
+        try {
+          await dio.patch(
+            '/sessions/$sessionId/srs',
+            data: {'srs_score': score},
+          );
+        } catch (e) {
+          if (kDebugMode) debugPrint('[SRS] PATCH failed: $e');
+        }
+      }());
     } else if (kDebugMode) {
       debugPrint('[SRS] No session ID available, skipping PATCH');
     }

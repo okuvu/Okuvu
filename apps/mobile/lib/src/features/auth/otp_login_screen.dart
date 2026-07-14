@@ -172,19 +172,21 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
     final otp = _otpControllers.map((c) => c.text).join();
     if (otp.length != _otpLength) return;
 
+    final authService = ref.read(authServiceProvider);
+    final dio = ref.read(dioClientProvider);
+
     setState(() {
       _isVerifying = true;
       _otpError = null;
     });
 
     try {
-      await ref.read(authServiceProvider).verifyOtp(
+      await authService.verifyOtp(
             verificationId: _verificationId!,
             smsCode: otp,
           );
 
       try {
-        final dio = ref.read(dioClientProvider);
         await dio.post('/auth/verify-otp', data: {
           'phone_number': _normalizePhone(_phoneController.text.trim()),
         });
@@ -260,8 +262,18 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
           controller: _phoneController,
           decoration: InputDecoration(
             labelText: 'Phone Number',
-            hintText: '+91 99999 99999',
+            hintText: '99999 99999',
             prefixIcon: const Icon(Icons.phone),
+            prefix: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              child: Text(
+                '+91',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
             errorText: _phoneError,
           ),
           keyboardType: TextInputType.phone,

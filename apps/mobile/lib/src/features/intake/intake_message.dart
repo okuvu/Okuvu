@@ -24,8 +24,7 @@ class IntakeMessage {
   Map<String, dynamic> toJson() => {
         'role': role,
         'content': content,
-        if (timestamp != null)
-          'timestamp': timestamp!.toUtc().toIso8601String(),
+        if (timestamp != null) 'timestamp': timestamp!.toUtc().toIso8601String(),
       };
 
   factory IntakeMessage.fromJson(Map<String, dynamic> json) => IntakeMessage(
