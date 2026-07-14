@@ -193,4 +193,5 @@ export interface ClientListItem {
   phoneNumber: string
   carePlan: ClientCarePlan | null
   lastSessionDate: string | null
+  safetyState: SafetyState | null
 }

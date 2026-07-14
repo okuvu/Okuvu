@@ -1,39 +1,28 @@
 'use client';
 
+import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { trpc } from '@/trpc/client';
+import { maskPhone } from '@/lib/format';
 
-const navItems = [
-  {
-    label: 'Dashboard',
-    href: '/',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
-      </svg>
-    ),
-    disabled: false,
-  },
-  {
-    label: 'Patients',
-    href: '/',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-    disabled: false,
-  },
+interface SidebarProps {
+  clientName?: string;
+}
+
+const patientsIcon = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const disabledItems = [
   {
     label: 'Schedule',
-    href: '#',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -42,21 +31,17 @@ const navItems = [
         <line x1="3" y1="10" x2="21" y2="10" />
       </svg>
     ),
-    disabled: true,
   },
   {
     label: 'Safety Reviews',
-    href: '#',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       </svg>
     ),
-    disabled: true,
   },
   {
     label: 'Reports',
-    href: '#',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="20" x2="18" y2="10" />
@@ -64,15 +49,20 @@ const navItems = [
         <line x1="6" y1="20" x2="6" y2="14" />
       </svg>
     ),
-    disabled: true,
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ clientName: _clientName }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const therapistName = session?.user?.name ?? 'Therapist';
-  const isPatientsActive = pathname.startsWith('/clients');
+  const isOnClientPage = pathname.startsWith('/clients/');
+  const [isPatientsOpen, setIsPatientsOpen] = useState(true);
+
+  const clientsQuery = trpc.clients.list.useQuery(undefined, {
+    enabled: isOnClientPage,
+  });
+  const clients = clientsQuery.data ?? [];
 
   return (
     <nav className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-200 z-50 py-5">
@@ -82,36 +72,102 @@ export default function Sidebar() {
       </div>
 
       <div className="flex-1 flex flex-col gap-0.5 px-3 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = item.label === 'Patients' ? isPatientsActive : pathname === item.href;
+        <Link
+          href="/dashboard"
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            pathname === '/dashboard'
+              ? 'bg-[#1A6B5A] text-white'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          }`}
+        >
+          <span className={pathname === '/dashboard' ? 'text-white' : 'text-gray-400'}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+          </span>
+          Dashboard
+        </Link>
 
-          if (item.disabled) {
-            return (
-              <div
-                key={item.label}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 cursor-not-allowed"
-              >
-                <span className="text-gray-300">{item.icon}</span>
-                {item.label}
-              </div>
-            );
-          }
-
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-[#1A6B5A] text-white'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
+        {isOnClientPage && (
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-0 w-4 text-gray-300 pointer-events-none"
+              viewBox="0 0 16 26"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
             >
-              <span className={isActive ? 'text-white' : 'text-gray-400'}>{item.icon}</span>
+              <path d="M1 0v22c0 2 0 3 2 3h13" />
+            </svg>
+
+            <button
+              onClick={() => setIsPatientsOpen(!isPatientsOpen)}
+              className="flex items-center gap-3 w-full pl-9 pr-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 tracking-wide uppercase hover:text-gray-600 transition-colors"
+            >
+              <span className="text-gray-300 shrink-0">{patientsIcon}</span>
+              <span className="flex-1 text-left">Patients</span>
+              <svg
+                className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${
+                  isPatientsOpen ? 'rotate-0' : '-rotate-90'
+                }`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {isPatientsOpen && (
+              <div className="mt-0.5 space-y-0.5 pb-1">
+                {clientsQuery.isLoading ? (
+                  <div className="pl-10 pr-3 py-1.5 text-xs text-gray-400 italic">
+                    Loading...
+                  </div>
+                ) : clients.length === 0 ? (
+                  <div className="pl-10 pr-3 py-1.5 text-xs text-gray-400 italic">
+                    No clients assigned
+                  </div>
+                ) : (
+                  clients.map((client) => {
+                    const isActive = pathname === `/clients/${client.id}`;
+                    return (
+                      <Link
+                        key={client.id}
+                        href={`/clients/${client.id}`}
+                        className={`flex items-center gap-3 pl-10 pr-3 py-1.5 rounded-lg text-sm transition-colors ${
+                          isActive
+                            ? 'text-[#1A6B5A] font-medium bg-[#1A6B5A]/5'
+                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {maskPhone(client.phoneNumber)}
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-0">
+          {disabledItems.map((item) => (
+            <div
+              key={item.label}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 cursor-not-allowed"
+            >
+              <span className="text-gray-300">{item.icon}</span>
               {item.label}
-            </Link>
-          );
-        })}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="mt-auto border-t border-gray-100 pt-3 px-3 flex flex-col gap-0.5">

@@ -76,6 +76,7 @@ export const clientsRouter = router({
         client: {
           include: {
             clinical_config: true,
+            safety_state: true,
             session_logs: {
               orderBy: { session_started_at: "desc" },
               take: 1,
@@ -97,6 +98,8 @@ export const clientsRouter = router({
       lastSessionDate:
         assignment.client.session_logs[0]?.session_started_at.toISOString() ??
         null,
+      safetyState:
+        assignment.client.safety_state?.safety_state_current ?? null,
     }));
   }),
 
