@@ -3,7 +3,9 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function createTRPCContext(opts: { headers: Headers }) {
-  const session = await auth();
+  const session = process.env.LOCAL_DEV_BYPASS_AUTH === 'true'
+    ? { user: { id: 'mock', email: 'bypass@evia.dev', name: 'Bypass' } }
+    : await auth();
   return { session, prisma, ...opts };
 }
 

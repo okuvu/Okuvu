@@ -5,6 +5,10 @@ import { protectedProcedure, router } from "../trpc";
 
 const CARE_PLANS = ["CP1", "CP2", "CP3"] as const;
 
+function isBypassEnabled(): boolean {
+  return process.env.LOCAL_DEV_BYPASS_AUTH === "true";
+}
+
 function getPrisma(ctx: { prisma: PrismaClient | null }): PrismaClient {
   if (!ctx.prisma) {
     throw new TRPCError({
@@ -34,6 +38,9 @@ async function getTherapistId(ctx: {
   });
 
   if (!therapist) {
+    if (isBypassEnabled()) {
+      return "th_bypass_mock";
+    }
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "Therapist not found",
@@ -58,6 +65,9 @@ async function assertClientAssigned(
   });
 
   if (!assignment) {
+    if (isBypassEnabled()) {
+      return;
+    }
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Client is not assigned to this therapist",
@@ -103,6 +113,17 @@ export const clientsRouter = router({
   detail: protectedProcedure
     .input(z.object({ clientUserId: z.string() }))
     .query(async ({ ctx, input }) => {
+      if (isBypassEnabled()) {
+        return {
+          id: input.clientUserId,
+          phoneNumber: "+1 (555) 000-0000",
+          carePlan: null,
+          reasoningNote: null,
+          safetyState: null,
+          summary: { status: "not_available_yet" as const, summary_text: null, session_id: null },
+        };
+      }
+
       const db = getPrisma(ctx);
       const therapistId = await getTherapistId(ctx);
 
@@ -162,11 +183,13 @@ export const clientsRouter = router({
 
       const config = await db.clinicalConfig.findUnique({
         where: { user_id: input.clientId },
-        select: { care_plan_id: true },
+        select: { care_plan_id: true, assignment_state: true, created_at: true },
       });
 
       return {
         care_plan_id: config?.care_plan_id ?? "CP1",
+        assignment_state: config?.assignment_state ?? "provisional",
+        created_at: config?.created_at?.toISOString() ?? null,
       };
     }),
 
@@ -194,13 +217,15 @@ export const clientsRouter = router({
           care_plan_id: input.carePlanId,
           assignment_state: "confirmed",
         },
-        select: { care_plan_id: true },
+        select: { care_plan_id: true, assignment_state: true, created_at: true },
       });
 
       return {
         success: true,
         clientId: input.clientId,
         care_plan_id: result.care_plan_id,
+        assignment_state: result.assignment_state,
+        created_at: result.created_at.toISOString(),
       };
     }),
 });
