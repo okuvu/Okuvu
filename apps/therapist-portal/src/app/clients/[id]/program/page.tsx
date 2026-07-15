@@ -62,11 +62,6 @@ export default function ProgramPage() {
     { enabled: Boolean(clientId) },
   );
 
-  const detailQuery = trpc.clients.detail.useQuery(
-    { clientUserId: clientId },
-    { enabled: Boolean(clientId) },
-  );
-
   const currentCarePlan = carePlanQuery.data?.care_plan_id ?? "CP1";
   const assignmentState = carePlanQuery.data?.assignment_state ?? "provisional";
   const createdAt = carePlanQuery.data?.created_at ?? null;
@@ -97,12 +92,9 @@ export default function ProgramPage() {
     setCarePlan.mutate({ clientId, carePlanId: selectedCarePlan });
   }
 
-  const phoneNumber = detailQuery.data?.phoneNumber ?? "";
-  const userLabel = phoneNumber
-    ? `User #${phoneNumber.replace(/\D/g, "").slice(-4)}`
-    : `User #${clientId.slice(-4)}`;
+  const userLabel = `User #${clientId.slice(-4)}`;
 
-  if (carePlanQuery.isLoading || detailQuery.isLoading) {
+  if (carePlanQuery.isLoading) {
     return (
       <main className="bg-surface min-h-screen text-on-surface antialiased">
         <div className="flex-1 overflow-y-auto p-margin_mobile md:p-margin_desktop flex justify-center">
@@ -289,12 +281,9 @@ export default function ProgramPage() {
 
           {/* Notice Box */}
           <div className="border-l-[3px] border-[#1A6B5A] bg-[#F4F6F8] rounded-lg p-4">
-            <h4 className="font-label-sm text-label-sm font-bold text-[#5A6472] mb-1">
-              Important
-            </h4>
-            <p className="font-body-main text-body-main text-sm text-[#5A6472]">
-              Session notes are for therapist reference only and are not used
-              by Evia&rsquo;s AI or clinical algorithms.
+            <p className="font-body-main text-body-main text-sm text-[#5A6472] leading-relaxed">
+              Therapist notes you write in Session Notes are not used by Evia.
+              To configure what Evia focuses on, use this care plan selector.
             </p>
           </div>
         </div>
