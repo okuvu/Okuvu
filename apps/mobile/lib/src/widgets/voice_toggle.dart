@@ -61,7 +61,7 @@ class _VoiceToggleState extends ConsumerState<VoiceToggle> {
       subtitle: const Text('Read messages aloud'),
       value: voiceSettings.voiceEnabled,
       onChanged: (value) => _toggleVoice(value),
-      activeColor: const Color(0xFF1A6B5A),
+      activeThumbColor: const Color(0xFF1A6B5A),
       inactiveTrackColor: const Color(0xFFC4C0BC),
     );
   }

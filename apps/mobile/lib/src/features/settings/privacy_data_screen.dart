@@ -215,7 +215,7 @@ class _ConsentSwitch extends StatelessWidget {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: const Color(0xFF1A6B5A),
+              activeThumbColor: const Color(0xFF1A6B5A),
             ),
           ],
         ),

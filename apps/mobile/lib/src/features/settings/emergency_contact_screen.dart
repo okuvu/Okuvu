@@ -125,8 +125,8 @@ class _EmergencyContactScreenState
               color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border(
-                left: BorderSide(
-                  color: const Color(0xFF1A6B5A),
+                left: const BorderSide(
+                  color: Color(0xFF1A6B5A),
                   width: 4,
                 ),
                 top: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -232,8 +232,8 @@ class _EmergencyContactScreenState
               color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border(
-                left: BorderSide(
-                  color: const Color(0xFF1A6B5A),
+                left: const BorderSide(
+                  color: Color(0xFF1A6B5A),
                   width: 4,
                 ),
                 top: BorderSide(color: theme.colorScheme.outlineVariant),

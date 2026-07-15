@@ -66,7 +66,7 @@ class SettingsScreen extends ConsumerWidget {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                       value: voiceSettings.voiceEnabled,
                       onChanged: (v) => voiceNotifier.toggleVoice(v),
-                      activeColor: const Color(0xFF1A6B5A),
+                      activeThumbColor: const Color(0xFF1A6B5A),
                       inactiveTrackColor: const Color(0xFFC4C0BC),
                     ),
                   const SizedBox(height: 8),
