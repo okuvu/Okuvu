@@ -21,6 +21,7 @@ export '../features/settings/emergency_contact_notifier.dart'
     show emergencyContactProvider;
 export '../features/settings/consent_provider.dart' show consentProvider;
 export '../features/intake/care_plan_provider.dart' show userCarePlanProvider;
+export '../features/intake/onboarding_provider.dart' show hasCompletedOnboardingProvider;
 
 class CrisisOverlayNotifier extends Notifier<bool> {
   @override

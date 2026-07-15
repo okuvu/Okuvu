@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'intake_message.dart';
 import 'intake_notifier.dart';
+import 'onboarding_provider.dart';
 import 'widgets/onboarding_progress_bar.dart';
 
 class IntakeScreen extends ConsumerStatefulWidget {
@@ -84,6 +85,7 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
       if (next.isComplete && !_navigated) {
         _navigated = true;
         _completionTimer?.cancel();
+        ref.read(hasCompletedOnboardingProvider.notifier).complete();
         if (mounted) context.go('/home');
       }
     });
