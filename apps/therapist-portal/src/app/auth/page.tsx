@@ -27,7 +27,7 @@ function AuthContent() {
 
   if (status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f8f9fb] p-4 md:p-8">
+      <main className="flex min-h-screen items-center justify-center bg-[#F4F6F8] p-4 md:p-8">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
       </main>
     );
@@ -38,15 +38,16 @@ function AuthContent() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f8f9fb] p-4 md:p-8">
+    <main className="flex min-h-screen items-center justify-center bg-[#F4F6F8] p-4 md:p-8">
       <div className="w-full max-w-[480px]">
-        <div className="mb-8 flex flex-col items-center">
+        <div className="mb-6 flex flex-col items-center">
           <div className="mb-4 text-2xl font-bold text-[#1A6B5A]">Evia</div>
           <span className="text-xs font-medium uppercase tracking-wider text-[#6f7975]">
             Therapist Portal
           </span>
         </div>
-        <div className="rounded-xl border border-[#e0e3e5] bg-white p-8 shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
+        <hr className="mb-4 border-t border-[#DDE2E8]" />
+        <div className="rounded-xl border border-[#DDE2E8] bg-white p-8 shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
           <div className="mb-8 text-center">
             <h1 className="mb-2 text-2xl font-semibold tracking-tight text-[#191c1e]">
               Sign in to Evia
@@ -103,14 +104,12 @@ function AuthContent() {
                 fill="#EA4335"
               />
             </svg>
-            <span className="text-sm font-medium text-[#191c1e]">Sign in with Google</span>
+            <span className="text-sm font-medium text-[#191c1e]">Continue with Google</span>
           </button>
 
-          <div className="mt-8 border-t border-[#e0e3e5] pt-6">
+          <div className="mt-8 border-t border-[#DDE2E8] pt-6">
             <p className="text-center text-xs text-[#6f7975]">
-              By signing in, you are accessing a restricted clinical information system. Unauthorized
-              access is prohibited and subject to institutional policies and federal regulations
-              regarding patient privacy (HIPAA).
+              Access is restricted to registered Evia therapists.
             </p>
           </div>
         </div>
