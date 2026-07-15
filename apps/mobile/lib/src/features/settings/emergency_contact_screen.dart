@@ -119,40 +119,42 @@ class _EmergencyContactScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border(
-                left: const BorderSide(
-                  color: Color(0xFF1A6B5A),
-                  width: 4,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                border: Border(
+                  left: const BorderSide(
+                    color: Color(0xFF1A6B5A),
+                    width: 4,
+                  ),
+                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+                  right: BorderSide(color: theme.colorScheme.outlineVariant),
+                  bottom: BorderSide(color: theme.colorScheme.outlineVariant),
                 ),
-                top: BorderSide(color: theme.colorScheme.outlineVariant),
-                right: BorderSide(color: theme.colorScheme.outlineVariant),
-                bottom: BorderSide(color: theme.colorScheme.outlineVariant),
               ),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Emergency Contact',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Emergency Contact',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Optionally provide a contact to reach in an emergency. '
-                  'This information is encrypted and stored securely.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Optionally provide a contact to reach in an emergency. '
+                    'This information is encrypted and stored securely.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -226,39 +228,41 @@ class _EmergencyContactScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border(
-                left: const BorderSide(
-                  color: Color(0xFF1A6B5A),
-                  width: 4,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                border: Border(
+                  left: const BorderSide(
+                    color: Color(0xFF1A6B5A),
+                    width: 4,
+                  ),
+                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+                  right: BorderSide(color: theme.colorScheme.outlineVariant),
+                  bottom: BorderSide(color: theme.colorScheme.outlineVariant),
                 ),
-                top: BorderSide(color: theme.colorScheme.outlineVariant),
-                right: BorderSide(color: theme.colorScheme.outlineVariant),
-                bottom: BorderSide(color: theme.colorScheme.outlineVariant),
               ),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Emergency Contact',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Emergency Contact',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'This information is encrypted and stored securely.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 8),
+                  Text(
+                    'This information is encrypted and stored securely.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
