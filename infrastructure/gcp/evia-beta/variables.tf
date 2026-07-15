@@ -43,3 +43,14 @@ variable "service_account_id" {
   type        = string
   default     = "evia-sa"
 }
+
+variable "worker_url" {
+  description = "HTTPS URL of the deployed evia-worker Cloud Run service"
+  type        = string
+}
+
+variable "worker_service_account_email" {
+  description = "Service account used by Cloud Scheduler OIDC auth to invoke the worker"
+  type        = string
+  default     = "evia-app@evia-500215.iam.gserviceaccount.com"
+}
