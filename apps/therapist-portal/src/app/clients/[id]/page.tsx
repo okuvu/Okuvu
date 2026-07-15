@@ -3,9 +3,17 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/trpc/client";
-import { maskPhone } from "@/lib/format";
+import { formatClientLabel } from "@/lib/format";
 import type { AssignmentState, CarePlanId, SafetyState } from "@evia/shared-types";
 import PageHeader from "./_components/page-header";
+
+const SAFETY_LABELS: Record<SafetyState, string> = {
+  S0: "Stable",
+  S1: "Low",
+  S2: "Concern",
+  S3: "Elevated",
+  S4: "Critical",
+};
 
 function formatDate(raw: Date | string): string {
   const d = new Date(raw);
@@ -47,7 +55,7 @@ function Badge({ variant }: { variant: AssignmentState }) {
       }`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${isConfirmed ? "bg-[#2D8A5E]" : "bg-amber-500"}`} />
-      {isConfirmed ? "Confirmed" : "Provisional"}
+      {isConfirmed ? "Confirmed by therapist" : "Provisional"}
     </span>
   );
 }
@@ -86,18 +94,23 @@ function CarePlanSection({
               Recommended care plan for this client.
             </p>
 
-            <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mb-4">
-              <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-                Why Evia Suggested This
-              </h4>
+            <h4 className="text-[13px] font-semibold text-gray-700 mb-2">
+              &#x1F4CB; Why Evia suggested this care plan:
+            </h4>
+            <div className="bg-[#F4F6F8] rounded-xl p-4">
               {reasoningNote ? (
                 <p className="text-sm text-gray-700 leading-relaxed">{reasoningNote}</p>
               ) : (
                 <p className="text-sm text-gray-400 italic">Clinical reasoning not yet available.</p>
               )}
             </div>
+            <p className="mt-3 text-xs text-gray-400 italic leading-relaxed">
+              This is Evia&rsquo;s initial assessment from the onboarding conversation.
+              Not a clinical diagnosis. You can change the care plan on the Program screen
+              at any time.
+            </p>
 
-            <div className="flex gap-2.5">
+            <div className="flex gap-2.5 mt-4">
               <button
                 type="button"
                 disabled
@@ -132,7 +145,7 @@ function SessionSummarySection({
   status,
 }: {
   summaryText: string | null;
-  status: string;
+  status: "available" | "generating" | "not_available_yet";
 }) {
   return (
     <Card>
@@ -155,11 +168,41 @@ function SessionSummarySection({
               {summaryText}
             </p>
           </div>
+        ) : status === "generating" ? (
+          <div className="rounded-lg border border-dashed border-gray-200 px-5 py-8 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <svg
+                className="animate-spin h-5 w-5 text-teal-600"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              <p className="text-sm font-medium text-gray-900">
+                Summary being generated&hellip;
+              </p>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              The session summary is being processed and will appear here shortly.
+            </p>
+          </div>
         ) : (
           <div className="rounded-lg border border-dashed border-gray-200 px-5 py-8 text-center">
             <p className="text-sm font-medium text-gray-900">Not yet available</p>
             <p className="mt-1 text-xs text-gray-500">
-              The session summary will appear here once a session is completed and processed.
+              A session summary will appear here once the client completes a session and it has been processed.
             </p>
           </div>
         )}
@@ -270,6 +313,7 @@ function SafetySection({ safetyState }: { safetyState: SafetyState | null }) {
   const isConcern = safetyState === "S2" || safetyState === "S3" || safetyState === "S4";
   const isStable = safetyState === "S0";
   const bgTint = isConcern ? "bg-amber-50" : "bg-white";
+  const label = safetyState ? SAFETY_LABELS[safetyState] ?? safetyState : null;
 
   return (
     <Card className={bgTint}>
@@ -300,7 +344,7 @@ function SafetySection({ safetyState }: { safetyState: SafetyState | null }) {
                     isConcern ? "bg-amber-500" : isStable ? "bg-[#2D8A5E]" : "bg-gray-400"
                   }`}
                 />
-                {safetyState}
+                {safetyState} ({label})
               </span>
             </div>
             <div className="space-y-2.5">
@@ -517,12 +561,12 @@ export default function ClientOverviewPage() {
   const safetyState = client.safetyState;
   const summary = client.summary;
   const notes = notesQuery.data ?? [];
-  const maskedPhone = maskPhone(client.phoneNumber);
+  const clientLabel = formatClientLabel(client.id);
 
   return (
     <>
       <PageHeader
-        phoneNumber={maskedPhone}
+        phoneNumber={clientLabel}
         assignmentState={carePlan?.assignment_state ?? null}
       />
 

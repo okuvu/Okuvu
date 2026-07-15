@@ -14,6 +14,10 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
           current_streak: true,
           longest_streak: true,
           voice_mode_enabled: true,
+          consent_1: true,
+          consent_2: true,
+          consent_3: true,
+          consent_4: true,
         },
       },
       session_logs: {
@@ -41,7 +45,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       care_plan: null,
       recent_history: [],
       session_summary: null,
-      engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false },
+      engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
     };
   }
 
@@ -88,6 +92,10 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       current_streak: user.engagement_profile?.current_streak ?? 0,
       longest_streak: user.engagement_profile?.longest_streak ?? 0,
       voice_mode_enabled: user.engagement_profile?.voice_mode_enabled ?? false,
+      consent_1: user.engagement_profile?.consent_1 ?? true,
+      consent_2: user.engagement_profile?.consent_2 ?? false,
+      consent_3: user.engagement_profile?.consent_3 ?? false,
+      consent_4: user.engagement_profile?.consent_4 ?? false,
     },
   };
 }

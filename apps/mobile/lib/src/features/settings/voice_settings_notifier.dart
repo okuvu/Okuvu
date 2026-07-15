@@ -1,6 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
+import 'dart:async';
 
 import '../../core/providers.dart';
 
@@ -36,9 +37,9 @@ class VoiceSettingsState {
 class VoiceSettingsNotifier extends Notifier<VoiceSettingsState> {
   @override
   VoiceSettingsState build() {
-  Future.microtask(_fetchVoicePreference);
-  return const VoiceSettingsState.initial();
-}
+    Future.microtask(_fetchVoicePreference);
+    return const VoiceSettingsState.initial();
+  }
 
   Future<void> _fetchVoicePreference() async {
     try {
@@ -46,8 +47,7 @@ class VoiceSettingsNotifier extends Notifier<VoiceSettingsState> {
 
       final response = await dio.get('/settings/voice');
 
-      final voiceEnabled =
-          response.data['voice_enabled'] as bool? ?? false;
+      final voiceEnabled = response.data['voice_enabled'] as bool? ?? false;
 
       state = state.copyWith(
         voiceEnabled: voiceEnabled,
@@ -66,9 +66,13 @@ class VoiceSettingsNotifier extends Notifier<VoiceSettingsState> {
       error: null,
     );
 
-    try {
-      final dio = ref.read(dioClientProvider);
+    final dio = ref.read(dioClientProvider);
 
+    unawaited(_persistVoicePreference(dio, newValue));
+  }
+
+  Future<void> _persistVoicePreference(Dio dio, bool newValue) async {
+    try {
       await dio.patch(
         '/settings/voice',
         data: {

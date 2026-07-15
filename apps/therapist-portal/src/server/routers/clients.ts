@@ -5,6 +5,10 @@ import { protectedProcedure, router } from "../trpc";
 
 const CARE_PLANS = ["CP1", "CP2", "CP3"] as const;
 
+function isBypassEnabled(): boolean {
+  return process.env.LOCAL_DEV_BYPASS_AUTH === "true";
+}
+
 function getPrisma(ctx: { prisma: PrismaClient | null }): PrismaClient {
   if (!ctx.prisma) {
     throw new TRPCError({
@@ -34,6 +38,9 @@ async function getTherapistId(ctx: {
   });
 
   if (!therapist) {
+    if (isBypassEnabled()) {
+      return "th_bypass_mock";
+    }
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "Therapist not found",
@@ -58,6 +65,9 @@ async function assertClientAssigned(
   });
 
   if (!assignment) {
+    if (isBypassEnabled()) {
+      return;
+    }
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Client is not assigned to this therapist",
@@ -76,6 +86,7 @@ export const clientsRouter = router({
         client: {
           include: {
             clinical_config: true,
+            safety_state: true,
             session_logs: {
               orderBy: { session_started_at: "desc" },
               take: 1,
@@ -97,16 +108,31 @@ export const clientsRouter = router({
       lastSessionDate:
         assignment.client.session_logs[0]?.session_started_at.toISOString() ??
         null,
+      safetyState:
+        assignment.client.safety_state?.safety_state_current ?? null,
     }));
   }),
 
   detail: protectedProcedure
     .input(z.object({ clientUserId: z.string() }))
     .query(async ({ ctx, input }) => {
+      if (isBypassEnabled()) {
+        return {
+          id: input.clientUserId,
+          phoneNumber: "+1 (555) 000-0000",
+          carePlan: null,
+          reasoningNote: null,
+          safetyState: null,
+          summary: { status: "not_available_yet" as const, summary_text: null, session_id: null },
+        };
+      }
+
       const db = getPrisma(ctx);
       const therapistId = await getTherapistId(ctx);
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
+
+      console.log(`[AUDIT] Therapist ${therapistId} viewed client ${input.clientUserId} detail`);
 
       const client = await db.user.findUnique({
         where: { id: input.clientUserId },
@@ -129,9 +155,21 @@ export const clientsRouter = router({
       }
 
       const latestSummary = client.session_summaries[0] ?? null;
-      const summaryAvailable =
+      let summaryStatus: "available" | "generating" | "not_available_yet";
+      if (
         latestSummary?.status === "COMPLETED" &&
-        latestSummary.summary_text !== null;
+        latestSummary.summary_text !== null
+      ) {
+        summaryStatus = "available";
+      } else if (latestSummary?.status === "PENDING") {
+        summaryStatus = "generating";
+      } else if (latestSummary?.status === "FAILED") {
+        summaryStatus = "not_available_yet";
+      } else if (latestSummary?.status === "SKIPPED_TRIVIAL") {
+        summaryStatus = "not_available_yet";
+      } else {
+        summaryStatus = "not_available_yet";
+      }
 
       return {
         id: client.id,
@@ -145,7 +183,7 @@ export const clientsRouter = router({
         reasoningNote: client.clinical_config?.reasoning_note ?? null,
         safetyState: client.safety_state?.safety_state_current ?? null,
         summary: {
-          status: summaryAvailable ? "available" : "not_available_yet",
+          status: summaryStatus,
           summary_text: latestSummary?.summary_text ?? null,
           session_id: latestSummary?.session_id ?? null,
         },
@@ -162,11 +200,13 @@ export const clientsRouter = router({
 
       const config = await db.clinicalConfig.findUnique({
         where: { user_id: input.clientId },
-        select: { care_plan_id: true },
+        select: { care_plan_id: true, assignment_state: true, created_at: true },
       });
 
       return {
         care_plan_id: config?.care_plan_id ?? "CP1",
+        assignment_state: config?.assignment_state ?? "provisional",
+        created_at: config?.created_at?.toISOString() ?? null,
       };
     }),
 
@@ -183,6 +223,11 @@ export const clientsRouter = router({
 
       await assertClientAssigned(db, therapistId, input.clientId);
 
+      const existing = await db.clinicalConfig.findUnique({
+        where: { user_id: input.clientId },
+        select: { care_plan_id: true },
+      });
+
       const result = await db.clinicalConfig.upsert({
         where: { user_id: input.clientId },
         create: {
@@ -194,13 +239,24 @@ export const clientsRouter = router({
           care_plan_id: input.carePlanId,
           assignment_state: "confirmed",
         },
-        select: { care_plan_id: true },
+        select: { care_plan_id: true, assignment_state: true, created_at: true },
       });
+
+      console.log(JSON.stringify({
+        event: "care_plan_change",
+        therapist_id: therapistId,
+        client_id: input.clientId,
+        old_care_plan: existing?.care_plan_id ?? null,
+        new_care_plan: input.carePlanId,
+        timestamp: new Date().toISOString(),
+      }));
 
       return {
         success: true,
         clientId: input.clientId,
         care_plan_id: result.care_plan_id,
+        assignment_state: result.assignment_state,
+        created_at: result.created_at.toISOString(),
       };
     }),
 });

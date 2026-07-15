@@ -4,10 +4,12 @@ import '../../core/providers.dart';
 class UserCarePlan {
   final String carePlanId;
   final String focusAreaName;
+  final String? assignmentState;
 
   const UserCarePlan({
     required this.carePlanId,
     required this.focusAreaName,
+    this.assignmentState,
   });
 }
 
@@ -34,5 +36,6 @@ final userCarePlanProvider = FutureProvider.autoDispose<UserCarePlan?>((ref) asy
   return UserCarePlan(
     carePlanId: carePlanId,
     focusAreaName: _focusAreaNameForId(carePlanId),
+    assignmentState: carePlan['assignment_state'] as String?,
   );
 });

@@ -13,10 +13,12 @@ import '../features/progress/progress_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/profile_screen.dart';
 import '../features/settings/notifications_screen.dart';
-import '../features/settings/privacy_screen.dart';
 import '../features/settings/about_screen.dart';
 import '../features/settings/account_deletion_screen.dart';
 import '../features/settings/emergency_contact_screen.dart';
+import '../features/settings/my_focus_area_screen.dart';
+import '../features/settings/privacy_data_screen.dart';
+import '../features/settings/language_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
@@ -127,10 +129,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'privacy',
-            builder: (context, state) => const PrivacyScreen(),
+            builder: (context, state) => const PrivacyDataScreen(),
           ),
           GoRoute(
-            path: 'emergency-contact',
+            path: 'emergency',
             builder: (context, state) => const EmergencyContactScreen(),
           ),
           GoRoute(
@@ -140,6 +142,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'delete-account',
             builder: (context, state) => const AccountDeletionScreen(),
+          ),
+          GoRoute(
+            path: 'focus',
+            builder: (context, state) => const MyFocusAreaScreen(),
+          ),
+          GoRoute(
+            path: 'language',
+            builder: (context, state) => const LanguageScreen(),
           ),
         ],
       ),

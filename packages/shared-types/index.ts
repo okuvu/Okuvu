@@ -166,6 +166,10 @@ export interface EngagementStats {
   current_streak: number
   longest_streak: number
   voice_mode_enabled: boolean
+  consent_1: boolean
+  consent_2: boolean
+  consent_3: boolean
+  consent_4: boolean
 }
 
 // ─── Agent Context Bundle ────────────────────────────────────────
@@ -193,4 +197,5 @@ export interface ClientListItem {
   phoneNumber: string
   carePlan: ClientCarePlan | null
   lastSessionDate: string | null
+  safetyState: SafetyState | null
 }
