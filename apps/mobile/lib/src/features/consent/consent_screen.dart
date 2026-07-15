@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+import '../../config/app_config.dart';
 import '../../core/providers.dart';
 import 'consent_request.dart';
 
@@ -50,6 +51,18 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
     }
   }
 
+  bool _isNetworkError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionError:
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.sendTimeout:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   Future<void> _submit() async {
     setState(() {
       _isSubmitting = true;
@@ -74,6 +87,18 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
         debugPrint('[ConsentScreen] POST /users/me/consent failed: '
             'status=${e.response?.statusCode} body=${e.response?.data}');
       }
+
+      if (AppConfig.flavor == 'dev' && _isNetworkError(e)) {
+        if (kDebugMode) {
+          debugPrint(
+            '[ConsentScreen] Backend unavailable, proceeding with '
+            'local-only consent (dev mode)',
+          );
+        }
+        if (mounted) context.go('/intake');
+        return;
+      }
+
       if (mounted) {
         String message;
         if (e.response?.statusCode == 401) {
