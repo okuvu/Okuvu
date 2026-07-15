@@ -12,6 +12,10 @@ export async function proxy(request: NextRequest) {
     return undefined;
   }
 
+  if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
+    return undefined;
+  }
+
   const session = await getServerSession(authConfig);
   const isPublic =
     PUBLIC_ROUTES.has(pathname) ||

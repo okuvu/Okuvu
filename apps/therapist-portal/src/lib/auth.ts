@@ -21,6 +21,9 @@ export const authConfig: NextAuthOptions = {
   callbacks: {
     async signIn({ account, profile }) {
       if (account?.provider === 'google' && profile?.email) {
+        if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
+          return true;
+        }
         try {
           const { prisma } = await import('@/lib/prisma');
           if (!prisma) {
