@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:patrol/patrol.dart';
 
 const _testPhone = String.fromEnvironment('E2E_TEST_PHONE', defaultValue: '9999999999');
@@ -6,9 +8,7 @@ const _testOtp = String.fromEnvironment('E2E_TEST_OTP', defaultValue: '123456');
 void main() {
   patrolTest(
     'Session closes after 10-turn cap with UI feedback',
-    config: PatrolConfig(
-      testTimeout: Timeout(Duration(minutes: 10)),
-    ),
+    timeout: const Timeout(Duration(minutes: 10)),
     ($) async {
       await $.pumpAndSettle();
 
@@ -52,9 +52,7 @@ void main() {
         await $.pumpAndSettle();
 
         // Wait for agent response — turn counter updates via WebSocket
-        await $('$turn of 10').waitUntilVisible(
-          message: 'Expected turn counter "$turn of 10" after turn $turn',
-        );
+        await $('$turn of 10').waitUntilVisible();
         await $.pumpAndSettle();
       }
 

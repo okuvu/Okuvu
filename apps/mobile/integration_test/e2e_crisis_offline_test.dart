@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:patrol/patrol.dart';
 
 const _testPhone = String.fromEnvironment('E2E_TEST_PHONE', defaultValue: '9999999999');
@@ -6,7 +8,6 @@ const _testOtp = String.fromEnvironment('E2E_TEST_OTP', defaultValue: '123456');
 void main() {
   patrolTest(
     'Crisis screen renders all content in actual airplane mode',
-    config: const PatrolConfig(),
     ($) async {
       // Ensure we always restore airplane mode, even on test failure
       addTearDown(() async {

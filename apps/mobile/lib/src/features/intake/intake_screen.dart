@@ -254,7 +254,7 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
                     ),
                   ),
                   child: Text(
-                    plan,
+                    entry.value,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurface,
                     ),
