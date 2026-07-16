@@ -179,6 +179,7 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
         children: [
           Expanded(
             child: TextField(
+              key: const ValueKey('intake_input'),
               controller: _textController,
               textCapitalization: TextCapitalization.sentences,
               textInputAction: TextInputAction.send,
@@ -192,6 +193,7 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
             ),
           ),
           IconButton(
+            key: const ValueKey('intake_send'),
             onPressed: _textIsEmpty ? null : _onSend,
             icon: const Icon(Icons.send_rounded),
             style: IconButton.styleFrom(
@@ -230,14 +232,15 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ...plans.map(
-            (plan) => Padding(
+          ...plans.asMap().entries.map(
+            (entry) => Padding(
+              key: ValueKey('care_plan_${entry.key}'),
               padding: const EdgeInsets.only(bottom: 10),
               child: SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () =>
-                      ref.read(intakeProvider.notifier).selectCarePlan(plan),
+                      ref.read(intakeProvider.notifier).selectCarePlan(entry.value),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,

@@ -306,6 +306,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
+                key: const ValueKey('back_to_home'),
                 onPressed: _onBackToHome,
                 child: const Text('Back to Home'),
               ),
@@ -336,6 +337,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Expanded(
             child: TextField(
+              key: const ValueKey('chat_input'),
               controller: _textController,
               textInputAction: TextInputAction.send,
               onSubmitted: isInputDisabled ? null : (_) => _sendMessage(),
@@ -349,6 +351,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ),
           IconButton(
+            key: const ValueKey('chat_send'),
             onPressed: isInputDisabled ? null : _sendMessage,
             icon: const Icon(Icons.send_rounded),
             style: IconButton.styleFrom(

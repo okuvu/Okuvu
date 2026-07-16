@@ -89,7 +89,7 @@ describe('verifyFirebaseJWT middleware', () => {
       delete process.env.LOCAL_DEV_BYPASS_AUTH;
       vi.resetModules();
       mockVerifyFirebaseToken = vi.fn();
-      vi.doMock('../lib/firebase-verify.js', () => ({
+      vi.doMock('../lib/firebase-admin.js', () => ({
         verifyFirebaseToken: mockVerifyFirebaseToken,
       }));
       const { verifyFirebaseJWT } = await import('../middleware/auth.js');

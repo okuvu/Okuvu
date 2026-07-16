@@ -40,6 +40,9 @@ importers:
       fastify:
         specifier: ^5.3.2
         version: 5.10.0
+      firebase-admin:
+        specifier: ^14.1.0
+        version: 14.1.0
       pg:
         specifier: ^8.22.0
         version: 8.22.0
