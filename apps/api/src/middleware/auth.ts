@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { verifyFirebaseToken } from '../lib/firebase-admin.js';
+import { verifyFirebaseToken } from '../lib/firebase-auth.js';
 
 const BYPASS_UID = 'mock-firebase-uid-1';
 

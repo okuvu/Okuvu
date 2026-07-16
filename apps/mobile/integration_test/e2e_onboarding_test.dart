@@ -1,4 +1,4 @@
-import 'package:patrol_test/patrol_test.dart';
+import 'package:patrol/patrol.dart';
 
 const _testPhone = String.fromEnvironment('E2E_TEST_PHONE', defaultValue: '9999999999');
 const _testOtp = String.fromEnvironment('E2E_TEST_OTP', defaultValue: '123456');
