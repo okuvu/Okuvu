@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'emergency_contact_notifier.dart';
 
@@ -40,9 +41,7 @@ class _EmergencyContactScreenState
     final phone = _phoneController.text.trim();
 
     if (name.isEmpty && phone.isEmpty) {
-      await ref
-          .read(emergencyContactProvider.notifier)
-          .clearEmergencyContact();
+      await ref.read(emergencyContactProvider.notifier).clearEmergencyContact();
       return;
     }
 
@@ -74,98 +73,110 @@ class _EmergencyContactScreenState
 
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Emergency Contact')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Emergency Contact',
-                style: theme.textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Optionally provide a contact to reach in an emergency. '
-                'This information is encrypted and stored securely.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name (Optional)',
-                  hintText: 'Full name',
-                  border: OutlineInputBorder(),
-                ),
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone (Optional)',
-                  hintText: '+1234567890',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              if (state.error != null) ...[
-                const SizedBox(height: 16),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.go('/settings');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/settings'),
+          ),
+          title: const Text('Emergency Contact'),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  state.error!,
+                  'Emergency Contact',
+                  style: theme.textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Optionally provide a contact to reach in an emergency. '
+                  'This information is encrypted and stored securely.',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed:
-                      state.isSaving || (!_hasChanges && !state.hasContact)
-                          ? null
-                          : _save,
-                  child: state.isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Save'),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name (Optional)',
+                    hintText: 'Full name',
+                    border: OutlineInputBorder(),
+                  ),
+                  textCapitalization: TextCapitalization.words,
                 ),
-              ),
-              if (state.hasContact) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone (Optional)',
+                    hintText: '+1234567890',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                if (state.error != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    state.error!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: state.isSaving
-                        ? null
-                        : () async {
-                            await ref
-                                .read(emergencyContactProvider.notifier)
-                                .clearEmergencyContact();
-                            _nameController.clear();
-                            _phoneController.clear();
-                            _initialized = false;
-                          },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: theme.colorScheme.error,
-                    ),
-                    child: const Text('Clear'),
+                  child: FilledButton(
+                    onPressed:
+                        state.isSaving || (!_hasChanges && !state.hasContact)
+                            ? null
+                            : _save,
+                    child: state.isSaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Save'),
                   ),
                 ),
+                if (state.hasContact) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: state.isSaving
+                          ? null
+                          : () async {
+                              await ref
+                                  .read(emergencyContactProvider.notifier)
+                                  .clearEmergencyContact();
+                              _nameController.clear();
+                              _phoneController.clear();
+                              _initialized = false;
+                            },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                      ),
+                      child: const Text('Clear'),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

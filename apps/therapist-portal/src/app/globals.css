@@ -1,1 +1,106 @@
 @import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-error: #ba1a1a;
+  --color-tertiary: #72362a;
+  --color-surface-container-lowest: #ffffff;
+  --color-outline: #6f7975;
+  --color-on-surface: #191c1e;
+  --color-surface-tint: #196a59;
+  --color-secondary-container: #97f3be;
+  --color-error-container: #ffdad6;
+  --color-on-primary-fixed-variant: #005142;
+  --color-primary-container: #1a6b5a;
+  --color-on-surface-variant: #3f4945;
+  --color-background: #f8f9fb;
+  --color-surface-variant: #e0e3e5;
+  --color-surface-bright: #f8f9fb;
+  --color-primary-fixed-dim: #8ad5c0;
+  --color-on-secondary-container: #037148;
+  --color-on-tertiary-fixed-variant: #713529;
+  --color-on-secondary-fixed: #002111;
+  --color-surface-dim: #d8dadc;
+  --color-secondary-fixed-dim: #7ed9a6;
+  --color-tertiary-fixed: #ffdad3;
+  --color-tertiary-fixed-dim: #ffb4a4;
+  --color-on-error-container: #93000a;
+  --color-on-tertiary: #ffffff;
+  --color-on-error: #ffffff;
+  --color-on-background: #191c1e;
+  --color-inverse-surface: #2d3133;
+  --color-surface: #f8f9fb;
+  --color-on-primary-container: #9de9d3;
+  --color-secondary: #006c44;
+  --color-inverse-primary: #8ad5c0;
+  --color-surface-container-highest: #e0e3e5;
+  --color-on-primary-fixed: #002019;
+  --color-on-tertiary-container: #ffcfc5;
+  --color-tertiary-container: #8f4d3f;
+  --color-on-secondary: #ffffff;
+  --color-on-primary: #ffffff;
+  --color-outline-variant: #bec9c4;
+  --color-surface-container: #eceef0;
+  --color-primary-fixed: #a6f1db;
+  --color-surface-container-low: #f2f4f6;
+  --color-inverse-on-surface: #eff1f3;
+  --color-on-secondary-fixed-variant: #005232;
+  --color-on-tertiary-fixed: #390b04;
+  --color-secondary-fixed: #9af5c1;
+  --color-primary: #005243;
+  --color-surface-container-high: #e6e8ea;
+
+  /* Border Radius */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-margin_desktop: 32px;
+  --spacing-margin_mobile: 16px;
+  --spacing-gutter: 16px;
+  --spacing-base: 4px;
+
+  /* Font Families (use --font-* in v4, not --font-family-*) */
+  --font-table-header: "Inter", sans-serif;
+  --font-status-pill: "Inter", sans-serif;
+  --font-body-main: "Inter", sans-serif;
+  --font-display-title: "Inter", sans-serif;
+  --font-section-header: "Inter", sans-serif;
+  --font-label-sm: "Inter", sans-serif;
+
+  /* Font Sizes (use --text-* in v4, not --font-size-*) */
+  --text-table-header: 12px;
+  --text-table-header--line-height: 16px;
+  --text-table-header--letter-spacing: 0.05em;
+  --text-table-header--font-weight: 700;
+
+  --text-status-pill: 11px;
+  --text-status-pill--line-height: 12px;
+  --text-status-pill--font-weight: 700;
+
+  --text-body-main: 15px;
+  --text-body-main--line-height: 22px;
+  --text-body-main--font-weight: 400;
+
+  --text-display-title: 24px;
+  --text-display-title--line-height: 32px;
+  --text-display-title--letter-spacing: -0.02em;
+  --text-display-title--font-weight: 600;
+
+  --text-section-header: 18px;
+  --text-section-header--line-height: 24px;
+  --text-section-header--font-weight: 600;
+
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 16px;
+  --text-label-sm--font-weight: 500;
+
+  /* Box Shadow (use --shadow-* in v4, not --box-shadow-*) */
+  --shadow-soft: 0px 2px 4px rgba(0, 0, 0, 0.05);
+}

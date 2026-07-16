@@ -1,18 +1,5 @@
 import type { Prisma } from '@prisma/client';
-
-export function getISTDateString(): string {
-  const formatter = new Intl.DateTimeFormat('en', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const parts = formatter.formatToParts(new Date());
-  const year = parts.find(p => p.type === 'year')!.value;
-  const month = parts.find(p => p.type === 'month')!.value;
-  const day = parts.find(p => p.type === 'day')!.value;
-  return `${year}-${month}-${day}`;
-}
+export { getISTDateString } from '@evia/shared-types';
 
 export function getDailyLimit(tier: 'SD' | 'TL'): number {
   const key = tier === 'SD' ? 'SESSION_LIMIT_SD_DAILY' : 'SESSION_LIMIT_TL_DAILY';
@@ -44,10 +31,10 @@ export async function tryAcquireSessionSlot(
 ): Promise<AcquireResult> {
   const [row] = await tx.$queryRaw<Array<{ allowed: boolean; sessions_used: bigint }>>`
     WITH attempt AS (
-      INSERT INTO "SessionLimit" (id, user_id, tier, date_ist, sessions_used)
-      VALUES (gen_random_uuid(), ${userId}, ${tier}::"Tier", ${dateIst}::date, 1)
+      INSERT INTO "SessionLimit" (id, user_id, tier, date_ist, sessions_used, updated_at)
+      VALUES (gen_random_uuid(), ${userId}, ${tier}::"Tier", ${dateIst}::date, 1, NOW())
       ON CONFLICT (user_id, date_ist)
-      DO UPDATE SET sessions_used = "SessionLimit".sessions_used + 1
+      DO UPDATE SET sessions_used = "SessionLimit".sessions_used + 1, updated_at = NOW()
       WHERE "SessionLimit".sessions_used < ${dailyLimit}
       RETURNING sessions_used
     )

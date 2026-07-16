@@ -3,12 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router/router.dart';
 import 'core/providers.dart';
 import 'features/crisis/crisis_overlay.dart';
+import 'features/intake/intake_notifier.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(sessionProvider, (previous, next) {
+      if (previous == SessionState.authenticated &&
+          next == SessionState.unauthenticated) {
+        ref.read(webSocketServiceProvider).disconnect();
+        ref.invalidate(chatMessagesProvider);
+        ref.invalidate(emergencyContactProvider);
+        ref.invalidate(voiceSettingsProvider);
+        ref.invalidate(intakeProvider);
+        ref.invalidate(crisisOverlayProvider);
+      }
+    });
+
     final router = ref.watch(routerConfigProvider);
     ref.watch(voiceSyncProvider);
 

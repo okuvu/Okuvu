@@ -131,6 +131,8 @@ class ChatNotifier extends Notifier<ChatState> {
       ],
       turnCount: frame.turnCount,
     );
+
+    ref.read(ttsServiceProvider).speak(frame.content);
   }
 
   void addUserMessage(String content) {

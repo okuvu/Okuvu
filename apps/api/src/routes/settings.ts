@@ -178,4 +178,84 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       });
     },
   });
+
+  interface VoiceModeBody {
+    voice_enabled: boolean
+  }
+
+  app.get('/settings/voice', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      const profile = await prisma.engagementProfile.findUnique({
+        where: { user_id: user.id },
+        select: { voice_mode_enabled: true },
+      });
+
+      request.log.info(
+        { event: 'voice_settings_read', user_id: user.id },
+        'Voice settings read',
+      );
+
+      return reply.send({ voice_enabled: profile?.voice_mode_enabled ?? false });
+    },
+  });
+
+  app.patch<{ Body: VoiceModeBody }>('/settings/voice', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body;
+
+      if (typeof body.voice_enabled !== 'boolean') {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_BODY',
+            message: 'voice_enabled must be a boolean',
+          },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      await prisma.engagementProfile.upsert({
+        where: { user_id: user.id },
+        create: {
+          user_id: user.id,
+          voice_mode_enabled: body.voice_enabled,
+        },
+        update: {
+          voice_mode_enabled: body.voice_enabled,
+        },
+      });
+
+      request.log.info(
+        { event: 'voice_settings_updated', user_id: user.id, voice_enabled: body.voice_enabled },
+        'Voice settings updated',
+      );
+
+      return reply.send({ success: true });
+    },
+  });
 }

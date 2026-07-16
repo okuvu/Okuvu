@@ -1,5 +1,22 @@
 export const VERSION = '1.0.0'
 
+export function getISTDateString(date: Date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
+  const parts = formatter.formatToParts(date)
+
+  const year = parts.find(p => p.type === 'year')!.value
+  const month = parts.find(p => p.type === 'month')!.value
+  const day = parts.find(p => p.type === 'day')!.value
+
+  return `${year}-${month}-${day}`
+}
+
 export type SafetyState = 'S0' | 'S1' | 'S2' | 'S3' | 'S4'
 
 export type GovernanceState = 'Active' | 'Restricted' | 'Blocked'
@@ -176,4 +193,5 @@ export interface ClientListItem {
   phoneNumber: string
   carePlan: ClientCarePlan | null
   lastSessionDate: string | null
+  safetyState: SafetyState | null
 }

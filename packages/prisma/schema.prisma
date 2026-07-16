@@ -42,6 +42,7 @@ model ClinicalConfig {
   user_id                 String          @unique
   care_plan_id            CarePlan
   assignment_state        AssignmentState @default(provisional)
+  created_at              DateTime        @default(now())
   confidence_at_last_eval Float?
   turns_evaluated         Int             @default(0)
   reasoning_note          String?

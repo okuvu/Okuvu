@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'websocket_constants.dart';
@@ -70,7 +71,7 @@ class WebSocketService {
     }
   }
 
-  void connect({required String wsBaseUrl, required String token}) {
+  Future<void> connect({required String wsBaseUrl, required String token}) async {
     if (_state == WsConnectionState.connecting ||
         _state == WsConnectionState.sessionActive) {
       if (kDebugMode) debugPrint('[WebSocketService] Already connected or connecting');
@@ -83,10 +84,13 @@ class WebSocketService {
     _intentionalDisconnect = false;
     _setState(WsConnectionState.connecting);
 
-    final uri = Uri.parse('$wsBaseUrl${WsConstants.sessionPath}?token=$token');
+    final uri = Uri.parse('$wsBaseUrl${WsConstants.sessionPath}');
 
     try {
-      _channel = WebSocketChannel.connect(uri);
+      _channel = IOWebSocketChannel.connect(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       _channel!.stream.listen(
         _onMessage,

@@ -8,5 +8,13 @@
       "types": "./index.ts",
       "default": "./index.ts"
     }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
   }
 }

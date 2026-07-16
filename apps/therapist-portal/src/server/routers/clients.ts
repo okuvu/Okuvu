@@ -198,12 +198,13 @@ export const clientsRouter = router({
 
       const config = await db.clinicalConfig.findUnique({
         where: { user_id: input.clientId },
-        select: { care_plan_id: true, assignment_state: true },
+        select: { care_plan_id: true, assignment_state: true, created_at: true },
       });
 
       return {
         care_plan_id: config?.care_plan_id ?? "CP1",
         assignment_state: config?.assignment_state ?? "provisional",
+        created_at: config?.created_at?.toISOString() ?? null,
       };
     }),
 
@@ -222,21 +223,8 @@ export const clientsRouter = router({
 
       const existing = await db.clinicalConfig.findUnique({
         where: { user_id: input.clientId },
-        select: { care_plan_id: true, assignment_state: true },
+        select: { care_plan_id: true },
       });
-
-      if (
-        existing &&
-        existing.care_plan_id === input.carePlanId &&
-        existing.assignment_state === "confirmed"
-      ) {
-        return {
-          success: true,
-          clientId: input.clientId,
-          carePlanId: existing.care_plan_id,
-          assignmentState: existing.assignment_state,
-        };
-      }
 
       const result = await db.clinicalConfig.upsert({
         where: { user_id: input.clientId },
@@ -249,7 +237,11 @@ export const clientsRouter = router({
           care_plan_id: input.carePlanId,
           assignment_state: "confirmed",
         },
-        select: { care_plan_id: true, assignment_state: true },
+        select: {
+          care_plan_id: true,
+          assignment_state: true,
+          created_at: true,
+        },
       });
 
       return {
@@ -257,6 +249,7 @@ export const clientsRouter = router({
         clientId: input.clientId,
         carePlanId: result.care_plan_id,
         assignmentState: result.assignment_state,
+        created_at: result.created_at.toISOString(),
       };
     }),
 });
