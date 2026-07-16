@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dio/dio.dart';
 import '../../core/providers.dart';
+import '../../router/router.dart';
 
 enum _AuthStep { phone, otp }
 
@@ -187,9 +187,14 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
           );
 
       try {
-        await dio.post('/auth/verify-otp', data: {
+        final response = await dio.post('/auth/verify-otp', data: {
           'phone_number': _normalizePhone(_phoneController.text.trim()),
         });
+        final data = response.data;
+        final shouldOnboard = data is! Map<String, dynamic> || data['is_new_user'] != false;
+        if (shouldOnboard) {
+          ref.read(routerProvider).go('/onboarding/coldstart');
+        }
       } on DioException {
         if (!mounted) return;
         setState(() {
@@ -198,8 +203,6 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         });
         return;
       }
-
-      if (mounted) context.go('/onboarding/coldstart');
     } on FirebaseAuthException {
       if (!mounted) return;
       setState(() {
