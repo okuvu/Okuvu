@@ -1,8 +1,8 @@
 enum Environment {
   dev(
     label: 'dev',
-    apiBaseUrl: 'http://192.168.29.95:8080',
-    wsBaseUrl: 'ws://192.168.29.95:8080',
+    apiBaseUrl: 'http://10.0.2.2:8080',
+    wsBaseUrl: 'ws://10.0.2.2:8080',
   ),
   beta(
     label: 'beta',

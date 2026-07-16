@@ -74,8 +74,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (session == SessionState.authenticated) {
-        if (location == '/auth') {
-          return '/home';
+        if (location == '/auth' || location == '/splash') {
+          return '/onboarding/coldstart';
         }
       }
 
