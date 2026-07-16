@@ -108,7 +108,6 @@ Widget _voiceFixture(Dio dio) {
   );
 }
 
-
 void main() {
   AppConfig.init('dev');
 
@@ -143,6 +142,28 @@ void main() {
 
       expect(find.byType(EmergencyContactScreen), findsOneWidget);
       expect(find.text('Back to Settings'), findsOneWidget);
+    });
+  });
+
+  group('Voice toggle default state', () {
+    testWidgets('voice toggle is OFF by default', (tester) async {
+      await tester.pumpWidget(_voiceFixture(_createMockDio()));
+
+      // Flush the initial GET /settings/voice microtask.
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+
+      // VoiceToggle should render (language available) and show OFF state.
+      expect(find.byType(VoiceToggle), findsNWidgets(2));
+      expect(find.text('voiceState=false'), findsOneWidget);
+
+      for (final tile in tester.widgetList<SwitchListTile>(
+        find.byType(SwitchListTile),
+      )) {
+        expect(tile.value, false);
+      }
     });
   });
 
