@@ -13,7 +13,10 @@ import 'package:evia/src/features/chat/models/chat_state.dart';
 
 class FakeWebSocketService extends WebSocketService {
   @override
-  void connect({required String wsBaseUrl, required String token}) {}
+Future<void> connect({
+  required String wsBaseUrl,
+  required String token,
+}) async {}
 
   @override
   void sendUserTurn(String content) {}
