@@ -163,5 +163,5 @@ describeIf('Rate Limiter Concurrency (Real DB)', () => {
       await prisma.sessionLimit.deleteMany({ where: { user_id: runUserId } });
       await prisma.user.delete({ where: { id: runUserId } });
     }
-  });
+  }, 30_000);
 });
