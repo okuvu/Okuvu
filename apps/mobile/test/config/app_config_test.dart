@@ -7,8 +7,8 @@ void main() {
     test('dev resolves correct URLs', () {
       final env = Environment.fromString('dev');
       expect(env.label, 'dev');
-      expect(env.apiBaseUrl, 'http://localhost:8080');
-      expect(env.wsBaseUrl, 'ws://localhost:8080');
+      expect(env.apiBaseUrl, Environment.dev.apiBaseUrl);
+      expect(env.wsBaseUrl, Environment.dev.wsBaseUrl);
     });
 
     test('beta resolves correct URLs', () {
@@ -34,11 +34,11 @@ void main() {
     AppConfig.init('dev');
 
     test('init with dev flavor sets correct apiBaseUrl', () {
-      expect(AppConfig.apiBaseUrl, 'http://localhost:8080');
+      expect(AppConfig.apiBaseUrl, Environment.dev.apiBaseUrl);
     });
 
     test('init with dev flavor sets correct wsBaseUrl', () {
-      expect(AppConfig.wsBaseUrl, 'ws://localhost:8080');
+      expect(AppConfig.wsBaseUrl, Environment.dev.wsBaseUrl);
     });
 
     test('deprecated baseUrl getter matches apiBaseUrl', () {

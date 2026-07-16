@@ -200,9 +200,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
-
     expect(find.text('9152987821'), findsOneWidget);
     expect(find.text('18602662345'), findsOneWidget);
     expect(find.text('08046110007'), findsOneWidget);
@@ -223,9 +220,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
-
     expect(find.text('Dismiss'), findsNothing);
   });
 
@@ -240,9 +234,6 @@ void main() {
         child: const App(),
       ),
     );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Crisis Support'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.emergency));
@@ -263,11 +254,6 @@ void main() {
         child: const App(),
       ),
     );
-    await tester.pumpAndSettle();
-
-    // No dioClientProvider or authServiceProvider override is needed.
-    // The crisis overlay renders with zero network calls.
-    await tester.tap(find.text('Crisis Support'));
     await tester.pumpAndSettle();
 
     expect(find.text('Crisis Support'), findsAtLeast(1));
