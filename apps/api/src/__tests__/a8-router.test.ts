@@ -133,4 +133,26 @@ describe('A8 Router — 4 Gates', () => {
       }
     });
   });
+
+  describe('A8 Router — 4 Gates (exactly one test per gate)', () => {
+    it('Gate 1 — Crisis: S4 routes to crisis agent', () => {
+      const input: RouterInput = { safety_state: 'S4', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'crisis' });
+    });
+
+    it('Gate 2 — Grounding: S3 routes to A2 grounding-only', () => {
+      const input: RouterInput = { safety_state: 'S3', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+    });
+
+    it('Gate 3 — Alliance-building: first session + first turn routes to A2 alliance-building', () => {
+      const input: RouterInput = { safety_state: 'S0', session_count: 1, turn_count: 1 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'alliance-building' });
+    });
+
+    it('Gate 4 — Restricted governance: Restricted routes to A2 grounding-only', () => {
+      const input: RouterInput = { safety_state: 'S0', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+    });
+  });
 });
