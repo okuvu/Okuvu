@@ -31,10 +31,10 @@ export async function tryAcquireSessionSlot(
 ): Promise<AcquireResult> {
   const [row] = await tx.$queryRaw<Array<{ allowed: boolean; sessions_used: bigint }>>`
     WITH attempt AS (
-      INSERT INTO "SessionLimit" (id, user_id, tier, date_ist, sessions_used)
-      VALUES (gen_random_uuid(), ${userId}, ${tier}::"Tier", ${dateIst}::date, 1)
+      INSERT INTO "SessionLimit" (id, user_id, tier, date_ist, sessions_used, updated_at)
+      VALUES (gen_random_uuid(), ${userId}, ${tier}::"Tier", ${dateIst}::date, 1, NOW())
       ON CONFLICT (user_id, date_ist)
-      DO UPDATE SET sessions_used = "SessionLimit".sessions_used + 1
+      DO UPDATE SET sessions_used = "SessionLimit".sessions_used + 1, updated_at = NOW()
       WHERE "SessionLimit".sessions_used < ${dailyLimit}
       RETURNING sessions_used
     )
