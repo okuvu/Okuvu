@@ -1,13 +1,10 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
+import { verifyFirebaseToken } from '../lib/firebase-verify.js';
 
 const BYPASS_UID = 'mock-firebase-uid-1';
 
 function isBypassEnabled(): boolean {
   return process.env.LOCAL_DEV_BYPASS_AUTH === 'true';
-}
-
-async function verifyFirebaseToken(token: string): Promise<{ uid: string }> {
-  throw new Error('Real Firebase verification not yet implemented');
 }
 
 export async function verifyFirebaseJWT(
