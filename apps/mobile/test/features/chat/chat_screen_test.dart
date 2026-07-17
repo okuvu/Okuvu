@@ -125,20 +125,19 @@ void main() {
 
       container.read(chatMessagesProvider.notifier).state = const ChatState(
         messages: [],
-        turnCount: 3,
+        turnCount: 10,
         isSessionClosed: true,
       );
             await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('3/10 turns'), findsOneWidget);
-      expect(find.text('Session ended'), findsOneWidget);
+      expect(find.text('10 of 10'), findsOneWidget);
+      expect(find.text('Session complete for today.'), findsOneWidget);
 
-      final textField = tester.widget<TextField>(find.byType(TextField));
-      expect(textField.enabled, isFalse);
-      expect(textField.decoration?.hintText, 'Session ended');
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Back to Home'), findsOneWidget);
+      
 
-      final sendButton = tester.widget<IconButton>(find.byType(IconButton));
-      expect(sendButton.onPressed, isNull);
+     
       await tester.pumpAndSettle();
     });
   });
