@@ -19,7 +19,7 @@ void main() {
       // --- Login ---
       await $('Sign In').waitUntilVisible();
       await $.pumpAndSettle();
-      await $(ValueKey('phone_input')).enterText(_testPhone);
+      await $(const ValueKey('phone_input')).enterText(_testPhone);
       await $('Continue with Phone').tap();
 
       await $('OTP Verification').waitUntilVisible();
