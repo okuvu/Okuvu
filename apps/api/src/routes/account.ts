@@ -58,11 +58,14 @@ export async function accountRoute(app: FastifyInstance): Promise<void> {
       }
 
       await prisma.$transaction(async (tx) => {
-        await tx.emergencyContact.delete({ where: { user_id: user.id } });
-        await tx.engagementProfile.delete({ where: { user_id: user.id } });
+        await tx.emergencyContact.deleteMany({ where: { user_id: user.id } });
+        await tx.engagementProfile.deleteMany({ where: { user_id: user.id } });
         await tx.sessionLimit.deleteMany({ where: { user_id: user.id } });
-        await tx.clinicalConfig.delete({ where: { user_id: user.id } });
-        await tx.safetyState.delete({ where: { user_id: user.id } });
+        await tx.clinicalConfig.deleteMany({ where: { user_id: user.id } });
+        await tx.safetyState.deleteMany({ where: { user_id: user.id } });
+        await tx.turn.deleteMany({ where: { user_id: user.id } });
+        await tx.sessionSummary.deleteMany({ where: { user_id: user.id } });
+        await tx.moodLog.deleteMany({ where: { user_id: user.id } });
         await tx.sessionLog.deleteMany({ where: { user_id: user.id } });
         await tx.user.update({
           where: { id: user.id },
