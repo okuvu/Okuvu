@@ -200,13 +200,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('9152987821'), findsOneWidget);
-    expect(find.text('18602662345'), findsOneWidget);
-    expect(find.text('08046110007'), findsOneWidget);
-    expect(find.text('04424640050'), findsOneWidget);
+    expect(find.text('1860-2662-345'), findsOneWidget);
+    expect(find.text('080-46110007'), findsOneWidget);
+    expect(find.text('044-24640050'), findsOneWidget);
     expect(find.text('112'), findsOneWidget);
   });
 
@@ -223,8 +222,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('Dismiss'), findsNothing);
   });
@@ -242,14 +240,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.emergency));
+    await tester.tap(find.byKey(const Key('crisisOverlayShieldIcon')));
     await tester.pumpAndSettle();
 
     expect(find.text('9152987821'), findsOneWidget);
-    expect(find.text('Crisis Support'), findsAtLeast(1));
+    expect(find.text("You're not alone."), findsOneWidget);
   });
 
   testWidgets('Crisis overlay requires no network dependencies',
@@ -267,15 +264,19 @@ void main() {
 
     // No dioClientProvider or authServiceProvider override is needed.
     // The crisis overlay renders with zero network calls.
-    await tester.tap(find.text('Crisis Support'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    expect(find.text('Crisis Support'), findsAtLeast(1));
+    expect(find.text("You're not alone."), findsOneWidget);
     expect(find.text('9152987821'), findsOneWidget);
   });
 
   testWidgets('Unknown route shows not-found page',
       (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
     final router = GoRouter(
       initialLocation: '/nonexistent-route',
       routes: const [],
