@@ -204,14 +204,14 @@ void main() {
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Profile'), findsOneWidget);
-      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('My Focus Area'), findsOneWidget);
+      expect(find.text('Emergency Contact'), findsOneWidget);
     });
   });
 
   group('ChatScreen post-session-close return to home', () {
     testWidgets(
-      'SESSION_CLOSED -> SRS modal -> Skip -> navigates to /home',
+      'SESSION_CLOSED -> SRS modal -> Skip -> stays on ChatScreen',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 1920);
         tester.view.devicePixelRatio = 1.0;
@@ -247,14 +247,13 @@ void main() {
         // Verify we are on ChatScreen
         expect(find.byType(ChatScreen), findsOneWidget);
 
-        // Add a user message so the chat isn't empty
+        // Trigger session closed state transition
         final container = ProviderScope.containerOf(
           tester.element(find.byType(ChatScreen)),
         );
         container.read(chatMessagesProvider.notifier).addUserMessage('Hello');
         await tester.pump();
 
-        // Trigger session closed state transition
         final current = container.read(chatMessagesProvider);
         container.read(chatMessagesProvider.notifier).state =
             current.copyWith(isSessionClosed: true);
@@ -265,21 +264,20 @@ void main() {
         await tester.pumpAndSettle();
 
         // SRS modal should be visible
-        expect(find.text('Session Feedback'), findsOneWidget);
+        expect(find.text('How was this session?'), findsOneWidget);
 
         // Tap Skip to dismiss the modal
         await tester.ensureVisible(find.text('Skip'));
         await tester.tap(find.text('Skip'), warnIfMissed: false);
         await tester.pumpAndSettle();
 
-        // Should navigate to /home
-        expect(find.byType(HomeScreen), findsOneWidget);
-        expect(find.text('How are you feeling today?'), findsOneWidget);
+        // Should stay on ChatScreen (navigate to /home only on back press)
+        expect(find.byType(ChatScreen), findsOneWidget);
       },
     );
 
     testWidgets(
-      'SESSION_CLOSED -> SRS modal Submit -> navigates to /home',
+      'SESSION_CLOSED -> SRS modal -> Rate Helpful -> auto-dismisses',
       (tester) async {
         tester.view.physicalSize = const Size(1080, 1920);
         tester.view.devicePixelRatio = 1.0;
@@ -329,16 +327,17 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
         await tester.pumpAndSettle();
 
-        expect(find.text('Session Feedback'), findsOneWidget);
+        expect(find.text('How was this session?'), findsOneWidget);
 
-        // Tap Submit to dismiss the modal
-        await tester.ensureVisible(find.text('Submit'));
-        await tester.tap(find.text('Submit'), warnIfMissed: false);
+        // Tap a rating option (Helpful) — no Submit button in current SRS modal
+        await tester.ensureVisible(find.text('Helpful'));
+        await tester.tap(find.text('Helpful'), warnIfMissed: false);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 800));
         await tester.pumpAndSettle();
 
-        // Should navigate to /home
-        expect(find.byType(HomeScreen), findsOneWidget);
-        expect(find.text('How are you feeling today?'), findsOneWidget);
+        // Modal auto-dismisses after confirmation; stays on ChatScreen
+        expect(find.byType(ChatScreen), findsOneWidget);
       },
     );
   });

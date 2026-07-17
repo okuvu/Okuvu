@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/app_config.dart';
 import 'care_plan_provider.dart';
+import 'onboarding_provider.dart';
 
 class ColdStartScreen extends ConsumerStatefulWidget {
   const ColdStartScreen({super.key});
@@ -14,6 +16,24 @@ class ColdStartScreen extends ConsumerStatefulWidget {
 class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
   bool _navigated = false;
 
+  void _resolveNextScreen() {
+    if (_navigated) return;
+    _navigated = true;
+
+    if (ref.read(hasCompletedOnboardingProvider)) {
+      context.go('/home');
+      return;
+    }
+
+    if (AppConfig.flavor == 'dev') {
+      ref.read(hasCompletedOnboardingProvider.notifier).complete();
+      context.go('/home');
+      return;
+    }
+
+    context.go('/onboarding/consent');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -21,16 +41,10 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
     ref.listen<AsyncValue<UserCarePlan?>>(userCarePlanProvider, (prev, next) {
       next.whenOrNull(
         data: (plan) {
-          if (_navigated) return;
-          if (plan == null) {
-            _navigated = true;
-            context.go('/onboarding/consent');
-          }
+          if (plan == null) _resolveNextScreen();
         },
         error: (_, __) {
-          if (_navigated) return;
-          _navigated = true;
-          context.go('/onboarding/consent');
+          _resolveNextScreen();
         },
       );
     });
@@ -44,18 +58,12 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
             child: CircularProgressIndicator(),
           ),
           error: (_, __) {
-            if (!_navigated) {
-              _navigated = true;
-              context.go('/onboarding/consent');
-            }
+            _resolveNextScreen();
             return const SizedBox.shrink();
           },
           data: (plan) {
             if (plan == null) {
-              if (!_navigated) {
-                _navigated = true;
-                context.go('/onboarding/consent');
-              }
+              _resolveNextScreen();
               return const SizedBox.shrink();
             }
             return _buildContent(theme, plan.focusAreaName);

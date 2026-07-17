@@ -78,7 +78,7 @@ Widget _settingsApp(Dio dio) {
             builder: (_, __) => const SettingsScreen(),
             routes: [
               GoRoute(
-                path: 'emergency-contact',
+                path: 'emergency',
                 builder: (_, __) => const EmergencyContactScreen(),
               ),
             ],
@@ -116,23 +116,22 @@ void main() {
 
   group('SettingsScreen', () {
     testWidgets(
-      'renders all entries: Profile, Notifications, Voice, Privacy, '
-      'Emergency Contact, About, Delete Account',
+      'renders all entries: My Focus Area, Emergency Contact, '
+      'Privacy & Data, Language, Voice, Delete Account',
       (tester) async {
         await tester.pumpWidget(_settingsApp(_createMockDio()));
         await tester.pumpAndSettle();
 
-        expect(find.text('Profile'), findsOneWidget);
-        expect(find.text('Notifications'), findsOneWidget);
-        expect(find.byType(VoiceToggle), findsOneWidget);
-        expect(find.text('Privacy'), findsOneWidget);
+        expect(find.text('My Focus Area'), findsOneWidget);
         expect(find.text('Emergency Contact'), findsOneWidget);
-        expect(find.text('About'), findsOneWidget);
+        expect(find.text('Privacy & Data'), findsOneWidget);
+        expect(find.text('Language'), findsOneWidget);
+        expect(find.text('Voice'), findsOneWidget);
         expect(find.text('Delete Account'), findsOneWidget);
       },
     );
 
-    testWidgets('Emergency Contact tile navigates to placeholder sub-screen',
+    testWidgets('Emergency Contact tile navigates to EmergencyContactScreen',
         (tester) async {
       await tester.pumpWidget(_settingsApp(_createMockDio()));
       await tester.pumpAndSettle();
@@ -141,7 +140,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(EmergencyContactScreen), findsOneWidget);
-      expect(find.text('Back to Settings'), findsOneWidget);
+    });
+
+    testWidgets('displays version string at bottom', (tester) async {
+      await tester.pumpWidget(_settingsApp(_createMockDio()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Version 1.0.0'), findsOneWidget);
     });
   });
 
@@ -174,7 +179,6 @@ void main() {
       (tester) async {
         await tester.pumpWidget(_voiceFixture(_createMockDio()));
 
-        // Flush the initial GET /settings/voice microtask and any subsequent patches.
         await tester.runAsync(() async {
           await Future<void>.delayed(const Duration(milliseconds: 50));
         });

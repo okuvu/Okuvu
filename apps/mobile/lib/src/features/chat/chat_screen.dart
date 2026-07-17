@@ -127,6 +127,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (previous != null &&
           !previous.isSessionClosed &&
           next.isSessionClosed) {
+        if (ref.read(crisisOverlayProvider)) {
+          return;
+        }
+        if (ref.read(wsConnectionStateProvider) ==
+            WsConnectionState.reconnecting) {
+          return;
+        }
         if (mounted) {
           setState(() => _isAgentTyping = false);
         }
@@ -136,7 +143,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               !_srsTriggered) {
             _srsTriggered = true;
             await showSrsModal(context);
-            if (context.mounted) context.go('/home');
           }
         });
       }
