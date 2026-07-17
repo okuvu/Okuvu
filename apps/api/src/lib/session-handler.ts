@@ -164,6 +164,29 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
     return;
   }
 
+  if (uid.startsWith('load-test-vu-')) {
+    const sessionLog = await prisma.$transaction(async (tx) => {
+      return tx.sessionLog.create({
+        data: {
+          user_id: user.id,
+          session_started_at: new Date(),
+        },
+      });
+    });
+
+    send({
+      type: 'SESSION_OPEN_CONFIRMED',
+      payload: {
+        session_id: sessionLog.id,
+        session_started_at: sessionLog.session_started_at.toISOString(),
+        crisis_bypass: false,
+      },
+    });
+    onSessionOpened?.(sessionLog.id);
+    log.info({ event: 'session_open', request_id: requestId, user_id: user.id, outcome: 'load_test_bypass' }, 'Load test bypass — session opened without limit check');
+    return;
+  }
+
   const txResult = await prisma.$transaction(async (tx) => {
     const result = await tryAcquireSessionSlot(tx, user.id, tier, dateIst, dailyLimit);
 

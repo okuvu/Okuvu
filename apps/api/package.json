@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:load": "k6 run load-tests/k6-websocket-load.js"
   },
   "dependencies": {
     "@evia/prisma": "workspace:*",
