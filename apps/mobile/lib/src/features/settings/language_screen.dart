@@ -30,14 +30,37 @@ class LanguageScreen extends StatelessWidget {
           ),
           title: const Text('Language'),
         ),
-        body: ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: _languages.length,
-          separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
-          itemBuilder: (context, index) {
-            final lang = _languages[index];
-            return _LanguageTile(language: lang, theme: theme);
-          },
+        body: Column(
+          children: [
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: _languages.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+                itemBuilder: (context, index) {
+                  final lang = _languages[index];
+                  return _LanguageTile(language: lang, theme: theme);
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            Opacity(
+              opacity: 0.5,
+              child: SwitchListTile(
+                secondary: Icon(Icons.compare_arrows, color: theme.colorScheme.onSurfaceVariant),
+                title: Text(
+                  'Code-switch',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                subtitle: Text(
+                  'Mix languages in conversation',
+                  style: theme.textTheme.bodySmall,
+                ),
+                value: false,
+                onChanged: null,
+              ),
+            ),
+          ],
         ),
       ),
     );

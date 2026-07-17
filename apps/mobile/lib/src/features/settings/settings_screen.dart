@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/providers.dart';
+import '../../widgets/voice_toggle.dart';
 
 const _kIconColor = Color(0xFF6B6B6B);
 const _kLabelColor = Color(0xFF1A1A1A);
@@ -12,8 +12,6 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final voiceSettings = ref.watch(voiceSettingsStateProvider);
-    final voiceNotifier = ref.read(voiceSettingsProvider.notifier);
 
     return PopScope(
       canPop: false,
@@ -53,22 +51,7 @@ class SettingsScreen extends ConsumerWidget {
                     title: 'Language',
                     onTap: () => context.go('/settings/language'),
                   ),
-                  if (voiceSettings.isLoading)
-                    const _SettingsTile(
-                      icon: Icons.volume_up,
-                      title: 'Voice',
-                      showTrailing: false,
-                    )
-                  else
-                    SwitchListTile(
-                      secondary: const Icon(Icons.volume_up),
-                      title: const Text('Voice'),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                      value: voiceSettings.voiceEnabled,
-                      onChanged: (v) => voiceNotifier.toggleVoice(v),
-                      activeThumbColor: const Color(0xFF1A6B5A),
-                      inactiveTrackColor: const Color(0xFFC4C0BC),
-                    ),
+                  const VoiceToggle(),
                   const SizedBox(height: 8),
                   const Divider(height: 1),
                   _SettingsTile(
