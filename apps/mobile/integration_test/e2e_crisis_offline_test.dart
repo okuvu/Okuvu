@@ -61,9 +61,9 @@ void main() {
       // Verify crisis content loaded
       await $('You\'re not alone.').waitUntilVisible();
       expect($('9152987821').visible, isTrue);
-      expect($('18602662345').visible, isTrue);
-      expect($('08046110007').visible, isTrue);
-      expect($('04424640050').visible, isTrue);
+      expect($('1860-2662-345').visible, isTrue);
+      expect($('080-46110007').visible, isTrue);
+      expect($('044-24640050').visible, isTrue);
       expect($('112').visible, isTrue);
 
       // --- Enable actual airplane mode via ADB ---
@@ -72,9 +72,9 @@ void main() {
 
       // Assert all crisis content is still visible without network
       expect($('9152987821').visible, isTrue);
-      expect($('18602662345').visible, isTrue);
-      expect($('08046110007').visible, isTrue);
-      expect($('04424640050').visible, isTrue);
+      expect($('1860-2662-345').visible, isTrue);
+      expect($('080-46110007').visible, isTrue);
+      expect($('044-24640050').visible, isTrue);
       expect($('112').visible, isTrue);
       expect($('You\'re not alone.').visible, isTrue);
       expect($('Here are some people you can call right now.').visible, isTrue);
