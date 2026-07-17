@@ -132,6 +132,20 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
 
         req.log.info({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, msg_len: message.length }, 'Processing USER_TURN');
 
+        if (uid.startsWith('load-test-vu-')) {
+          send({
+            type: 'AGENT_TURN',
+            payload: {
+              session_id,
+              message: 'Canned load-test response.',
+              turn_count: 1,
+              turn_id: crypto.randomUUID(),
+              tts_url: null,
+            },
+          });
+          return;
+        }
+
         try {
           const result = await processTurn(uid, session_id, message.trim());
 
