@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   for (let i = 1; i <= 50; i++) {
-    const uid = `load-test-user-${String(i).padStart(2, '0')}`;
+    const uid = `load-test-vu-${i}`;
     await prisma.user.upsert({
       where: { firebase_uid: uid },
       update: {},

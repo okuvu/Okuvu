@@ -1,9 +1,14 @@
 import { WebSocket } from 'k6/experimental/websockets';
 import { check } from 'k6';
+import { Trend, Rate } from 'k6/metrics';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 const LOAD_TEST_KEY = __ENV.LOAD_TEST_KEY;
 const WS_URL = __ENV.WS_URL || 'wss://evia-beta-xxxx-uc.a.run.app/ws';
+
+const turnLatency = new Trend('turn_latency', true);
+const wsErrors = new Rate('ws_errors');
+const sessionOpens = new Rate('session_opens');
 
 export const options = {
   stages: [
@@ -23,6 +28,7 @@ export default function () {
   const vuId = __VU;
   let sessionId = null;
   let turnCount = 0;
+  let lastTurnSentAt = 0;
 
   const ws = new WebSocket(WS_URL, null, {
     headers: {
@@ -41,22 +47,38 @@ export default function () {
     if (frame.type === 'SESSION_OPEN_CONFIRMED') {
       sessionId = frame.payload.session_id;
       turnCount = 0;
-      setTimeout(() => sendTurn(ws, sessionId, ++turnCount), 300);
+      sessionOpens.add(1);
+      setTimeout(() => {
+        lastTurnSentAt = Date.now();
+        ws.send(JSON.stringify({
+          type: 'USER_TURN',
+          payload: { session_id: sessionId, message: `Load test turn ${++turnCount}.` },
+        }));
+      }, 300);
       return;
     }
 
     if (frame.type === 'SESSION_OPEN_REJECTED') {
+      sessionOpens.add(0);
       ws.close();
       return;
     }
 
     if (frame.type === 'AGENT_TURN') {
+      const latency = Date.now() - lastTurnSentAt;
+      turnLatency.add(latency);
       check(frame, { 'agent turn received': () => true });
       if (turnCount >= 10) {
         ws.send(JSON.stringify({ type: 'SESSION_CLOSE', payload: {} }));
       } else {
         const delay = randomIntBetween(6000, 10000);
-        setTimeout(() => sendTurn(ws, sessionId, ++turnCount), delay);
+        setTimeout(() => {
+          lastTurnSentAt = Date.now();
+          ws.send(JSON.stringify({
+            type: 'USER_TURN',
+            payload: { session_id: sessionId, message: `Load test turn ${++turnCount}.` },
+          }));
+        }, delay);
       }
       return;
     }
@@ -67,21 +89,13 @@ export default function () {
       }, 2000);
       return;
     }
+
+    if (frame.type === 'ERROR') {
+      wsErrors.add(1);
+    }
   };
 
-  ws.onerror = () => {};
-  ws.onclose = () => {};
-}
-
-function sendTurn(ws, sid, num) {
-  if (ws.readyState !== WebSocket.OPEN) return;
-  const sentAt = Date.now();
-  ws.send(JSON.stringify({
-    type: 'USER_TURN',
-    payload: {
-      session_id: sid,
-      message: `Load test turn ${num}.`,
-      __sent_at: sentAt,
-    },
-  }));
+  ws.onerror = () => {
+    wsErrors.add(1);
+  };
 }
