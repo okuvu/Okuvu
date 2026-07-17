@@ -127,6 +127,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (previous != null &&
           !previous.isSessionClosed &&
           next.isSessionClosed) {
+        if (ref.read(crisisOverlayProvider)) {
+          return;
+        }
+        if (ref.read(wsConnectionStateProvider) ==
+            WsConnectionState.reconnecting) {
+          return;
+        }
         if (mounted) {
           setState(() => _isAgentTyping = false);
         }
@@ -136,7 +143,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               !_srsTriggered) {
             _srsTriggered = true;
             await showSrsModal(context);
-            if (context.mounted) context.go('/home');
           }
         });
       }
@@ -306,6 +312,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
+                key: const ValueKey('back_to_home'),
                 onPressed: _onBackToHome,
                 child: const Text('Back to Home'),
               ),
@@ -336,6 +343,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Expanded(
             child: TextField(
+              key: const ValueKey('chat_input'),
               controller: _textController,
               textInputAction: TextInputAction.send,
               onSubmitted: isInputDisabled ? null : (_) => _sendMessage(),
@@ -349,6 +357,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ),
           IconButton(
+            key: const ValueKey('chat_send'),
             onPressed: isInputDisabled ? null : _sendMessage,
             icon: const Icon(Icons.send_rounded),
             style: IconButton.styleFrom(

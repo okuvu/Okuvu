@@ -41,16 +41,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ),
     );
 
-    _controller.addStatusListener((status) {
-      if (status != AnimationStatus.completed || !mounted) return;
-      final session = ref.read(sessionProvider);
-      if (session == SessionState.authenticated) {
-        context.go('/onboarding/coldstart');
-      } else if (session == SessionState.unauthenticated) {
-        context.go('/auth');
-      }
-    });
-
     _controller.forward();
   }
 
@@ -60,8 +50,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.dispose();
   }
 
+  void _onSessionResolved(SessionState session) {
+    if (!mounted) return;
+    if (session == SessionState.authenticated) {
+      context.go('/onboarding/coldstart');
+    } else if (session == SessionState.unauthenticated) {
+      context.go('/auth');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<SessionState>(sessionProvider, (prev, next) {
+      if (next == SessionState.initial) return;
+      _onSessionResolved(next);
+    });
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarIconBrightness: Brightness.light,

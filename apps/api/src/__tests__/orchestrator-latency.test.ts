@@ -60,7 +60,7 @@ const defaultContext = {
   care_plan: { care_plan_id: 'CP1' as const, assignment_state: 'provisional' as const },
   recent_history: [],
   session_summary: null,
-  engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false },
+  engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
 };
 
 function simulateLatency(ms: number): Promise<void> {

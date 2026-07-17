@@ -1,0 +1,4 @@
+android:
+  app: apps/mobile/build/app/outputs/flutter-apk/app-beta-debug.apk
+ios:
+  app: apps/mobile/build/ios/iphonesimulator/Runner.app

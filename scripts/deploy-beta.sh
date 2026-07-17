@@ -14,6 +14,8 @@ readonly IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 readonly BACKEND_SOURCE="apps/api"
 readonly SECRETS="DATABASE_URL=DATABASE_URL:latest,SARVAM_API_KEY=SARVAM_API_KEY:latest,GOOGLE_APPLICATION_CREDENTIALS=GOOGLE_APPLICATION_CREDENTIALS:latest"
 
+LOAD_TEST_MODE=false
+
 # Resolve project root (scripts/ is one level deep)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -54,6 +56,12 @@ fi
 
 info "All checks passed."
 
+# Parse optional --load-test flag
+if [[ "${1:-}" == "--load-test" ]]; then
+  LOAD_TEST_MODE=true
+  shift
+fi
+
 # --- Build image via Cloud Build -------------------------
 info "Building Docker image..."
 gcloud builds submit \
@@ -65,16 +73,28 @@ info "Image built: ${IMAGE}"
 
 # --- Deploy to Cloud Run ---------------------------------
 info "Deploying to Cloud Run..."
-gcloud run deploy "${SERVICE_NAME}" \
-  --image "${IMAGE}" \
-  --region "${REGION}" \
-  --project "${PROJECT_ID}" \
-  --service-account "${SERVICE_ACCOUNT}" \
-  --port 8080 \
-  --add-cloudsql-instances evia-500215:asia-south1:evia-db \
-  --set-secrets "${SECRETS}" \
-  --min-instances 1 \
-  --max-instances 4 \
+
+DEPLOY_ARGS=(
+  --image "${IMAGE}"
+  --region "${REGION}"
+  --project "${PROJECT_ID}"
+  --service-account "${SERVICE_ACCOUNT}"
+  --port 8080
+  --add-cloudsql-instances evia-500215:asia-south1:evia-db
+  --set-secrets "${SECRETS}"
+  --min-instances 1
+  --max-instances 4
   --allow-unauthenticated
+)
+
+if [[ "${LOAD_TEST_MODE}" == "true" ]]; then
+  DEPLOY_ARGS+=(
+    --set-env-vars "LOAD_TEST_MODE=true"
+    --update-secrets "LOAD_TEST_KEY=LOAD_TEST_KEY:latest"
+  )
+  info "Load test mode enabled — LOAD_TEST_MODE=true, LOAD_TEST_KEY from Secret Manager"
+fi
+
+gcloud run deploy "${SERVICE_NAME}" "${DEPLOY_ARGS[@]}"
 
 info "Deploy successful!"

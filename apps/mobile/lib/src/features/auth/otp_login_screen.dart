@@ -262,6 +262,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         ),
         const SizedBox(height: 32),
         TextField(
+          key: const ValueKey('phone_input'),
           controller: _phoneController,
           decoration: InputDecoration(
             labelText: 'Phone Number',
