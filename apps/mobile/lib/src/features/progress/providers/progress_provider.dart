@@ -15,7 +15,7 @@ final moodProgressProvider =
   final responseData = response.data;
 
   final List<dynamic> items = responseData is Map<String, dynamic>
-      ? (responseData['data'] as List<dynamic>? ?? [])
+      ? (responseData['entries'] as List<dynamic>? ?? [])
       : (responseData as List<dynamic>? ?? []);
 
   return items

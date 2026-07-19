@@ -132,8 +132,6 @@ export const clientsRouter = router({
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
 
-      console.log(`[AUDIT] Therapist ${therapistId} viewed client ${input.clientUserId} detail`);
-
       const client = await db.user.findUnique({
         where: { id: input.clientUserId },
         include: {
@@ -239,23 +237,18 @@ export const clientsRouter = router({
           care_plan_id: input.carePlanId,
           assignment_state: "confirmed",
         },
-        select: { care_plan_id: true, assignment_state: true, created_at: true },
+        select: {
+          care_plan_id: true,
+          assignment_state: true,
+          created_at: true,
+        },
       });
-
-      console.log(JSON.stringify({
-        event: "care_plan_change",
-        therapist_id: therapistId,
-        client_id: input.clientId,
-        old_care_plan: existing?.care_plan_id ?? null,
-        new_care_plan: input.carePlanId,
-        timestamp: new Date().toISOString(),
-      }));
 
       return {
         success: true,
         clientId: input.clientId,
-        care_plan_id: result.care_plan_id,
-        assignment_state: result.assignment_state,
+        carePlanId: result.care_plan_id,
+        assignmentState: result.assignment_state,
         created_at: result.created_at.toISOString(),
       };
     }),
