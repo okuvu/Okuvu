@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleTurn } from '../agents/a2/agent.js';
-import type { A2Input } from '../agents/a2/types.js';
-import { DEFAULT_MAX_OUTPUT_TOKENS } from '../lib/vertex-ai.js';
+import { handleTurn, parseA2Response } from '../agents/a2/agent.js';
+import type { A2Input, S06Signal } from '../agents/a2/types.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
@@ -17,6 +16,11 @@ function makeInput(overrides: Partial<A2Input> = {}): A2Input {
     userId: 'user-1',
     message: 'I have been feeling anxious lately',
     carePlan: 'CP1',
+    safetyState: 'S1',
+    sessionNumber: 2,
+    turnNumber: 1,
+    sessionHistorySummary: null,
+    perceivedIntensity: null,
     mode: 'normal',
     recentHistory: [],
     sessionSummary: null,
@@ -29,47 +33,96 @@ describe('A2 Emotion Regulation Agent', () => {
     vi.clearAllMocks();
   });
 
-  describe('CP1 / CP2 / CP3 care plan handling', () => {
-    for (const cp of ['CP1', 'CP2', 'CP3'] as const) {
-      it(`includes ${cp} care plan context in the prompt`, async () => {
-        mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+  describe('context variable injection', () => {
+    it('replaces ${care_plan} in the prompt', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
 
-        await handleTurn(makeInput({ carePlan: cp }));
+      await handleTurn(makeInput({ carePlan: 'CP2' }));
 
-        const callArgs = mockGenerateContent.mock.calls[0][0];
-        expect(callArgs.systemInstruction).toContain(`care plan ${cp}`);
-      });
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('CP2');
+    });
 
-      it(`includes the ${cp} description in the prompt`, async () => {
-        mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+    it('replaces ${safety_state} in the prompt', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
 
-        await handleTurn(makeInput({ carePlan: cp }));
+      await handleTurn(makeInput({ safetyState: 'S0' }));
 
-        const callArgs = mockGenerateContent.mock.calls[0][0];
-        const descriptions: Record<string, string> = {
-          CP1: 'psychoeducation',
-          CP2: 'cognitive reappraisal',
-          CP3: 'relapse prevention',
-        };
-        expect(callArgs.systemInstruction).toContain(descriptions[cp]);
-      });
-    }
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('S0');
+    });
+
+    it('replaces ${session_number} in the prompt', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ sessionNumber: 5 }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('session_number: 5');
+    });
+
+    it('replaces ${turn_number} in the prompt', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ turnNumber: 3 }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('turn_number: 3');
+    });
+
+    it('replaces ${session_history_summary} with value when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Welcome back.', fallbackUsed: false });
+
+      await handleTurn(makeInput({
+        sessionHistorySummary: 'User discussed workplace stress.',
+      }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('session_history_summary: User discussed workplace stress.');
+    });
+
+    it('replaces ${session_history_summary} with "null" when not provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'Hello!', fallbackUsed: false });
+
+      await handleTurn(makeInput({ sessionHistorySummary: null }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('session_history_summary: null');
+    });
+
+    it('replaces ${perceived_intensity} with value when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ perceivedIntensity: 7 }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('7');
+    });
+
+    it('replaces ${perceived_intensity} with "null" when not provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ perceivedIntensity: null }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('null');
+    });
   });
 
   describe('Turn 1 — empty context', () => {
     it('handles empty recentHistory gracefully', async () => {
       mockGenerateContent.mockResolvedValue({ text: 'Hello!', fallbackUsed: false });
 
-      const result = await handleTurn(makeInput({ recentHistory: [], sessionSummary: null }));
+      const result = await handleTurn(makeInput({ recentHistory: [], sessionHistorySummary: null }));
 
-      expect(result.response).toBe('Hello!');
+      expect(result.userContent).toBe('Hello!');
       expect(result.fallbackUsed).toBe(false);
     });
 
     it('passes only the current message when no history exists', async () => {
       mockGenerateContent.mockResolvedValue({ text: 'Hello!', fallbackUsed: false });
 
-      await handleTurn(makeInput({ recentHistory: [], sessionSummary: null }));
+      await handleTurn(makeInput({ recentHistory: [], sessionHistorySummary: null }));
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.contents).toHaveLength(1);
@@ -77,15 +130,6 @@ describe('A2 Emotion Regulation Agent', () => {
         role: 'user',
         parts: [{ text: 'I have been feeling anxious lately' }],
       });
-    });
-
-    it('excludes session summary from the prompt when null', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Hello!', fallbackUsed: false });
-
-      await handleTurn(makeInput({ sessionSummary: null }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).not.toContain('Previous session');
     });
   });
 
@@ -122,86 +166,6 @@ describe('A2 Emotion Regulation Agent', () => {
     });
   });
 
-  describe('session_summary awareness', () => {
-    it('includes session summary in the system instruction when provided', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Welcome back.', fallbackUsed: false });
-
-      await handleTurn(makeInput({
-        sessionSummary: 'User discussed workplace stress and identified triggers.',
-      }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('Context from the previous session');
-      expect(callArgs.systemInstruction).toContain('User discussed workplace stress and identified triggers.');
-    });
-  });
-
-  describe('mode flag handling', () => {
-    it('grounding-only mode constrains the prompt to grounding-focused support', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Lets try a grounding exercise.', fallbackUsed: false });
-
-      await handleTurn(makeInput({ mode: 'grounding-only' }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('grounding exercises');
-      expect(callArgs.systemInstruction).toContain('practical coping strategies');
-    });
-
-    it('alliance-building mode adds rapport-focused instructions', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'I am glad you are here.', fallbackUsed: false });
-
-      await handleTurn(makeInput({ mode: 'alliance-building' }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('therapeutic alliance');
-      expect(callArgs.systemInstruction).toContain('validation, warmth');
-    });
-
-    it('normal mode does not add mode-specific instructions', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Tell me more.', fallbackUsed: false });
-
-      await handleTurn(makeInput({ mode: 'normal' }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).not.toContain('grounding exercises');
-      expect(callArgs.systemInstruction).not.toContain('therapeutic alliance');
-    });
-
-    it('grounding-only prompt includes user-pushback redirection guidance', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Lets try a grounding exercise.', fallbackUsed: false });
-
-      await handleTurn(makeInput({ mode: 'grounding-only' }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('acknowledge their feelings');
-      expect(callArgs.systemInstruction).toContain('gently guide');
-      expect(callArgs.systemInstruction).toContain('Do not engage');
-    });
-
-    it('logs when grounding-only mode is active', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Lets ground ourselves.', fallbackUsed: false });
-
-      const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
-      await handleTurn(makeInput({ mode: 'grounding-only' }));
-
-      expect(spy).toHaveBeenCalledWith(
-        { mode: 'grounding-only' },
-        'A2: grounding mode active for turn',
-      );
-      spy.mockRestore();
-    });
-
-    it('does not log grounding mode when mode is normal', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Tell me more.', fallbackUsed: false });
-
-      const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
-      await handleTurn(makeInput({ mode: 'normal' }));
-
-      expect(spy).not.toHaveBeenCalled();
-      spy.mockRestore();
-    });
-  });
-
   describe('Gemini timeout / failure fallback', () => {
     it('passes through fallback response from Vertex AI wrapper on timeout', async () => {
       mockGenerateContent.mockResolvedValue({
@@ -211,7 +175,7 @@ describe('A2 Emotion Regulation Agent', () => {
 
       const result = await handleTurn(makeInput());
 
-      expect(result.response).toContain('here to support you');
+      expect(result.userContent).toContain('here to support you');
       expect(result.fallbackUsed).toBe(true);
     });
 
@@ -223,7 +187,7 @@ describe('A2 Emotion Regulation Agent', () => {
 
       const result = await handleTurn(makeInput());
 
-      expect(result.response).toBeTruthy();
+      expect(result.userContent).toBeTruthy();
       expect(result.fallbackUsed).toBe(true);
     });
 
@@ -237,41 +201,65 @@ describe('A2 Emotion Regulation Agent', () => {
     });
   });
 
-  describe('output token configuration', () => {
-    it('exports max_output_tokens as 250', () => {
-      expect(DEFAULT_MAX_OUTPUT_TOKENS).toBe(250);
+  describe('S-06 signal parsing', () => {
+    it('extracts user content and signal from a response with a JSON block', () => {
+      const raw = `That sounds really difficult.\n\n\`\`\`json\n${JSON.stringify({
+        signal: 'S-06',
+        agent: 'A2',
+        turn_number: 1,
+        technique_used: 'T2',
+        estimated_intensity: 6,
+        intensity_direction: 'rising',
+        mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
+        session_flags: { crisis_language_detected: false, validation_only_turn: false, technique_refused_by_user: false },
+        care_plan_fit: 'well_matched',
+      })}\n\`\`\``;
+
+      const parsed = parseA2Response(raw);
+
+      expect(parsed.userContent).toBe('That sounds really difficult.');
+      expect(parsed.signal).not.toBeNull();
+      expect(parsed.signal!.estimated_intensity).toBe(6);
+      expect(parsed.signal!.session_flags.crisis_language_detected).toBe(false);
+      expect(parsed.signal!.care_plan_fit).toBe('well_matched');
+    });
+
+    it('returns userContent as-is when no JSON block is present', () => {
+      const raw = 'Just a plain response.';
+
+      const parsed = parseA2Response(raw);
+
+      expect(parsed.userContent).toBe('Just a plain response.');
+      expect(parsed.signal).toBeNull();
+    });
+
+    it('handles malformed JSON block gracefully', () => {
+      const raw = 'Some text.\n\n```json\n{invalid json}\n```';
+
+      const parsed = parseA2Response(raw);
+
+      expect(parsed.userContent).toBe('Some text.');
+      expect(parsed.signal).toBeNull();
     });
   });
 
   describe('output format', () => {
-    it('returns plain conversational text as a string', async () => {
+    it('returns plain conversational text as a string via userContent', async () => {
       mockGenerateContent.mockResolvedValue({ text: 'That sounds really difficult.', fallbackUsed: false });
 
       const result = await handleTurn(makeInput());
 
-      expect(typeof result.response).toBe('string');
-      expect(result.response).toBe('That sounds really difficult.');
+      expect(typeof result.userContent).toBe('string');
+      expect(result.userContent).toBe('That sounds really difficult.');
     });
 
-    it('does not return JSON', async () => {
+    it('returns raw response property for logging/fallback', async () => {
       mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
 
       const result = await handleTurn(makeInput());
 
-      expect(result.response).not.toMatch(/^[{[]/);
-    });
-  });
-
-  describe('prompt structural separation — onboarding vs conversational', () => {
-    it('conversational prompt does not reference scoring', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'Okay.', fallbackUsed: false });
-
-      await handleTurn(makeInput());
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).not.toContain('scoring');
-      expect(callArgs.systemInstruction).not.toContain('carePlan');
-      expect(callArgs.systemInstruction).not.toContain('confidence');
+      expect(typeof result.response).toBe('string');
+      expect(result.response).toBe('I hear you.');
     });
   });
 });

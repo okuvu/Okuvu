@@ -11,6 +11,7 @@ export type PipelineResult =
       turnId: string | null
       timing: StageTiming[]
       fallbackUsed: boolean
+      estimatedIntensity: number | null
     }
   | {
       type: 'crisis'

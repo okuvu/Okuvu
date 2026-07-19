@@ -3,7 +3,6 @@ import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn } from '../agents/a2/agent.js';
-import { renderText } from '../agents/a12/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount } from './session.js';
@@ -25,6 +24,7 @@ export async function processTurn(
   uid: string,
   sessionId: string,
   message: string,
+  perceivedIntensity: number | null = null,
 ): Promise<PipelineResult> {
   const timing: StageTiming[] = [];
   const pipelineStart = now();
@@ -33,6 +33,15 @@ export async function processTurn(
   if (closed) {
     recordTiming(timing, 'validation', pipelineStart, now());
     return { type: 'error', errorCode: 'SESSION_CLOSED', timing };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { firebase_uid: uid },
+    select: { id: true },
+  });
+  if (!user) {
+    recordTiming(timing, 'validation', pipelineStart, now());
+    return { type: 'error', errorCode: 'USER_NOT_FOUND', timing };
   }
 
   const contextBundle = await getAgentContextBundle(uid);
@@ -63,7 +72,7 @@ export async function processTurn(
 
   const a8Start = now();
 
-  const sessionCount = await getSessionCount(uid);
+  const sessionCount = await getSessionCount(user.id);
   const session = await prisma.sessionLog.findUnique({
     where: { id: sessionId },
     select: { turn_count: true },
@@ -84,48 +93,46 @@ export async function processTurn(
   }
 
   const a2Start = now();
-  let a2Response: string;
+  let finalText: string;
   let a2Fallback = false;
+  let estimatedIntensity: number | null = null;
+  let crisisFlag = false;
+  let carePlanReviewFlag = false;
 
   try {
     const a2Result = await handleTurn({
       userId: uid,
       message,
       carePlan: (contextBundle.care_plan?.care_plan_id ?? 'CP1') as 'CP1' | 'CP2' | 'CP3',
+      safetyState: safetyState as 'S0' | 'S1' | 'S2',
+      sessionNumber: sessionCount + 1,
+      turnNumber: nextTurnNumber,
+      sessionHistorySummary: contextBundle.session_summary,
+      perceivedIntensity,
       mode: decision.mode ?? 'normal',
       recentHistory: (contextBundle.recent_history ?? []) as unknown as ConversationTurn[],
-      sessionSummary: contextBundle.session_summary,
     });
-    a2Response = a2Result.response;
+    finalText = a2Result.userContent;
     a2Fallback = a2Result.fallbackUsed;
+
+    if (a2Result.signal) {
+      estimatedIntensity = a2Result.signal.estimated_intensity;
+      crisisFlag = a2Result.signal.session_flags.crisis_language_detected;
+      carePlanReviewFlag = a2Result.signal.care_plan_fit === 'possible_mismatch';
+    }
   } catch {
-    a2Response = A2_DEGRADED_RESPONSE;
+    finalText = A2_DEGRADED_RESPONSE;
     a2Fallback = true;
   }
   const a2End = now();
   recordTiming(timing, 'A2_response', a2Start, a2End);
 
-  const a12Start = now();
-  let finalText: string;
-  let a12Fallback = false;
-
-  try {
-    const a12Result = await renderText({ text: a2Response });
-    finalText = a12Result.text;
-    a12Fallback = a12Result.fallbackUsed;
-  } catch {
-    finalText = a2Response;
-    a12Fallback = true;
-  }
-  const a12End = now();
-  recordTiming(timing, 'A12_rendering', a12Start, a12End);
-
   const newTurnCount = await incrementTurnCount(sessionId);
 
   await prisma.turn.createMany({
     data: [
-      { session_id: sessionId, user_id: uid, turn_number: newTurnCount, role: 'user', content: message },
-      { session_id: sessionId, user_id: uid, turn_number: newTurnCount, role: 'assistant', content: finalText },
+      { session_id: sessionId, user_id: user.id, turn_number: newTurnCount, role: 'user', content: message },
+      { session_id: sessionId, user_id: user.id, turn_number: newTurnCount, role: 'assistant', content: finalText },
     ],
   });
 
@@ -140,10 +147,24 @@ export async function processTurn(
   });
 
   await prisma.safetyState.upsert({
-    where: { user_id: uid },
+    where: { user_id: user.id },
     update: { safety_state_current: safetyState },
-    create: { user_id: uid, safety_state_current: safetyState },
+    create: { user_id: user.id, safety_state_current: safetyState },
   });
+
+  if (crisisFlag) {
+    await prisma.sessionLog.update({
+      where: { id: sessionId },
+      data: { crisis_flag_detected: true },
+    });
+  }
+
+  if (carePlanReviewFlag && contextBundle.care_plan?.id) {
+    await prisma.clinicalConfig.update({
+      where: { id: contextBundle.care_plan.id },
+      data: { care_plan_review_flagged: true },
+    });
+  }
 
   console.log({
     perf: 'total_turn',
@@ -157,6 +178,7 @@ export async function processTurn(
     turnCount: newTurnCount,
     turnId: assistantTurn?.id ?? null,
     timing,
-    fallbackUsed: a2Fallback || a12Fallback,
+    fallbackUsed: a2Fallback,
+    estimatedIntensity,
   };
 }

@@ -82,6 +82,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
     safety_state: user.safety_state?.safety_state_current ?? null,
     care_plan: user.clinical_config
       ? {
+          id: user.clinical_config.id,
           care_plan_id: user.clinical_config.care_plan_id,
           assignment_state: user.clinical_config.assignment_state,
         }

@@ -17,10 +17,6 @@ vi.mock('../agents/a2/agent.js', () => ({
   handleTurn: vi.fn(),
 }));
 
-vi.mock('../agents/a12/agent.js', () => ({
-  renderText: vi.fn(),
-}));
-
 vi.mock('../lib/agent-context.js', () => ({
   getAgentContextBundle: vi.fn(),
 }));
@@ -39,6 +35,7 @@ vi.mock('../lib/prisma.js', () => ({
       findFirst: vi.fn(),
     },
     safetyState: { upsert: vi.fn() },
+    user: { findUnique: vi.fn() },
   },
 }));
 
@@ -46,7 +43,6 @@ import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn } from '../agents/a2/agent.js';
-import { renderText } from '../agents/a12/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
@@ -57,7 +53,7 @@ const SESSION_ID = 'latency-test-session-1';
 
 const defaultContext = {
   safety_state: null,
-  care_plan: { care_plan_id: 'CP1' as const, assignment_state: 'provisional' as const },
+  care_plan: { id: 'cp-1', care_plan_id: 'CP1' as const, assignment_state: 'provisional' as const },
   recent_history: [],
   session_summary: null,
   engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
@@ -77,6 +73,7 @@ function setupBaseMocks(): void {
   vi.mocked(prisma.turn.findFirst).mockResolvedValue({ id: 'assistant-turn-1' } as never);
   vi.mocked(prisma.safetyState.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
   vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
 }
 
@@ -101,12 +98,7 @@ describe('turn pipeline latency benchmark', () => {
 
     vi.mocked(handleTurn).mockImplementation(async () => {
       await simulateLatency(70);
-      return { response: 'I hear you.', fallbackUsed: false };
-    });
-
-    vi.mocked(renderText).mockImplementation(async () => {
-      await simulateLatency(25);
-      return { text: 'I hear you, tell me more.', fallbackUsed: false, provider: 'gemini' };
+      return { response: 'I hear you.', userContent: 'I hear you.', signal: null, fallbackUsed: false };
     });
 
     const totalTimes: number[] = [];
@@ -141,7 +133,7 @@ describe('turn pipeline latency benchmark', () => {
     console.log(`Max latency: ${Math.round(totalTimes[totalTimes.length - 1])}ms`);
 
     console.log('Simulated agent latencies:');
-    console.log('  A1: 50ms, A9_pre: 35ms, A2: 70ms, A12: 25ms');
+    console.log('  A1: 50ms, A9_pre: 35ms, A2: 70ms');
 
     if (allTimings.length > 0) {
       const keys = Object.keys(allTimings[0]);
@@ -176,8 +168,7 @@ describe('turn pipeline latency benchmark', () => {
       return { governanceState: 'Active', fallbackUsed: false };
     });
 
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'Ok.', fallbackUsed: false });
-    vi.mocked(renderText).mockResolvedValue({ text: 'Ok.', fallbackUsed: false, provider: 'gemini' });
+    vi.mocked(handleTurn).mockResolvedValue({ response: 'Ok.', userContent: 'Ok.', signal: null, fallbackUsed: false });
 
     const turnCount = 10;
     for (let i = 0; i < turnCount; i++) {
