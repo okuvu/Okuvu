@@ -168,6 +168,7 @@ describe('GET /users/me/context', () => {
 
       expect(body.safety_state).toBe('S2');
       expect(body.care_plan).toEqual({
+        id: 'cc-1',
         care_plan_id: 'CP1',
         assignment_state: 'confirmed',
       });
