@@ -80,3 +80,20 @@ lib/
 | `dev` | `ai.evia.app.dev` | Localhost (configurable) |
 | `beta` | `ai.evia.app.beta` | GCP Cloud Run (staging) |
 | `prod` | `ai.evia.app` | GCP Cloud Run (production) |
+
+## Building APKs
+
+Each flavor requires both `--flavor` (matches the `productFlavors` blocks in `android/app/build.gradle`) and `--dart-define=FLAVOR=<flavor>` (required by `AppConfig.init()`):
+
+```bash
+# Dev
+flutter build apk --flavor dev --dart-define=FLAVOR=dev
+
+# Beta
+flutter build apk --flavor beta --dart-define=FLAVOR=beta
+
+# Prod
+flutter build apk --flavor prod --dart-define=FLAVOR=prod
+```
+
+For app bundles instead of APKs, swap `apk` → `appbundle`. Add `--debug` or `--release` to choose the build type (defaults to release).

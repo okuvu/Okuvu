@@ -1,5 +1,5 @@
 package ai.evia.app
 
-import patrol.PatrolActivity
+import io.flutter.embedding.android.FlutterActivity
 
-class MainActivity : PatrolActivity()
+class MainActivity : FlutterActivity()
