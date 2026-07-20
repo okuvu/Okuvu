@@ -153,3 +153,4 @@ tmp/
 temp/
 
 graphify-out/
+apps/mobile/android/app/google-services.json
