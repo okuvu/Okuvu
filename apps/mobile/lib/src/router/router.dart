@@ -56,21 +56,34 @@ class _CrisisAwareRouterConfig implements RouterConfig<RouteMatchList> {
   RouterDelegate<RouteMatchList> get routerDelegate => _goRouter.routerDelegate;
 }
 
+class _RouterNotifier extends ChangeNotifier {
+  _RouterNotifier(this._ref) {
+    _ref.listen<SessionState>(sessionProvider, (_, __) => notifyListeners());
+  }
+
+  final Ref _ref;
+
+  SessionState get session => _ref.read(sessionProvider);
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final session = ref.watch(sessionProvider);
+  final notifier = _RouterNotifier(ref);
+  ref.onDispose(notifier.dispose);
 
   final goRouter = GoRouter(
     initialLocation: '/splash',
+    refreshListenable: notifier,
     redirect: (context, state) {
       final location = state.matchedLocation;
+      final session = notifier.session;
 
       if (session == SessionState.initial) {
         return location == '/splash' ? null : '/splash';
       }
 
       if (session == SessionState.unauthenticated) {
-        final publicRoutes = ['/splash', '/auth'];
-        return publicRoutes.contains(location) ? null : '/auth';
+        if (location == '/splash') return '/auth';
+        return location == '/auth' ? null : '/auth';
       }
 
       if (session == SessionState.authenticated) {
