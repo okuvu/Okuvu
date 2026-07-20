@@ -10,7 +10,7 @@ readonly PROJECT_ID="evia-500215"
 readonly REGION="asia-south1"
 readonly SERVICE_NAME="backend"
 readonly SERVICE_ACCOUNT="evia-app@${PROJECT_ID}.iam.gserviceaccount.com"
-readonly IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
+readonly IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/backend/${SERVICE_NAME}"
 readonly BACKEND_SOURCE="apps/api"
 readonly SECRETS="DATABASE_URL=DATABASE_URL:latest,SARVAM_API_KEY=SARVAM_API_KEY:latest"
 
@@ -62,12 +62,10 @@ if [[ "${1:-}" == "--load-test" ]]; then
   shift
 fi
 
-# --- Build image via Cloud Build -------------------------
-info "Building Docker image..."
-docker build -f "${BACKEND_SOURCE}/Dockerfile" -t "${IMAGE}" .
-info "Pushing image..."
-docker push "${IMAGE}"
-info "Image built and pushed: ${IMAGE}"
+# --- Build image + run migrations via Cloud Build ---------
+info "Submitting build to Cloud Build (includes prisma migrate deploy)..."
+gcloud builds submit --config cloudbuild.yaml --project "${PROJECT_ID}" .
+info "Image built, migrations applied, image pushed."
 
 # --- Deploy to Cloud Run ---------------------------------
 info "Deploying to Cloud Run..."
