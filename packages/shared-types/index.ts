@@ -177,6 +177,7 @@ export interface EngagementStats {
 export interface AgentContextBundle {
   safety_state: SafetyState | null
   care_plan: {
+    id: string
     care_plan_id: CarePlanId
     assignment_state: AssignmentState
   } | null

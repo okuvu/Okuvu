@@ -16,10 +16,6 @@ vi.mock('../agents/a2/agent.js', () => ({
   handleTurn: vi.fn(),
 }));
 
-vi.mock('../agents/a12/agent.js', () => ({
-  renderText: vi.fn(),
-}));
-
 vi.mock('../lib/agent-context.js', () => ({
   getAgentContextBundle: vi.fn(),
 }));
@@ -35,6 +31,8 @@ vi.mock('../lib/prisma.js', () => ({
     sessionLog: { findUnique: vi.fn(), update: vi.fn() },
     turn: { createMany: vi.fn(), findFirst: vi.fn() },
     safetyState: { upsert: vi.fn() },
+    clinicalConfig: { update: vi.fn() },
+    user: { findUnique: vi.fn() },
   },
 }));
 
@@ -42,7 +40,6 @@ import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn } from '../agents/a2/agent.js';
-import { renderText } from '../agents/a12/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
@@ -53,10 +50,17 @@ const SESSION_ID = 'test-session-1';
 
 const defaultContext = {
   safety_state: null,
-  care_plan: { care_plan_id: 'CP1' as const, assignment_state: 'provisional' as const },
+  care_plan: { id: 'cp-1', care_plan_id: 'CP1' as const, assignment_state: 'provisional' as const },
   recent_history: [],
   session_summary: null,
   engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
+};
+
+const defaultA2Result = {
+  response: 'I hear you.',
+  userContent: 'I hear you.',
+  signal: null,
+  fallbackUsed: false,
 };
 
 beforeEach(() => {
@@ -71,21 +75,21 @@ beforeEach(() => {
   vi.mocked(prisma.turn.findFirst).mockResolvedValue({ id: 'assistant-turn-1' } as never);
   vi.mocked(prisma.safetyState.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
 });
 
 describe('processTurn — normal flow', () => {
-  it('executes all agents and returns AGENT_TURN', async () => {
+  it('executes all agents (A1, A9, A8, A2) and returns AGENT_TURN', async () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'I hear you.', fallbackUsed: false });
-    vi.mocked(renderText).mockResolvedValue({ text: 'I hear you, tell me more.', fallbackUsed: false, provider: 'gemini' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
     const result = await processTurn(UID, SESSION_ID, 'I feel anxious');
 
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
-      expect(result.message).toBe('I hear you, tell me more.');
+      expect(result.message).toBe('I hear you.');
       expect(result.fallbackUsed).toBe(false);
       expect(result.turnId).toBe('assistant-turn-1');
     }
@@ -96,7 +100,6 @@ describe('processTurn — normal flow', () => {
     );
     expect(routeTurn).toHaveBeenCalledTimes(1);
     expect(handleTurn).toHaveBeenCalledTimes(1);
-    expect(renderText).toHaveBeenCalledTimes(1);
   });
 
   it('verifies A1 and A9-pre ran in parallel', async () => {
@@ -120,8 +123,7 @@ describe('processTurn — normal flow', () => {
     });
 
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'Ok.', fallbackUsed: false });
-    vi.mocked(renderText).mockResolvedValue({ text: 'Ok.', fallbackUsed: false, provider: 'gemini' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
     await processTurn(UID, SESSION_ID, 'test');
 
@@ -131,7 +133,7 @@ describe('processTurn — normal flow', () => {
 });
 
 describe('processTurn — crisis short-circuit', () => {
-  it('returns crisis and does NOT call A2 or A12', async () => {
+  it('returns crisis and does NOT call A2', async () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
@@ -140,7 +142,6 @@ describe('processTurn — crisis short-circuit', () => {
 
     expect(result.type).toBe('crisis');
     expect(handleTurn).not.toHaveBeenCalled();
-    expect(renderText).not.toHaveBeenCalled();
   });
 });
 
@@ -149,8 +150,7 @@ describe('processTurn — A1 timeout', () => {
     vi.mocked(classifySafety).mockRejectedValue(new Error('A1 timeout'));
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'I hear you.', fallbackUsed: false });
-    vi.mocked(renderText).mockResolvedValue({ text: 'I hear you.', fallbackUsed: false, provider: 'gemini' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
     const result = await processTurn(UID, SESSION_ID, 'test');
 
@@ -167,8 +167,7 @@ describe('processTurn — A9-pre failure', () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
     vi.mocked(classifyGovernance).mockRejectedValue(new Error('A9 timeout'));
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'I hear you.', fallbackUsed: false });
-    vi.mocked(renderText).mockResolvedValue({ text: 'I hear you.', fallbackUsed: false, provider: 'gemini' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
     const result = await processTurn(UID, SESSION_ID, 'test');
 
@@ -198,24 +197,6 @@ describe('processTurn — A2 failure', () => {
   });
 });
 
-describe('processTurn — A12 failure', () => {
-  it('falls back to A2 raw output when A12 throws', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
-    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'A2 raw output', fallbackUsed: false });
-    vi.mocked(renderText).mockRejectedValue(new Error('A12 error'));
-
-    const result = await processTurn(UID, SESSION_ID, 'test');
-
-    expect(result.type).toBe('agent_turn');
-    if (result.type === 'agent_turn') {
-      expect(result.message).toBe('A2 raw output');
-      expect(result.fallbackUsed).toBe(true);
-    }
-  });
-});
-
 describe('processTurn — closed session', () => {
   it('returns error when session is already closed', async () => {
     vi.mocked(isSessionClosed).mockResolvedValue(true);
@@ -235,8 +216,7 @@ describe('processTurn — persistence', () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'Thanks.', fallbackUsed: false });
-    vi.mocked(renderText).mockResolvedValue({ text: 'Thanks.', fallbackUsed: false, provider: 'gemini' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
     await processTurn(UID, SESSION_ID, 'I feel better');
 
@@ -246,6 +226,83 @@ describe('processTurn — persistence', () => {
       expect.objectContaining({
         where: { user_id: UID },
         update: { safety_state_current: 'S1' },
+      }),
+    );
+  });
+});
+
+describe('processTurn — S-06 integration', () => {
+  it('passes perceivedIntensity to handleTurn', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+    await processTurn(UID, SESSION_ID, 'test', 5);
+
+    expect(handleTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ perceivedIntensity: 5 }),
+    );
+  });
+
+  it('persists crisis_flag_detected when signal flags it', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      response: 'I hear you.',
+      userContent: 'I hear you.',
+      signal: {
+        signal: 'S-06',
+        agent: 'A2',
+        turn_number: 1,
+        technique_used: null,
+        estimated_intensity: 8,
+        intensity_direction: 'rising',
+        mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
+        session_flags: { crisis_language_detected: true, validation_only_turn: false, technique_refused_by_user: false },
+        care_plan_fit: 'well_matched',
+      },
+      fallbackUsed: false,
+    });
+
+    await processTurn(UID, SESSION_ID, 'test');
+
+    expect(prisma.sessionLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: SESSION_ID },
+        data: { crisis_flag_detected: true },
+      }),
+    );
+  });
+
+  it('persists care_plan_review_flagged when care_plan_fit is mismatch', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      response: 'Hmm.',
+      userContent: 'Hmm.',
+      signal: {
+        signal: 'S-06',
+        agent: 'A2',
+        turn_number: 1,
+        technique_used: 'T1',
+        estimated_intensity: 3,
+        intensity_direction: 'stable',
+        mood_inference: { primary_emotion: 'frustration', confidence: 'medium' },
+        session_flags: { crisis_language_detected: false, validation_only_turn: false, technique_refused_by_user: false },
+        care_plan_fit: 'possible_mismatch',
+      },
+      fallbackUsed: false,
+    });
+
+    await processTurn(UID, SESSION_ID, 'test');
+
+    expect(prisma.clinicalConfig.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cp-1' },
+        data: { care_plan_review_flagged: true },
       }),
     );
   });

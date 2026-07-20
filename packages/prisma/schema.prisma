@@ -38,15 +38,16 @@ model Therapist {
 }
 
 model ClinicalConfig {
-  id                      String          @id @default(uuid())
-  user_id                 String          @unique
-  care_plan_id            CarePlan
-  assignment_state        AssignmentState @default(provisional)
-  created_at              DateTime        @default(now())
-  confidence_at_last_eval Float?
-  turns_evaluated         Int             @default(0)
-  reasoning_note          String?
-  user                    User            @relation(fields: [user_id], references: [id])
+  id                       String          @id @default(uuid())
+  user_id                  String          @unique
+  care_plan_id             CarePlan
+  assignment_state         AssignmentState @default(provisional)
+  created_at               DateTime        @default(now())
+  confidence_at_last_eval  Float?
+  turns_evaluated          Int             @default(0)
+  reasoning_note           String?
+  care_plan_review_flagged Boolean         @default(false)
+  user                     User            @relation(fields: [user_id], references: [id])
 }
 
 model SafetyState {
@@ -65,6 +66,7 @@ model SessionLog {
   session_ended_at       DateTime?
   turn_count             Int              @default(0)
   session_feedback_score Int?
+  crisis_flag_detected   Boolean          @default(false)
   user                   User             @relation(fields: [user_id], references: [id])
   summaries              SessionSummary[]
   turns                  Turn[]

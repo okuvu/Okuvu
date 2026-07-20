@@ -15,7 +15,13 @@ interface IdleEntry {
   sessionId: string;
 }
 
+interface ActiveSession {
+  perceivedIntensity: number | null;
+  createdAt: number;
+}
+
 const idleTimers = new Map<string, IdleEntry>();
+const activeSessions = new Map<string, ActiveSession>();
 
 function clearIdleTimerByConnection(connId: string): void {
   const entry = idleTimers.get(connId);
@@ -105,6 +111,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             sessionId,
             onSessionOpened: (sessionId: string) => {
               currentSessionId = sessionId;
+              activeSessions.set(sessionId, { perceivedIntensity: null, createdAt: Date.now() });
             },
           });
         } catch (err) {
@@ -147,7 +154,9 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
         }
 
         try {
-          const result = await processTurn(uid, session_id, message.trim());
+          const activeSession = activeSessions.get(session_id);
+          const perceivedIntensity = activeSession?.perceivedIntensity ?? null;
+          const result = await processTurn(uid, session_id, message.trim(), perceivedIntensity);
 
           if (result.type === 'error') {
             send({
@@ -165,6 +174,10 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             });
             req.log.info({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, outcome: 'crisis' }, 'Crisis detected, sent CRISIS_SIGNAL');
             return;
+          }
+
+          if (result.type === 'agent_turn' && result.estimatedIntensity != null) {
+            activeSessions.set(session_id, { perceivedIntensity: result.estimatedIntensity, createdAt: Date.now() });
           }
 
           send({
@@ -193,6 +206,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           if (result.turnCount >= CAP_TURN_LIMIT) {
             closeSession(session_id, req.user.uid, 'TURN_CAP', req.log).then((closeResult) => {
               if (!closeResult.alreadyClosed) {
+                activeSessions.delete(session_id);
                 send({
                   type: 'SESSION_CLOSED',
                   payload: {
@@ -234,6 +248,8 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           return;
         }
 
+        activeSessions.delete(currentSessionId);
+
         send({
           type: 'SESSION_CLOSED',
           payload: {
@@ -256,6 +272,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
     socket.on('close', () => {
       const durationMs = Date.now() - connectionStart;
       req.log.info({ event: 'ws_disconnect', user_id: uid, conn_id: connId, duration_ms: durationMs }, 'WebSocket disconnected');
+      if (currentSessionId) activeSessions.delete(currentSessionId);
       clearIdleTimerByConnection(connId);
     });
   });

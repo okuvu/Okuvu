@@ -1,25 +1,35 @@
 import { generateContent } from '../../lib/vertex-ai.js';
 import { buildConversationalPrompt, ONBOARDING_SCORING_PROMPT } from './prompts.js';
-import type { A2Input, A2Output, ConversationTurn, OnboardingInferenceOutput } from './types.js';
+import type {
+  A2Input,
+  A2Output,
+  A2ParsedResponse,
+  S06Signal,
+  ConversationTurn,
+  OnboardingInferenceOutput,
+} from './types.js';
 
 export async function handleTurn(input: A2Input): Promise<A2Output> {
   const {
     message,
     carePlan,
+    safetyState,
+    sessionNumber,
+    turnNumber,
+    sessionHistorySummary,
+    perceivedIntensity,
     mode,
     recentHistory,
-    sessionSummary,
   } = input;
 
   const systemInstruction = buildConversationalPrompt({
     carePlan,
-    sessionSummary,
-    mode,
+    safetyState,
+    sessionNumber,
+    turnNumber,
+    sessionHistorySummary,
+    perceivedIntensity,
   });
-
-  if (mode === 'grounding-only') {
-    console.info({ mode: 'grounding-only' }, 'A2: grounding mode active for turn');
-  }
 
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> =
     recentHistory.map((turn) => ({
@@ -37,10 +47,30 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     contents,
   });
 
+  const parsed = parseA2Response(result.text);
+
   return {
     response: result.text,
+    userContent: parsed.userContent,
+    signal: parsed.signal,
     fallbackUsed: result.fallbackUsed,
   };
+}
+
+export function parseA2Response(raw: string): A2ParsedResponse {
+  const jsonMatch = raw.match(/```json\n([\s\S]*?)\n```/);
+  const userContent = raw.replace(/```json[\s\S]*?```/g, '').trim();
+
+  let signal: S06Signal | null = null;
+  if (jsonMatch) {
+    try {
+      signal = JSON.parse(jsonMatch[1]) as S06Signal;
+    } catch {
+      console.warn({ text: jsonMatch[1] }, 'A2: failed to parse S-06 JSON block');
+    }
+  }
+
+  return { userContent, signal };
 }
 
 const SCORE_FIELDS: ReadonlyArray<keyof OnboardingInferenceOutput> = [
