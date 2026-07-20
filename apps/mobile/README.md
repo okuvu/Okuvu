@@ -97,3 +97,68 @@ flutter build apk --flavor prod --dart-define=FLAVOR=prod
 ```
 
 For app bundles instead of APKs, swap `apk` → `appbundle`. Add `--debug` or `--release` to choose the build type (defaults to release).
+
+## Building AAB (Play Console)
+
+The Android App Bundle (`.aab`) is what you upload to the Google Play Console. It always builds in release mode and **must be signed with a release keystore** (not the debug key — Play Console rejects debug-signed bundles).
+
+### 1. Generate the upload keystore (one-time)
+
+```bash
+keytool -genkeypair -v \
+  -storetype PKCS12 \
+  -keystore android/upload-keystore.jks \
+  -alias upload \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+You'll be prompted for a keystore password, key password, and certificate details. **Back this keystore up safely** — you must use the same keystore for every future upload of the same app.
+
+### 2. Create `android/keystore.properties`
+
+This file is gitignored (never committed). Copy the example and fill in your passwords:
+
+```bash
+cp android/keystore.properties.example android/keystore.properties
+```
+
+```
+storePassword=<your keystore password>
+keyPassword=<your key password>
+keyAlias=upload
+storeFile=upload-keystore.jks
+```
+
+`android/app/build.gradle` reads this file and applies it to `signingConfigs.release`, which is used for all release (and AAB) builds.
+
+### 3. Build the AAB
+
+```bash
+# Prod (recommended for Play Console release tracks)
+flutter build appbundle --flavor prod --dart-define=FLAVOR=prod
+
+# Beta (internal/closed testing track)
+flutter build appbundle --flavor beta --dart-define=FLAVOR=beta
+
+# Dev (internal distribution only)
+flutter build appbundle --flavor dev --dart-define=FLAVOR=dev
+```
+
+The output bundle is written to:
+
+```
+build/app/outputs/bundle/<flavor>Release/app-<flavor>-release.aab
+```
+
+Example for prod: `build/app/outputs/bundle/prodRelease/app-prod-release.aab`.
+
+### 4. Verify the signing
+
+```bash
+jarsigner -verify -verbose -certs \
+  build/app/outputs/bundle/prodRelease/app-prod-release.aab
+```
+
+Confirm the certificate is your upload cert (CN=Evia), **not** `Android Debug`.
+
+> **Play App Signing:** For production releases, enroll in [Play App Signing](https://developer.android.com/studio/publish/app-signing). Google keeps the app-signing key; you keep and upload with the `upload` keystore generated above. Use the **same** keystore for every upload of that app.
