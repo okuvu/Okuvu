@@ -80,6 +80,7 @@ DEPLOY_ARGS=(
   --port 8080
   --add-cloudsql-instances evia-500215:asia-south1:evia-db
   --set-secrets "${SECRETS}"
+  --set-env-vars "SESSION_LIMIT_SD_DAILY=1,SESSION_LIMIT_TL_DAILY=2"
   --min-instances 1
   --max-instances 4
   --allow-unauthenticated
