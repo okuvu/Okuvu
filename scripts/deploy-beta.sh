@@ -12,7 +12,7 @@ readonly SERVICE_NAME="backend"
 readonly SERVICE_ACCOUNT="evia-app@${PROJECT_ID}.iam.gserviceaccount.com"
 readonly IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 readonly BACKEND_SOURCE="apps/api"
-readonly SECRETS="DATABASE_URL=DATABASE_URL:latest,SARVAM_API_KEY=SARVAM_API_KEY:latest,GOOGLE_APPLICATION_CREDENTIALS=GOOGLE_APPLICATION_CREDENTIALS:latest"
+readonly SECRETS="DATABASE_URL=DATABASE_URL:latest,SARVAM_API_KEY=SARVAM_API_KEY:latest"
 
 LOAD_TEST_MODE=false
 
@@ -80,7 +80,7 @@ DEPLOY_ARGS=(
   --port 8080
   --add-cloudsql-instances evia-500215:asia-south1:evia-db
   --set-secrets "${SECRETS}"
-  --set-env-vars "SESSION_LIMIT_SD_DAILY=1,SESSION_LIMIT_TL_DAILY=2"
+  --set-env-vars "SESSION_LIMIT_SD_DAILY=1,SESSION_LIMIT_TL_DAILY=2,FIREBASE_PROJECT_ID=evia-500215"
   --min-instances 1
   --max-instances 4
   --allow-unauthenticated
