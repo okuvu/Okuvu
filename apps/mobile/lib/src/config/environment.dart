@@ -6,13 +6,13 @@ enum Environment {
   ),
   beta(
     label: 'beta',
-    apiBaseUrl: 'https://evia-500215-xxxxx-uc.a.run.app',
-    wsBaseUrl: 'wss://evia-500215-xxxxx-uc.a.run.app',
+    apiBaseUrl: 'https://backend-971397352159.asia-south1.run.app',
+    wsBaseUrl: 'wss://backend-971397352159.asia-south1.run.app',
   ),
   prod(
     label: 'prod',
-    apiBaseUrl: 'https://evia-500215-xxxxx-uc.a.run.app',
-    wsBaseUrl: 'wss://evia-500215-xxxxx-uc.a.run.app',
+    apiBaseUrl: 'https://backend-971397352159.asia-south1.run.app',
+    wsBaseUrl: 'wss://backend-971397352159.asia-south1.run.app',
   );
 
   final String label;
