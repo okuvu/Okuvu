@@ -64,12 +64,10 @@ fi
 
 # --- Build image via Cloud Build -------------------------
 info "Building Docker image..."
-gcloud builds submit \
-  --project "${PROJECT_ID}" \
-  --tag "${IMAGE}" \
-  --dockerfile "${BACKEND_SOURCE}/Dockerfile" \
-  .
-info "Image built: ${IMAGE}"
+docker build -f "${BACKEND_SOURCE}/Dockerfile" -t "${IMAGE}" .
+info "Pushing image..."
+docker push "${IMAGE}"
+info "Image built and pushed: ${IMAGE}"
 
 # --- Deploy to Cloud Run ---------------------------------
 info "Deploying to Cloud Run..."
