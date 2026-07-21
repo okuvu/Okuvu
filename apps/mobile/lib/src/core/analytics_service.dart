@@ -8,6 +8,7 @@ class AnalyticsService {
     if (kDebugMode) {
       debugPrint('[Analytics] $name ${properties ?? {}}');
     }
-    await _analytics.logEvent(name: name, parameters: properties?.cast<String, Object>());
+    final safe = properties?.map((k, v) => MapEntry(k, v ?? ''));
+    await _analytics.logEvent(name: name, parameters: safe?.cast<String, Object>());
   }
 }
