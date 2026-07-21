@@ -29,6 +29,7 @@ class WebSocketService {
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 3;
   Timer? _reconnectTimer;
+  Timer? _connectTimeoutTimer;
   bool _intentionalDisconnect = false;
   bool _showBanner = false;
   Timer? _bannerDebounceTimer;
@@ -99,6 +100,18 @@ class WebSocketService {
         cancelOnError: false,
       );
 
+      _connectTimeoutTimer?.cancel();
+      _connectTimeoutTimer = Timer(const Duration(seconds: 10), () {
+        if (_state == WsConnectionState.connecting ||
+            _state == WsConnectionState.connected) {
+          if (kDebugMode) {
+            debugPrint('[WebSocketService] Connect timeout \u2014 forcing error state');
+          }
+          _setState(WsConnectionState.error, errorType: 'connect_timeout');
+          _startReconnect();
+        }
+      });
+
       _setState(WsConnectionState.connected);
       _mockTurnCount = 0;
       _sendFrame({'type': 'SESSION_OPEN'});
@@ -118,6 +131,7 @@ class WebSocketService {
 
       switch (type) {
         case 'session_open_confirmed':
+          _connectTimeoutTimer?.cancel();
           _reconnectAttempts = 0;
           _setState(WsConnectionState.sessionActive);
           final payload = data['payload'] as Map<String, dynamic>?;
@@ -147,6 +161,7 @@ class WebSocketService {
   }
 
   void _onError(dynamic error) {
+    _connectTimeoutTimer?.cancel();
     if (kDebugMode) debugPrint('[WebSocketService] Stream error: $error');
     _hadError = true;
     _setState(WsConnectionState.error, errorType: 'connection_failure');
@@ -154,6 +169,7 @@ class WebSocketService {
   }
 
   void _onDone() {
+    _connectTimeoutTimer?.cancel();
     if (kDebugMode) debugPrint('[WebSocketService] Connection closed');
     _channel = null;
     if (_hadError) {
@@ -224,6 +240,8 @@ class WebSocketService {
   void _cancelReconnect() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _connectTimeoutTimer?.cancel();
+    _connectTimeoutTimer = null;
     _bannerDebounceTimer?.cancel();
     _bannerDebounceTimer = null;
   }
@@ -269,6 +287,8 @@ class WebSocketService {
 
     _intentionalDisconnect = true;
     _cancelReconnect();
+    _connectTimeoutTimer?.cancel();
+    _connectTimeoutTimer = null;
     _hideBanner();
 
     _sendFrame({'type': 'session_close'});
@@ -284,6 +304,7 @@ class WebSocketService {
   }
 
   void dispose() {
+    _connectTimeoutTimer?.cancel();
     disconnect();
     _stateController.close();
     _errorTypeController.close();
