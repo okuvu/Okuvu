@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'src/app.dart';
 import 'src/config/app_config.dart';
 
@@ -34,6 +36,15 @@ void main() {
       return;
     }
 
+    FlutterError.onError = (details) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+
     debugPrint('========================================');
     debugPrint('  Evia — Starting up');
     debugPrint('  Environment: ${AppConfig.environment.label}');
@@ -42,6 +53,7 @@ void main() {
 
     runApp(const ProviderScope(child: App()));
   }, (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     debugPrint('========================================');
     debugPrint('  Evia — Unhandled error during startup');
     debugPrint('  $error');
