@@ -1,5 +1,5 @@
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:flutter/foundation.dart';
+import 'logger.dart';
 
 class TtsService {
   final FlutterTts _tts = FlutterTts();
@@ -9,7 +9,7 @@ class TtsService {
 
   TtsService() {
     _tts.setErrorHandler((msg) {
-      debugPrint('TtsService: engine error — $msg');
+      Logger.debug('TtsService: engine error — $msg');
     });
   }
 
@@ -19,7 +19,7 @@ class TtsService {
       try {
         await _tts.stop();
       } catch (e) {
-        debugPrint('TtsService: stop failed during voice disable — $e');
+        Logger.debug('TtsService: stop failed during voice disable — $e');
       }
     }
   }
@@ -29,7 +29,7 @@ class TtsService {
 
     final available = await isLanguageAvailable();
     if (!available) {
-      debugPrint('TtsService: en-US language pack not available — silent fallback');
+      Logger.debug('TtsService: en-US language pack not available — silent fallback');
       return;
     }
 
@@ -37,7 +37,7 @@ class TtsService {
       await _tts.stop();
       await _tts.speak(text);
     } catch (e) {
-      debugPrint('TtsService: speak failed — $e');
+      Logger.debug('TtsService: speak failed — $e');
     }
   }
 
@@ -45,7 +45,7 @@ class TtsService {
     try {
       await _tts.stop();
     } catch (e) {
-      debugPrint('TtsService: stop failed — $e');
+      Logger.debug('TtsService: stop failed — $e');
     }
   }
 
@@ -54,7 +54,7 @@ class TtsService {
       final result = await _tts.isLanguageAvailable('en-US');
       return result == true;
     } catch (e) {
-      debugPrint('TtsService: isLanguageAvailable check failed — $e');
+      Logger.debug('TtsService: isLanguageAvailable check failed — $e');
       return false;
     }
   }
