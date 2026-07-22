@@ -16,7 +16,7 @@ void main() {
       await $.pumpAndSettle();
 
       // --- Phone step ---
-      await $(ValueKey('phone_input')).enterText(_testPhone);
+      await $(const ValueKey('phone_input')).enterText(_testPhone);
       await $('Continue with Phone').tap();
 
       // --- OTP step ---

@@ -15,7 +15,7 @@ void main() {
       // --- Login ---
       await $('Sign In').waitUntilVisible();
       await $.pumpAndSettle();
-      await $(ValueKey('phone_input')).enterText(_testPhone);
+      await $(const ValueKey('phone_input')).enterText(_testPhone);
       await $('Continue with Phone').tap();
 
       await $('OTP Verification').waitUntilVisible();
@@ -46,9 +46,9 @@ void main() {
       await $.pumpAndSettle();
 
       for (int turn = 1; turn <= 10; turn++) {
-        await $(ValueKey('chat_input'))
+        await $(const ValueKey('chat_input'))
             .enterText('This is turn number $turn of my session.');
-        await $(ValueKey('chat_send')).tap();
+        await $(const ValueKey('chat_send')).tap();
         await $.pumpAndSettle();
 
         // Wait for agent response — turn counter updates via WebSocket
@@ -59,11 +59,11 @@ void main() {
       // --- Verify session closure ---
       await $('Session complete for today.').waitUntilVisible();
       await $.pumpAndSettle();
-      await $(ValueKey('back_to_home')).waitUntilVisible();
+      await $(const ValueKey('back_to_home')).waitUntilVisible();
       await $.pumpAndSettle();
 
       // --- SRS feedback modal ---
-      await $(ValueKey('back_to_home')).tap();
+      await $(const ValueKey('back_to_home')).tap();
       await $.pumpAndSettle();
 
       await $('Session Feedback').waitUntilVisible();

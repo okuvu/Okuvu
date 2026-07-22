@@ -11,7 +11,7 @@ void main() {
     ($) async {
       // Ensure we always restore airplane mode, even on test failure
       addTearDown(() async {
-        await $.native.disableAirplaneMode();
+        await $.platformAutomator.mobile.disableAirplaneMode();
       });
 
       await $.pumpAndSettle();
@@ -39,11 +39,11 @@ void main() {
         await $('Save and continue').tap();
         await $.pumpAndSettle();
 
-        await $(ValueKey('intake_input')).enterText('Test response');
-        await $(ValueKey('intake_send')).tap();
+        await $(const ValueKey('intake_input')).enterText('Test response');
+        await $(const ValueKey('intake_send')).tap();
         await $.pumpAndSettle();
 
-        await $(ValueKey('care_plan_0')).tap();
+        await $(const ValueKey('care_plan_0')).tap();
         await Future.delayed(const Duration(seconds: 3));
         await $.pumpAndSettle();
       }
@@ -67,7 +67,7 @@ void main() {
       expect($('112').visible, isTrue);
 
       // --- Enable actual airplane mode via ADB ---
-      await $.native.enableAirplaneMode();
+      await $.platformAutomator.mobile.enableAirplaneMode();
       await $.pumpAndSettle();
 
       // Assert all crisis content is still visible without network

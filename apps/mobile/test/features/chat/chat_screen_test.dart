@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,11 +14,30 @@ import 'package:evia/src/features/chat/chat_screen.dart';
 import 'package:evia/src/features/chat/models/chat_state.dart';
 
 class FakeWebSocketService extends WebSocketService {
+  FakeWebSocketService({WsConnectionState initialState = WsConnectionState.disconnected})
+      : _stateCtrl = StreamController<WsConnectionState>.broadcast(),
+        _state = initialState;
+
+  final StreamController<WsConnectionState> _stateCtrl;
+
+  WsConnectionState _state;
+
   @override
-Future<void> connect({
-  required String wsBaseUrl,
-  required String token,
-}) async {}
+  WsConnectionState get currentState => _state;
+
+  @override
+  Stream<WsConnectionState> get stateStream => _stateCtrl.stream;
+
+  void setConnectionState(WsConnectionState state) {
+    _state = state;
+    _stateCtrl.add(state);
+  }
+
+  @override
+  Future<void> connect({
+    required String wsBaseUrl,
+    required String token,
+  }) async {}
 
   @override
   void sendUserTurn(String content) {}
@@ -29,6 +50,11 @@ Future<void> connect({
 
   @override
   void disconnect() {}
+
+  @override
+  void dispose() {
+    _stateCtrl.close();
+  }
 }
 
 class FakeTtsService extends TtsService {
@@ -128,18 +154,106 @@ void main() {
         turnCount: 10,
         isSessionClosed: true,
       );
-            await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('10 of 10'), findsOneWidget);
       expect(find.text('Session complete for today.'), findsOneWidget);
 
       expect(find.byType(TextField), findsNothing);
       expect(find.text('Back to Home'), findsOneWidget);
-      
 
-     
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('input is disabled when WebSocket is not sessionActive', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeWs = FakeWebSocketService(initialState: WsConnectionState.disconnected);
+
+      await tester.pumpWidget(_buildChatScreenApp(webSocketService: fakeWs));
+      await tester.pumpAndSettle();
+
+      final inputField = tester.widget<TextField>(find.byKey(const ValueKey('chat_input')));
+      expect(inputField.enabled, isFalse);
+
+      final sendButton = tester.widget<IconButton>(find.byKey(const ValueKey('chat_send')));
+      expect(sendButton.onPressed, isNull);
+    });
+
+    testWidgets('input is enabled when WebSocket is sessionActive', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeWs = FakeWebSocketService(initialState: WsConnectionState.sessionActive);
+
+      await tester.pumpWidget(_buildChatScreenApp(webSocketService: fakeWs));
+      await tester.pumpAndSettle();
+
+      final inputField = tester.widget<TextField>(find.byKey(const ValueKey('chat_input')));
+      expect(inputField.enabled, isTrue);
+
+      final sendButton = tester.widget<IconButton>(find.byKey(const ValueKey('chat_send')));
+      expect(sendButton.onPressed, isNotNull);
+    });
+
+    testWidgets('send has no effect when input is disabled due to disconnection', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeWs = FakeWebSocketService(initialState: WsConnectionState.disconnected);
+
+      await tester.pumpWidget(_buildChatScreenApp(webSocketService: fakeWs));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const ValueKey('chat_input')), 'Hello');
+
+      final sendButton = tester.widget<IconButton>(find.byKey(const ValueKey('chat_send')));
+      expect(sendButton.onPressed, isNull);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      expect(container.read(chatMessagesProvider).messages, isEmpty);
+    });
+
+    testWidgets('input becomes enabled when WebSocket transitions to sessionActive', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeWs = FakeWebSocketService(initialState: WsConnectionState.disconnected);
+
+      await tester.pumpWidget(_buildChatScreenApp(webSocketService: fakeWs));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(find.byKey(const ValueKey('chat_input'))).enabled,
+        isFalse,
+      );
+
+      fakeWs.setConnectionState(WsConnectionState.sessionActive);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(find.byKey(const ValueKey('chat_input'))).enabled,
+        isTrue,
+      );
     });
   });
 }
-
