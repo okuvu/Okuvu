@@ -19,6 +19,14 @@ export function getISTDateString(date: Date = new Date()): string {
 
 export type SafetyState = 'S0' | 'S1' | 'S2' | 'S3' | 'S4'
 
+export const SAFETY_LABELS: Record<SafetyState, string> = {
+  S0: 'Stable',
+  S1: 'Low',
+  S2: 'Elevated',
+  S3: 'High',
+  S4: 'Critical',
+}
+
 export type GovernanceState = 'Active' | 'Restricted' | 'Blocked'
 
 export interface RouterInput {

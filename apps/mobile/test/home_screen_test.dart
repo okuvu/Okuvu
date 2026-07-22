@@ -77,8 +77,13 @@ Dio _createMockDio() {
   return dio;
 }
 
+final _fakeWs = FakeWebSocketService();
+
 Widget _buildHomeApp() {
   return ProviderScope(
+    overrides: [
+      webSocketServiceProvider.overrideWithValue(_fakeWs),
+    ],
     child: MaterialApp.router(
       routerConfig: GoRouter(
         initialLocation: '/home',

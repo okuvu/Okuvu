@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
+import 'logger.dart';
 import '../config/flavor_config.dart';
 
 class AuthInterceptor extends Interceptor {
@@ -24,7 +24,7 @@ class AuthInterceptor extends Interceptor {
         }
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('[AuthInterceptor] Failed to attach Authorization header: $e');
+      Logger.debug('[AuthInterceptor] Failed to attach Authorization header: $e');
     }
     handler.next(options);
   }
@@ -32,7 +32,7 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      if (kDebugMode) debugPrint('[AuthInterceptor] 401 — signing out');
+      Logger.debug('[AuthInterceptor] 401 — signing out');
       await _authService.signOut();
       handler.next(err);
       return;
@@ -55,9 +55,7 @@ class AuthInterceptor extends Interceptor {
           delay = const Duration(seconds: 2);
         }
 
-        if (kDebugMode) {
-          debugPrint('[AuthInterceptor] 503 — retrying in ${delay.inSeconds}s (attempt ${retryCount + 1}/$_maxRetries)');
-        }
+        Logger.debug('[AuthInterceptor] 503 — retrying in ${delay.inSeconds}s (attempt ${retryCount + 1}/$_maxRetries)');
 
         await Future.delayed(delay);
         retryCount++;
@@ -68,18 +66,18 @@ class AuthInterceptor extends Interceptor {
           handler.resolve(response);
           return;
         } catch (e) {
-          if (kDebugMode) debugPrint('[AuthInterceptor] 503 retry failed: $e');
+          Logger.debug('[AuthInterceptor] 503 retry failed: $e');
         }
       }
 
-      if (kDebugMode) debugPrint('[AuthInterceptor] 503 — max retries exceeded');
+      Logger.debug('[AuthInterceptor] 503 — max retries exceeded');
       handler.next(err);
       return;
     }
 
     if (err.type == DioExceptionType.connectionError ||
         err.type == DioExceptionType.connectionTimeout) {
-      if (kDebugMode) debugPrint('[AuthInterceptor] Network failure: ${err.message}');
+      Logger.debug('[AuthInterceptor] Network failure: ${err.message}');
     }
 
     handler.next(err);

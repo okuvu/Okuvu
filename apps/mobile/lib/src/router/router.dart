@@ -14,6 +14,7 @@ import '../features/settings/settings_screen.dart';
 import '../features/settings/profile_screen.dart';
 import '../features/settings/notifications_screen.dart';
 import '../features/settings/about_screen.dart';
+import '../features/settings/privacy_screen.dart';
 import '../features/settings/account_deletion_screen.dart';
 import '../features/settings/emergency_contact_screen.dart';
 import '../features/settings/my_focus_area_screen.dart';
@@ -151,6 +152,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'about',
             builder: (context, state) => const AboutScreen(),
+          ),
+          GoRoute(
+            path: 'privacy-policy',
+            builder: (context, state) => const PrivacyScreen(),
           ),
           GoRoute(
             path: 'delete-account',

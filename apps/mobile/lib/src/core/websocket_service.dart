@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'websocket_constants.dart';
+import 'logger.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 
 enum WsConnectionState {
@@ -29,6 +29,7 @@ class WebSocketService {
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 3;
   Timer? _reconnectTimer;
+  Timer? _connectTimeoutTimer;
   bool _intentionalDisconnect = false;
   bool _showBanner = false;
   Timer? _bannerDebounceTimer;
@@ -67,17 +68,15 @@ class WebSocketService {
     if (errorType != null) {
       _errorTypeController.add(errorType);
     }
-    if (kDebugMode) {
-      debugPrint(
-        '[WebSocketService] State: $newState${errorType != null ? ' ($errorType)' : ''}',
-      );
-    }
+    Logger.debug(
+      '[WebSocketService] State: $newState${errorType != null ? ' ($errorType)' : ''}',
+    );
   }
 
   Future<void> connect({required String wsBaseUrl, required String token}) async {
     if (_state == WsConnectionState.connecting ||
         _state == WsConnectionState.sessionActive) {
-      if (kDebugMode) debugPrint('[WebSocketService] Already connected or connecting');
+      Logger.debug('[WebSocketService] Already connected or connecting');
       return;
     }
 
@@ -102,18 +101,28 @@ class WebSocketService {
         cancelOnError: false,
       );
 
+      _connectTimeoutTimer?.cancel();
+      _connectTimeoutTimer = Timer(const Duration(seconds: 10), () {
+        if (_state == WsConnectionState.connecting ||
+            _state == WsConnectionState.connected) {
+          Logger.debug('[WebSocketService] Connect timeout \u2014 forcing error state');
+          _setState(WsConnectionState.error, errorType: 'connect_timeout');
+          _startReconnect();
+        }
+      });
+
       _setState(WsConnectionState.connected);
       _mockTurnCount = 0;
       _sendFrame({'type': 'SESSION_OPEN'});
     } catch (e) {
-      if (kDebugMode) debugPrint('[WebSocketService] Connection failed: $e');
+      Logger.debug('[WebSocketService] Connection failed: $e');
       _setState(WsConnectionState.error, errorType: 'connection_failure');
       _startReconnect();
     }
   }
 
   void _onMessage(dynamic message) {
-    if (kDebugMode) debugPrint('[WebSocketService] Received: $message');
+    Logger.debug('[WebSocketService] Received: ${message is String && message.length > 200 ? '${message.substring(0, 200)}...' : message}');
 
     try {
       final data = jsonDecode(message as String) as Map<String, dynamic>;
@@ -121,6 +130,7 @@ class WebSocketService {
 
       switch (type) {
         case 'SESSION_OPEN_CONFIRMED':
+          _connectTimeoutTimer?.cancel();
           _reconnectAttempts = 0;
           _setState(WsConnectionState.sessionActive);
           final confirmedPayload = data['payload'] as Map<String, dynamic>?;
@@ -155,22 +165,24 @@ class WebSocketService {
           _sessionClosedController.add(null);
           break;
         default:
-          if (kDebugMode) debugPrint('[WebSocketService] Unknown message type: $type');
+          Logger.debug('[WebSocketService] Unknown message type: $type');
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('[WebSocketService] Failed to parse message: $e');
+      Logger.debug('[WebSocketService] Failed to parse message: $e');
     }
   }
 
   void _onError(dynamic error) {
-    if (kDebugMode) debugPrint('[WebSocketService] Stream error: $error');
+    _connectTimeoutTimer?.cancel();
+    Logger.debug('[WebSocketService] Stream error: $error');
     _hadError = true;
     _setState(WsConnectionState.error, errorType: 'connection_failure');
     _startReconnect();
   }
 
   void _onDone() {
-    if (kDebugMode) debugPrint('[WebSocketService] Connection closed');
+    _connectTimeoutTimer?.cancel();
+    Logger.debug('[WebSocketService] Connection closed');
     _channel = null;
     if (_hadError) {
       _hadError = false;
@@ -184,17 +196,17 @@ class WebSocketService {
 
   void sendUserTurn(String content) {
     if (_state != WsConnectionState.sessionActive) {
-      if (kDebugMode) debugPrint('[WebSocketService] Cannot send — not in sessionActive state');
+      Logger.debug('[WebSocketService] Cannot send — not in sessionActive state');
       return;
     }
 
     final sid = _sessionId;
     if (sid == null) {
-      if (kDebugMode) debugPrint('[WebSocketService] Cannot send — no session_id');
+      Logger.debug('[WebSocketService] Cannot send — no session_id');
       return;
     }
 
-    if (kDebugMode) debugPrint('[WebSocketService] Sending USER_TURN: $content');
+    Logger.debug('[WebSocketService] Sending USER_TURN: ${content.length > 100 ? '${content.substring(0, 100)}...' : content}');
     _sendFrame({
       'type': 'USER_TURN',
       'payload': {
@@ -225,7 +237,7 @@ class WebSocketService {
       final frame = AgentTurnFrame.fromJson(data);
       _agentTurnController.add(frame);
     } catch (e) {
-      if (kDebugMode) debugPrint('[WebSocketService] Failed to parse agent_turn frame: $e');
+      Logger.debug('[WebSocketService] Failed to parse agent_turn frame: $e');
     }
   }
 
@@ -248,6 +260,8 @@ class WebSocketService {
   void _cancelReconnect() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _connectTimeoutTimer?.cancel();
+    _connectTimeoutTimer = null;
     _bannerDebounceTimer?.cancel();
     _bannerDebounceTimer = null;
   }
@@ -266,11 +280,9 @@ class WebSocketService {
     _reconnectAttempts++;
     final delay = Duration(seconds: 1 << (_reconnectAttempts - 1));
 
-    if (kDebugMode) {
-      debugPrint(
-        '[WebSocketService] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempts/$_maxReconnectAttempts)',
-      );
-    }
+    Logger.debug(
+      '[WebSocketService] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempts/$_maxReconnectAttempts)',
+    );
 
     _reconnectTimer = Timer(delay, () {
       _setState(WsConnectionState.reconnecting);
@@ -281,7 +293,7 @@ class WebSocketService {
   }
 
   void retry() {
-    if (kDebugMode) debugPrint('[WebSocketService] Manual retry requested');
+    Logger.debug('[WebSocketService] Manual retry requested');
     _cancelReconnect();
     _reconnectAttempts = 0;
     _intentionalDisconnect = false;
@@ -293,6 +305,8 @@ class WebSocketService {
 
     _intentionalDisconnect = true;
     _cancelReconnect();
+    _connectTimeoutTimer?.cancel();
+    _connectTimeoutTimer = null;
     _hideBanner();
 
     _sessionId = null;
@@ -304,11 +318,12 @@ class WebSocketService {
 
   void _sendFrame(Map<String, dynamic> frame) {
     if (_channel == null) return;
-    if (kDebugMode) debugPrint('[WebSocketService] Sending: $frame');
+    Logger.debug('[WebSocketService] Sending frame: ${frame['type']}');
     _channel!.sink.add(jsonEncode(frame));
   }
 
   void dispose() {
+    _connectTimeoutTimer?.cancel();
     disconnect();
     _stateController.close();
     _errorTypeController.close();
