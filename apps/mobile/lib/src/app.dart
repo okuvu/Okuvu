@@ -19,6 +19,8 @@ class App extends ConsumerWidget {
         ref.invalidate(voiceSettingsProvider);
         ref.invalidate(intakeProvider);
         ref.invalidate(crisisOverlayProvider);
+        ref.invalidate(consentProvider);
+        ref.invalidate(hasCompletedOnboardingProvider);
       }
     });
 
