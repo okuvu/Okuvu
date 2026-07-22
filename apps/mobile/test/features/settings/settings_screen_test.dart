@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:evia/src/config/app_config.dart';
 import 'package:evia/src/core/providers.dart';
+import 'package:evia/src/features/settings/about_screen.dart';
 import 'package:evia/src/features/settings/emergency_contact_screen.dart';
+import 'package:evia/src/features/settings/privacy_screen.dart';
 import 'package:evia/src/features/settings/settings_screen.dart';
 import 'package:evia/src/widgets/voice_toggle.dart';
 
@@ -81,6 +83,14 @@ Widget _settingsApp(Dio dio) {
                 path: 'emergency',
                 builder: (_, __) => const EmergencyContactScreen(),
               ),
+              GoRoute(
+                path: 'about',
+                builder: (_, __) => const AboutScreen(),
+              ),
+              GoRoute(
+                path: 'privacy-policy',
+                builder: (_, __) => const PrivacyScreen(),
+              ),
             ],
           ),
         ],
@@ -117,7 +127,7 @@ void main() {
   group('SettingsScreen', () {
     testWidgets(
       'renders all entries: My Focus Area, Emergency Contact, '
-      'Privacy & Data, Language, Voice, Delete Account',
+      'Privacy & Data, Language, About, Voice, Delete Account',
       (tester) async {
         await tester.pumpWidget(_settingsApp(_createMockDio()));
         await tester.pumpAndSettle();
@@ -126,10 +136,21 @@ void main() {
         expect(find.text('Emergency Contact'), findsOneWidget);
         expect(find.text('Privacy & Data'), findsOneWidget);
         expect(find.text('Language'), findsOneWidget);
+        expect(find.text('About'), findsOneWidget);
         expect(find.text('Voice'), findsOneWidget);
         expect(find.text('Delete Account'), findsOneWidget);
       },
     );
+
+    testWidgets('About tile navigates to AboutScreen', (tester) async {
+      await tester.pumpWidget(_settingsApp(_createMockDio()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('About'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AboutScreen), findsOneWidget);
+    });
 
     testWidgets('Emergency Contact tile navigates to EmergencyContactScreen',
         (tester) async {
