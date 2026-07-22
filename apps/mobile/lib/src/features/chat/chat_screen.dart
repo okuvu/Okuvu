@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +30,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
   bool _srsTriggered = false;
   bool _isAgentTyping = false;
+  Timer? _typingTimer;
 
   @override
   void initState() {
@@ -48,6 +51,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _typingTimer?.cancel();
     _scrollController.dispose();
     _textController.dispose();
     super.dispose();
@@ -60,6 +64,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _startTypingTimeout() {
+    _typingTimer?.cancel();
+    _typingTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted) {
+        setState(() => _isAgentTyping = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No response received. Please try again.'),
+          ),
         );
       }
     });
@@ -94,10 +112,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     Logger.debug('[ChatScreen] _sendMessage: "${text.length > 100 ? '${text.substring(0, 100)}...' : text}"');
 
+    final wsState = ref.read(wsConnectionStateProvider);
+    if (wsState != WsConnectionState.sessionActive) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not connected. Please wait...')),
+        );
+      }
+      return;
+    }
+
     ref.read(chatMessagesProvider.notifier).addUserMessage(text);
     ref.read(webSocketServiceProvider).sendUserTurn(text);
     _textController.clear();
     setState(() => _isAgentTyping = true);
+    _startTypingTimeout();
     _scrollToBottom();
 
     if (_useMockResponses) {
@@ -134,6 +163,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           return;
         }
         if (mounted) {
+          _typingTimer?.cancel();
           setState(() => _isAgentTyping = false);
         }
         Future.delayed(const Duration(milliseconds: 400), () async {
@@ -149,6 +179,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           previous != null &&
           next.messages.length > previous.messages.length &&
           next.messages.last.sender == MessageSender.agent) {
+        _typingTimer?.cancel();
         setState(() => _isAgentTyping = false);
       }
     });
@@ -281,7 +312,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       BuildContext context, bool sessionClosed, WsConnectionState wsState) {
     final isInputDisabled = sessionClosed ||
         _isAgentTyping ||
-        wsState == WsConnectionState.reconnecting;
+        wsState != WsConnectionState.sessionActive;
 
     if (sessionClosed) {
       final theme = Theme.of(context);
