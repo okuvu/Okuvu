@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/logger.dart';
 import '../../../core/providers.dart';
 
 const _handleHeight = 4.0;
@@ -92,11 +92,11 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
             data: {'srs_score': score},
           );
         } catch (e) {
-          if (kDebugMode) debugPrint('[SRS] PATCH failed: $e');
+          Logger.debug('[SRS] PATCH failed: $e');
         }
       }());
-    } else if (kDebugMode) {
-      debugPrint('[SRS] No session ID available, skipping PATCH');
+    } else {
+      Logger.debug('[SRS] No session ID available, skipping PATCH');
     }
   }
 

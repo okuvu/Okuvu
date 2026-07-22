@@ -1,13 +1,11 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:flutter/foundation.dart';
+import 'logger.dart';
 
 class AnalyticsService {
   FirebaseAnalytics? _analytics;
 
   Future<void> logEvent(String name, {Map<String, dynamic>? properties}) async {
-    if (kDebugMode) {
-      debugPrint('[Analytics] $name ${properties ?? {}}');
-    }
+    Logger.debug('[Analytics] $name ${properties ?? {}}');
     try {
       _analytics ??= FirebaseAnalytics.instance;
       final safe = properties?.map((k, v) => MapEntry(k, v ?? ''));

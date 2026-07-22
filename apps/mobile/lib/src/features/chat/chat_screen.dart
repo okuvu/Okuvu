@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_config.dart';
 import '../../config/flavor_config.dart';
+import '../../core/logger.dart';
 import '../../core/providers.dart';
 import '../../core/websocket_service.dart';
 import 'models/chat_message.dart';
@@ -45,7 +46,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           wsBaseUrl: AppConfig.wsBaseUrl,
           token: token,
         );
-    if (kDebugMode) debugPrint('[ChatScreen] initState: WS connect called');
+    Logger.debug('[ChatScreen] initState: WS connect called');
   }
 
   @override
@@ -109,7 +110,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
-    if (kDebugMode) debugPrint('[ChatScreen] _sendMessage: "$text"');
+    Logger.debug('[ChatScreen] _sendMessage: "${text.length > 100 ? '${text.substring(0, 100)}...' : text}"');
 
     final wsState = ref.read(wsConnectionStateProvider);
     if (wsState != WsConnectionState.sessionActive) {
@@ -130,9 +131,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (_useMockResponses) {
       Future.delayed(const Duration(milliseconds: 800), () {
-        if (kDebugMode) {
-          debugPrint('[ChatScreen] Injecting mock agent response');
-        }
+        Logger.debug('[ChatScreen] Injecting mock agent response');
         ref.read(webSocketServiceProvider).injectMockAgentTurn(
               'I hear you. Tell me more about how that makes you feel.',
             );

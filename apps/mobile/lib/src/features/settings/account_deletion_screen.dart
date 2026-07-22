@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import '../../core/logger.dart';
 import '../../core/providers.dart';
 
 const _ctaTextStyle = TextStyle(
@@ -47,7 +47,7 @@ class _AccountDeletionScreenState extends ConsumerState<AccountDeletionScreen> {
 
       if (mounted) setState(() => _currentStep = _DeletionStep.success);
     } on DioException catch (e) {
-      if (kDebugMode) debugPrint('Account deletion failed: $e');
+      Logger.debug('Account deletion failed: $e');
 
       if (e.response?.statusCode == 409) {
         final code = e.response?.data?['error']?['code'];

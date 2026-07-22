@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 
+import '../../core/logger.dart';
 import '../../core/providers.dart';
 
 class VoiceSettingsState {
@@ -80,11 +80,9 @@ class VoiceSettingsNotifier extends Notifier<VoiceSettingsState> {
         },
       );
     } on DioException catch (e) {
-      debugPrint(
-        'Voice preference persistence failed: ${e.response?.statusCode}',
-      );
+      Logger.debug('Voice preference persistence failed: ${e.response?.statusCode}');
     } catch (e) {
-      debugPrint('Voice preference persistence failed: $e');
+      Logger.debug('Voice preference persistence failed: $e');
     }
   }
 }
