@@ -78,7 +78,7 @@ DEPLOY_ARGS=(
   --port 8080
   --add-cloudsql-instances evia-500215:asia-south1:evia-db
   --set-secrets "${SECRETS}"
-  --set-env-vars "SESSION_LIMIT_SD_DAILY=1,SESSION_LIMIT_TL_DAILY=2,FIREBASE_PROJECT_ID=evia-500215"
+  --set-env-vars "SESSION_LIMIT_SD_DAILY=1,SESSION_LIMIT_TL_DAILY=2,FIREBASE_PROJECT_ID=evia-500215,VERTEX_AI_PROJECT_ID=evia-500215,VERTEX_AI_LOCATION=asia-south1,GEMINI_PRO_MODEL=gemini-2.5-flash,GEMINI_FLASH_LITE_MODEL=gemini-2.5-flash"
   --min-instances 1
   --max-instances 4
   --allow-unauthenticated
