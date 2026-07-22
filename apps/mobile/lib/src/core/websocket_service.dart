@@ -42,6 +42,8 @@ class WebSocketService {
       StreamController<AgentTurnFrame>.broadcast();
   final StreamController<void> _sessionClosedController =
       StreamController<void>.broadcast();
+  final StreamController<String?> _crisisSignalController =
+      StreamController<String?>.broadcast();
   final StreamController<bool> _showBannerController =
       StreamController<bool>.broadcast();
 
@@ -53,6 +55,7 @@ class WebSocketService {
   Stream<String?> get errorTypeStream => _errorTypeController.stream;
   Stream<AgentTurnFrame> get agentTurnStream => _agentTurnController.stream;
   Stream<void> get sessionClosedStream => _sessionClosedController.stream;
+  Stream<String?> get crisisSignalStream => _crisisSignalController.stream;
   Stream<bool> get showBannerStream => _showBannerController.stream;
 
   void _setState(WsConnectionState newState, {String? errorType}) {
@@ -126,21 +129,34 @@ class WebSocketService {
       final type = data['type'] as String?;
 
       switch (type) {
-        case 'session_open_confirmed':
+        case 'SESSION_OPEN_CONFIRMED':
           _connectTimeoutTimer?.cancel();
           _reconnectAttempts = 0;
           _setState(WsConnectionState.sessionActive);
-          final payload = data['payload'] as Map<String, dynamic>?;
-          _sessionId = payload?['session_id'] as String?;
+          final confirmedPayload = data['payload'] as Map<String, dynamic>?;
+          _sessionId = confirmedPayload?['session_id'] as String?;
           break;
-        case 'session_rejected':
-          final reason = data['reason'] as String?;
+        case 'SESSION_OPEN_REJECTED':
+          _sessionId = null;
+          final rejectedPayload = data['payload'] as Map<String, dynamic>?;
+          final reason = rejectedPayload?['reason'] as String?;
           _setState(WsConnectionState.error, errorType: reason ?? 'rate_limited');
           break;
-        case 'agent_turn':
+        case 'AGENT_TURN':
           _handleAgentTurn(data);
           break;
-        case 'session_closed':
+        case 'CRISIS_SIGNAL':
+          final crisisPayload = data['payload'] as Map<String, dynamic>?;
+          final crisisSessionId = crisisPayload?['session_id'] as String?;
+          _crisisSignalController.add(crisisSessionId);
+          break;
+        case 'ERROR':
+          final errorPayload = data['payload'] as Map<String, dynamic>?;
+          final errorReason = errorPayload?['reason'] as String?;
+          if (kDebugMode) debugPrint('[WebSocketService] Server error: $errorReason');
+          break;
+        case 'SESSION_CLOSED':
+          _sessionId = null;
           _intentionalDisconnect = true;
           _cancelReconnect();
           _hideBanner();
@@ -184,11 +200,19 @@ class WebSocketService {
       return;
     }
 
-    Logger.debug('[WebSocketService] Sending user_turn: ${content.length > 100 ? '${content.substring(0, 100)}...' : content}');
+    final sid = _sessionId;
+    if (sid == null) {
+      Logger.debug('[WebSocketService] Cannot send — no session_id');
+      return;
+    }
+
+    Logger.debug('[WebSocketService] Sending USER_TURN: ${content.length > 100 ? '${content.substring(0, 100)}...' : content}');
     _sendFrame({
-      'type': 'user_turn',
-      'content': content,
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'type': 'USER_TURN',
+      'payload': {
+        'session_id': sid,
+        'message': content,
+      },
     });
   }
 
@@ -285,7 +309,8 @@ class WebSocketService {
     _connectTimeoutTimer = null;
     _hideBanner();
 
-    _sendFrame({'type': 'session_close'});
+    _sessionId = null;
+    _sendFrame({'type': 'SESSION_CLOSE', 'payload': <String, dynamic>{}});
     _channel!.sink.close();
     _channel = null;
     _setState(WsConnectionState.disconnected);
@@ -304,6 +329,7 @@ class WebSocketService {
     _errorTypeController.close();
     _agentTurnController.close();
     _sessionClosedController.close();
+    _crisisSignalController.close();
     _showBannerController.close();
   }
 }

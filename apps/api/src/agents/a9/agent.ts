@@ -18,7 +18,7 @@ export async function classifyGovernance(
       contents: [{ role: 'user', parts: [{ text: input.message }] }],
       model: FLASH_LITE_MODEL,
       generationConfig: {
-        maxOutputTokens: 40,
+        maxOutputTokens: 200,
         responseMimeType: 'application/json',
       },
     });

@@ -51,12 +51,12 @@ describe('A9 Governance Agent', () => {
       await classifyGovernance(makeInput());
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-3.1-flash-lite-preview');
+      expect(callArgs.model).toBe('gemini-2.5-flash');
     });
   });
 
   describe('generation config', () => {
-    it('sets max_output_tokens to 40', async () => {
+    it('sets max_output_tokens to 200', async () => {
       mockGenerateContent.mockResolvedValue({
         text: JSON.stringify({ governanceState: 'Active' }),
         fallbackUsed: false,
@@ -65,7 +65,7 @@ describe('A9 Governance Agent', () => {
       await classifyGovernance(makeInput());
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.generationConfig.maxOutputTokens).toBe(40);
+      expect(callArgs.generationConfig.maxOutputTokens).toBe(200);
     });
 
     it('sets responseMimeType to application/json', async () => {

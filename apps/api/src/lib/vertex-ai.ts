@@ -1,7 +1,7 @@
 import { v1beta1, protos } from '@google-cloud/aiplatform';
 
-export const DEFAULT_MAX_OUTPUT_TOKENS = 250;
-export const DEFAULT_TIMEOUT_MS = 10_000;
+export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
+export const DEFAULT_TIMEOUT_MS = 30_000;
 
 const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";
 
@@ -17,10 +17,10 @@ function getClient(): v1beta1.PredictionServiceClient {
   return client;
 }
 
-function getModelResource(): string {
+function getModelResource(modelName?: string): string {
   const project = process.env.VERTEX_AI_PROJECT_ID ?? 'evia-dev';
   const location = process.env.VERTEX_AI_LOCATION ?? 'asia-south1';
-  const model = process.env.GEMINI_PRO_MODEL ?? 'gemini-3.1-pro-preview';
+  const model = modelName ?? process.env.GEMINI_PRO_MODEL ?? 'gemini-3.1-pro-preview';
   return `projects/${project}/locations/${location}/publishers/google/models/${model}`;
 }
 
@@ -54,7 +54,7 @@ export async function generateContent(
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const request = {
-    model: params.model ?? getModelResource(),
+    model: getModelResource(params.model),
     systemInstruction: {
       role: 'system' as const,
       parts: [{ text: params.systemInstruction }],
@@ -85,6 +85,10 @@ export async function generateContent(
     const text =
       (response as protos.google.cloud.aiplatform.v1beta1.IGenerateContentResponse)
         ?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+    if (!text) {
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error' };
+    }
 
     return { text, fallbackUsed: false };
   } catch (err) {

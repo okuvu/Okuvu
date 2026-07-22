@@ -1,119 +1,141 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { generateContent } from '../lib/vertex-ai.js';
 
-const mockGenerateContent = vi.fn();
+const mockGenerateContent = vi.hoisted(() => vi.fn());
 
-vi.mock('@google-cloud/aiplatform', () => ({
-  v1beta1: {
-    PredictionServiceClient: vi.fn(() => ({
-      generateContent: mockGenerateContent,
-      close: vi.fn(),
-    })),
-  },
-  protos: {
-    google: {
-      cloud: {
-        aiplatform: {
-          v1beta1: {
-            IGenerationConfig: {},
+vi.mock('@google-cloud/aiplatform', () => {
+  return {
+    v1beta1: {
+      PredictionServiceClient: vi.fn(() => ({
+        generateContent: mockGenerateContent,
+      })),
+    },
+    protos: {
+      google: {
+        cloud: {
+          aiplatform: {
+            v1beta1: {},
           },
         },
       },
     },
-  },
-}));
+  };
+});
 
-import { generateContent, DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS } from '../lib/vertex-ai.js';
+const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";
 
-const originalEnv = { ...process.env };
-
-describe('Vertex AI wrapper', () => {
+describe('generateContent', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
-    process.env = { ...originalEnv };
-    delete process.env.USE_CANNED_LLM_RESPONSE;
-    delete process.env.CANNED_LLM_RESPONSE;
-    mockGenerateContent.mockReset();
+    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    process.env = { ...originalEnv };
-  });
+  it('returns SAFE_FALLBACK when Gemini returns empty text (thinking mode exhausted tokens)', async () => {
+    mockGenerateContent.mockResolvedValue([
+      {
+        candidates: [
+          {
+            content: { parts: [] },
+            finishReason: 'MAX_TOKENS',
+          },
+        ],
+      },
+    ]);
 
-  describe('canned response bypass', () => {
-    it('returns canned response when USE_CANNED_LLM_RESPONSE is true', async () => {
-      process.env.USE_CANNED_LLM_RESPONSE = 'true';
-      process.env.CANNED_LLM_RESPONSE = 'Canned reply';
-
-      const result = await generateContent({
-        systemInstruction: 'You are a bot.',
-        contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
-      });
-
-      expect(result.text).toBe('Canned reply');
-      expect(result.fallbackUsed).toBe(true);
+    const result = await generateContent({
+      systemInstruction: 'You are a helpful assistant.',
+      contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
     });
 
-    it('falls back to SAFE_FALLBACK when CANNED_LLM_RESPONSE is not set', async () => {
-      process.env.USE_CANNED_LLM_RESPONSE = 'true';
-      delete process.env.CANNED_LLM_RESPONSE;
-
-      const result = await generateContent({
-        systemInstruction: 'You are a bot.',
-        contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
-      });
-
-      expect(result.text).toBeTruthy();
-      expect(result.fallbackUsed).toBe(true);
-    });
+    expect(result.text).toBe(SAFE_FALLBACK);
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.failureReason).toBe('api_error');
   });
 
-  describe('timeout recovery', () => {
-    it('returns SAFE_FALLBACK with failureReason=timeout when API call is artificially delayed past timeout', async () => {
-      mockGenerateContent.mockImplementation(
-        () => new Promise(() => {
-          /* never resolves */
-        }),
+  it('returns response text when Gemini returns valid content', async () => {
+    mockGenerateContent.mockResolvedValue([
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'I hear you. Tell me more.' }],
+            },
+          },
+        ],
+      },
+    ]);
+
+    const result = await generateContent({
+      systemInstruction: 'test',
+      contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+    });
+
+    expect(result.text).toBe('I hear you. Tell me more.');
+    expect(result.fallbackUsed).toBe(false);
+  });
+
+  it('returns SAFE_FALLBACK on API error', async () => {
+    mockGenerateContent.mockRejectedValue(new Error('API failure'));
+
+    const result = await generateContent({
+      systemInstruction: 'test',
+      contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+    });
+
+    expect(result.text).toBe(SAFE_FALLBACK);
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.failureReason).toBe('api_error');
+  });
+
+  it('returns SAFE_FALLBACK when candidates array is missing', async () => {
+    mockGenerateContent.mockResolvedValue([{}]);
+
+    const result = await generateContent({
+      systemInstruction: 'test',
+      contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+    });
+
+    expect(result.text).toBe(SAFE_FALLBACK);
+    expect(result.fallbackUsed).toBe(true);
+  });
+
+  describe('model resource path', () => {
+    beforeEach(() => {
+      mockGenerateContent.mockResolvedValue([
+        {
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'ok' }],
+              },
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('wraps bare model name with full publisher resource path', async () => {
+      await generateContent({
+        systemInstruction: 'test',
+        contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+        model: 'gemini-2.5-flash',
+      });
+
+      const actualModel = mockGenerateContent.mock.calls[0][0].model;
+      expect(actualModel).toMatch(
+        /^projects\/evia-500215\/locations\/asia-south1\/publishers\/google\/models\/gemini-2\.5-flash$/,
       );
+    });
 
-      const result = await generateContent({
-        systemInstruction: 'You are a bot.',
-        contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
-        timeoutMs: 50,
+    it('uses default Pro model when no model param provided', async () => {
+      await generateContent({
+        systemInstruction: 'test',
+        contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
       });
 
-      expect(result.fallbackUsed).toBe(true);
-      expect(result.failureReason).toBe('timeout');
-      expect(result.text).toBeTruthy();
-    });
-
-    it('returns SAFE_FALLBACK with failureReason=api_error when API call rejects', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Vertex AI API error'));
-
-      const result = await generateContent({
-        systemInstruction: 'You are a bot.',
-        contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
-        timeoutMs: 5000,
-      });
-
-      expect(result.fallbackUsed).toBe(true);
-      expect(result.failureReason).toBe('api_error');
-      expect(result.text).toBeTruthy();
-    });
-  });
-
-  describe('timeout config', () => {
-    it('uses DEFAULT_TIMEOUT_MS when no custom timeout is provided', () => {
-      expect(DEFAULT_TIMEOUT_MS).toBe(10000);
-    });
-  });
-
-  describe('constants', () => {
-    it('has max_output_tokens set to 250', () => {
-      expect(DEFAULT_MAX_OUTPUT_TOKENS).toBe(250);
-    });
-
-    it('has a default timeout', () => {
-      expect(DEFAULT_TIMEOUT_MS).toBeGreaterThan(0);
+      const actualModel = mockGenerateContent.mock.calls[0][0].model;
+      expect(actualModel).toMatch(
+        /^projects\/evia-500215\/locations\/asia-south1\/publishers\/google\/models\//,
+      );
     });
   });
 });

@@ -16,7 +16,7 @@ import 'widgets/srs_modal.dart';
 import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
 
-const bool _useMockResponses = kDebugMode;
+const bool _useMockResponses = false;
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
