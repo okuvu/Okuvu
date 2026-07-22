@@ -110,6 +110,7 @@ final wsShowBannerProvider =
 class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<AgentTurnFrame>? _turnSub;
   StreamSubscription<void>? _sessionSub;
+  StreamSubscription<String?>? _crisisSub;
 
   @override
   ChatState build() {
@@ -118,18 +119,18 @@ class ChatNotifier extends Notifier<ChatState> {
     _sessionSub = ws.sessionClosedStream.listen((_) {
       state = state.copyWith(isSessionClosed: true);
     });
+    _crisisSub = ws.crisisSignalStream.listen((_) {
+      ref.read(crisisOverlayProvider.notifier).show();
+    });
     ref.onDispose(() {
       _turnSub?.cancel();
       _sessionSub?.cancel();
+      _crisisSub?.cancel();
     });
     return const ChatState(messages: []);
   }
 
   void _onAgentTurn(AgentTurnFrame frame) {
-    if (frame.isCrisis) {
-      ref.read(crisisOverlayProvider.notifier).show();
-      return;
-    }
     state = state.copyWith(
       messages: [
         ...state.messages,

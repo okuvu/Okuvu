@@ -13,7 +13,7 @@ import 'widgets/srs_modal.dart';
 import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
 
-const bool _useMockResponses = kDebugMode;
+const bool _useMockResponses = false;
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -282,7 +282,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       BuildContext context, bool sessionClosed, WsConnectionState wsState) {
     final isInputDisabled = sessionClosed ||
         _isAgentTyping ||
-        wsState == WsConnectionState.reconnecting;
+        wsState != WsConnectionState.sessionActive;
 
     if (sessionClosed) {
       final theme = Theme.of(context);

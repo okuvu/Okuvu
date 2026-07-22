@@ -3,14 +3,12 @@ class AgentTurnFrame {
   final String? turnId;
   final String? timestamp;
   final int turnCount;
-  final bool isCrisis;
 
   const AgentTurnFrame({
     required this.content,
     this.turnId,
     this.timestamp,
     this.turnCount = 0,
-    this.isCrisis = false,
   });
 
   factory AgentTurnFrame.fromJson(Map<String, dynamic> json) {
@@ -26,7 +24,6 @@ class AgentTurnFrame {
       turnId: (payload?['turn_id'] as String?) ?? (json['turn_id'] as String?),
       timestamp: (payload?['timestamp'] as String?) ?? (json['timestamp'] as String?),
       turnCount: (payload?['turn_count'] as int?) ?? (json['turn_count'] as int?) ?? 0,
-      isCrisis: (payload?['agent'] as String?) == 'crisis' || json['agent'] == 'crisis',
     );
   }
 }
