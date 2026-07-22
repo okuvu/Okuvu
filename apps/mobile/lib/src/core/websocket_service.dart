@@ -102,9 +102,7 @@ class WebSocketService {
       _connectTimeoutTimer = Timer(const Duration(seconds: 10), () {
         if (_state == WsConnectionState.connecting ||
             _state == WsConnectionState.connected) {
-          if (kDebugMode) {
-            debugPrint('[WebSocketService] Connect timeout \u2014 forcing error state');
-          }
+          Logger.debug('[WebSocketService] Connect timeout \u2014 forcing error state');
           _setState(WsConnectionState.error, errorType: 'connect_timeout');
           _startReconnect();
         }
@@ -295,7 +293,7 @@ class WebSocketService {
 
   void _sendFrame(Map<String, dynamic> frame) {
     if (_channel == null) return;
-    Logger.debug('[WebSocketService] Sending: $frame');
+    Logger.debug('[WebSocketService] Sending frame: ${frame['type']}');
     _channel!.sink.add(jsonEncode(frame));
   }
 
