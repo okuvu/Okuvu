@@ -2,434 +2,228 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { formatClientLabel } from '@/lib/format';
+import AuthenticatedShell from '@/app/components/AuthenticatedShell';
 
-const STORAGE_PREFIX = 'draft-note-';
+function formatNoteDate(iso: string | Date): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
 
-function getDraftKey(clientId: string): string {
-  return `${STORAGE_PREFIX}${clientId}`;
-}
-
-function loadDraft(clientId: string): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    return sessionStorage.getItem(getDraftKey(clientId)) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function saveDraft(clientId: string, text: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    if (text) {
-      sessionStorage.setItem(getDraftKey(clientId), text);
-    } else {
-      sessionStorage.removeItem(getDraftKey(clientId));
-    }
-  } catch {
-    /* storage may be full or unavailable */
-  }
-}
-
-function clearDraft(clientId: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.removeItem(getDraftKey(clientId));
-  } catch {
-    /* noop */
-  }
-}
-
-function formatNoteDate(raw: Date | string): string {
-  const d = new Date(raw);
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
     day: 'numeric',
-  });
-}
-
-function formatNoteTime(raw: Date | string): string {
-  const d = new Date(raw);
-  return d.toLocaleTimeString('en-US', {
+    year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true,
   });
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return 'T';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-}
-
-const SAFETY_LABELS: Record<string, string> = {
-  S0: 'Stable',
-  S1: 'Low',
-  S2: 'Concern',
-  S3: 'Elevated',
-  S4: 'Critical',
-};
-
-function SafetyBadge({ safetyState }: { safetyState: string | null }) {
-  if (!safetyState) {
-    return <span className="px-2 py-0.5 rounded text-[11px] font-bold border border-gray-200 bg-gray-50 text-gray-400">—</span>;
-  }
-
-  const isConcern = safetyState === 'S2' || safetyState === 'S3' || safetyState === 'S4';
-  const isStable = safetyState === 'S0';
-  const label = SAFETY_LABELS[safetyState] ?? safetyState;
-
-  return (
-    <span
-      className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
-        isConcern
-          ? 'border-amber-200 bg-amber-50 text-amber-700'
-          : isStable
-          ? 'border-green-200 bg-green-50 text-[#2D8A5E]'
-          : 'border-gray-200 bg-gray-50 text-gray-600'
-      }`}
-    >
-      {safetyState} {label ? `— ${label}` : ''}
-    </span>
-  );
 }
 
 export default function ClientNotesPage() {
   const params = useParams<{ id: string }>();
   const clientId = params.id;
-  const { data: session } = useSession();
-  const therapistName = session?.user?.name ?? 'Therapist';
 
-  const notesQuery = trpc.notes.listNotes.useQuery({ clientId }, {
-    enabled: !!clientId,
+  const DRAFT_KEY = `note-draft-${clientId}`;
+
+  const [noteText, setNoteText] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(DRAFT_KEY) || '';
+    }
+    return '';
   });
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const detailQuery = trpc.clients.detail.useQuery(
-    { clientUserId: clientId },
-    { enabled: !!clientId },
+  const notesQuery = trpc.notes.listNotes.useQuery(
+    { clientId },
+    { enabled: Boolean(clientId) },
   );
 
-  const [noteText, setNoteText] = useState(() => loadDraft(clientId));
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    setNoteText(loadDraft(clientId));
-  }, [clientId]);
-
-  useEffect(() => {
-    saveDraft(clientId, noteText);
-  }, [noteText, clientId]);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      const el = textareaRef.current;
-      el.style.height = 'auto';
-      el.style.height = Math.max(160, el.scrollHeight) + 'px';
-    }
-  }, [noteText]);
-
-  const addNoteMutation = trpc.notes.addNote.useMutation({
-    onSuccess: () => {
-      setNoteText('');
-      clearDraft(clientId);
-      setSubmitError(null);
+  const addNote = trpc.notes.addNote.useMutation({
+    onSuccess: async () => {
+      setSuccessMessage('Note saved.');
+      setErrorMessage(null);
       setValidationError(null);
-      textareaRef.current?.focus();
-      notesQuery.refetch();
+      setNoteText('');
+      sessionStorage.removeItem(DRAFT_KEY);
+      await notesQuery.refetch();
+      setTimeout(() => setSuccessMessage(null), 3000);
     },
-    onError: (error) => {
-      setSubmitError(error.message ?? "Couldn't save — try again.");
+    onError: (err) => {
+      setErrorMessage(err.message || 'Could not save note.');
+      setSuccessMessage(null);
+      setTimeout(() => setErrorMessage(null), 5000);
     },
   });
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  }, [clientId]);
-
-  useEffect(() => {
-    if (submitError) {
-      const timer = setTimeout(() => setSubmitError(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [submitError]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!noteText.trim()) {
-      setValidationError('Note cannot be empty');
+      setValidationError('Note cannot be empty.');
       return;
     }
+    if (!clientId) return;
+    setSuccessMessage(null);
+    setErrorMessage(null);
     setValidationError(null);
-    setSubmitError(null);
-    addNoteMutation.mutate({ clientUserId: clientId, noteText: noteText.trim() });
-  };
-
-  const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    const el = e.currentTarget;
-    el.style.height = 'auto';
-    el.style.height = Math.max(160, el.scrollHeight) + 'px';
-  };
-
-  const notes = notesQuery.data ?? [];
-  const clientDetail = detailQuery.data ?? null;
-  const userLabel = formatClientLabel(clientId);
-
-  if (notesQuery.isLoading) {
-    return (
-      <div className="flex flex-col gap-lg" aria-busy="true" aria-live="polite">
-        <div className="flex items-center gap-sm text-label-sm font-label-sm text-on-surface-variant mb-lg">
-          <div className="h-4 w-16 animate-pulse rounded bg-gray-200" />
-          <span className="material-symbols-outlined text-[16px] text-gray-200">chevron_right</span>
-          <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
-          <span className="material-symbols-outlined text-[16px] text-gray-200">chevron_right</span>
-          <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
-        </div>
-        <div className="h-8 w-64 animate-pulse rounded-lg bg-gray-200 mb-lg" />
-        <div className="h-16 animate-pulse rounded-lg bg-gray-100 mb-xl" />
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-gutter">
-          <div className="md:col-span-8 flex flex-col gap-lg">
-            <div className="h-64 animate-pulse rounded-xl bg-surface-container-lowest border border-outline-variant" />
-            <div className="border-t border-outline-variant" />
-            <div className="space-y-md">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-32 animate-pulse rounded-xl bg-surface-container-lowest border border-outline-variant" />
-              ))}
-            </div>
-          </div>
-          <div className="md:col-span-4 hidden md:flex flex-col gap-md">
-            <div className="h-48 animate-pulse rounded-xl bg-surface-container-lowest border border-outline-variant" />
-          </div>
-        </div>
-      </div>
-    );
+    addNote.mutate({ clientUserId: clientId, noteText: noteText.trim() });
   }
 
-  if (notesQuery.isError) {
-    return (
-      <div className="flex flex-col items-center justify-center py-xl text-center max-w-md mx-auto">
-        <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-md">error_outline</span>
-        <h2 className="font-display-title text-display-title text-on-surface mb-sm">
-          Couldn&rsquo;t load notes
-        </h2>
-        <p className="font-body-main text-body-main text-on-surface-variant mb-lg">
-          {notesQuery.error.message ?? 'Please try again.'}
-        </p>
-        <button
-          type="button"
-          onClick={() => notesQuery.refetch()}
-          className="inline-flex items-center gap-2 bg-primary-container text-on-primary font-label-sm text-label-sm px-lg py-sm rounded-lg hover:bg-primary transition-colors shadow-sm"
-        >
-          <span className="material-symbols-outlined text-[18px]">refresh</span>
-          Retry
-        </button>
-      </div>
-    );
-  }
+  const clientLabel = formatClientLabel(clientId);
 
   return (
-    <>
-      {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="flex items-center gap-sm text-label-sm font-label-sm text-on-surface-variant mb-lg">
-        <Link href="/dashboard" className="hover:text-primary transition-colors">Dashboard</Link>
-        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <Link href={`/clients/${clientId}`} className="hover:text-primary transition-colors">{userLabel}</Link>
-        <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-        <span className="text-on-surface font-semibold">Session Notes</span>
-      </nav>
+    <AuthenticatedShell clientName={clientLabel}>
+      <main className="min-h-screen bg-[#F4F6F8]">
+        <div className="p-4 md:p-8">
+          <div className="mx-auto max-w-3xl space-y-4">
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Link href="/dashboard" className="hover:text-[#1A6B5A] transition-colors">
+                Dashboard
+              </Link>
+              <span className="text-gray-300">/</span>
+              <Link href={`/clients/${clientId}`} className="hover:text-[#1A6B5A] transition-colors">
+                {clientLabel}
+              </Link>
+              <span className="text-gray-300">/</span>
+              <span className="text-gray-900 font-medium">Session Notes</span>
+            </div>
 
-      {/* Header */}
-      <div className="mb-lg">
-        <h1 className="font-display-title text-display-title text-on-surface">
-          Session Notes — {userLabel}
-        </h1>
-      </div>
+            {/* Privacy notice */}
+            <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">
+              <h1 className="text-lg font-semibold text-gray-900">Session Notes</h1>
+              <div className="mt-3 rounded-lg bg-blue-50 p-3 text-xs text-blue-800 leading-relaxed">
+                <strong>Privacy notice:</strong> Session notes are for your reference only. They
+                are stored securely and are <strong>never read</strong> by the AI system. The AI
+                does not ingest, process, or respond to your notes in any way. This is a deliberate
+                clinical boundary &mdash; you control what informs the AI through the care plan
+                selector.
+              </div>
+            </div>
 
-      {/* Notice Bar — permanent, non-dismissible */}
-      <div className="border-l-[3px] border-[#1A6B5A] bg-[#F4F6F8] rounded-lg p-4 flex items-start gap-3 mb-xl">
-        <span className="material-symbols-outlined text-[#1A6B5A] text-[16px] mt-0.5 shrink-0">info</span>
-        <p className="text-sm text-[#5A6472] leading-relaxed">
-          Notes you write here are private to you. Evia does not read them or use them in any way.
-        </p>
-      </div>
+            {/* Notes list */}
+            <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
+                NOTE HISTORY
+              </h2>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-gutter">
-        {/* Notes Column */}
-        <div className="md:col-span-8 flex flex-col gap-lg">
-          {/* New Note Card */}
-          <div className="bg-surface-container-lowest rounded-xl p-md shadow-soft border border-[#DDE2E8]">
-            <h2 className="font-section-header text-section-header text-on-surface mb-sm">
-              New Note
-            </h2>
-            <form onSubmit={handleSubmit}>
-              <div>
-                <label htmlFor="note-text" className="sr-only">Note text</label>
+              {notesQuery.isLoading ? (
+                <div className="space-y-3 animate-pulse">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-20 rounded-lg bg-gray-100" />
+                  ))}
+                </div>
+              ) : notesQuery.isError ? (
+                <p className="text-sm text-red-600">
+                  Could not load notes. Please refresh and try again.
+                </p>
+              ) : notesQuery.data && notesQuery.data.length > 0 ? (
+                <div className="space-y-3">
+                  {notesQuery.data.map((note) => (
+                    <div
+                      key={note.id}
+                      className="rounded-lg bg-gray-50 p-4 border border-gray-100"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                          {note.note_text}
+                        </p>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                        <span>{formatNoteDate(note.created_at)}</span>
+                        {note.therapist?.name && (
+                          <>
+                            <span>&middot;</span>
+                            <span>{note.therapist.name}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-gray-400 italic">No notes yet.</p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    Notes you add below will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Add note form */}
+            <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
+                ADD A NOTE
+              </h2>
+
+              <form onSubmit={handleSubmit}>
+                <label htmlFor="note" className="sr-only">
+                  Note text
+                </label>
                 <textarea
-                  id="note-text"
-                  ref={textareaRef}
-                  placeholder="Write your session notes here..."
+                  id="note"
                   value={noteText}
                   onChange={(e) => {
                     setNoteText(e.target.value);
+                    sessionStorage.setItem(DRAFT_KEY, e.target.value);
                     if (validationError) setValidationError(null);
                   }}
-                  onInput={handleTextareaInput}
-                  aria-invalid={!!validationError}
-                  aria-describedby={validationError ? 'note-validation-error' : undefined}
-                  className="block w-full rounded-lg border border-[#DDE2E8] bg-surface p-sm font-body-main text-body-main text-on-surface placeholder:text-on-surface-variant/50 focus:ring-1 focus:ring-primary focus:border-primary transition-colors resize-y min-h-[160px]"
+                  rows={5}
+                  placeholder="Enter your session notes here..."
+                  disabled={addNote.isPending}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60 disabled:cursor-not-allowed"
                 />
-                {validationError && (
-                  <p id="note-validation-error" className="mt-1 text-xs text-red-600" role="alert">
-                    {validationError}
-                  </p>
-                )}
-              </div>
-              <div className="mt-md flex justify-end">
                 <button
                   type="submit"
-                  disabled={addNoteMutation.status === 'pending'}
-                  className="inline-flex items-center gap-2 bg-primary-container text-on-primary font-label-sm text-label-sm px-lg py-sm rounded-lg hover:bg-primary transition-colors shadow-sm active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                  disabled={addNote.isPending || !noteText.trim()}
+                  className="mt-3 w-full rounded-lg bg-[#1A6B5A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-[18px]">save</span>
-                  {addNoteMutation.status === 'pending' ? 'Saving...' : 'Save note'}
+                  {addNote.isPending ? 'Saving...' : 'Save note'}
                 </button>
-              </div>
-            </form>
-          </div>
+              </form>
 
-          {/* Divider */}
-          <div className="border-t border-outline-variant" />
-
-          {/* Notes List or Empty State */}
-          {notes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-xl text-center">
-              <p className="font-body-main text-body-main italic text-[#8A93A0] mb-sm">
-                No session notes yet.
-              </p>
-              <p className="font-label-sm text-label-sm text-[#8A93A0]">
-                Notes you write here are private to you and are not shared with the client or used by Evia.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-md">
-              {notes.map((note) => (
-                <div
-                  key={note.id}
-                  className="bg-surface-container-lowest rounded-xl p-md shadow-soft border border-[#DDE2E8]"
+              {validationError && (
+                <p
+                  role="alert"
+                  aria-live="assertive"
+                  className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
                 >
-                  {/* Date Header */}
-                  <div className="flex items-center justify-between mb-sm">
-                    <div className="flex items-center gap-sm text-[13px] font-medium uppercase tracking-wide text-[#5A6472]">
-                      <span className="material-symbols-outlined text-[16px] text-[#5A6472]">calendar_today</span>
-                      <time dateTime={note.created_at}>
-                        {formatNoteDate(note.created_at)}
-                      </time>
-                    </div>
-                    <button
-                      type="button"
-                      className="text-on-surface-variant hover:text-primary transition-colors"
-                      aria-label="Note options"
-                      tabIndex={-1}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                    </button>
-                  </div>
-
-                  {/* Note Text */}
-                  <p className="font-body-main text-body-main text-on-surface whitespace-pre-wrap break-words leading-relaxed mb-md">
-                    {note.note_text}
-                  </p>
-
-                  {/* Author + Timestamp */}
-                  <div className="flex items-center justify-between border-t border-[#DDE2E8] pt-sm mt-sm">
-                    <div className="flex items-center gap-sm text-xs text-[#5A6472]">
-                      <div className="w-5 h-5 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-[9px] font-bold">
-                        {getInitials(note.therapist?.name ?? therapistName)}
-                      </div>
-                      <span>{note.therapist?.name ?? therapistName}</span>
-                    </div>
-                    <time dateTime={note.created_at} className="text-xs text-[#5A6472]">
-                      {formatNoteTime(note.created_at)}
-                    </time>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Patient Context Sidebar */}
-        <div className="md:col-span-4 flex flex-col gap-md hidden md:flex">
-          <div className="bg-surface-container-lowest rounded-xl p-md shadow-soft border border-outline-variant">
-            <div className="flex items-center gap-sm mb-md pb-sm border-b border-outline-variant">
-              <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant font-bold text-sm">
-                {userLabel.replace('User #', '')}
-              </div>
-              <div>
-                <h3 className="font-section-header text-section-header text-on-surface">{userLabel}</h3>
-                <p className="font-label-sm text-label-sm text-on-surface-variant">Active Treatment</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-sm">
-              <div className="flex justify-between items-center">
-                <span className="font-label-sm text-label-sm text-on-surface-variant">Current Safety Score</span>
-                <SafetyBadge safetyState={clientDetail?.safetyState ?? null} />
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-label-sm text-label-sm text-on-surface-variant">Last Session</span>
-                <span className="font-label-sm text-label-sm text-on-surface font-semibold">—</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-label-sm text-label-sm text-on-surface-variant">Primary Dx</span>
-                <span className="font-label-sm text-label-sm text-on-surface font-semibold">—</span>
-              </div>
-            </div>
-
-            <div className="mt-md pt-md border-t border-outline-variant">
-              <button
-                type="button"
-                disabled
-                className="w-full bg-transparent border border-primary-container text-primary-container font-label-sm text-label-sm py-sm rounded-lg opacity-60 cursor-not-allowed"
-              >
-                View Full Profile
-              </button>
+                  {validationError}
+                </p>
+              )}
+              {successMessage && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800 text-center"
+                >
+                  {successMessage}
+                </p>
+              )}
+              {errorMessage && (
+                <p
+                  role="alert"
+                  aria-live="assertive"
+                  className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
+                >
+                  {errorMessage}
+                </p>
+              )}
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Save Failure Toast */}
-      {submitError && (
-        <div
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-sm px-md py-sm rounded-lg shadow-lg bg-[#FDF2F1] border-l-4 border-[#C0392B] text-[#C0392B] font-label-sm text-label-sm animate-slide-up"
-          role="alert"
-        >
-          <span className="material-symbols-outlined text-[18px]">warning</span>
-          <span className="font-semibold">{submitError}</span>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-slide-up {
-          animation: slideUp 0.3s ease-out;
-        }
-      `}</style>
-    </>
+      </main>
+    </AuthenticatedShell>
   );
 }
