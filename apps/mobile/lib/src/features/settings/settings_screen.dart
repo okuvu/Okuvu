@@ -51,6 +51,11 @@ class SettingsScreen extends ConsumerWidget {
                     title: 'Language',
                     onTap: () => context.go('/settings/language'),
                   ),
+                  _SettingsTile(
+                    icon: Icons.info_outline,
+                    title: 'About',
+                    onTap: () => context.go('/settings/about'),
+                  ),
                   const VoiceToggle(),
                   const SizedBox(height: 8),
                   const Divider(height: 1),

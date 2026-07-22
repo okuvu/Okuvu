@@ -116,6 +116,12 @@ class PrivacyDataScreen extends ConsumerWidget {
                     theme: theme,
                   ),
                   _DataRow(
+                    icon: Icons.privacy_tip,
+                    title: 'Privacy Policy',
+                    onTap: () => context.go('/settings/privacy-policy'),
+                    theme: theme,
+                  ),
+                  _DataRow(
                     icon: Icons.delete_forever,
                     title: 'Delete my account',
                     titleColor: theme.colorScheme.error,

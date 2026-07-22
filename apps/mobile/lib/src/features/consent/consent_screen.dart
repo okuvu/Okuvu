@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import '../../config/app_config.dart';
+import '../../core/logger.dart';
 import '../../core/providers.dart';
 import 'consent_request.dart';
 
@@ -83,18 +83,14 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
           );
       if (mounted) context.go('/intake');
     } on DioException catch (e) {
-      if (kDebugMode) {
-        debugPrint('[ConsentScreen] POST /users/me/consent failed: '
-            'status=${e.response?.statusCode} body=${e.response?.data}');
-      }
+      Logger.debug('[ConsentScreen] POST /users/me/consent failed: '
+          'status=${e.response?.statusCode} body=${e.response?.data}');
 
       if (AppConfig.flavor == 'dev' && _isNetworkError(e)) {
-        if (kDebugMode) {
-          debugPrint(
-            '[ConsentScreen] Backend unavailable, proceeding with '
-            'local-only consent (dev mode)',
-          );
-        }
+        Logger.debug(
+          '[ConsentScreen] Backend unavailable, proceeding with '
+          'local-only consent (dev mode)',
+        );
         if (mounted) context.go('/intake');
         return;
       }

@@ -14,7 +14,7 @@ void main() {
       // --- Login ---
       await $('Sign In').waitUntilVisible();
       await $.pumpAndSettle();
-      await $(ValueKey('phone_input')).enterText(_testPhone);
+      await $(const ValueKey('phone_input')).enterText(_testPhone);
       await $('Continue with Phone').tap();
 
       await $('OTP Verification').waitUntilVisible();
@@ -46,15 +46,15 @@ void main() {
       await $("What's been weighing on your mind lately?").waitUntilVisible();
       await $.pumpAndSettle();
 
-      await $(ValueKey('intake_input')).enterText('I have been feeling anxious about work lately.');
-      await $(ValueKey('intake_send')).tap();
+      await $(const ValueKey('intake_input')).enterText('I have been feeling anxious about work lately.');
+      await $(const ValueKey('intake_send')).tap();
       await $.pumpAndSettle();
 
       // --- Intake step 2: choose care plan ---
       await $('Anxiety support').waitUntilVisible();
       await $.pumpAndSettle();
 
-      await $(ValueKey('care_plan_0')).tap();
+      await $(const ValueKey('care_plan_0')).tap();
       await $.pumpAndSettle();
 
       // Step 3 shows confirmation, then 1s timer → completes → navigates to /home

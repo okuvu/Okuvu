@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'src/app.dart';
 import 'src/config/app_config.dart';
+import 'src/core/logger.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -16,9 +19,9 @@ void main() {
       AppConfig.init();
     } catch (e, st) {
       startupError = 'AppConfig.init failed: $e\n$st';
-      debugPrint('========================================');
-      debugPrint(startupError);
-      debugPrint('========================================');
+      Logger.debug('========================================');
+      Logger.debug(startupError);
+      Logger.debug('========================================');
       runApp(_FatalErrorApp(message: startupError));
       return;
     }
@@ -27,26 +30,36 @@ void main() {
       await Firebase.initializeApp();
     } catch (e, st) {
       startupError = 'Firebase.initializeApp failed: $e\n$st';
-      debugPrint('========================================');
-      debugPrint(startupError);
-      debugPrint('========================================');
+      Logger.debug('========================================');
+      Logger.debug(startupError);
+      Logger.debug('========================================');
       runApp(_FatalErrorApp(message: startupError));
       return;
     }
 
-    debugPrint('========================================');
-    debugPrint('  Evia — Starting up');
-    debugPrint('  Environment: ${AppConfig.environment.label}');
-    debugPrint('  Base URL:    ${AppConfig.apiBaseUrl}');
-    debugPrint('========================================');
+    FlutterError.onError = (details) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+
+    Logger.debug('========================================');
+    Logger.debug('  Evia — Starting up');
+    Logger.debug('  Environment: ${AppConfig.environment.label}');
+    Logger.debug('  Base URL:    ${AppConfig.apiBaseUrl}');
+    Logger.debug('========================================');
 
     runApp(const ProviderScope(child: App()));
   }, (error, stack) {
-    debugPrint('========================================');
-    debugPrint('  Evia — Unhandled error during startup');
-    debugPrint('  $error');
-    debugPrint('  $stack');
-    debugPrint('========================================');
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    Logger.debug('========================================');
+    Logger.debug('  Evia — Unhandled error during startup');
+    Logger.debug('  $error');
+    Logger.debug('  $stack');
+    Logger.debug('========================================');
   });
 }
 
