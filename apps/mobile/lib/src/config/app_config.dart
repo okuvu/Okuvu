@@ -6,6 +6,8 @@ class AppConfig {
   static late final String wsBaseUrl;
   static late final String flavor;
 
+  static const String privacyPolicyUrl = 'https://docs.google.com/document/d/e/2PACX-1vQgv2bJgSDak1iNPiO698VBHQ9fn8IOK9GoBjLU--HRGBHLn3rS-hS8gKhnT6uDh_havhWeVBexEEDx/pub';
+
   @Deprecated('Use apiBaseUrl instead')
   static String get baseUrl => apiBaseUrl;
 

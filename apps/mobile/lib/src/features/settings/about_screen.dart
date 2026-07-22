@@ -6,6 +6,8 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -25,11 +27,20 @@ class AboutScreen extends StatelessWidget {
             children: [
               const FlutterLogo(size: 80),
               const SizedBox(height: 24),
-              Text('Evia', style: Theme.of(context).textTheme.headlineMedium),
+              Text('Evia', style: theme.textTheme.headlineMedium),
               const Text('AI Mental Wellness Companion'),
               const SizedBox(height: 8),
               const Text('Version 1.0.0'),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 200,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go('/settings/privacy-policy'),
+                  icon: const Icon(Icons.privacy_tip, size: 18),
+                  label: const Text('Privacy Policy'),
+                ),
+              ),
+              const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => context.go('/settings'),
                 child: const Text('Back to Settings'),
