@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../config/app_config.dart';
 import 'care_plan_provider.dart';
 import 'onboarding_provider.dart';
 
@@ -21,12 +20,6 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
     _navigated = true;
 
     if (ref.read(hasCompletedOnboardingProvider)) {
-      context.go('/home');
-      return;
-    }
-
-    if (AppConfig.flavor == 'dev') {
-      ref.read(hasCompletedOnboardingProvider.notifier).complete();
       context.go('/home');
       return;
     }

@@ -22,3 +22,14 @@ export async function incrementTurnCount(sessionId: string): Promise<number> {
   });
   return updated.turn_count;
 }
+
+export async function getSessionConversationTurns(
+  sessionId: string,
+): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  const turns = await prisma.turn.findMany({
+    where: { session_id: sessionId },
+    orderBy: [{ turn_number: 'asc' }, { created_at: 'asc' }],
+    select: { role: true, content: true },
+  });
+  return turns.map((t) => ({ role: t.role as 'user' | 'assistant', content: t.content }));
+}

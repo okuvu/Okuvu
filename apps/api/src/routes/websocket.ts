@@ -6,6 +6,8 @@ import { handleSessionOpen, type SendFrame } from '../lib/session-handler.js';
 import { closeSession } from '../lib/session-close.js';
 import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@evia/shared-types';
 import { processTurn } from '../pipeline/orchestrator.js';
+import { generateOnboardingOpening } from '../agents/a2/agent.js';
+import { prisma } from '../lib/prisma.js';
 
 const CAP_TURN_LIMIT = 10;
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
@@ -109,9 +111,34 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             log: req.log,
             send,
             sessionId,
-            onSessionOpened: (sessionId: string) => {
+            onSessionOpened: async (sessionId: string) => {
               currentSessionId = sessionId;
               activeSessions.set(sessionId, { perceivedIntensity: null, createdAt: Date.now() });
+
+              try {
+                const user = await prisma.user.findUnique({
+                  where: { firebase_uid: uid },
+                  select: {
+                    id: true,
+                    clinical_config: { select: { care_plan_id: true } },
+                  },
+                });
+                if (user && user.clinical_config?.care_plan_id == null) {
+                  const opening = await generateOnboardingOpening();
+                  send({
+                    type: 'AGENT_TURN',
+                    payload: {
+                      session_id: sessionId,
+                      message: opening,
+                      turn_count: 0,
+                      turn_id: crypto.randomUUID(),
+                      tts_url: null,
+                    },
+                  });
+                }
+              } catch (err) {
+                req.log.warn({ event: 'onboarding_opening', user_id: uid, err }, 'Failed to send onboarding opening message');
+              }
             },
           });
         } catch (err) {

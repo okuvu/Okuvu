@@ -2,13 +2,15 @@ import type { SafetyState, GovernanceState, RouterDecision } from '@evia/shared-
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
-import { handleTurn } from '../agents/a2/agent.js';
+import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { prisma } from '../lib/prisma.js';
-import { incrementTurnCount, isSessionClosed, getSessionCount } from './session.js';
+import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { A2_DEGRADED_RESPONSE } from './fallbacks.js';
 import type { PipelineResult, StageTiming } from './types.js';
 import type { ConversationTurn } from '../agents/a1/types.js';
+import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
+import { decideAssignment } from '../onboarding/care-plan-assignment.js';
 
 function now(): number {
   return performance.now();
@@ -92,12 +94,15 @@ export async function processTurn(
     return { type: 'crisis', timing };
   }
 
+  const isOnboarding = (sessionCount === 0 || contextBundle.care_plan == null) && nextTurnNumber <= 3;
+
   const a2Start = now();
   let finalText: string;
   let a2Fallback = false;
   let estimatedIntensity: number | null = null;
   let crisisFlag = false;
   let carePlanReviewFlag = false;
+  let onboardingInference: OnboardingInferenceOutput | undefined;
 
   try {
     const a2Result = await handleTurn({
@@ -119,6 +124,16 @@ export async function processTurn(
       estimatedIntensity = a2Result.signal.estimated_intensity;
       crisisFlag = a2Result.signal.session_flags.crisis_language_detected;
       carePlanReviewFlag = a2Result.signal.care_plan_fit === 'possible_mismatch';
+    }
+
+    if (isOnboarding) {
+      const existingTurns = await getSessionConversationTurns(sessionId);
+      const allTurns: ConversationTurn[] = [
+        ...existingTurns,
+        { role: 'user' as const, content: message },
+        { role: 'assistant' as const, content: finalText },
+      ];
+      onboardingInference = await scoreOnboardingTurn(allTurns);
     }
   } catch {
     finalText = A2_DEGRADED_RESPONSE;
@@ -166,6 +181,36 @@ export async function processTurn(
     });
   }
 
+  if (isOnboarding && onboardingInference && nextTurnNumber === 3) {
+    const assignment = decideAssignment([onboardingInference]);
+    await prisma.clinicalConfig.upsert({
+      where: { user_id: user.id },
+      create: {
+        user_id: user.id,
+        care_plan_id: assignment.care_plan_id,
+        assignment_state: assignment.assignment_state,
+        confidence_at_last_eval: assignment.confidence_at_last_eval,
+        turns_evaluated: assignment.turns_evaluated,
+        reasoning_note: assignment.reasoning_note,
+      },
+      update: {
+        care_plan_id: assignment.care_plan_id,
+        assignment_state: assignment.assignment_state,
+        confidence_at_last_eval: assignment.confidence_at_last_eval,
+        turns_evaluated: assignment.turns_evaluated,
+        reasoning_note: assignment.reasoning_note,
+      },
+    });
+    console.log({
+      event: 'onboarding_assignment',
+      user_id: user.id,
+      session_id: sessionId,
+      care_plan_id: assignment.care_plan_id,
+      assignment_state: assignment.assignment_state,
+      turns_evaluated: assignment.turns_evaluated,
+    }, 'Onboarding care plan assigned');
+  }
+
   console.log({
     perf: 'total_turn',
     elapsedMs: Math.round(now() - pipelineStart),
@@ -180,5 +225,6 @@ export async function processTurn(
     timing,
     fallbackUsed: a2Fallback,
     estimatedIntensity,
+    onboardingInference,
   };
 }

@@ -9,6 +9,15 @@ import type {
   OnboardingInferenceOutput,
 } from './types.js';
 
+const ONBOARDING_OPENING_PROMPT = `You are Evia, a warm and empathetic mental wellness assistant. This is the very first interaction with a new user during onboarding.
+Your task is to generate a brief, welcoming opening message (2-3 sentences) that:
+- Greets the user warmly
+- Encourages them to share what's been on their mind
+- Is gentle, non-judgmental, and inviting
+- Does NOT mention care plans, clinical terms, diagnoses, or scores
+
+Example tone: "Hi there! I'm Evia. Thanks for taking this moment for yourself. What's been on your mind lately?"`;
+
 export async function handleTurn(input: A2Input): Promise<A2Output> {
   const {
     message,
@@ -122,6 +131,24 @@ function parseScoringResponse(text: string): OnboardingInferenceOutput | null {
     };
   } catch {
     return null;
+  }
+}
+
+export async function generateOnboardingOpening(): Promise<string> {
+  try {
+    const result = await generateContent({
+      systemInstruction: ONBOARDING_OPENING_PROMPT,
+      contents: [{ role: 'user', parts: [{ text: 'Open the conversation with the new user.' }] }],
+      generationConfig: { maxOutputTokens: 150 },
+    });
+
+    if (result.fallbackUsed) {
+      return "Hi there! I'm Evia. Thanks for taking this moment for yourself. What's been on your mind lately?";
+    }
+
+    return result.text.trim();
+  } catch {
+    return "Hi there! I'm Evia. Thanks for taking this moment for yourself. What's been on your mind lately?";
   }
 }
 

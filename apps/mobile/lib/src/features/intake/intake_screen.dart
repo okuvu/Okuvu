@@ -4,9 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'intake_message.dart';
+import '../../config/app_config.dart';
+import '../../config/environment.dart';
+import '../../core/providers.dart';
+import '../chat/models/chat_message.dart';
+import '../chat/widgets/typing_indicator.dart';
+import '../chat/widgets/reconnect_banner.dart';
 import 'intake_notifier.dart';
-import 'onboarding_provider.dart';
 import 'widgets/onboarding_progress_bar.dart';
 
 class IntakeScreen extends ConsumerStatefulWidget {
@@ -20,18 +24,20 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   bool _textIsEmpty = true;
-  Timer? _completionTimer;
   bool _navigated = false;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
     _textController.addListener(_onTextChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeConnection();
+    });
   }
 
   @override
   void dispose() {
-    _completionTimer?.cancel();
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _scrollController.dispose();
@@ -45,10 +51,24 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
     }
   }
 
+  Future<void> _initializeConnection() async {
+    if (_initialized) return;
+    _initialized = true;
+
+    final authService = ref.read(authServiceProvider);
+    final token = await authService.getIdToken() ?? '';
+    final env = Environment.fromString(AppConfig.flavor);
+
+    ref.read(intakeProvider.notifier).connectToWebSocket(
+          wsBaseUrl: env.wsBaseUrl,
+          token: token,
+        );
+  }
+
   void _onSend() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
-    ref.read(intakeProvider.notifier).startStep2(text);
+    ref.read(intakeProvider.notifier).sendResponse(text);
     _textController.clear();
     _scrollToBottom();
   }
@@ -75,30 +95,21 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
         _scrollToBottom();
       }
 
-      if (next.step == 3 && prev?.step != 3) {
-        _completionTimer?.cancel();
-        _completionTimer = Timer(const Duration(seconds: 1), () {
-          ref.read(intakeProvider.notifier).complete();
-        });
-      }
-
       if (next.isComplete && !_navigated) {
         _navigated = true;
-        _completionTimer?.cancel();
         ref.read(hasCompletedOnboardingProvider.notifier).complete();
+        ref.read(webSocketServiceProvider).disconnect();
         if (mounted) context.go('/home');
       }
     });
 
     return Scaffold(
       appBar: AppBar(
-        leading: state.step > 1
+        leading: state.step != IntakeStep.waitingForOpeningMessage &&
+                !state.isComplete
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  _completionTimer?.cancel();
-                  ref.read(intakeProvider.notifier).goBack();
-                },
+                onPressed: () => context.go('/onboarding/consent'),
               )
             : null,
         title: const Text('Evia'),
@@ -107,9 +118,13 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            const _ReconnectBannerAdapter(),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: OnboardingProgressBar(filledSegments: state.step + 1),
+              child: OnboardingProgressBar(
+                filledSegments: state.progressFilledSegments,
+                segmentCount: 3,
+              ),
             ),
             const SizedBox(height: 8),
             Expanded(child: _buildBody(theme, state)),
@@ -120,35 +135,27 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
   }
 
   Widget _buildBody(ThemeData theme, IntakeState state) {
-    if (state.step == 1) return _buildFrame1(theme);
-    if (state.step == 2) return _buildFrame2(theme);
-    return _buildFrame3();
-  }
+    final waitingForOpening =
+        state.step == IntakeStep.waitingForOpeningMessage;
 
-  Widget _buildFrame1(ThemeData theme) {
+    if (waitingForOpening && state.messages.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Column(
       children: [
-        Expanded(child: _buildMessagesList()),
-        _buildInputBar(theme),
+        Expanded(child: _buildMessagesList(state)),
+        if (state.isWaitingForReply)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: TypingIndicator(),
+          ),
+        if (state.isInputEnabled) _buildInputBar(theme),
       ],
     );
   }
 
-  Widget _buildFrame2(ThemeData theme) {
-    return Column(
-      children: [
-        Expanded(child: _buildMessagesList()),
-        _buildCarePlanOptions(theme),
-      ],
-    );
-  }
-
-  Widget _buildFrame3() {
-    return _buildMessagesList();
-  }
-
-  Widget _buildMessagesList() {
-    final state = ref.watch(intakeProvider);
+  Widget _buildMessagesList(IntakeState state) {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -211,106 +218,82 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
       ),
     );
   }
+}
 
-  Widget _buildCarePlanOptions(ThemeData theme) {
-    const plans = [
-      'Anxiety support',
-      'Low mood support',
-      'Stress and burnout support',
-    ];
+class _ReconnectBannerAdapter extends ConsumerWidget {
+  const _ReconnectBannerAdapter();
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            offset: const Offset(0, -1),
-            blurRadius: 4,
-            color: Colors.black.withAlpha(20),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ...plans.asMap().entries.map(
-            (entry) => Padding(
-              key: ValueKey('care_plan_${entry.key}'),
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () =>
-                      ref.read(intakeProvider.notifier).selectCarePlan(entry.value),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    side: BorderSide(
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                  ),
-                  child: Text(
-                    entry.value,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final show = ref.watch(wsShowBannerProvider);
+    if (!show) return const SizedBox.shrink();
+    return const ReconnectBanner();
   }
 }
 
 class _IntakeBubble extends StatelessWidget {
-  final IntakeMessage message;
+  final ChatMessage message;
 
   const _IntakeBubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
-    final isUser = message.role == 'user';
+    final isUser = message.sender == MessageSender.user;
     final theme = Theme.of(context);
-    final borderRadius = BorderRadius.only(
-      topLeft: const Radius.circular(20),
-      topRight: const Radius.circular(20),
-      bottomLeft: isUser ? const Radius.circular(20) : Radius.zero,
-      bottomRight: isUser ? Radius.zero : const Radius.circular(20),
-    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment:
-            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.75,
+          if (!isUser)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: CircleAvatar(
+                radius: 14,
+                backgroundColor: Color(0xFF1A6B5A),
+                child: Text(
+                  'E',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isUser
-                  ? theme.colorScheme.primary
-                  : Colors.white,
-              borderRadius: borderRadius,
-            ),
-            child: Text(
-              message.content,
-              style: TextStyle(
-                color: isUser
-                    ? theme.colorScheme.onPrimary
-                    : theme.colorScheme.onSurface,
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isUser ? theme.colorScheme.primary : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(20),
+                  topRight: const Radius.circular(20),
+                  bottomLeft:
+                      isUser ? const Radius.circular(20) : Radius.zero,
+                  bottomRight:
+                      isUser ? Radius.zero : const Radius.circular(20),
+                ),
+                boxShadow: isUser
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(13),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Text(
+                message.content,
+                style: TextStyle(
+                  color: isUser
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurface,
+                ),
               ),
             ),
           ),

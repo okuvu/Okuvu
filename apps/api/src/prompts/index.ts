@@ -9,3 +9,8 @@ export const A2_MVP_PROMPT = readFileSync(
   join(__dirname, 'a2-mvp-v1.0.txt'),
   'utf-8',
 );
+
+export const A2_ONBOARDING_PROMPT = readFileSync(
+  join(__dirname, 'a2-onboarding-v1.0.txt'),
+  'utf-8',
+);

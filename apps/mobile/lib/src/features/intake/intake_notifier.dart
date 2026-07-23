@@ -1,49 +1,89 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers.dart';
+import '../chat/models/agent_turn_frame.dart';
+import '../chat/models/chat_message.dart';
 
-import 'intake_message.dart';
+enum IntakeStep {
+  waitingForOpeningMessage,
+  turn1Active,
+  waitingForTurn1Reply,
+  turn2Active,
+  waitingForTurn2Reply,
+  turn3Active,
+  waitingForTurn3Reply,
+  complete,
+}
 
 class IntakeState {
-  final int step;
-  final List<IntakeMessage> messages;
-  final String? selectedCarePlan;
-  final bool isCompleting;
+  final IntakeStep step;
+  final List<ChatMessage> messages;
   final bool isComplete;
 
   const IntakeState({
     required this.step,
     required this.messages,
-    this.selectedCarePlan,
-    required this.isCompleting,
     required this.isComplete,
   });
 
   IntakeState.initial()
-      : step = 1,
-        messages = const [
-          IntakeMessage(
-            role: 'assistant',
-            content: "What's been weighing on your mind lately?",
-            timestamp: null,
-          ),
-        ],
-        selectedCarePlan = null,
-        isCompleting = false,
+      : step = IntakeStep.waitingForOpeningMessage,
+        messages = const [],
         isComplete = false;
 
   IntakeState copyWith({
-    int? step,
-    List<IntakeMessage>? messages,
-    String? selectedCarePlan,
-    bool? isCompleting,
+    IntakeStep? step,
+    List<ChatMessage>? messages,
     bool? isComplete,
   }) {
     return IntakeState(
       step: step ?? this.step,
       messages: messages ?? this.messages,
-      selectedCarePlan: selectedCarePlan ?? this.selectedCarePlan,
-      isCompleting: isCompleting ?? this.isCompleting,
       isComplete: isComplete ?? this.isComplete,
     );
+  }
+
+  int get progressFilledSegments {
+    switch (step) {
+      case IntakeStep.waitingForOpeningMessage:
+        return 0;
+      case IntakeStep.turn1Active:
+        return 1;
+      case IntakeStep.waitingForTurn1Reply:
+        return 1;
+      case IntakeStep.turn2Active:
+        return 2;
+      case IntakeStep.waitingForTurn2Reply:
+        return 2;
+      case IntakeStep.turn3Active:
+        return 3;
+      case IntakeStep.waitingForTurn3Reply:
+        return 3;
+      case IntakeStep.complete:
+        return 3;
+    }
+  }
+
+  bool get isInputEnabled {
+    switch (step) {
+      case IntakeStep.turn1Active:
+      case IntakeStep.turn2Active:
+      case IntakeStep.turn3Active:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool get isWaitingForReply {
+    switch (step) {
+      case IntakeStep.waitingForTurn1Reply:
+      case IntakeStep.waitingForTurn2Reply:
+      case IntakeStep.waitingForTurn3Reply:
+        return true;
+      default:
+        return false;
+    }
   }
 }
 
@@ -51,67 +91,114 @@ final intakeProvider =
     NotifierProvider<IntakeNotifier, IntakeState>(IntakeNotifier.new);
 
 class IntakeNotifier extends Notifier<IntakeState> {
+  StreamSubscription<AgentTurnFrame>? _turnSub;
+  StreamSubscription<void>? _sessionClosedSub;
+  int _onboardingTurnCount = 0;
+
   @override
   IntakeState build() {
+    final ws = ref.watch(webSocketServiceProvider);
+    _turnSub = ws.agentTurnStream.listen(_onAgentTurn);
+    _sessionClosedSub = ws.sessionClosedStream.listen((_) {
+      _scheduleCompletion();
+    });
+
+    ref.onDispose(() {
+      _turnSub?.cancel();
+      _sessionClosedSub?.cancel();
+    });
+
     return IntakeState.initial();
   }
 
-  void startStep2(String userResponse) {
-    state = state.copyWith(
-      step: 2,
-      messages: [
-        ...state.messages,
-        IntakeMessage(
-          role: 'user',
-          content: userResponse,
-          timestamp: DateTime.now(),
-        ),
-        IntakeMessage(
-          role: 'assistant',
-          content:
-              'Thanks for sharing. Which type of support feels like the best fit right now?',
-          timestamp: DateTime.now(),
-        ),
-      ],
+  void connectToWebSocket({required String wsBaseUrl, required String token}) {
+    final ws = ref.read(webSocketServiceProvider);
+    ws.connect(wsBaseUrl: wsBaseUrl, token: token);
+  }
+
+  void _onAgentTurn(AgentTurnFrame frame) {
+    if (state.isComplete) return;
+
+    final message = ChatMessage(
+      id: frame.turnId ?? DateTime.now().toIso8601String(),
+      sender: MessageSender.agent,
+      content: frame.content,
+      timestamp: DateTime.now(),
     );
-  }
 
-  void selectCarePlan(String plan) {
-    state = state.copyWith(
-      step: 3,
-      selectedCarePlan: plan,
-      messages: [
-        ...state.messages,
-        IntakeMessage(
-          role: 'user',
-          content: plan,
-          timestamp: DateTime.now(),
-        ),
-        IntakeMessage(
-          role: 'assistant',
-          content:
-              "Thanks. I'll tailor your experience around $plan.",
-          timestamp: DateTime.now(),
-        ),
-      ],
-    );
-  }
-
-  void complete() {
-    state = state.copyWith(isComplete: true);
-  }
-
-  void goBack() {
-    if (state.step == 2) {
-      final messages = state.messages.take(state.messages.length - 2).toList();
-      state = state.copyWith(step: 1, messages: messages);
-    } else if (state.step == 3) {
-      final messages = state.messages.take(state.messages.length - 2).toList();
+    if (_onboardingTurnCount == 0) {
       state = state.copyWith(
-        step: 2,
-        isCompleting: false,
-        messages: messages,
+        messages: [...state.messages, message],
+        step: IntakeStep.turn1Active,
       );
+    } else if (_onboardingTurnCount == 1) {
+      state = state.copyWith(
+        messages: [...state.messages, message],
+        step: IntakeStep.turn2Active,
+      );
+    } else if (_onboardingTurnCount == 2) {
+      state = state.copyWith(
+        messages: [...state.messages, message],
+        step: IntakeStep.turn3Active,
+      );
+    } else if (_onboardingTurnCount == 3) {
+      state = state.copyWith(
+        messages: [...state.messages, message],
+        step: IntakeStep.waitingForTurn3Reply,
+      );
+      _scheduleCompletion();
     }
+  }
+
+  void sendResponse(String text) {
+    if (!state.isInputEnabled) return;
+    if (text.trim().isEmpty) return;
+
+    final ws = ref.read(webSocketServiceProvider);
+
+    final message = ChatMessage(
+      id: DateTime.now().toIso8601String(),
+      sender: MessageSender.user,
+      content: text,
+      timestamp: DateTime.now(),
+    );
+
+    _onboardingTurnCount++;
+
+    IntakeStep nextStep;
+    if (_onboardingTurnCount == 1) {
+      nextStep = IntakeStep.waitingForTurn1Reply;
+    } else if (_onboardingTurnCount == 2) {
+      nextStep = IntakeStep.waitingForTurn2Reply;
+    } else {
+      nextStep = IntakeStep.waitingForTurn3Reply;
+    }
+
+    state = state.copyWith(
+      messages: [...state.messages, message],
+      step: nextStep,
+    );
+
+    ws.sendUserTurn(text);
+  }
+
+  void _scheduleCompletion() {
+    Future.delayed(const Duration(milliseconds: 500), () {
+      state = state.copyWith(
+        step: IntakeStep.complete,
+        isComplete: true,
+      );
+    });
+  }
+
+  void reset() {
+    _onboardingTurnCount = 0;
+    _turnSub?.cancel();
+    _sessionClosedSub?.cancel();
+    final ws = ref.read(webSocketServiceProvider);
+    _turnSub = ws.agentTurnStream.listen(_onAgentTurn);
+    _sessionClosedSub = ws.sessionClosedStream.listen((_) {
+      _scheduleCompletion();
+    });
   }
 }

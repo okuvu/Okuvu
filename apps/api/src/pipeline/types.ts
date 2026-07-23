@@ -3,6 +3,8 @@ export interface StageTiming {
   elapsedMs: number
 }
 
+import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
+
 export type PipelineResult =
   | {
       type: 'agent_turn'
@@ -12,6 +14,7 @@ export type PipelineResult =
       timing: StageTiming[]
       fallbackUsed: boolean
       estimatedIntensity: number | null
+      onboardingInference?: OnboardingInferenceOutput
     }
   | {
       type: 'crisis'

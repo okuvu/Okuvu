@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 
 class OnboardingProgressBar extends StatelessWidget {
   final int filledSegments;
+  final int segmentCount;
 
-  const OnboardingProgressBar({super.key, required this.filledSegments});
+  const OnboardingProgressBar({
+    super.key,
+    required this.filledSegments,
+    this.segmentCount = 5,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const segmentCount = 5;
     const gap = 4.0;
 
     return SizedBox(
