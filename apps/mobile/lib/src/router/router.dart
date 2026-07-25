@@ -20,6 +20,8 @@ import '../features/settings/emergency_contact_screen.dart';
 import '../features/settings/my_focus_area_screen.dart';
 import '../features/settings/privacy_data_screen.dart';
 import '../features/settings/language_screen.dart';
+import '../features/journal/journal_screen.dart';
+import '../features/journal/journal_list_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
@@ -120,6 +122,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/home',
         builder: (context, state) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: '/journal',
+        builder: (context, state) => const JournalScreen(),
+      ),
+      GoRoute(
+        path: '/journal/history',
+        builder: (context, state) => const JournalListScreen(),
       ),
       GoRoute(
         path: '/chat',

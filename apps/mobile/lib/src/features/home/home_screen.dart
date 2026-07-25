@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import 'widgets/home_insight_card.dart';
 import 'widgets/home_bottom_nav.dart';
+import 'widgets/journal_tile.dart';
 import 'widgets/mood_check_in.dart';
 import 'widgets/progress_summary.dart';
 
@@ -58,6 +59,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 16),
           const MoodCheckIn(),
+          const SizedBox(height: 16),
+          const JournalTile(),
           const SizedBox(height: 16),
           const ProgressSummary(showData: false),
           const SizedBox(height: 16),

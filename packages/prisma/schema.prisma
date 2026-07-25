@@ -24,6 +24,7 @@ model User {
   assigned_therapists TherapistClient[]
   notes_received      TherapistNote[]    @relation("ClientToNote")
   turns               Turn[]
+  journal_entries     JournalEntry[]
 }
 
 model Therapist {
@@ -200,6 +201,18 @@ enum SafetyStateEnum {
 enum Tier {
   SD
   TL
+}
+
+model JournalEntry {
+  id         String   @id @default(uuid())
+  user_id    String
+  emotion    String
+  intensity  Int
+  content    String
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, created_at(sort: Desc)])
 }
 
 enum SummaryStatus {

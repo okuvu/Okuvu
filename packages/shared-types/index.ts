@@ -226,3 +226,21 @@ export interface ClientListItem {
   lastSessionDate: string | null
   safetyState: SafetyState | null
 }
+
+// ─── Journal Types ──────────────────────────────────────────────
+
+export type JournalEmotion = 'anxious' | 'sad' | 'angry' | 'overwhelmed' | 'numb' | 'calm' | 'hopeful' | 'other'
+
+export interface JournalEntryView {
+  id: string
+  emotion: JournalEmotion
+  intensity: number
+  content: string
+  created_at: string
+}
+
+export interface CreateJournalEntryBody {
+  emotion: JournalEmotion
+  intensity: number
+  content: string
+}
