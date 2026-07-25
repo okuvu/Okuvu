@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
+import 'widgets/affirmation_card.dart';
 import 'widgets/home_insight_card.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/journal_tile.dart';
@@ -65,6 +66,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const ProgressSummary(showData: false),
           const SizedBox(height: 16),
           const HomeInsightCard(message: insightMessage),
+          const SizedBox(height: 16),
+          const AffirmationCard(),
           const SizedBox(height: 16),
           Center(
             child: TextButton(
