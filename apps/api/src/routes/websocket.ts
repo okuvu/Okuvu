@@ -290,6 +290,30 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
         return;
       }
 
+      if (parsed.type === 'TOOL_RESULT') {
+        const pld = (parsed.payload ?? {}) as Record<string, unknown>;
+
+        if (
+          typeof pld.session_id !== 'string' ||
+          pld.tool_type !== 'grounding_5431' ||
+          typeof pld.result !== 'object' ||
+          pld.result === null
+        ) {
+          send({
+            type: 'ERROR',
+            payload: { reason: 'INVALID_PAYLOAD' },
+          });
+          return;
+        }
+
+        req.log.info({
+          event: 'tool_result',
+          session_id: pld.session_id,
+          tool_type: pld.tool_type,
+        }, 'Tool result received');
+        return;
+      }
+
       send({
         type: 'ERROR',
         payload: { reason: 'UNKNOWN_FRAME_TYPE' },

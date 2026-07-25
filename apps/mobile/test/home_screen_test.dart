@@ -12,6 +12,7 @@ import 'package:evia/src/features/settings/settings_screen.dart';
 import 'package:evia/src/core/providers.dart';
 import 'package:evia/src/features/chat/models/agent_turn_frame.dart';
 import 'package:evia/src/core/websocket_service.dart';
+import 'package:evia/src/features/chat/models/grounding_result.dart';
 
 class FakeWebSocketService implements WebSocketService {
   @override
@@ -61,6 +62,9 @@ class FakeWebSocketService implements WebSocketService {
 
   @override
   void dispose() {}
+
+  @override
+  void sendToolResult(GroundingResult result) {}
 }
 
 Dio _createMockDio() {

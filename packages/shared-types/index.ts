@@ -141,7 +141,24 @@ export interface SessionClosedFrame {
   }
 }
 
-export type ClientFrame = SessionOpenFrame | UserTurnFrame | SessionCloseFrame
+export interface GroundingResult {
+  see: string[]
+  touch: string[]
+  hear: string[]
+  smell: string[]
+  taste: string[]
+}
+
+export interface ToolResultFrame {
+  type: 'TOOL_RESULT'
+  payload: {
+    session_id: string
+    tool_type: 'grounding_5431'
+    result: GroundingResult
+  }
+}
+
+export type ClientFrame = SessionOpenFrame | UserTurnFrame | SessionCloseFrame | ToolResultFrame
 export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame | ErrorFrame | AgentTurnFrame | CrisisSignalFrame | SessionClosedFrame
 
 // ─── Care Plan Types ─────────────────────────────────────────────
