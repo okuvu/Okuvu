@@ -97,7 +97,25 @@ export interface AgentTurnFrame {
     turn_count: number
     turn_id: string | null
     tts_url: string | null
+    tool_card?: ToolCardConfig
   }
+}
+
+// ─── Tool Card Types ──────────────────────────────────────────────
+
+export type ToolCardType = 'guided_breathing' | 'box_breathing' | 'grounding_5431'
+
+export interface BreathingConfig {
+  inhale_seconds: number
+  hold_seconds: number
+  exhale_seconds: number
+  cycles: number
+  label: string
+}
+
+export interface ToolCardConfig {
+  type: ToolCardType
+  breathing_config?: BreathingConfig
 }
 
 export interface CrisisSignalFrame {

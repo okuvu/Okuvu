@@ -4,6 +4,7 @@ import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
+import { buildToolCard } from '../lib/tool-card.js';
 import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { A2_DEGRADED_RESPONSE } from './fallbacks.js';
@@ -103,6 +104,7 @@ export async function processTurn(
   let crisisFlag = false;
   let carePlanReviewFlag = false;
   let onboardingInference: OnboardingInferenceOutput | undefined;
+  let toolCard: import('@evia/shared-types').ToolCardConfig | undefined;
 
   try {
     const a2Result = await handleTurn({
@@ -125,6 +127,10 @@ export async function processTurn(
       crisisFlag = a2Result.signal.session_flags.crisis_language_detected;
       carePlanReviewFlag = a2Result.signal.care_plan_fit === 'possible_mismatch';
     }
+
+    toolCard = a2Result.signal?.tool_launch_recommended
+      ? buildToolCard(a2Result.signal.tool_launch_recommended, a2Result.signal.breathing_config)
+      : undefined;
 
     if (isOnboarding) {
       const existingTurns = await getSessionConversationTurns(sessionId);
@@ -225,6 +231,7 @@ export async function processTurn(
     timing,
     fallbackUsed: a2Fallback,
     estimatedIntensity,
+    toolCard,
     onboardingInference,
   };
 }

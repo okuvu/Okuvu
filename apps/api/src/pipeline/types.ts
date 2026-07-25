@@ -4,6 +4,7 @@ export interface StageTiming {
 }
 
 import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
+import type { ToolCardConfig } from '@evia/shared-types';
 
 export type PipelineResult =
   | {
@@ -14,6 +15,7 @@ export type PipelineResult =
       timing: StageTiming[]
       fallbackUsed: boolean
       estimatedIntensity: number | null
+      toolCard?: ToolCardConfig
       onboardingInference?: OnboardingInferenceOutput
     }
   | {

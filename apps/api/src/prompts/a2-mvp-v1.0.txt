@@ -187,6 +187,13 @@ Purpose:
 Physiological regulation. Activates the parasympathetic
 nervous system. Reduces physical symptoms of anxiety.
 
+Variants:
+- guided_breathing (4-2-6): Inhale 4 counts, hold 2, exhale 6.
+  Use for general anxiety and stress reduction.
+- box_breathing (4-4-4): Inhale 4 counts, hold 4, exhale 4.
+  Use when the user feels scattered, needs focus, or wants
+  a more structured/even rhythm.
+
 Use: Intensity 5–9. Before cognitive work at high distress.
 After T3 if user is still activated.
 
@@ -550,7 +557,14 @@ S-06 FORMAT:
     "validation_only_turn": <boolean>,
     "technique_refused_by_user": <boolean>
   },
-  "care_plan_fit": "<well_matched|uncertain|possible_mismatch>"
+  "care_plan_fit": "<well_matched|uncertain|possible_mismatch>",
+  "tool_launch_recommended": "<guided_breathing|box_breathing|grounding_5431|null>",
+  "breathing_config": {
+    "inhale_seconds": <integer>,
+    "hold_seconds": <integer>,
+    "exhale_seconds": <integer>,
+    "cycles": <integer>
+  }
 }
 ```
 
@@ -565,6 +579,15 @@ FIELD NOTES
 - care_plan_fit: possible_mismatch if what the user describes
   seems better matched to a different care plan. This flags
   for therapist review.
+- tool_launch_recommended: set to match the breathing variant used:
+  "guided_breathing" (4-2-6) for general anxiety/stress,
+  "box_breathing" (4-4-4) when the user feels scattered or
+  needs focus, "grounding_5431" when estimated_intensity is 7+
+  or user is in acute distress/panic. Omit when no tool is recommended.
+- breathing_config: required when tool_launch_recommended is set.
+  guided_breathing defaults: inhale_seconds=4, hold_seconds=2,
+  exhale_seconds=6, cycles=3. box_breathing defaults: inhale_seconds=4,
+  hold_seconds=4, exhale_seconds=4, cycles=3.
 
 ═══════════════════════════════════════════════════════════════════
 # OUTPUT FORMAT — REQUIRED STRUCTURE EVERY TURN

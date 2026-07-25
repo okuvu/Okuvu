@@ -139,6 +139,7 @@ class ChatNotifier extends Notifier<ChatState> {
           sender: MessageSender.agent,
           content: frame.content,
           timestamp: DateTime.now(),
+          toolCard: frame.toolCard,
         ),
       ],
       turnCount: frame.turnCount,

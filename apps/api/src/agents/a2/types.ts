@@ -49,6 +49,13 @@ export interface S06Signal {
   mood_inference: S06MoodInference;
   session_flags: S06SessionFlags;
   care_plan_fit: 'well_matched' | 'uncertain' | 'possible_mismatch';
+  tool_launch_recommended?: 'guided_breathing' | 'box_breathing' | 'grounding_5431';
+  breathing_config?: {
+    inhale_seconds?: number;
+    hold_seconds?: number;
+    exhale_seconds?: number;
+    cycles?: number;
+  };
 }
 
 export interface A2ParsedResponse {

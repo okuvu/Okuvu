@@ -15,6 +15,7 @@ import 'widgets/reconnect_banner.dart';
 import 'widgets/srs_modal.dart';
 import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
+import 'widgets/tool_card_widget.dart';
 
 const bool _useMockResponses = false;
 
@@ -39,9 +40,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _connectWebSocket() async {
-    final token = AppConfig.flavor == 'dev'
-        ? (FlavorConfig.devBypassToken ?? '')
-        : (await ref.read(authServiceProvider).getIdToken()) ?? '';
+    final token = FlavorConfig.devBypassToken
+        ?? await ref.read(authServiceProvider).getIdToken()
+        ?? '';
     await ref.read(webSocketServiceProvider).connect(
           wsBaseUrl: AppConfig.wsBaseUrl,
           token: token,
@@ -499,6 +500,11 @@ class _ChatBubble extends StatelessWidget {
                 message.content,
                 style: TextStyle(color: theme.colorScheme.onPrimary),
               ),
+            ),
+          if (!isUser && message.toolCard != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 40),
+              child: ToolCardWidget(config: message.toolCard!),
             ),
         ],
       ),
