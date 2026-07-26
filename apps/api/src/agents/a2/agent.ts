@@ -29,9 +29,10 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     perceivedIntensity,
     mode,
     recentHistory,
+    toolResultContext,
   } = input;
 
-  const systemInstruction = buildConversationalPrompt({
+  let systemInstruction = buildConversationalPrompt({
     carePlan,
     safetyState,
     sessionNumber,
@@ -39,6 +40,10 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     sessionHistorySummary,
     perceivedIntensity,
   });
+
+  if (toolResultContext) {
+    systemInstruction += '\n\n' + toolResultContext;
+  }
 
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> =
     recentHistory.map((turn) => ({

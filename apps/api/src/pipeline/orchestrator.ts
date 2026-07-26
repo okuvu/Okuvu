@@ -5,6 +5,7 @@ import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { buildToolCard } from '../lib/tool-card.js';
+import { getToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { A2_DEGRADED_RESPONSE } from './fallbacks.js';
@@ -106,6 +107,23 @@ export async function processTurn(
   let onboardingInference: OnboardingInferenceOutput | undefined;
   let toolCard: import('@evia/shared-types').ToolCardConfig | undefined;
 
+  let toolResultContext: string | undefined;
+  const pendingToolResult = getToolResult(sessionId);
+  if (pendingToolResult?.tool_type === 'grounding_5431') {
+    const r = pendingToolResult.result;
+    toolResultContext = [
+      'TOOL RESULT — The user just completed the 5-4-3-2-1 grounding exercise.',
+      'What they named:',
+      `See: ${r.see.join(', ')}`,
+      `Touch: ${r.touch.join(', ')}`,
+      `Hear: ${r.hear.join(', ')}`,
+      `Smell: ${r.smell.join(', ')}`,
+      `Taste: ${r.taste.join(', ')}`,
+      'Reference what they named naturally in your response. Do not list them back mechanically.',
+    ].join('\n');
+    clearToolResult(sessionId);
+  }
+
   try {
     const a2Result = await handleTurn({
       userId: uid,
@@ -118,6 +136,7 @@ export async function processTurn(
       perceivedIntensity,
       mode: decision.mode ?? 'normal',
       recentHistory: (contextBundle.recent_history ?? []) as unknown as ConversationTurn[],
+      toolResultContext,
     });
     finalText = a2Result.userContent;
     a2Fallback = a2Result.fallbackUsed;
