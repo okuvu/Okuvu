@@ -19,6 +19,7 @@ export interface A2Input {
   mode: AgentMode;
   recentHistory: ConversationTurn[];
   sessionSummary?: string | null;
+  toolResultContext?: string;
 }
 
 export interface A2Output {

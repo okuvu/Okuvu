@@ -44,6 +44,7 @@ import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
+import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 
 const UID = 'test-user-1';
 const SESSION_ID = 'test-session-1';
@@ -76,6 +77,8 @@ beforeEach(() => {
   vi.mocked(prisma.safetyState.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
+
+  clearToolResult(SESSION_ID);
 });
 
 describe('processTurn — normal flow', () => {
@@ -305,5 +308,49 @@ describe('processTurn — S-06 integration', () => {
         data: { care_plan_review_flagged: true },
       }),
     );
+  });
+
+  describe('processTurn — tool result injection', () => {
+    it('passes toolResultContext to A2 when grounding result is stored', async () => {
+      vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+      vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+      vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+      vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+      setToolResult(SESSION_ID, {
+        tool_type: 'grounding_5431',
+        result: {
+          see: ['window', 'tree'],
+          touch: ['desk'],
+          hear: ['fan'],
+          smell: ['coffee'],
+          taste: ['mint'],
+        },
+        turn_number: 3,
+      });
+
+      await processTurn(UID, SESSION_ID, 'I feel calmer');
+
+      expect(handleTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolResultContext: expect.stringContaining('TOOL RESULT'),
+        }),
+      );
+    });
+
+    it('does not pass toolResultContext when no tool result is stored', async () => {
+      vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+      vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+      vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+      vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+      clearToolResult(SESSION_ID);
+
+      await processTurn(UID, SESSION_ID, 'test');
+
+      expect(handleTurn).toHaveBeenCalledWith(
+        expect.not.objectContaining({ toolResultContext: expect.anything() }),
+      );
+    });
   });
 });

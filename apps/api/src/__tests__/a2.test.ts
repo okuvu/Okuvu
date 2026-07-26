@@ -243,6 +243,28 @@ describe('A2 Emotion Regulation Agent', () => {
     });
   });
 
+  describe('tool result context injection', () => {
+    it('appends toolResultContext to system instruction when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'That sounds grounding.', fallbackUsed: false });
+
+      const context = 'TOOL RESULT — The user just completed the 5-4-3-2-1 grounding exercise.\nSee: window, sky';
+
+      await handleTurn(makeInput({ toolResultContext: context }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain(context);
+    });
+
+    it('does not include tool result context when not provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ toolResultContext: undefined }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).not.toContain('TOOL RESULT');
+    });
+  });
+
   describe('output format', () => {
     it('returns plain conversational text as a string via userContent', async () => {
       mockGenerateContent.mockResolvedValue({ text: 'That sounds really difficult.', fallbackUsed: false });

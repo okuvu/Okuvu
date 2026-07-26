@@ -8,6 +8,7 @@ import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from 
 import { processTurn } from '../pipeline/orchestrator.js';
 import { generateOnboardingOpening } from '../agents/a2/agent.js';
 import { prisma } from '../lib/prisma.js';
+import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 
 const CAP_TURN_LIMIT = 10;
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
@@ -20,6 +21,7 @@ interface IdleEntry {
 interface ActiveSession {
   perceivedIntensity: number | null;
   createdAt: number;
+  turnNumber?: number;
 }
 
 const idleTimers = new Map<string, IdleEntry>();
@@ -46,6 +48,8 @@ function setIdleTimer(
     idleTimers.delete(connId);
     const result = await closeSession(sessionId, uid, 'IDLE_TIMEOUT', log);
     if (!result.alreadyClosed) {
+      activeSessions.delete(sessionId);
+      clearToolResult(sessionId);
       try {
         socket.send(JSON.stringify({
           type: 'SESSION_CLOSED',
@@ -203,8 +207,12 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             return;
           }
 
-          if (result.type === 'agent_turn' && result.estimatedIntensity != null) {
-            activeSessions.set(session_id, { perceivedIntensity: result.estimatedIntensity, createdAt: Date.now() });
+          if (result.type === 'agent_turn') {
+            activeSessions.set(session_id, {
+              perceivedIntensity: result.estimatedIntensity ?? null,
+              createdAt: Date.now(),
+              turnNumber: result.turnCount,
+            });
           }
 
           send({
@@ -235,6 +243,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             closeSession(session_id, req.user.uid, 'TURN_CAP', req.log).then((closeResult) => {
               if (!closeResult.alreadyClosed) {
                 activeSessions.delete(session_id);
+                clearToolResult(session_id);
                 send({
                   type: 'SESSION_CLOSED',
                   payload: {
@@ -277,6 +286,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
         }
 
         activeSessions.delete(currentSessionId);
+        clearToolResult(currentSessionId);
 
         send({
           type: 'SESSION_CLOSED',
@@ -306,11 +316,22 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           return;
         }
 
+        const sessionId = pld.session_id;
+        const activeSession = activeSessions.get(sessionId);
+        const turnNumber = activeSession?.turnNumber;
+
+        setToolResult(sessionId, {
+          tool_type: pld.tool_type as string,
+          result: pld.result as import('@evia/shared-types').GroundingResult,
+          turn_number: turnNumber,
+        });
+
         req.log.info({
           event: 'tool_result',
-          session_id: pld.session_id,
+          session_id: sessionId,
           tool_type: pld.tool_type,
-        }, 'Tool result received');
+          turn_number: turnNumber,
+        }, 'Tool result stored');
         return;
       }
 
@@ -324,7 +345,10 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
     socket.on('close', () => {
       const durationMs = Date.now() - connectionStart;
       req.log.info({ event: 'ws_disconnect', user_id: uid, conn_id: connId, duration_ms: durationMs }, 'WebSocket disconnected');
-      if (currentSessionId) activeSessions.delete(currentSessionId);
+      if (currentSessionId) {
+        activeSessions.delete(currentSessionId);
+        clearToolResult(currentSessionId);
+      }
       clearIdleTimerByConnection(connId);
     });
   });

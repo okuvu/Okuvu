@@ -579,15 +579,15 @@ FIELD NOTES
 - care_plan_fit: possible_mismatch if what the user describes
   seems better matched to a different care plan. This flags
   for therapist review.
-- tool_launch_recommended: set to match the breathing variant used:
-  "guided_breathing" (4-2-6) for general anxiety/stress,
-  "box_breathing" (4-4-4) when the user feels scattered or
-  needs focus, "grounding_5431" when estimated_intensity is 7+
-  or user is in acute distress/panic. Omit when no tool is recommended.
-- breathing_config: required when tool_launch_recommended is set.
-  guided_breathing defaults: inhale_seconds=4, hold_seconds=2,
-  exhale_seconds=6, cycles=3. box_breathing defaults: inhale_seconds=4,
-  hold_seconds=4, exhale_seconds=4, cycles=3.
+- tool_launch_recommended: Set to the appropriate tool type when you
+  use T3 or T4. This triggers the interactive tool card in the
+  Flutter app. Set null for all other techniques.
+  T3 → "grounding_5431"
+  T4 with CP1/CP4 → "guided_breathing" (4-2-6 pattern)
+  T4 with CP3 → "box_breathing" (4-4-4-4 pattern)
+- breathing_config: Only set when tool_launch_recommended is a
+  breathing tool. Use the pattern appropriate for the care plan.
+  null when tool_launch_recommended is null or grounding_5431.
 
 ═══════════════════════════════════════════════════════════════════
 # OUTPUT FORMAT — REQUIRED STRUCTURE EVERY TURN
@@ -629,7 +629,9 @@ for you right now, if you had to name one thing?
     "validation_only_turn": true,
     "technique_refused_by_user": false
   },
-  "care_plan_fit": "well_matched"
+  "care_plan_fit": "well_matched",
+  "tool_launch_recommended": null,
+  "breathing_config": null
 }
 ```
 
