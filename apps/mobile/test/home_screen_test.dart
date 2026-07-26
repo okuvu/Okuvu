@@ -46,7 +46,8 @@ class FakeWebSocketService implements WebSocketService {
   Stream<String?> get crisisSignalStream => const Stream.empty();
 
   @override
-  Future<void> connect({required String wsBaseUrl, required String token}) async {}
+  Future<void> connect(
+      {required String wsBaseUrl, required String token}) async {}
 
   @override
   void sendUserTurn(String content) {}
@@ -129,6 +130,11 @@ void main() {
     });
 
     testWidgets('renders from evia label', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
@@ -144,6 +150,11 @@ void main() {
     });
 
     testWidgets('renders Insight card message', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
@@ -163,6 +174,11 @@ void main() {
     });
 
     testWidgets('renders cleanly with no user data', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
@@ -179,6 +195,11 @@ void main() {
     });
 
     testWidgets('Crisis Support entry point is present', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
@@ -194,7 +215,6 @@ void main() {
       await tester.tap(find.text('Chat'));
       await tester.pumpAndSettle();
 
-      // ChatScreen renders with its characteristic empty state text
       expect(find.text('How are you feeling today?'), findsWidgets);
       expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
     });
@@ -256,10 +276,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Verify we are on ChatScreen
         expect(find.byType(ChatScreen), findsOneWidget);
 
-        // Trigger session closed state transition
         final container = ProviderScope.containerOf(
           tester.element(find.byType(ChatScreen)),
         );
@@ -271,19 +289,15 @@ void main() {
             current.copyWith(isSessionClosed: true);
         await tester.pump();
 
-        // Wait for the 400ms delay + modal to appear
         await tester.pump(const Duration(milliseconds: 500));
         await tester.pumpAndSettle();
 
-        // SRS modal should be visible
         expect(find.text('How was this session?'), findsOneWidget);
 
-        // Tap Skip to dismiss the modal
         await tester.ensureVisible(find.text('Skip'));
         await tester.tap(find.text('Skip'), warnIfMissed: false);
         await tester.pumpAndSettle();
 
-        // Should stay on ChatScreen (navigate to /home only on back press)
         expect(find.byType(ChatScreen), findsOneWidget);
       },
     );
@@ -341,14 +355,12 @@ void main() {
 
         expect(find.text('How was this session?'), findsOneWidget);
 
-        // Tap a rating option (Helpful) — no Submit button in current SRS modal
         await tester.ensureVisible(find.text('Helpful'));
         await tester.tap(find.text('Helpful'), warnIfMissed: false);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 800));
         await tester.pumpAndSettle();
 
-        // Modal auto-dismisses after confirmation; stays on ChatScreen
         expect(find.byType(ChatScreen), findsOneWidget);
       },
     );
