@@ -8,6 +8,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'websocket_constants.dart';
 import 'logger.dart';
 import '../features/chat/models/agent_turn_frame.dart';
+import '../features/chat/models/grounding_result.dart';
 
 enum WsConnectionState {
   disconnected,
@@ -213,6 +214,24 @@ class WebSocketService {
       'payload': {
         'session_id': sid,
         'message': content,
+      },
+    });
+  }
+
+  void sendToolResult(GroundingResult result) {
+    final sid = _sessionId;
+    if (sid == null) {
+      Logger.debug('[WebSocketService] Cannot send TOOL_RESULT — no session_id');
+      return;
+    }
+
+    Logger.debug('[WebSocketService] Sending TOOL_RESULT');
+    _sendFrame({
+      'type': 'TOOL_RESULT',
+      'payload': {
+        'session_id': sid,
+        'tool_type': 'grounding_5431',
+        'result': result.toJson(),
       },
     });
   }
