@@ -54,6 +54,34 @@ function parseSummaryOutput(text: string): ParsedSummary | null {
   }
 }
 
+async function writeFailedStatus(
+  sessionId: string,
+  userId: string,
+  lastUpdatedTurn: number,
+  logger: Logger,
+): Promise<void> {
+  try {
+    await getPrisma().sessionSummary.upsert({
+      where: {
+        user_id_session_id: { user_id: userId, session_id: sessionId },
+      },
+      create: {
+        user_id: userId,
+        session_id: sessionId,
+        summary_text: null,
+        status: 'FAILED',
+        last_updated_turn: lastUpdatedTurn,
+      },
+      update: {
+        status: 'FAILED',
+        last_updated_turn: lastUpdatedTurn,
+      },
+    });
+  } catch (dbErr) {
+    logger.error({ event: 'summary_failed_write_error', session_id: sessionId, user_id: userId, err: dbErr instanceof Error ? dbErr.message : String(dbErr) }, 'Failed to write FAILED status to SessionSummary');
+  }
+}
+
 export async function generateSessionSummary(
   sessionId: string,
   userId: string,
@@ -116,7 +144,7 @@ export async function generateSessionSummary(
   }
 
   const transcript = turnsForSummary
-    .map((t) => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content}`)
+    .map((t: { role: string; content: string }) => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content}`)
     .join('\n');
 
   const result = await generateContent({
@@ -129,11 +157,13 @@ export async function generateSessionSummary(
   });
 
   if (result.fallbackUsed) {
+    await writeFailedStatus(sessionId, userId, session.turn_count, logger);
     throw new Error(`Flash-Lite call failed: ${result.failureReason}`);
   }
 
   const parsed = parseSummaryOutput(result.text);
   if (!parsed) {
+    await writeFailedStatus(sessionId, userId, session.turn_count, logger);
     throw new Error('Malformed Flash-Lite output');
   }
 

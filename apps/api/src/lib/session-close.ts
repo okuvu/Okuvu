@@ -8,6 +8,7 @@ export interface CloseSessionResult {
   alreadyClosed: boolean;
   session_ended_at?: string;
   reason?: CloseReason;
+  summaryEnqueued?: boolean;
 }
 
 export async function closeSession(
@@ -30,19 +31,24 @@ export async function closeSession(
     return { alreadyClosed: true };
   }
 
-  enqueueSummaryJob(sessionId, userId, log).catch((err) => {
+  let summaryEnqueued = false;
+  try {
+    await enqueueSummaryJob(sessionId, userId, log);
+    summaryEnqueued = true;
+  } catch (err) {
     if (log) {
-      log.error({ event: 'summary_enqueue', session_id: sessionId, user_id: userId, err }, 'Summary enqueue failed (Cloud Tasks will retry)');
+      log.error({ event: 'session_close', session_id: sessionId, user_id: userId, err: err instanceof Error ? err.message : String(err), outcome: 'summary_enqueue_failed' }, 'Session closed but summary enqueue failed after all retries');
     }
-  });
+  }
 
   if (log) {
-    log.info({ event: 'session_close', session_id: sessionId, user_id: userId, reason, session_ended_at: now.toISOString(), outcome: 'closed' }, 'Session closed');
+    log.info({ event: 'session_close', session_id: sessionId, user_id: userId, reason, session_ended_at: now.toISOString(), outcome: 'closed', summary_enqueued: summaryEnqueued }, 'Session closed');
   }
 
   return {
     alreadyClosed: false,
     session_ended_at: now.toISOString(),
     reason,
+    summaryEnqueued,
   };
 }
