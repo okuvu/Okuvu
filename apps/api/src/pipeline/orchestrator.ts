@@ -3,7 +3,7 @@ import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
-import { getAgentContextBundle } from '../lib/agent-context.js';
+import { getAgentContextBundle, summariesToConversationTurns } from '../lib/agent-context.js';
 import { buildToolCard } from '../lib/tool-card.js';
 import { getToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { prisma } from '../lib/prisma.js';
@@ -54,7 +54,7 @@ export async function processTurn(
     const start = now();
     try { return await classifySafety({
       message,
-      recentHistory: (contextBundle.recent_history ?? []) as unknown as ConversationTurn[],
+      recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
     }); } finally { recordTiming(timing, 'A1', start, now()); }
   }
 
@@ -135,7 +135,7 @@ export async function processTurn(
       sessionHistorySummary: contextBundle.session_summary,
       perceivedIntensity,
       mode: decision.mode ?? 'normal',
-      recentHistory: (contextBundle.recent_history ?? []) as unknown as ConversationTurn[],
+      recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
       toolResultContext,
     });
     finalText = a2Result.userContent;

@@ -1,5 +1,15 @@
 import { prisma } from './prisma.js';
-import type { AgentContextBundle } from '@evia/shared-types';
+import type { AgentContextBundle, SessionSummaryView } from '@evia/shared-types';
+import type { ConversationTurn } from '../agents/a1/types.js';
+
+export function summariesToConversationTurns(summaries: SessionSummaryView[]): ConversationTurn[] {
+  return summaries.map((s) => ({
+    role: 'assistant' as const,
+    content: s.summary
+      ? `[Previous session (${s.session_started_at}): ${s.summary}]`
+      : `[Previous session (${s.session_started_at}): No summary available]`
+  }));
+}
 
 const FALLBACK_TURN_LIMIT = 20;
 

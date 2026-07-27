@@ -18,6 +18,7 @@ vi.mock('../agents/a2/agent.js', () => ({
 
 vi.mock('../lib/agent-context.js', () => ({
   getAgentContextBundle: vi.fn(),
+  summariesToConversationTurns: vi.fn(() => []),
 }));
 
 vi.mock('../pipeline/session.js', () => ({
