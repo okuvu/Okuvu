@@ -339,6 +339,79 @@ describe('A2 Emotion Regulation Agent', () => {
         expect(parsed.signal).not.toBeNull();
         expect(parsed.signal!.estimated_intensity).toBe(6);
       });
+
+      it('handles 4-backtick fences (````json...````)', () => {
+        const raw = `I hear you.\n\n\`\`\`\`json\n${jsonStr}\n\`\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.userContent).toBe('I hear you.');
+      });
+
+      it('strips content leak from 4-backtick fences in userContent', () => {
+        const raw = `I hear you.\n\`\`\`\`json\n${jsonStr}\n\`\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.userContent).toBe('I hear you.');
+        expect(parsed.userContent).not.toContain('estimated_intensity');
+        expect(parsed.userContent).not.toContain('S-06');
+      });
+
+      it('handles inline JSON without any fences via fallback extraction', () => {
+        const raw = `I hear you. ${jsonStr}`;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('defense-in-depth strips inline JSON from userContent when no fences present', () => {
+        const raw = `I hear you. ${jsonStr}`;
+        const parsed = parseA2Response(raw);
+        expect(parsed.userContent).toBe('I hear you.');
+        expect(parsed.userContent).not.toContain('estimated_intensity');
+        expect(parsed.userContent).not.toContain('S-06');
+      });
+
+      it('handles content on same line as closing fence', () => {
+        const raw = `Start.\n\`\`\`json\n${jsonStr}\n\`\`\` And some trailing text.`;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.userContent).toBe('Start.\nAnd some trailing text.');
+      });
+
+      it('handles missing closing fence (unclosed block at end)', () => {
+        const raw = `Some text.\n\`\`\`json\n${jsonStr}`;
+        const parsed = parseA2Response(raw);
+        expect(parsed.userContent).toBe('Some text.');
+        expect(parsed.userContent).not.toContain('estimated_intensity');
+      });
+
+      it('handles 4-backtick fences with no language identifier', () => {
+        const raw = `I hear you.\n\`\`\`\`\n${jsonStr}\n\`\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.userContent).toBe('I hear you.');
+      });
+
+      it('strips JSON from userContent when LLM omits fences entirely', () => {
+        const raw = `Some conversational text.\n${jsonStr}\nMore text.`;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.userContent).not.toContain('estimated_intensity');
+        expect(parsed.userContent).not.toContain('"signal"');
+      });
+
+      it('handles open and close fences on the same line, preserving trailing content', () => {
+        const raw = `Some text. before \`\`\`json ${jsonStr} \`\`\` and after.`;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.userContent).toContain('Some text. before');
+        expect(parsed.userContent).toContain('and after');
+        expect(parsed.userContent).not.toContain('estimated_intensity');
+        expect(parsed.userContent).not.toContain('"signal"');
+      });
     });
 
     it('logs console.error when signal block is entirely missing', () => {

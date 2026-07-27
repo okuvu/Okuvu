@@ -72,7 +72,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
 }
 
 export function parseA2Response(raw: string): A2ParsedResponse {
-  const userContent = raw.replace(/```[\w]*\s*[\s\S]*?```/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  let userContent = stripFencedBlocks(raw);
 
   let signal: S06Signal | null = null;
 
@@ -100,7 +100,55 @@ export function parseA2Response(raw: string): A2ParsedResponse {
     console.error({ text: raw.slice(0, 200) }, 'A2: no S-06 JSON block found in LLM response');
   }
 
+  const leakedJson = tryParseJsonFallback(userContent);
+  if (leakedJson) {
+    console.warn({ userContentLength: userContent.length }, 'A2: defense-in-depth caught leaked S-06 signal in userContent');
+    userContent = userContent.replace(leakedJson, '').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   return { userContent, signal };
+}
+
+function stripFencedBlocks(raw: string): string {
+  const lines = raw.split(/\r?\n/);
+  const result: string[] = [];
+  let inFence = false;
+
+  for (const line of lines) {
+    let remaining = line;
+    let hadContent = false;
+
+    while (remaining.length > 0) {
+      const fenceMatch = remaining.match(/`{3,}\w*/);
+      if (!fenceMatch || fenceMatch.index === undefined) break;
+
+      if (inFence) {
+        inFence = false;
+        remaining = remaining.slice(fenceMatch.index + fenceMatch[0].length);
+      } else {
+        const beforeFence = remaining.slice(0, fenceMatch.index).trim();
+        if (beforeFence) {
+          result.push(beforeFence);
+          hadContent = true;
+        }
+        inFence = true;
+        remaining = remaining.slice(fenceMatch.index + fenceMatch[0].length);
+      }
+    }
+
+    if (!inFence) {
+      const trimmed = remaining.trim();
+      if (trimmed) {
+        result.push(trimmed);
+        hadContent = true;
+      }
+      if (!hadContent && line === '') {
+        result.push('');
+      }
+    }
+  }
+
+  return result.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function extractFirstJsonBlock(raw: string): string | null {
@@ -110,7 +158,7 @@ function extractFirstJsonBlock(raw: string): string | null {
   const jsonLines: string[] = [];
 
   for (const line of lines) {
-    const fenceMatch = line.match(/```(\w*)/);
+    const fenceMatch = line.match(/`{3,}(\w*)/);
     if (fenceMatch) {
       if (!inFence) {
         inFence = true;
