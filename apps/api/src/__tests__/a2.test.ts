@@ -241,6 +241,121 @@ describe('A2 Emotion Regulation Agent', () => {
       expect(parsed.userContent).toBe('Some text.');
       expect(parsed.signal).toBeNull();
     });
+
+    describe('robust parsing against LLM output variations', () => {
+      const validSignal: S06Signal = {
+        signal: 'S-06',
+        agent: 'A2',
+        turn_number: 1,
+        technique_used: 'T2',
+        estimated_intensity: 6,
+        intensity_direction: 'rising',
+        mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
+        session_flags: { crisis_language_detected: false, validation_only_turn: false, technique_refused_by_user: false },
+        care_plan_fit: 'well_matched',
+      };
+      const jsonStr = JSON.stringify(validSignal);
+
+      it('handles trailing spaces after ```json', () => {
+        const raw = `I hear you.\n\n\`\`\`json   \n${jsonStr}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('handles \\r\\n line endings', () => {
+        const raw = `I hear you.\r\n\r\n\`\`\`json\r\n${jsonStr}\r\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('handles missing final newline before closing fence', () => {
+        const raw = `I hear you.\n\n\`\`\`json\n${jsonStr}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('handles uppercase JSON language identifier', () => {
+        const raw = `I hear you.\n\n\`\`\`JSON\n${jsonStr}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('handles mixed-case JSON language identifier', () => {
+        const raw = `I hear you.\n\n\`\`\`Json\n${jsonStr}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('handles extra content after closing fence', () => {
+        const raw = `I hear you.\n\n\`\`\`json\n${jsonStr}\n\`\`\`\nSome trailing text.`;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('strips signal block from user content', () => {
+        const raw = `I hear you.\n\`\`\`json\n${jsonStr}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.userContent).toBe('I hear you.');
+      });
+
+      it('handles signal JSON with no extra whitespace at all', () => {
+        const raw = `Response text.\`\`\`json\n${jsonStr}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('handles content with multiple JSON blocks, extracting the first valid one', () => {
+        const signal2 = { ...validSignal, estimated_intensity: 8, turn_number: 2 };
+        const raw = `First response.\n\n\`\`\`json\n${jsonStr}\n\`\`\`\n\nSecond response.\n\n\`\`\`json\n${JSON.stringify(signal2)}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.userContent).toBe('First response.\n\nSecond response.');
+      });
+
+      it('returns null signal for non-JSON fence language', () => {
+        const raw = `Some text.\n\n\`\`\`javascript\nconst x = 1;\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).toBeNull();
+        expect(parsed.userContent).toBe('Some text.');
+      });
+
+      it('handles JSON inside a code block with no language identifier', () => {
+        const raw = `I hear you.\n\n\`\`\`\n${jsonStr}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+
+      it('handles signal on same line as opening fence (no newline after ```json)', () => {
+        const raw = `I hear you.\n\n\`\`\`json{${jsonStr.slice(1, -1)}}\n\`\`\``;
+        const parsed = parseA2Response(raw);
+        expect(parsed.signal).not.toBeNull();
+        expect(parsed.signal!.estimated_intensity).toBe(6);
+      });
+    });
+
+    it('logs console.error when signal block is entirely missing', () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const raw = 'Just a plain response.';
+      parseA2Response(raw);
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('logs console.error when JSON parse fails', () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const raw = 'Some text.\n\n```json\n{invalid}\n```';
+      parseA2Response(raw);
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
+    });
   });
 
   describe('tool result context injection', () => {

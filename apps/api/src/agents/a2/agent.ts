@@ -72,19 +72,123 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
 }
 
 export function parseA2Response(raw: string): A2ParsedResponse {
-  const jsonMatch = raw.match(/```json\n([\s\S]*?)\n```/);
-  const userContent = raw.replace(/```json[\s\S]*?```/g, '').trim();
+  const userContent = raw.replace(/```[\w]*\s*[\s\S]*?```/g, '').replace(/\n{3,}/g, '\n\n').trim();
 
   let signal: S06Signal | null = null;
-  if (jsonMatch) {
+
+  const jsonBlock = extractFirstJsonBlock(raw);
+  if (jsonBlock) {
     try {
-      signal = JSON.parse(jsonMatch[1]) as S06Signal;
+      signal = JSON.parse(jsonBlock) as S06Signal;
     } catch {
-      console.warn({ text: jsonMatch[1] }, 'A2: failed to parse S-06 JSON block');
+      console.error({ text: jsonBlock }, 'A2: failed to parse S-06 JSON block');
     }
   }
 
+  if (!signal) {
+    const fallback = tryParseJsonFallback(raw);
+    if (fallback) {
+      try {
+        signal = JSON.parse(fallback) as S06Signal;
+      } catch {
+        console.error({ text: fallback }, 'A2: fallback parse also failed');
+      }
+    }
+  }
+
+  if (!jsonBlock && !signal) {
+    console.error({ text: raw.slice(0, 200) }, 'A2: no S-06 JSON block found in LLM response');
+  }
+
   return { userContent, signal };
+}
+
+function extractFirstJsonBlock(raw: string): string | null {
+  const lines = raw.split(/\r?\n/);
+  let inFence = false;
+  let fenceLang = '';
+  const jsonLines: string[] = [];
+
+  for (const line of lines) {
+    const fenceMatch = line.match(/```(\w*)/);
+    if (fenceMatch) {
+      if (!inFence) {
+        inFence = true;
+        fenceLang = fenceMatch[1].toLowerCase();
+        jsonLines.length = 0;
+        const afterFence = line.slice(fenceMatch.index! + fenceMatch[0].length);
+        if (afterFence.trim()) {
+          jsonLines.push(afterFence);
+        }
+      } else {
+        if (fenceLang === '' || fenceLang === 'json') {
+          const beforeClose = line.slice(0, fenceMatch.index!);
+          if (beforeClose.trim()) {
+            jsonLines.push(beforeClose);
+          }
+          return jsonLines.join('\n');
+        }
+        inFence = false;
+        jsonLines.length = 0;
+      }
+      continue;
+    }
+    if (inFence) {
+      jsonLines.push(line);
+    }
+  }
+
+  if (inFence && jsonLines.length > 0) {
+    return jsonLines.join('\n');
+  }
+
+  return null;
+}
+
+function tryParseJsonFallback(raw: string): string | null {
+  const startIdx = raw.indexOf('{');
+  if (startIdx === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let braceStart = -1;
+
+  for (let i = startIdx; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      escaped = false;
+      continue;
+    }
+    if (ch === '{') {
+      if (depth === 0) {
+        braceStart = i;
+      }
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0 && braceStart !== -1) {
+        const candidate = raw.slice(braceStart, i + 1);
+        if (candidate.includes('"signal"') && candidate.includes('"S-06"')) {
+          return candidate;
+        }
+        braceStart = -1;
+      }
+    }
+  }
+
+  return null;
 }
 
 const SCORE_FIELDS: ReadonlyArray<keyof OnboardingInferenceOutput> = [
