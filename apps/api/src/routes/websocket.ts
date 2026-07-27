@@ -129,13 +129,26 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
                 });
                 if (user && user.clinical_config?.care_plan_id == null) {
                   const opening = await generateOnboardingOpening();
+                  const turnId = crypto.randomUUID();
+                  await prisma.turn.create({
+                    data: {
+                      id: turnId,
+                      session_id: sessionId,
+                      user_id: user.id,
+                      turn_number: 0,
+                      role: 'assistant',
+                      content: opening,
+                    },
+                  }).catch((err: unknown) => {
+                    req.log.warn({ event: 'onboarding_opening_persist', user_id: uid, err }, 'Failed to persist onboarding opening');
+                  });
                   send({
                     type: 'AGENT_TURN',
                     payload: {
                       session_id: sessionId,
                       message: opening,
                       turn_count: 0,
-                      turn_id: crypto.randomUUID(),
+                      turn_id: turnId,
                       tts_url: null,
                     },
                   });

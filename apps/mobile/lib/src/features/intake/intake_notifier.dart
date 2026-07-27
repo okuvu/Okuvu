@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
+import '../../core/websocket_service.dart';
 import '../chat/models/agent_turn_frame.dart';
 import '../chat/models/chat_message.dart';
 
@@ -93,7 +94,9 @@ final intakeProvider =
 class IntakeNotifier extends Notifier<IntakeState> {
   StreamSubscription<AgentTurnFrame>? _turnSub;
   StreamSubscription<void>? _sessionClosedSub;
+  StreamSubscription<WsConnectionState>? _stateSub;
   int _onboardingTurnCount = 0;
+  bool _hasConnectedOnce = false;
 
   @override
   IntakeState build() {
@@ -102,10 +105,20 @@ class IntakeNotifier extends Notifier<IntakeState> {
     _sessionClosedSub = ws.sessionClosedStream.listen((_) {
       _scheduleCompletion();
     });
+    _stateSub = ws.stateStream.listen((wsState) {
+      if (wsState == WsConnectionState.sessionActive) {
+        if (_hasConnectedOnce && !state.isComplete) {
+          _onboardingTurnCount = 0;
+          state = IntakeState.initial();
+        }
+        _hasConnectedOnce = true;
+      }
+    });
 
     ref.onDispose(() {
       _turnSub?.cancel();
       _sessionClosedSub?.cancel();
+      _stateSub?.cancel();
     });
 
     return IntakeState.initial();
@@ -193,12 +206,24 @@ class IntakeNotifier extends Notifier<IntakeState> {
 
   void reset() {
     _onboardingTurnCount = 0;
+    _hasConnectedOnce = false;
     _turnSub?.cancel();
     _sessionClosedSub?.cancel();
+    _stateSub?.cancel();
     final ws = ref.read(webSocketServiceProvider);
     _turnSub = ws.agentTurnStream.listen(_onAgentTurn);
     _sessionClosedSub = ws.sessionClosedStream.listen((_) {
       _scheduleCompletion();
     });
+    _stateSub = ws.stateStream.listen((wsState) {
+      if (wsState == WsConnectionState.sessionActive) {
+        if (_hasConnectedOnce && !state.isComplete) {
+          _onboardingTurnCount = 0;
+          state = IntakeState.initial();
+        }
+        _hasConnectedOnce = true;
+      }
+    });
+    state = IntakeState.initial();
   }
 }
