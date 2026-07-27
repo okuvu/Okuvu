@@ -76,15 +76,16 @@ model SessionLog {
 }
 
 model Turn {
-  id          String     @id @default(uuid())
-  session_id  String
-  user_id     String
-  turn_number Int
-  role        String
-  content     String
-  created_at  DateTime   @default(now())
-  session     SessionLog @relation(fields: [session_id], references: [id])
-  user        User       @relation(fields: [user_id], references: [id])
+  id             String     @id @default(uuid())
+  session_id     String
+  user_id        String
+  turn_number    Int
+  role           String
+  content        String
+  is_a9_fallback Boolean    @default(false)
+  created_at     DateTime   @default(now())
+  session        SessionLog @relation(fields: [session_id], references: [id])
+  user           User       @relation(fields: [user_id], references: [id])
 
   @@unique([session_id, turn_number, role])
   @@index([session_id, turn_number])
@@ -178,6 +179,18 @@ model MoodLog {
 
   @@unique([user_id, date_ist])
   @@index([user_id, date_ist(sort: Desc)])
+}
+
+model GovernanceLog {
+  id             String   @id @default(uuid())
+  session_id     String
+  turn_number    Int
+  gate           String
+  decision       String
+  violation_type String?
+  confidence     String
+  blocked_content String?
+  created_at     DateTime @default(now())
 }
 
 enum CarePlan {

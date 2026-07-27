@@ -16,6 +16,10 @@ vi.mock('../agents/a2/agent.js', () => ({
   handleTurn: vi.fn(),
 }));
 
+vi.mock('../agents/a9-post/agent.js', () => ({
+  a9PostReview: vi.fn(),
+}));
+
 vi.mock('../lib/agent-context.js', () => ({
   getAgentContextBundle: vi.fn(),
   summariesToConversationTurns: vi.fn(() => []),
@@ -30,9 +34,10 @@ vi.mock('../pipeline/session.js', () => ({
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
     sessionLog: { findUnique: vi.fn(), update: vi.fn() },
-    turn: { createMany: vi.fn(), findFirst: vi.fn() },
+    turn: { create: vi.fn() },
     safetyState: { upsert: vi.fn() },
     clinicalConfig: { update: vi.fn() },
+    governanceLog: { create: vi.fn() },
     user: { findUnique: vi.fn() },
   },
 }));
@@ -41,6 +46,7 @@ import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn } from '../agents/a2/agent.js';
+import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
@@ -73,11 +79,12 @@ beforeEach(() => {
   vi.mocked(incrementTurnCount).mockResolvedValue(4);
   vi.mocked(getAgentContextBundle).mockResolvedValue(defaultContext);
   vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 3 } as never);
-  vi.mocked(prisma.turn.createMany).mockResolvedValue({ count: 2 } as never);
-  vi.mocked(prisma.turn.findFirst).mockResolvedValue({ id: 'assistant-turn-1' } as never);
+  vi.mocked(prisma.turn.create).mockResolvedValue({ id: 'assistant-turn-1' } as never);
   vi.mocked(prisma.safetyState.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
+  vi.mocked(prisma.governanceLog.create).mockResolvedValue({} as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
+  vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
 
   clearToolResult(SESSION_ID);
 });
@@ -146,6 +153,7 @@ describe('processTurn — crisis short-circuit', () => {
 
     expect(result.type).toBe('crisis');
     expect(handleTurn).not.toHaveBeenCalled();
+    expect(a9PostReview).not.toHaveBeenCalled();
   });
 });
 
@@ -184,7 +192,7 @@ describe('processTurn — A9-pre failure', () => {
 });
 
 describe('processTurn — A2 failure', () => {
-  it('returns a graceful degraded response when A2 throws', async () => {
+  it('returns graceful degraded response and skips A9-post when A2 throws', async () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
@@ -197,6 +205,150 @@ describe('processTurn — A2 failure', () => {
       expect(result.message).toBeTruthy();
       expect(result.fallbackUsed).toBe(true);
       expect(result.message!.length).toBeGreaterThan(10);
+    }
+    expect(a9PostReview).not.toHaveBeenCalled();
+  });
+});
+
+describe('processTurn — A9-post integration', () => {
+  it('calls A9-post after A2 and delivers A2 content when APPROVED', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(a9PostReview).toHaveBeenCalledTimes(1);
+    expect(a9PostReview).toHaveBeenCalledWith(
+      expect.objectContaining({ userContent: 'I hear you.' }),
+    );
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message).toBe('I hear you.');
+    }
+  });
+
+  it('returns fallback and logs governance when A9-post BLOCKS', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(a9PostReview).mockResolvedValue({
+      decision: 'BLOCKED',
+      violation_type: 'direct_advice',
+      confidence: 'high',
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(a9PostReview).toHaveBeenCalledTimes(1);
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message).toBe("I'm here with you. Take a breath — what's most on your mind right now?");
+    }
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ role: 'assistant', is_a9_fallback: true }),
+      }),
+    );
+    expect(prisma.governanceLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          gate: 'A9-POST',
+          decision: 'BLOCKED',
+          violation_type: 'direct_advice',
+        }),
+      }),
+    );
+  });
+
+  it('delivers S2 fallback when A9-post blocks at safety state S2', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(a9PostReview).mockResolvedValue({
+      decision: 'BLOCKED',
+      violation_type: 'clinical_diagnostic_language',
+      confidence: 'high',
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message).toBe(
+        "I want to make sure I'm being helpful right now. Can you tell me a bit more about what you're experiencing?",
+      );
+    }
+  });
+
+  it('fails closed at S2 when A9-post throws', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(a9PostReview).mockRejectedValue(new Error('A9-post timeout'));
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message).toBe(
+        "I want to make sure I'm being helpful right now. Can you tell me a bit more about what you're experiencing?",
+      );
+    }
+    expect(prisma.governanceLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          gate: 'A9-POST',
+          violation_type: 'a9_post_unavailable_s2',
+        }),
+      }),
+    );
+  });
+
+  it('fails open at S0 when A9-post throws', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(a9PostReview).mockRejectedValue(new Error('A9-post timeout'));
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message).toBe('I hear you.');
+    }
+    expect(prisma.governanceLog.create).not.toHaveBeenCalled();
+  });
+
+  it('does not call A9-post when crisis short-circuits', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
+
+    await processTurn(UID, SESSION_ID, 'I want to hurt myself');
+
+    expect(a9PostReview).not.toHaveBeenCalled();
+  });
+
+  it('records A9_post timing in the pipeline', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      const stages = result.timing.map((t) => t.stage);
+      expect(stages).toContain('A9_post');
+      expect(stages.indexOf('A2_response')).toBeLessThan(stages.indexOf('A9_post'));
     }
   });
 });
@@ -225,7 +377,7 @@ describe('processTurn — persistence', () => {
     await processTurn(UID, SESSION_ID, 'I feel better');
 
     expect(incrementTurnCount).toHaveBeenCalledWith(SESSION_ID);
-    expect(prisma.turn.createMany).toHaveBeenCalled();
+    expect(prisma.turn.create).toHaveBeenCalledTimes(2);
     expect(prisma.safetyState.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { user_id: UID },

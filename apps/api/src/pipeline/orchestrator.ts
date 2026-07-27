@@ -3,12 +3,13 @@ import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
+import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle, summariesToConversationTurns } from '../lib/agent-context.js';
 import { buildToolCard } from '../lib/tool-card.js';
 import { getToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
-import { A2_DEGRADED_RESPONSE } from './fallbacks.js';
+import { A2_DEGRADED_RESPONSE, getSafeFallback } from './fallbacks.js';
 import type { PipelineResult, StageTiming } from './types.js';
 import type { ConversationTurn } from '../agents/a1/types.js';
 import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
@@ -101,6 +102,10 @@ export async function processTurn(
   const a2Start = now();
   let finalText: string;
   let a2Fallback = false;
+  let a9PostBlocked = false;
+  let a9PostViolation: string | null = null;
+  let a9PostConfidence: string | null = null;
+  let a9PostBlockedContent: string | null = null;
   let estimatedIntensity: number | null = null;
   let crisisFlag = false;
   let carePlanReviewFlag = false;
@@ -167,25 +172,69 @@ export async function processTurn(
   const a2End = now();
   recordTiming(timing, 'A2_response', a2Start, a2End);
 
+  if (!a2Fallback) {
+    const a9PostStart = now();
+    try {
+      const a9PostResult = await a9PostReview({
+        userContent: finalText,
+        safetyState,
+        carePlan: contextBundle.care_plan?.care_plan_id ?? 'CP1',
+      });
+
+      a9PostConfidence = a9PostResult.confidence;
+
+      if (a9PostResult.decision === 'BLOCKED') {
+        a9PostBlockedContent = finalText;
+        finalText = getSafeFallback(safetyState);
+        a9PostBlocked = true;
+        a9PostViolation = a9PostResult.violation_type;
+      }
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.info({ err: errMsg }, 'A9-post: call failed, applying failover strategy');
+
+      if (safetyState === 'S2') {
+        finalText = getSafeFallback(safetyState);
+        a9PostBlocked = true;
+        a9PostViolation = 'a9_post_unavailable_s2';
+        a9PostConfidence = 'low';
+      }
+    }
+    recordTiming(timing, 'A9_post', a9PostStart, now());
+  }
+
   const newTurnCount = await incrementTurnCount(sessionId);
 
-  await prisma.turn.createMany({
-    data: [
-      { session_id: sessionId, user_id: user.id, turn_number: newTurnCount, role: 'user', content: message },
-      { session_id: sessionId, user_id: user.id, turn_number: newTurnCount, role: 'assistant', content: finalText },
-    ],
-    skipDuplicates: true,
-  });
+  const [userTurn, assistantTurn] = await prisma.$transaction([
+    prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: newTurnCount,
+        role: 'user', content: message,
+      },
+    }),
+    prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: newTurnCount,
+        role: 'assistant', content: finalText,
+        is_a9_fallback: a9PostBlocked,
+      },
+      select: { id: true },
+    }),
+  ]);
 
-  const assistantTurn = await prisma.turn.findFirst({
-    where: {
-      session_id: sessionId,
-      role: 'assistant',
-      turn_number: newTurnCount,
-    },
-    orderBy: [{ created_at: 'asc' }],
-    select: { id: true },
-  });
+  if (a9PostBlocked) {
+    await prisma.governanceLog.create({
+      data: {
+        session_id: sessionId,
+        turn_number: newTurnCount,
+        gate: 'A9-POST',
+        decision: 'BLOCKED',
+        violation_type: a9PostViolation,
+        confidence: a9PostConfidence ?? 'low',
+        blocked_content: a9PostBlockedContent,
+      },
+    });
+  }
 
   await prisma.safetyState.upsert({
     where: { user_id: user.id },
