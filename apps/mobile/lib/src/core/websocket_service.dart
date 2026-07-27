@@ -115,7 +115,10 @@ class WebSocketService {
 
       _setState(WsConnectionState.connected);
       _mockTurnCount = 0;
-      _sendFrame({'type': 'SESSION_OPEN'});
+      _sendFrame({
+        'type': 'SESSION_OPEN',
+        'payload': _sessionId != null ? {'session_id': _sessionId} : {},
+      });
     } catch (e) {
       Logger.debug('[WebSocketService] Connection failed: $e');
       _setState(WsConnectionState.error, errorType: 'connection_failure');

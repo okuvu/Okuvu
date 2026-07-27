@@ -93,6 +93,7 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
             tts_url: null,
           },
         });
+        onSessionOpened?.(existingSession.id);
         log.info(
           {
             event: 'session_reconnect',
@@ -114,6 +115,7 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
           crisis_bypass: false,
         },
       });
+      onSessionOpened?.(existingSession.id);
       log.info(
         {
           event: 'session_reconnect',

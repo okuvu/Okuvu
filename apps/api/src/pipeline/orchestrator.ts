@@ -174,6 +174,7 @@ export async function processTurn(
       { session_id: sessionId, user_id: user.id, turn_number: newTurnCount, role: 'user', content: message },
       { session_id: sessionId, user_id: user.id, turn_number: newTurnCount, role: 'assistant', content: finalText },
     ],
+    skipDuplicates: true,
   });
 
   const assistantTurn = await prisma.turn.findFirst({

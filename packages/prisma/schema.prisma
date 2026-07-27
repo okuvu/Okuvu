@@ -86,6 +86,7 @@ model Turn {
   session     SessionLog @relation(fields: [session_id], references: [id])
   user        User       @relation(fields: [user_id], references: [id])
 
+  @@unique([session_id, turn_number, role])
   @@index([session_id, turn_number])
   @@index([user_id, created_at(sort: Desc)])
 }

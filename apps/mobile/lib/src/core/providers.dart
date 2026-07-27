@@ -134,6 +134,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _onAgentTurn(AgentTurnFrame frame) {
+    if (frame.turnId != null && state.messages.any((m) => m.id == frame.turnId)) {
+      return;
+    }
+
     state = state.copyWith(
       messages: [
         ...state.messages,
