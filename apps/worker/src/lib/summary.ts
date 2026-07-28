@@ -1,5 +1,6 @@
 import { getPrisma } from './prisma.js';
 import { generateContent } from './vertex-ai.js';
+import { updateUserMemory } from './memory-extraction.js';
 
 const MAX_SUMMARY_TURNS = 20;
 const MIN_SUBSTANTIVE_TURNS = 2;
@@ -192,6 +193,23 @@ export async function generateSessionSummary(
     session_id: sessionId,
     turn_count: turnCount,
   }, 'Session summary generated and persisted');
+
+  try {
+    const sessionNumber = await getPrisma().sessionLog.count({
+      where: { user_id: userId },
+    });
+    await updateUserMemory(userId, summaryText, sessionNumber, logger);
+  } catch (error) {
+    logger.error(
+      {
+        event: 'memory_extraction_catch_all',
+        user_id: userId,
+        session_id: sessionId,
+        err: error instanceof Error ? error.message : String(error),
+      },
+      '[UserMemory] Unexpected error in memory extraction — skipping',
+    );
+  }
 
   return { status: 'completed' };
 }

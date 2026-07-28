@@ -4,11 +4,15 @@ import type { SummaryResult } from '../lib/summary.js';
 const mockFindUnique = vi.fn();
 const mockUpsert = vi.fn();
 const mockGenerateContent = vi.fn();
+const mockCount = vi.fn();
+const mockUserMemoryFind = vi.fn();
+const mockUserMemoryUpsert = vi.fn();
 
 vi.mock('../lib/prisma.js', () => ({
   getPrisma: () => ({
-    sessionLog: { findUnique: mockFindUnique },
+    sessionLog: { findUnique: mockFindUnique, count: mockCount },
     sessionSummary: { upsert: mockUpsert },
+    userMemory: { findUnique: mockUserMemoryFind, upsert: mockUserMemoryUpsert },
   }),
 }));
 
@@ -73,7 +77,7 @@ describe('generateSessionSummary', () => {
       const result = await generateSessionSummary('sess-1', 'user-1', logger);
 
       expect(result.status).toBe('completed');
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
       expect(mockUpsert).toHaveBeenCalledTimes(1);
       expect(mockUpsert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -182,7 +186,7 @@ describe('generateSessionSummary', () => {
       const result = await generateSessionSummary('sess-1', 'user-1', logger);
 
       expect(result.status).toBe('completed');
-      expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+      expect(mockGenerateContent).toHaveBeenCalledTimes(2);
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
       const transcript = callArgs.contents[0].parts[0].text;
@@ -205,7 +209,7 @@ describe('generateSessionSummary', () => {
 
       await expect(generateSessionSummary('sess-1', 'user-1', logger))
         .rejects.toThrow('Malformed Flash-Lite output');
-      expect(mockUpsert).not.toHaveBeenCalled();
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
     });
 
     it('throws error when JSON is missing required narrative_summary', async () => {
@@ -221,7 +225,7 @@ describe('generateSessionSummary', () => {
 
       await expect(generateSessionSummary('sess-1', 'user-1', logger))
         .rejects.toThrow('Malformed Flash-Lite output');
-      expect(mockUpsert).not.toHaveBeenCalled();
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
     });
 
     it('throws error when themes is not an array', async () => {
@@ -237,7 +241,7 @@ describe('generateSessionSummary', () => {
 
       await expect(generateSessionSummary('sess-1', 'user-1', logger))
         .rejects.toThrow('Malformed Flash-Lite output');
-      expect(mockUpsert).not.toHaveBeenCalled();
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -252,7 +256,7 @@ describe('generateSessionSummary', () => {
 
       await expect(generateSessionSummary('sess-1', 'user-1', logger))
         .rejects.toThrow('Flash-Lite call failed: api_error');
-      expect(mockUpsert).not.toHaveBeenCalled();
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
     });
 
     it('throws error on timeout', async () => {
@@ -265,7 +269,7 @@ describe('generateSessionSummary', () => {
 
       await expect(generateSessionSummary('sess-1', 'user-1', logger))
         .rejects.toThrow('Flash-Lite call failed: timeout');
-      expect(mockUpsert).not.toHaveBeenCalled();
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -280,6 +284,101 @@ describe('generateSessionSummary', () => {
       expect(result.status).toBe('session_not_found');
       expect(mockGenerateContent).not.toHaveBeenCalled();
       expect(mockUpsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('memory extraction integration', () => {
+    it('calls updateUserMemory after a COMPLETED summary', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockCount.mockResolvedValue(3);
+      mockUserMemoryFind.mockResolvedValue(null);
+      mockUserMemoryUpsert.mockResolvedValue({ id: 'mem-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      expect(mockCount).toHaveBeenCalledWith({ where: { user_id: 'user-1' } });
+      expect(mockUserMemoryFind).toHaveBeenCalledWith({ where: { user_id: 'user-1' } });
+      expect(mockUserMemoryUpsert).toHaveBeenCalled();
+    });
+
+    it('does not throw when memory extraction fails — A10A job must not fail', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockCount.mockRejectedValue(new Error('DB connection failed'));
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'memory_extraction_catch_all' }),
+        expect.any(String),
+      );
+    });
+
+    it('upserts UserMemory with session_count: 1 on first session', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockCount.mockResolvedValue(1);
+      mockUserMemoryFind.mockResolvedValue(null);
+      mockUserMemoryUpsert.mockResolvedValue({ id: 'mem-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockUserMemoryUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { user_id: 'user-1' },
+          create: expect.objectContaining({ session_count: 1 }),
+          update: expect.objectContaining({ session_count: { increment: 1 } }),
+        }),
+      );
+    });
+
+    it('forces emotional_baseline to null when session_count < 3', async () => {
+      const memoryWithBaseline = JSON.stringify({
+        life_context: ['works as engineer'],
+        recurring_themes: ['work stress'],
+        what_helps: ['exercise'],
+        what_doesnt_help: [],
+        significant_events: [],
+        current_stressors: ['deadlines'],
+        emotional_baseline: 'feeling anxious but engaged',
+      });
+
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent
+        .mockResolvedValueOnce({ text: validFlashLiteOutput, fallbackUsed: false })
+        .mockResolvedValueOnce({ text: memoryWithBaseline, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockCount.mockResolvedValue(1);
+      mockUserMemoryFind.mockResolvedValue(null);
+      mockUserMemoryUpsert.mockResolvedValue({ id: 'mem-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockUserMemoryUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { user_id: 'user-1' },
+          create: expect.objectContaining({ emotional_baseline: null }),
+          update: expect.objectContaining({ emotional_baseline: null }),
+        }),
+      );
     });
   });
 });
