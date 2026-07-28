@@ -14,6 +14,7 @@
       }
     }
   },
+  "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"],
   "instructions": [
     "CONTRIBUTING.md",
     ".github/PULL_REQUEST_TEMPLATE.md"

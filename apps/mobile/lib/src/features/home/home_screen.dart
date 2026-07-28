@@ -103,7 +103,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       icon: '\u{1F4D4}',
                       label: 'Journal',
                       subtitle: '$entryCount entries',
-                      onTap: () => context.go('/journal/history'),
+                      onTap: () => context.go('/journal'),
                     ),
                   ),
                 ],
