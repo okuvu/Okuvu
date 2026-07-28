@@ -16,6 +16,7 @@ model User {
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
   engagement_profile  EngagementProfile?
+  user_memory         UserMemory?
   mood_logs           MoodLog[]
   safety_state        SafetyState?
   session_limits      SessionLimit[]
@@ -120,6 +121,27 @@ model EngagementProfile {
   consent_3          Boolean   @default(false)
   consent_4          Boolean   @default(false)
   user               User      @relation(fields: [user_id], references: [id])
+}
+
+model UserMemory {
+  id                String   @id @default(uuid())
+  user_id           String   @unique
+  user              User     @relation(fields: [user_id], references: [id])
+
+  life_context      String[]
+  recurring_themes  String[]
+  what_helps        String[]
+  what_doesnt_help  String[]
+  significant_events String[]
+  current_stressors  String[]
+  emotional_baseline String?
+
+  session_count     Int      @default(0)
+
+  created_at        DateTime @default(now())
+  last_updated      DateTime @updatedAt
+
+  @@index([user_id])
 }
 
 model TherapistNote {
