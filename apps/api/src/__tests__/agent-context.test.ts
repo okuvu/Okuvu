@@ -234,7 +234,7 @@ describe('GET /users/me/context', () => {
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
     });
 
-    it('returns only the 5 expected top-level fields', async () => {
+    it('returns only the 6 expected top-level fields', async () => {
       const response = await app.inject({ method: 'GET', url: '/users/me/context' });
       const body = response.json();
 
@@ -244,6 +244,7 @@ describe('GET /users/me/context', () => {
         'recent_history',
         'safety_state',
         'session_summary',
+        'user_memory',
       ]);
     });
   });
@@ -272,6 +273,7 @@ describe('GET /users/me/context', () => {
         'recent_history',
         'safety_state',
         'session_summary',
+        'user_memory',
       ]);
     });
   });

@@ -30,6 +30,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     mode,
     recentHistory,
     toolResultContext,
+    userMemoryContext,
   } = input;
 
   let systemInstruction = buildConversationalPrompt({
@@ -39,6 +40,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     turnNumber,
     sessionHistorySummary,
     perceivedIntensity,
+    userMemoryContext,
   });
 
   if (toolResultContext) {
@@ -69,6 +71,45 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     signal: parsed.signal,
     fallbackUsed: result.fallbackUsed,
   };
+}
+
+export function formatUserMemory(memory: {
+  life_context: string[];
+  current_stressors: string[];
+  recurring_themes: string[];
+  what_helps: string[];
+  what_doesnt_help: string[];
+  significant_events: string[];
+  emotional_baseline: string | null;
+  session_count: number;
+} | null): string {
+  if (!memory || memory.session_count === 0) return 'null';
+
+  const sections: string[] = [];
+
+  if (memory.life_context.length > 0) {
+    sections.push(`Life context: ${memory.life_context.join('. ')}`);
+  }
+  if (memory.current_stressors.length > 0) {
+    sections.push(`Current stressors: ${memory.current_stressors.join('. ')}`);
+  }
+  if (memory.recurring_themes.length > 0) {
+    sections.push(`Recurring themes: ${memory.recurring_themes.join('. ')}`);
+  }
+  if (memory.what_helps.length > 0) {
+    sections.push(`What has helped: ${memory.what_helps.join('. ')}`);
+  }
+  if (memory.what_doesnt_help.length > 0) {
+    sections.push(`What hasn't helped: ${memory.what_doesnt_help.join('. ')}`);
+  }
+  if (memory.significant_events.length > 0) {
+    sections.push(`Significant events: ${memory.significant_events.join('. ')}`);
+  }
+  if (memory.emotional_baseline) {
+    sections.push(`Emotional pattern: ${memory.emotional_baseline}`);
+  }
+
+  return sections.join('\n');
 }
 
 export function parseA2Response(raw: string): A2ParsedResponse {

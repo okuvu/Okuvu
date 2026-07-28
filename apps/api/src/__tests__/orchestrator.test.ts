@@ -14,6 +14,7 @@ vi.mock('../agents/a8-router.js', () => ({
 
 vi.mock('../agents/a2/agent.js', () => ({
   handleTurn: vi.fn(),
+  formatUserMemory: vi.fn(() => 'null'),
 }));
 
 vi.mock('../agents/a9-post/agent.js', () => ({
@@ -36,9 +37,10 @@ vi.mock('../lib/prisma.js', () => ({
     sessionLog: { findUnique: vi.fn(), update: vi.fn() },
     turn: { create: vi.fn() },
     safetyState: { upsert: vi.fn() },
-    clinicalConfig: { update: vi.fn() },
+    clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
     governanceLog: { create: vi.fn() },
     user: { findUnique: vi.fn() },
+    $transaction: vi.fn(() => Promise.resolve([{ id: 'user-turn-1' }, { id: 'assistant-turn-1' }])),
   },
 }));
 
@@ -62,6 +64,7 @@ const defaultContext = {
   recent_history: [],
   session_summary: null,
   engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
+  user_memory: null,
 };
 
 const defaultA2Result = {

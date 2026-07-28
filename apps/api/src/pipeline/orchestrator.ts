@@ -2,7 +2,7 @@ import type { SafetyState, GovernanceState, RouterDecision } from '@evia/shared-
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
-import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
+import { handleTurn, scoreOnboardingTurn, formatUserMemory } from '../agents/a2/agent.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle, summariesToConversationTurns } from '../lib/agent-context.js';
 import { buildToolCard } from '../lib/tool-card.js';
@@ -129,6 +129,8 @@ export async function processTurn(
     clearToolResult(sessionId);
   }
 
+  const userMemoryContext = formatUserMemory(contextBundle.user_memory);
+
   try {
     const a2Result = await handleTurn({
       userId: uid,
@@ -142,6 +144,7 @@ export async function processTurn(
       mode: decision.mode ?? 'normal',
       recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
       toolResultContext,
+      userMemoryContext,
     });
     finalText = a2Result.userContent;
     a2Fallback = a2Result.fallbackUsed;

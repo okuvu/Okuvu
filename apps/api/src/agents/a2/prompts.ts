@@ -8,6 +8,7 @@ export function buildConversationalPrompt(params: {
   turnNumber: number;
   sessionHistorySummary: string | null;
   perceivedIntensity: number | null;
+  userMemoryContext?: string | null;
 }): string {
   const {
     carePlan,
@@ -16,6 +17,7 @@ export function buildConversationalPrompt(params: {
     turnNumber,
     sessionHistorySummary,
     perceivedIntensity,
+    userMemoryContext,
   } = params;
 
   return A2_MVP_PROMPT
@@ -24,7 +26,8 @@ export function buildConversationalPrompt(params: {
     .replace('${session_number}', sessionNumber.toString())
     .replace('${turn_number}', turnNumber.toString())
     .replace('${session_history_summary}', sessionHistorySummary ?? 'null')
-    .replace('${perceived_intensity}', perceivedIntensity?.toString() ?? 'null');
+    .replace('${perceived_intensity}', perceivedIntensity?.toString() ?? 'null')
+    .replace('${user_memory}', userMemoryContext ?? 'null');
 }
 
 export const ONBOARDING_SCORING_PROMPT = A2_ONBOARDING_PROMPT;

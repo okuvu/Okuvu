@@ -217,6 +217,17 @@ export interface EngagementStats {
 
 // ─── Agent Context Bundle ────────────────────────────────────────
 
+export interface UserMemoryData {
+  life_context: string[]
+  current_stressors: string[]
+  recurring_themes: string[]
+  what_helps: string[]
+  what_doesnt_help: string[]
+  significant_events: string[]
+  emotional_baseline: string | null
+  session_count: number
+}
+
 export interface AgentContextBundle {
   safety_state: SafetyState | null
   care_plan: {
@@ -227,6 +238,7 @@ export interface AgentContextBundle {
   recent_history: SessionSummaryView[]
   session_summary: string | null
   engagement: EngagementStats
+  user_memory: UserMemoryData | null
 }
 
 // ─── Therapist Portal (T-01 Dashboard) ─────────────────────────

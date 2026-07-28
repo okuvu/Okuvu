@@ -20,6 +20,7 @@ export interface A2Input {
   recentHistory: ConversationTurn[];
   sessionSummary?: string | null;
   toolResultContext?: string;
+  userMemoryContext?: string | null;
 }
 
 export interface A2Output {

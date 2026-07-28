@@ -47,6 +47,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
         orderBy: { created_at: 'desc' },
         select: { summary_text: true, created_at: true },
       },
+      user_memory: true,
     },
   });
 
@@ -57,6 +58,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       recent_history: [],
       session_summary: null,
       engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
+      user_memory: null,
     };
   }
 
@@ -89,6 +91,19 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
     }
   }
 
+  const userMemoryRecord = user.user_memory
+    ? {
+        life_context: user.user_memory.life_context,
+        current_stressors: user.user_memory.current_stressors,
+        recurring_themes: user.user_memory.recurring_themes,
+        what_helps: user.user_memory.what_helps,
+        what_doesnt_help: user.user_memory.what_doesnt_help,
+        significant_events: user.user_memory.significant_events,
+        emotional_baseline: user.user_memory.emotional_baseline,
+        session_count: user.user_memory.session_count,
+      }
+    : null;
+
   return {
     safety_state: user.safety_state?.safety_state_current ?? null,
     care_plan: user.clinical_config
@@ -109,6 +124,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       consent_3: user.engagement_profile?.consent_3 ?? false,
       consent_4: user.engagement_profile?.consent_4 ?? false,
     },
+    user_memory: userMemoryRecord,
   };
 }
 
