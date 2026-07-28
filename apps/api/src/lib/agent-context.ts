@@ -42,9 +42,10 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
         },
       },
       session_summaries: {
-        take: 1,
+        where: { status: 'COMPLETED', summary_text: { not: null } },
+        take: 3,
         orderBy: { created_at: 'desc' },
-        select: { summary_text: true },
+        select: { summary_text: true, created_at: true },
       },
     },
   });
@@ -98,7 +99,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
         }
       : null,
     recent_history: recentHistory,
-    session_summary: user.session_summaries[0]?.summary_text ?? null,
+    session_summary: formatRollingSummary(user.session_summaries),
     engagement: {
       current_streak: user.engagement_profile?.current_streak ?? 0,
       longest_streak: user.engagement_profile?.longest_streak ?? 0,
@@ -109,6 +110,29 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       consent_4: user.engagement_profile?.consent_4 ?? false,
     },
   };
+}
+
+function formatRollingSummary(
+  summaries: Array<{ summary_text: string | null; created_at: Date }>,
+): string | null {
+  if (summaries.length === 0) return null;
+
+  const chronological = [...summaries].reverse();
+
+  return chronological
+    .map((s) => {
+      const daysAgo = Math.floor(
+        (Date.now() - s.created_at.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const timeLabel =
+        daysAgo === 0
+          ? 'Earlier today'
+          : daysAgo === 1
+            ? 'Yesterday'
+            : `${daysAgo} days ago`;
+      return `[${timeLabel}]: ${s.summary_text}`;
+    })
+    .join('\n\n');
 }
 
 async function fetchFallbackTurns(sessionId: string): Promise<string | null> {

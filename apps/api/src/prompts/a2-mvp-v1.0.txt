@@ -54,8 +54,9 @@ CONTEXT VARIABLES PROVIDED AT RUNTIME:
 - turn_number: ${turn_number}
   (turn within this session, 1–10)
 - session_history_summary: ${session_history_summary}
-  (A10A summary of prior sessions — null if first session
-  or no prior summary available)
+  (Rolling summary of up to 3 prior completed sessions,
+  oldest first. Format: [time label]: summary text.
+  null if no prior completed sessions exist.)
 - perceived_intensity: ${perceived_intensity}
   (estimated emotional intensity 1–10 from prior turns —
   null on Turn 1)

@@ -81,7 +81,9 @@ function buildFullUser() {
         summaries: [{ summary_text: 'Short check-in.', status: 'COMPLETED' }],
       },
     ],
-    session_summaries: [{ summary_text: 'Latest overall summary.' }],
+    session_summaries: [
+      { summary_text: 'Latest overall summary.', created_at: new Date('2026-06-29T14:00:00Z'), status: 'COMPLETED' },
+    ],
   };
 }
 
@@ -119,7 +121,9 @@ function buildUserWithManySessions(count: number) {
       session_feedback_score: i % 2 === 0 ? 5 : null,
       summaries: i === 0 ? [{ summary_text: `Most recent summary.`, status: 'COMPLETED' }] : [],
     })),
-    session_summaries: [{ summary_text: 'Latest overall summary for many sessions.' }],
+    session_summaries: [
+      { summary_text: 'Latest overall summary for many sessions.', created_at: new Date('2026-06-29T14:00:00Z'), status: 'COMPLETED' },
+    ],
   };
   return user;
 }
@@ -179,7 +183,7 @@ describe('GET /users/me/context', () => {
         session_feedback_score: 4,
         summary: 'Session 1 was productive.',
       });
-      expect(body.session_summary).toBe('Latest overall summary.');
+      expect(body.session_summary).toMatch(/^\[\d+ days ago\]: Latest overall summary\.$/);
       expect(body.engagement).toEqual({ current_streak: 5, longest_streak: 0, voice_mode_enabled: true, consent_1: true, consent_2: false, consent_3: true, consent_4: false });
     });
 
@@ -197,7 +201,7 @@ describe('GET /users/me/context', () => {
               select: { current_streak: true, longest_streak: true, voice_mode_enabled: true, consent_1: true, consent_2: true, consent_3: true, consent_4: true },
             }),
             session_logs: expect.objectContaining({ take: 6 }),
-            session_summaries: expect.objectContaining({ take: 1 }),
+            session_summaries: expect.objectContaining({ take: 3, where: { status: 'COMPLETED', summary_text: { not: null } } }),
           }),
         }),
       );
