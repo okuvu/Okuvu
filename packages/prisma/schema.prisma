@@ -69,6 +69,7 @@ model SessionLog {
   turn_count             Int              @default(0)
   session_feedback_score Int?
   crisis_flag_detected   Boolean          @default(false)
+  summary_embedding      Unsupported("vector(768)")?
   user                   User             @relation(fields: [user_id], references: [id])
   summaries              SessionSummary[]
   turns                  Turn[]
