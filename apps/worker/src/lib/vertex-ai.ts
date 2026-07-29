@@ -31,6 +31,10 @@ export interface GenerateContentParams {
   timeoutMs?: number;
   model?: string;
   generationConfig?: Partial<protos.google.cloud.aiplatform.v1beta1.IGenerationConfig>;
+  safetySettings?: Array<{
+    category: string;
+    threshold: string;
+  }>;
 }
 
 export interface GenerateContentResult {
@@ -44,7 +48,7 @@ export async function generateContent(
 ): Promise<GenerateContentResult> {
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  const request = {
+  const request: Record<string, unknown> = {
     model: params.model ?? getModelResource(),
     systemInstruction: {
       role: 'system' as const,
@@ -57,6 +61,10 @@ export async function generateContent(
       ...params.generationConfig,
     },
   };
+
+  if (params.safetySettings) {
+    request.safetySettings = params.safetySettings;
+  }
 
   let timedOut = false;
 
@@ -73,9 +81,17 @@ export async function generateContent(
     ]);
 
     const response = Array.isArray(result) ? result[0] : result;
-    const text =
-      (response as protos.google.cloud.aiplatform.v1beta1.IGenerateContentResponse)
-        ?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const candidate = (response as protos.google.cloud.aiplatform.v1beta1.IGenerateContentResponse)
+      ?.candidates?.[0];
+    const text = candidate?.content?.parts?.[0]?.text ?? '';
+
+    if (!text && candidate) {
+      console.error({
+        event: 'vertex_ai_empty_response',
+        finish_reason: candidate.finishReason,
+        safety_ratings: candidate.safetyRatings,
+      }, 'Vertex AI returned empty response');
+    }
 
     return { text, fallbackUsed: false };
   } catch (err) {

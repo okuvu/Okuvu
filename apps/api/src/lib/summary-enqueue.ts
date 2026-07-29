@@ -48,6 +48,29 @@ export async function enqueueSummaryJob(
   userId: string,
   log?: { info: (obj: Record<string, unknown>, msg: string) => void; warn: (obj: Record<string, unknown>, msg: string) => void; error: (obj: Record<string, unknown>, msg: string) => void },
 ): Promise<void> {
+  const isDev = process.env.NODE_ENV === 'development';
+  const workerUrl = process.env.CLOUD_TASKS_WORKER_URL;
+
+  if (isDev && workerUrl) {
+    const url = `${workerUrl.replace(/\/$/, '')}/tasks/summary`;
+    if (log) {
+      log.info({ event: 'summary_enqueue_local', session_id: sessionId, user_id: userId, url }, 'Calling worker directly (local dev bypass)');
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, user_id: userId }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Worker returned ${res.status}: ${text}`);
+    }
+    if (log) {
+      log.info({ event: 'summary_enqueue_local', session_id: sessionId, user_id: userId, outcome: 'completed' }, 'Worker called directly');
+    }
+    return;
+  }
+
   const env = getEnvConfig();
   if (!env) {
     const missing = validateCloudTasksConfig();

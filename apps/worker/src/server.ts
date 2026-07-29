@@ -18,7 +18,7 @@ export function checkProductionBypass(
   }
 }
 
-const PORT = parseInt(process.env.PORT ?? '8080', 10);
+const PORT = parseInt(process.env.WORKER_PORT ?? '3002', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
 const NODE_ENV = process.env.NODE_ENV ?? 'development';
 const LOCAL_DEV_BYPASS_AUTH = process.env.LOCAL_DEV_BYPASS_AUTH;
