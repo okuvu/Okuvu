@@ -1,5 +1,6 @@
 import { getPrisma } from './prisma.js';
 import { generateContent } from './vertex-ai.js';
+import { generateEmbedding } from './embedding.js';
 import { updateUserMemory } from './memory-extraction.js';
 
 const MAX_SUMMARY_TURNS = 20;
@@ -81,6 +82,20 @@ async function writeFailedStatus(
   } catch (dbErr) {
     logger.error({ event: 'summary_failed_write_error', session_id: sessionId, user_id: userId, err: dbErr instanceof Error ? dbErr.message : String(dbErr) }, 'Failed to write FAILED status to SessionSummary');
   }
+}
+
+async function generateAndStoreEmbedding(
+  sessionId: string,
+  summary: string,
+  logger: Logger,
+): Promise<void> {
+  const embedding = await generateEmbedding(summary);
+
+  await getPrisma().$executeRaw`
+    UPDATE "SessionLog"
+    SET summary_embedding = ${JSON.stringify(embedding)}::vector
+    WHERE id = ${sessionId}
+  `;
 }
 
 export async function generateSessionSummary(
@@ -193,6 +208,17 @@ export async function generateSessionSummary(
     session_id: sessionId,
     turn_count: turnCount,
   }, 'Session summary generated and persisted');
+
+  generateAndStoreEmbedding(sessionId, summaryText, logger).catch((err) => {
+    logger.error(
+      {
+        event: 'embedding_failed',
+        session_id: sessionId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      '[Embedding] Failed to generate or store embedding',
+    );
+  });
 
   try {
     const sessionNumber = await getPrisma().sessionLog.count({

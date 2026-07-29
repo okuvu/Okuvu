@@ -7,13 +7,20 @@ const mockGenerateContent = vi.fn();
 const mockCount = vi.fn();
 const mockUserMemoryFind = vi.fn();
 const mockUserMemoryUpsert = vi.fn();
+const mockExecuteRaw = vi.fn();
+const mockGenerateEmbedding = vi.fn();
 
 vi.mock('../lib/prisma.js', () => ({
   getPrisma: () => ({
     sessionLog: { findUnique: mockFindUnique, count: mockCount },
     sessionSummary: { upsert: mockUpsert },
     userMemory: { findUnique: mockUserMemoryFind, upsert: mockUserMemoryUpsert },
+    $executeRaw: mockExecuteRaw,
   }),
+}));
+
+vi.mock('../lib/embedding.js', () => ({
+  generateEmbedding: mockGenerateEmbedding,
 }));
 
 vi.mock('../lib/vertex-ai.js', () => ({
@@ -379,6 +386,91 @@ describe('generateSessionSummary', () => {
           update: expect.objectContaining({ emotional_baseline: null }),
         }),
       );
+    });
+  });
+
+  describe('embedding integration', () => {
+    beforeEach(() => {
+      mockGenerateEmbedding.mockResolvedValue(new Array(768).fill(0.01));
+    });
+
+    it('calls generateEmbedding with summary_text after a COMPLETED summary', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      expect(mockGenerateEmbedding).toHaveBeenCalledTimes(1);
+      expect(mockGenerateEmbedding).toHaveBeenCalledWith(
+        expect.stringContaining('User discussed feeling anxious'),
+      );
+    });
+
+    it('executes $executeRaw UPDATE with the returned embedding', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockExecuteRaw).toHaveBeenCalledTimes(1);
+      const rawSql = mockExecuteRaw.mock.calls[0][0];
+      expect(rawSql).toBeInstanceOf(Array);
+    });
+
+    it('does not throw when embedding fails — A10A job must not fail', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockGenerateEmbedding.mockRejectedValue(new Error('Vertex AI embedding error'));
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'embedding_failed', err: 'Vertex AI embedding error', session_id: 'sess-1' }),
+        expect.stringContaining('Failed to generate or store embedding'),
+      );
+    });
+
+    it('does not call generateEmbedding on SKIPPED_TRIVIAL', async () => {
+      mockFindUnique.mockResolvedValue(makeSession({ turns: [], turn_count: 0 }));
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+      expect(mockExecuteRaw).not.toHaveBeenCalled();
+    });
+
+    it('still extracts memory when embedding fails', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockGenerateEmbedding.mockRejectedValue(new Error('Vertex AI embedding error'));
+      mockCount.mockResolvedValue(3);
+      mockUserMemoryFind.mockResolvedValue(null);
+      mockUserMemoryUpsert.mockResolvedValue({ id: 'mem-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      expect(mockUserMemoryUpsert).toHaveBeenCalled();
     });
   });
 });
