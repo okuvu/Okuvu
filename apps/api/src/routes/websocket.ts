@@ -9,6 +9,7 @@ import { processTurn } from '../pipeline/orchestrator.js';
 import { generateOnboardingOpening } from '../agents/a2/agent.js';
 import { prisma } from '../lib/prisma.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
+import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 
 const CAP_TURN_LIMIT = 10;
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
@@ -50,6 +51,7 @@ function setIdleTimer(
     if (!result.alreadyClosed) {
       activeSessions.delete(sessionId);
       clearToolResult(sessionId);
+      clearRetrievedContext(sessionId);
       try {
         socket.send(JSON.stringify({
           type: 'SESSION_CLOSED',
@@ -257,6 +259,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
               if (!closeResult.alreadyClosed) {
                 activeSessions.delete(session_id);
                 clearToolResult(session_id);
+                clearRetrievedContext(session_id);
                 send({
                   type: 'SESSION_CLOSED',
                   payload: {
@@ -300,6 +303,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
 
         activeSessions.delete(currentSessionId);
         clearToolResult(currentSessionId);
+        clearRetrievedContext(currentSessionId);
 
         send({
           type: 'SESSION_CLOSED',

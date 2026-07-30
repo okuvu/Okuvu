@@ -21,6 +21,11 @@ vi.mock('../agents/a9-post/agent.js', () => ({
   a9PostReview: vi.fn(),
 }));
 
+vi.mock('../lib/memory-retrieval.js', () => ({
+  retrieveRelevantSessions: vi.fn(),
+  formatRetrievedContext: vi.fn(),
+}));
+
 vi.mock('../lib/agent-context.js', () => ({
   getAgentContextBundle: vi.fn(),
   summariesToConversationTurns: vi.fn(() => []),
@@ -54,6 +59,8 @@ import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipelin
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
+import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
+import { setRetrievedContext, clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 
 const UID = 'test-user-1';
 const SESSION_ID = 'test-session-1';
@@ -90,6 +97,7 @@ beforeEach(() => {
   vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
 
   clearToolResult(SESSION_ID);
+  clearRetrievedContext(SESSION_ID);
 });
 
 describe('processTurn — normal flow', () => {
@@ -143,6 +151,71 @@ describe('processTurn — normal flow', () => {
 
     expect(a1Start).toBeLessThan(a9End);
     expect(a9Start).toBeLessThan(a1End);
+  });
+});
+
+describe('processTurn — Layer 3 RAG semantic retrieval', () => {
+  it('triggers retrieval on Turn 1 and injects context into A2', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(retrieveRelevantSessions).mockResolvedValue([
+      { session_id: 's-1', summary: '{"narrative_summary":"User discussed work stress"}', session_started_at: new Date(), similarity: 0.72 },
+    ]);
+    vi.mocked(formatRetrievedContext).mockReturnValue('[Relevant past session — 2 days ago]: User discussed work stress');
+
+    vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 0 } as never);
+
+    await processTurn(UID, SESSION_ID, 'I feel anxious about work');
+
+    expect(retrieveRelevantSessions).toHaveBeenCalledWith(UID, 'I feel anxious about work', SESSION_ID);
+    expect(handleTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        retrievedContext: '[Relevant past session — 2 days ago]: User discussed work stress',
+      }),
+    );
+  });
+
+  it('reuses cached context on subsequent turns without re-retrieval', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+    setRetrievedContext(SESSION_ID, '[Relevant past session — 2 days ago]: User discussed work stress');
+    vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 2 } as never);
+
+    await processTurn(UID, SESSION_ID, 'Still worried');
+
+    expect(retrieveRelevantSessions).not.toHaveBeenCalled();
+    expect(handleTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        retrievedContext: '[Relevant past session — 2 days ago]: User discussed work stress',
+      }),
+    );
+  });
+
+  it('handles retrieval failure gracefully with null context and error log', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(retrieveRelevantSessions).mockRejectedValue(new Error('Vertex AI embedding failed'));
+
+    vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 0 } as never);
+
+    await processTurn(UID, SESSION_ID, 'I feel anxious');
+
+    expect(handleTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ retrievedContext: 'null' }),
+    );
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'Layer 3 RAG retrieval failed',
+    );
+    consoleSpy.mockRestore();
   });
 });
 

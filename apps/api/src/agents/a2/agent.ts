@@ -31,6 +31,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     recentHistory,
     toolResultContext,
     userMemoryContext,
+    retrievedContext,
   } = input;
 
   let systemInstruction = buildConversationalPrompt({
@@ -41,6 +42,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     sessionHistorySummary,
     perceivedIntensity,
     userMemoryContext,
+    retrievedContext,
   });
 
   if (toolResultContext) {
