@@ -9,6 +9,8 @@ import { buildToolCard } from '../lib/tool-card.js';
 import { getToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
+import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
+import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { A2_DEGRADED_RESPONSE, getSafeFallback } from './fallbacks.js';
 import type { PipelineResult, StageTiming } from './types.js';
 import type { ConversationTurn } from '../agents/a1/types.js';
@@ -51,6 +53,13 @@ export async function processTurn(
 
   const contextBundle = await getAgentContextBundle(uid);
 
+  const sessionCount = await getSessionCount(user.id);
+  const sessionTurn = await prisma.sessionLog.findUnique({
+    where: { id: sessionId },
+    select: { turn_count: true },
+  });
+  const nextTurnNumber = (sessionTurn?.turn_count ?? 0) + 1;
+
   async function timedA1() {
     const start = now();
     try { return await classifySafety({
@@ -67,7 +76,29 @@ export async function processTurn(
     }); } finally { recordTiming(timing, 'A9_pre', start, now()); }
   }
 
-  const [a1Result, a9Result] = await Promise.allSettled([timedA1(), timedA9()]);
+  async function timedRetrieval(): Promise<string> {
+    if (nextTurnNumber !== 1 || !message) return 'null';
+    const cached = getRetrievedContext(sessionId);
+    if (cached) return cached;
+    const start = now();
+    try {
+      const retrieved = await retrieveRelevantSessions(uid, message, sessionId);
+      const formatted = formatRetrievedContext(retrieved);
+      setRetrievedContext(sessionId, formatted);
+      return formatted;
+    } catch (err) {
+      console.error({ err }, 'Layer 3 RAG retrieval failed');
+      return 'null';
+    } finally {
+      recordTiming(timing, 'layer3_rag', start, now());
+    }
+  }
+
+  const [a1Result, a9Result, retrievalResult] = await Promise.allSettled([
+    timedA1(),
+    timedA9(),
+    timedRetrieval(),
+  ]);
 
   const safetyState: SafetyState =
     a1Result.status === 'fulfilled' ? a1Result.value.safetyState : 'S2';
@@ -75,14 +106,12 @@ export async function processTurn(
   const governanceState: GovernanceState =
     a9Result.status === 'fulfilled' ? a9Result.value.governanceState : 'Restricted';
 
-  const a8Start = now();
+  const retrievedContext: string =
+    nextTurnNumber === 1
+      ? (retrievalResult.status === 'fulfilled' ? retrievalResult.value : 'null')
+      : (getRetrievedContext(sessionId) ?? 'null');
 
-  const sessionCount = await getSessionCount(user.id);
-  const session = await prisma.sessionLog.findUnique({
-    where: { id: sessionId },
-    select: { turn_count: true },
-  });
-  const nextTurnNumber = (session?.turn_count ?? 0) + 1;
+  const a8Start = now();
 
   const decision: RouterDecision = routeTurn({
     safety_state: safetyState,
@@ -145,6 +174,7 @@ export async function processTurn(
       recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
       toolResultContext,
       userMemoryContext,
+      retrievedContext,
     });
     finalText = a2Result.userContent;
     a2Fallback = a2Result.fallbackUsed;

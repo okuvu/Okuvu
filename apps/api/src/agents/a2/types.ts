@@ -21,6 +21,7 @@ export interface A2Input {
   sessionSummary?: string | null;
   toolResultContext?: string;
   userMemoryContext?: string | null;
+  retrievedContext?: string | null;
 }
 
 export interface A2Output {

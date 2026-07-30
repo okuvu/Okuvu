@@ -107,6 +107,28 @@ describe('A2 Emotion Regulation Agent', () => {
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.systemInstruction).toContain('null');
     });
+
+    it('replaces ${retrieved_context} with value when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({
+        retrievedContext: '[Relevant past session — 5 days ago]: User discussed work stress.',
+      }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain(
+        'retrieved_context: [Relevant past session — 5 days ago]: User discussed work stress.',
+      );
+    });
+
+    it('replaces ${retrieved_context} with "null" when not provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ retrievedContext: undefined }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('retrieved_context: null');
+    });
   });
 
   describe('Turn 1 — empty context', () => {
