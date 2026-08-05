@@ -78,7 +78,7 @@ export default function ProgramPage() {
       setErrorToast(null);
       await carePlanQuery.refetch();
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      setTimeout(() => router.push(`/clients/${clientId}`), 1000);
     },
     onError: (error) => {
       setShowToast(false);
