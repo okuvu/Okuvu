@@ -1,3 +1,10 @@
+// Load-test users (load-test-vu-*) intentionally bypass the daily rate-limit
+// check in apps/api/src/lib/session-handler.ts, so every SESSION_OPEN here
+// succeeds. This script measures throughput/turn latency only. The rate-limit
+// race guarantee (exactly one concurrent SESSION_OPEN per user/day succeeds,
+// the rest get SESSION_OPEN_REJECTED) is verified separately against a real DB
+// in apps/api/src/__tests__/rate-limiter-concurrency.test.ts, and must not be
+// asserted here — the bypass makes it undefined for load-test VUs.
 import { WebSocket } from 'k6/experimental/websockets';
 import { check } from 'k6';
 import { Trend, Rate } from 'k6/metrics';

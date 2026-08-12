@@ -45,5 +45,15 @@ export async function tryAcquireSessionSlot(
       AND NOT EXISTS (SELECT 1 FROM attempt)
     LIMIT 1
   `;
+
+  if (!row) {
+    const [current] = await tx.$queryRaw<Array<{ sessions_used: bigint }>>`
+      SELECT sessions_used
+      FROM "SessionLimit"
+      WHERE user_id = ${userId} AND date_ist = ${dateIst}::date
+    `;
+    return { allowed: false, sessions_used: current ? Number(current.sessions_used) : dailyLimit };
+  }
+
   return { allowed: row.allowed, sessions_used: Number(row.sessions_used) };
 }

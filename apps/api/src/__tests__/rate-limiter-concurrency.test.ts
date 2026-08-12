@@ -9,6 +9,19 @@ const ORIGINAL_ENV = { ...process.env };
 const hasRealDb = Boolean(process.env.DATABASE_URL);
 const describeIf = hasRealDb ? describe : describe.skip;
 
+// Each concurrency case runs its acquire attempts in SEPARATE interactive
+// transactions (one DB connection each), so queries genuinely contend on the
+// SessionLimit unique index instead of being serialized over a single
+// transaction connection. Long budgets absorb row-lock waits on slow CI DBs.
+const TX_OPTIONS = { maxWait: 30_000, timeout: 60_000 } as const;
+const AC4_BASE_DATE = '2026-07-18';
+// Benchmark-free date roll for AC#4: distinct date per run, no per-run cleanup.
+function addDays(base: string, days: number): string {
+  const d = new Date(`${base}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 describeIf('Rate Limiter Concurrency (Real DB)', () => {
   let prisma: PrismaClient;
   const testUserId = `test-${crypto.randomUUID()}`;
@@ -70,13 +83,10 @@ describeIf('Rate Limiter Concurrency (Real DB)', () => {
     const tryAcquire = await importTryAcquireSessionSlot();
     const dateIst = '2026-07-16';
 
-    const [r1, r2] = await prisma.$transaction(async (tx) => {
-      const results = await Promise.all([
-        tryAcquire(tx, testUserId, 'SD', dateIst, 1),
-        tryAcquire(tx, testUserId, 'SD', dateIst, 1),
-      ]);
-      return results;
-    });
+    const [r1, r2] = await Promise.all([
+      prisma.$transaction((tx) => tryAcquire(tx, testUserId, 'SD', dateIst, 1), TX_OPTIONS),
+      prisma.$transaction((tx) => tryAcquire(tx, testUserId, 'SD', dateIst, 1), TX_OPTIONS),
+    ]);
 
     const allowed = [r1, r2].filter((r) => r.allowed);
     const denied = [r1, r2].filter((r) => !r.allowed);
@@ -90,14 +100,11 @@ describeIf('Rate Limiter Concurrency (Real DB)', () => {
     const tryAcquire = await importTryAcquireSessionSlot();
     const dateIst = '2026-07-16';
 
-    const [r1, r2, r3] = await prisma.$transaction(async (tx) => {
-      const results = await Promise.all([
-        tryAcquire(tx, testUserId, 'TL', dateIst, 2),
-        tryAcquire(tx, testUserId, 'TL', dateIst, 2),
-        tryAcquire(tx, testUserId, 'TL', dateIst, 2),
-      ]);
-      return results;
-    });
+    const [r1, r2, r3] = await Promise.all([
+      prisma.$transaction((tx) => tryAcquire(tx, testUserId, 'TL', dateIst, 2), TX_OPTIONS),
+      prisma.$transaction((tx) => tryAcquire(tx, testUserId, 'TL', dateIst, 2), TX_OPTIONS),
+      prisma.$transaction((tx) => tryAcquire(tx, testUserId, 'TL', dateIst, 2), TX_OPTIONS),
+    ]);
 
     const allowed = [r1, r2, r3].filter((r) => r.allowed);
     const denied = [r1, r2, r3].filter((r) => !r.allowed);
@@ -117,12 +124,10 @@ describeIf('Rate Limiter Concurrency (Real DB)', () => {
       },
     });
 
-    const [r1, r2] = await prisma.$transaction(async (tx) => {
-      return Promise.all([
-        tryAcquireWithoutWhereGuard(tx, naUserId, 'SD', dateIst, 1),
-        tryAcquireWithoutWhereGuard(tx, naUserId, 'SD', dateIst, 1),
-      ]);
-    });
+    const [r1, r2] = await Promise.all([
+      prisma.$transaction((tx) => tryAcquireWithoutWhereGuard(tx, naUserId, 'SD', dateIst, 1), TX_OPTIONS),
+      prisma.$transaction((tx) => tryAcquireWithoutWhereGuard(tx, naUserId, 'SD', dateIst, 1), TX_OPTIONS),
+    ]);
 
     await prisma.sessionLimit.deleteMany({ where: { user_id: naUserId } });
     await prisma.user.delete({ where: { id: naUserId } });
@@ -135,23 +140,12 @@ describeIf('Rate Limiter Concurrency (Real DB)', () => {
     const tryAcquire = await importTryAcquireSessionSlot();
 
     for (let run = 0; run < 20; run++) {
-      const runUserId = `test-${crypto.randomUUID()}`;
-      await prisma.user.create({
-        data: {
-          id: runUserId,
-          firebase_uid: `firebase-${runUserId}`,
-          phone_number: '+910000000000',
-        },
-      });
-      const dateIst = '2026-07-16';
+      const dateIst = addDays(AC4_BASE_DATE, run);
 
-      const [r1, r2] = await prisma.$transaction(async (tx) => {
-        const results = await Promise.all([
-          tryAcquire(tx, runUserId, 'SD', dateIst, 1),
-          tryAcquire(tx, runUserId, 'SD', dateIst, 1),
-        ]);
-        return results;
-      });
+      const [r1, r2] = await Promise.all([
+        prisma.$transaction((tx) => tryAcquire(tx, testUserId, 'SD', dateIst, 1), TX_OPTIONS),
+        prisma.$transaction((tx) => tryAcquire(tx, testUserId, 'SD', dateIst, 1), TX_OPTIONS),
+      ]);
 
       const allowed = [r1, r2].filter((r) => r.allowed);
       const denied = [r1, r2].filter((r) => !r.allowed);
@@ -159,9 +153,6 @@ describeIf('Rate Limiter Concurrency (Real DB)', () => {
       expect(allowed).toHaveLength(1);
       expect(denied).toHaveLength(1);
       expect(allowed[0].sessions_used).toBe(1);
-
-      await prisma.sessionLimit.deleteMany({ where: { user_id: runUserId } });
-      await prisma.user.delete({ where: { id: runUserId } });
     }
-  }, 30_000);
+  }, 60_000);
 });
