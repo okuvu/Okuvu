@@ -18,8 +18,13 @@ vi.mock('../agents/a2/agent.js', () => ({
   formatUserMemory: vi.fn(() => 'null'),
 }));
 
+vi.mock('../agents/a9-post/agent.js', () => ({
+  a9PostReview: vi.fn(),
+}));
+
 vi.mock('../lib/agent-context.js', () => ({
   getAgentContextBundle: vi.fn(),
+  summariesToConversationTurns: vi.fn(() => []),
 }));
 
 vi.mock('../pipeline/session.js', () => ({
@@ -48,6 +53,7 @@ import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn } from '../agents/a2/agent.js';
+import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
@@ -81,6 +87,7 @@ function setupBaseMocks(): void {
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
   vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+  vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
 }
 
 describe('turn pipeline latency benchmark', () => {
@@ -91,6 +98,9 @@ describe('turn pipeline latency benchmark', () => {
 
   const NUM_TURNS = 20;
 
+  // MOCKED benchmark — agent latencies are simulated (A1: 50ms, A9_pre: 35ms,
+  // A2: 70ms), so this asserts pipeline throughput under mocked timing, NOT
+  // production latency. Real-runtime latency is out of scope for this test.
   it('meets p50 latency target under 2000ms across 20 simulated turns', { timeout: 15000 }, async () => {
     vi.mocked(classifySafety).mockImplementation(async () => {
       await simulateLatency(50);
@@ -131,6 +141,7 @@ describe('turn pipeline latency benchmark', () => {
     const avg = totalTimes.reduce((s, t) => s + t, 0) / totalTimes.length;
 
     console.log('=== Latency Benchmark Results ===');
+    console.log('NOTE: MOCKED benchmark — agent latencies are simulated, not production.');
     console.log(`Turns simulated: ${NUM_TURNS}`);
     console.log(`p50 latency: ${Math.round(p50)}ms`);
     console.log(`p95 latency: ${Math.round(p95)}ms`);
