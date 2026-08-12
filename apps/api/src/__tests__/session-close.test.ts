@@ -4,11 +4,15 @@ const ORIGINAL_ENV = { ...process.env };
 
 const mockUpdateMany = vi.fn();
 const mockEnqueueJob = vi.fn();
+const mockFindUser = vi.fn();
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
     sessionLog: {
       updateMany: mockUpdateMany,
+    },
+    user: {
+      findUnique: mockFindUser,
     },
   },
 }));
@@ -23,6 +27,7 @@ describe('closeSession()', () => {
   beforeEach(async () => {
     mockUpdateMany.mockReset();
     mockEnqueueJob.mockReset();
+    mockFindUser.mockReset();
     process.env = { ...ORIGINAL_ENV };
     closeSession = (await import('../lib/session-close.js')).closeSession;
   });
