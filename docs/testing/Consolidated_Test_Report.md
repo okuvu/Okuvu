@@ -105,9 +105,9 @@ deletion, portal cross-therapist access control, `LOCAL_DEV_BYPASS_AUTH` product
 
 | Bug ID | Title | Severity | Priority | Related TC | Status |
 |--------|-------|----------|----------|------------|--------|
-| A-01 | A9 governance model mismatch: test expects `gemini-2.5-flash`, code passes `gemini-3.1-flash-lite-preview` | Minor | P1 | a9.test.ts | Open |
+| A-01 | A9 governance model mismatch: test expects `gemini-2.5-flash`, code passes `gemini-3.1-flash-lite-preview` | Minor | P1 | a9.test.ts | Fixed |
 | A-02 | Vertex AI model path uses default project `evia-dev`, tests expect `evia-500215` | Minor | P1 | vertex-ai.test.ts | Open |
-| A-03 | Vertex AI default model test expects pro model, receives `gemini-3.1-pro-preview` | Minor | P1 | vertex-ai.test.ts | Open |
+| A-03 | Vertex AI default model fallback synced to `gemini-2.5-flash`; test still red on A-02 project-ID | Minor | P1 | vertex-ai.test.ts | Fixed |
 | A-04 | Latency overlap test fails: `classifySafety` never invoked (`a1Windows.length === 0`) | Major | P1 | orchestrator-latency.test.ts | Open |
 | A-05 | Rate-limiter concurrency AC#4 times out (30s) across 20 consecutive runs | Major | P1 | rate-limiter-concurrency.test.ts | Open |
 | A-06 | Test env missing Vertex/Gemini overrides — model & project assertions depend on `.env` values | Minor | P2 | setup.ts | Open |
@@ -119,6 +119,10 @@ deletion, portal cross-therapist access control, `LOCAL_DEV_BYPASS_AUTH` product
 - **Root cause:** `GEMINI_FLASH_LITE_MODEL` is not set in the test environment; code default is
   `gemini-3.1-flash-lite-preview` (`apps/api/src/agents/a9/agent.ts:8`). `.env.example` sets
   `GEMINI_FLASH_LITE_MODEL="gemini-2.5-flash"`.
+- **Resolution (story A-01):** `GEMINI_FLASH_LITE_MODEL` pinned to `gemini-2.5-flash` in
+  `apps/api/src/__tests__/setup.ts`; code defaults synced to `gemini-2.5-flash` in `a9/agent.ts`,
+  `a9-post/agent.ts`, and `apps/worker/src/lib/vertex-ai.ts`. Verified: `a9.test.ts` (20) +
+  `a9-post.test.ts` (26) pass.
 
 **A-02 / A-03 — Details**
 - **Test Type:** TPT-06 API
@@ -127,6 +131,9 @@ deletion, portal cross-therapist access control, `LOCAL_DEV_BYPASS_AUTH` product
   `gemini-3.1-pro-preview`.
 - **Root cause:** `VERTEX_AI_PROJECT_ID` / `GEMINI_PRO_MODEL` not set in test env; code fallback
   defaults (`apps/api/src/lib/vertex-ai.ts:21-23`).
+- **Resolution (story A-01):** `GEMINI_PRO_MODEL` fallback default synced to `gemini-2.5-flash`
+  in `apps/api/src/lib/vertex-ai.ts:23`. A-03's root cause (model fallback) is fixed; the test
+  remains red solely due to the A-02 project-ID mismatch (`evia-dev` vs `evia-500215`), still open.
 
 **A-04 — Details**
 - **Test Type:** TPT-06 API / TPT-07 Edge

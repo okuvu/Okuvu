@@ -163,7 +163,7 @@ describe('A9-post content review agent', () => {
       await a9PostReview(makeInput());
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.model).toBe('gemini-3.1-flash-lite-preview');
+      expect(callArgs.model).toBe('gemini-2.5-flash');
     });
   });
 

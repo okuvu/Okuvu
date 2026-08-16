@@ -6,7 +6,7 @@ const VALID_DECISIONS: ReadonlySet<string> = new Set(['APPROVED', 'BLOCKED']);
 const VALID_CONFIDENCE: ReadonlySet<string> = new Set(['high', 'medium', 'low']);
 
 const FLASH_LITE_MODEL =
-  process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-3.1-flash-lite-preview';
+  process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-2.5-flash';
 
 export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
   const { userContent, safetyState, carePlan } = input;

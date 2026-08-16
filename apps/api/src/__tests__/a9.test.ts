@@ -53,6 +53,32 @@ describe('A9 Governance Agent', () => {
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.model).toBe('gemini-2.5-flash');
     });
+
+    it('defaults to gemini-2.5-flash when GEMINI_FLASH_LITE_MODEL is unset', async () => {
+      const originalModel = process.env.GEMINI_FLASH_LITE_MODEL;
+      delete process.env.GEMINI_FLASH_LITE_MODEL;
+
+      try {
+        vi.resetModules();
+        const { classifyGovernance: freshClassify } = await import('../agents/a9/agent.js');
+
+        mockGenerateContent.mockResolvedValue({
+          text: JSON.stringify({ governanceState: 'Active' }),
+          fallbackUsed: false,
+        });
+
+        await freshClassify(makeInput());
+
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        expect(callArgs.model).toBe('gemini-2.5-flash');
+      } finally {
+        if (originalModel === undefined) {
+          delete process.env.GEMINI_FLASH_LITE_MODEL;
+        } else {
+          process.env.GEMINI_FLASH_LITE_MODEL = originalModel;
+        }
+      }
+    });
   });
 
   describe('generation config', () => {

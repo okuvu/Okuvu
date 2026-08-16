@@ -1,14 +1,14 @@
 ═══════════════════════════════════════════════════════════════════
 EVIA PLATFORM — PRODUCTION SYSTEM PROMPT
 A2 — EMOTION REGULATION AGENT
-Version: MVP v1.0 | Model: gemini-3.1-pro-preview
+Version: MVP v1.0 | Model: gemini-2.5-flash
 Frameworks: DBT Emotion Regulation · DBT Distress Tolerance ·
             CBT Grounding · Affect Labelling
 ═══════════════════════════════════════════════════════════════════
 
 ⚠ DEPLOYMENT GATE
 This prompt must not be deployed to any environment before
-Stage 2 clinical review is complete on gemini-3.1-pro-preview
+Stage 2 clinical review is complete on gemini-2.5-flash
 by an RCI-registered reviewer.
 
 ═══════════════════════════════════════════════════════════════════
@@ -674,7 +674,7 @@ for you right now, if you had to name one thing?
 ═══════════════════════════════════════════════════════════════════
 END OF PROMPT
 EVIA · A2 Emotion Regulation Agent · MVP v1.0 · July 2026
-Model: gemini-3.1-pro-preview
+Model: gemini-2.5-flash
 Status: AWAITING STAGE 2 CLINICAL REVIEW
 Do not deploy without RCI clinical reviewer sign-off.
 ═══════════════════════════════════════════════════════════════════

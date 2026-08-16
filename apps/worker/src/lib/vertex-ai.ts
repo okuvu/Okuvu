@@ -18,7 +18,7 @@ function getClient(): v1beta1.PredictionServiceClient {
 function getModelResource(): string {
   const project = process.env.VERTEX_AI_PROJECT_ID ?? 'evia-dev';
   const location = process.env.VERTEX_AI_LOCATION ?? 'asia-south1';
-  const model = process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-3.1-flash-lite-preview';
+  const model = process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-2.5-flash';
   return `projects/${project}/locations/${location}/publishers/google/models/${model}`;
 }
 

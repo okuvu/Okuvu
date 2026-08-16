@@ -5,7 +5,7 @@ import type { GovernanceInput, GovernanceOutput, GovernanceState } from './types
 const VALID_STATES: ReadonlySet<string> = new Set(['Active', 'Restricted', 'Blocked']);
 
 const FLASH_LITE_MODEL =
-  process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-3.1-flash-lite-preview';
+  process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-2.5-flash';
 
 export async function classifyGovernance(
   input: GovernanceInput,
