@@ -110,7 +110,7 @@ deletion, portal cross-therapist access control, `LOCAL_DEV_BYPASS_AUTH` product
 | A-03 | Vertex AI default model fallback synced to `gemini-2.5-flash`; test still red on A-02 project-ID | Minor | P1 | vertex-ai.test.ts | Fixed |
 | A-04 | Latency overlap test fails: `classifySafety` never invoked (`a1Windows.length === 0`) | Major | P1 | orchestrator-latency.test.ts | Open |
 | A-05 | Rate-limiter concurrency AC#4 times out (30s) across 20 consecutive runs | Major | P1 | rate-limiter-concurrency.test.ts | Open |
-| A-06 | Test env missing Vertex/Gemini overrides — model & project assertions depend on `.env` values | Minor | P2 | setup.ts | Open |
+| A-06 | Test env missing Vertex/Gemini overrides — model & project assertions depend on `.env` values | Minor | P2 | setup.ts | Fixed |
 
 **A-01 — Details**
 - **Test Type:** TPT-06 API
@@ -134,6 +134,18 @@ deletion, portal cross-therapist access control, `LOCAL_DEV_BYPASS_AUTH` product
 - **Resolution (story A-01):** `GEMINI_PRO_MODEL` fallback default synced to `gemini-2.5-flash`
   in `apps/api/src/lib/vertex-ai.ts:23`. A-03's root cause (model fallback) is fixed; the test
   remains red solely due to the A-02 project-ID mismatch (`evia-dev` vs `evia-500215`), still open.
+
+**A-06 — Details**
+- **Test Type:** TPT-06 API
+- **What:** Model & project assertions in `a9.test.ts`, `a9-post.test.ts`, `vertex-ai.test.ts`
+  depended on Vertex/Gemini env values from a repo-root `.env`, which is absent in CI.
+- **Root cause:** `apps/api/src/__tests__/setup.ts` pinned only `VERTEX_AI_PROJECT_ID` and
+  `GEMINI_FLASH_LITE_MODEL`; `GEMINI_PRO_MODEL` and `VERTEX_AI_LOCATION` came from `.env` or
+  code fallback.
+- **Resolution (story A-06):** pinned `GEMINI_PRO_MODEL="gemini-2.5-flash"` and
+  `VERTEX_AI_LOCATION="asia-south1"` in `apps/api/src/__tests__/setup.ts`, matching
+  `.env.example`. Verified: `a9.test.ts` (20) + `a9-post.test.ts` (26) + `vertex-ai.test.ts`
+  (6) + `orchestrator-latency.test.ts` (2) pass with no repo-root `.env`.
 
 **A-04 — Details**
 - **Test Type:** TPT-06 API / TPT-07 Edge
