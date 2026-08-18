@@ -34,19 +34,19 @@ evia/
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Mobile | Flutter (Android-first, iOS ready) |
-| Backend API | Node.js + TypeScript + Fastify |
-| Background worker | Node.js + TypeScript (Cloud Tasks consumer) |
-| Therapist portal | Next.js 14 (App Router) + tRPC + NextAuth |
-| Database | PostgreSQL via Prisma (Neon for dev, Cloud SQL for staging/prod) |
-| Auth | Firebase Authentication (OTP for users, Google OAuth for therapists) |
-| LLM — Clinical agents | Gemini 3.1 Pro via Vertex AI (asia-south1) |
-| LLM — Governance/summary | Gemini 3.1 Flash-Lite via Vertex AI |
-| TTS | Sarvam Bulbul v2 |
-| Infrastructure | GCP asia-south1 (Mumbai) — Cloud Run, Cloud SQL, Cloud Storage, Cloud KMS, Cloud Tasks, Secret Manager, Memorystore Redis |
-| CI/CD | Cloud Build + Artifact Registry |
+| Layer                     | Technology                                                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Mobile                    | Flutter (Android-first, iOS ready)                                                                                         |
+| Backend API               | Node.js + TypeScript + Fastify                                                                                             |
+| Background worker         | Node.js + TypeScript (Cloud Tasks consumer)                                                                                |
+| Therapist portal          | Next.js 14 (App Router) + tRPC + NextAuth                                                                                  |
+| Database                  | PostgreSQL via Prisma (Neon for dev, Cloud SQL for staging/prod)                                                           |
+| Auth                      | Firebase Authentication (OTP for users, Google OAuth for therapists)                                                       |
+| LLM — Clinical agents    | Gemini 3.1 Pro via Vertex AI (asia-south1)                                                                                 |
+| LLM — Governance/summary | Gemini 3.1 Flash-Lite via Vertex AI                                                                                        |
+| TTS                       | Sarvam Bulbul v2                                                                                                           |
+| Infrastructure            | GCP asia-south1 (Mumbai) — Cloud Run, Cloud SQL, Cloud Storage, Cloud KMS, Cloud Tasks, Secret Manager, Memorystore Redis |
+| CI/CD                     | Cloud Build + Artifact Registry                                                                                            |
 
 ---
 
@@ -95,11 +95,11 @@ cd apps/mobile && flutter run --flavor dev
 
 ## Environments
 
-| Environment | GCP Project | Deployed from | Purpose |
-|---|---|---|---|
-| **dev** | `evia-dev` | Local machine | Individual story development |
-| **staging** | `evia-500215` | `main` branch (auto) | Integration, dogfooding, supervised beta |
-| **prod** | `evia-production` | Git tag `v*` (manual approval) | Live users |
+| Environment       | GCP Project         | Deployed from                   | Purpose                                  |
+| ----------------- | ------------------- | ------------------------------- | ---------------------------------------- |
+| **dev**     | `evia-dev`        | Local machine                   | Individual story development             |
+| **staging** | `evia-500215`     | `main` branch (auto)          | Integration, dogfooding, supervised beta |
+| **prod**    | `evia-production` | Git tag`v*` (manual approval) | Live users                               |
 
 ---
 
@@ -118,12 +118,12 @@ See [docs/branching.md](docs/branching.md) for the full branching guide.
 
 ## Sprint Plan
 
-| Sprint | Scope | Stories | Hours |
-|---|---|---|---|
-| Sprint 1 — Foundation | Monorepo, DB, auth, agent pipeline | 21 | 59h |
-| Sprint 2 — Core Features | WebSocket sessions, chat UI, safety, memory | 23 | 73h |
-| Sprint 3 — Home, Settings, Therapist Portal | Home/progress screens, settings, full portal | 18 | 49h |
-| Sprint 4 — Testing, Dogfooding & Beta | Automated tests, HALT sign-off, supervised beta | 9 | 63h |
+| Sprint                                       | Scope                                           | Stories | Hours |
+| -------------------------------------------- | ----------------------------------------------- | ------- | ----- |
+| Sprint 1 — Foundation                       | Monorepo, DB, auth, agent pipeline              | 21      | 59h   |
+| Sprint 2 — Core Features                    | WebSocket sessions, chat UI, safety, memory     | 23      | 73h   |
+| Sprint 3 — Home, Settings, Therapist Portal | Home/progress screens, settings, full portal    | 18      | 49h   |
+| Sprint 4 — Testing, Dogfooding & Beta       | Automated tests, HALT sign-off, supervised beta | 9       | 63h   |
 
 All stories are tracked in ClickUp under the **Evia** folder.
 
@@ -141,12 +141,12 @@ All stories are tracked in ClickUp under the **Evia** folder.
 
 ## Contacts
 
-| Role | Responsibility |
-|---|---|
-| Senior Engineer | Backend, infra, GCP, PR reviews for all server-side code |
-| Lead Developer | Flutter, therapist portal, PR reviews for all client-side code |
-| Backend Interns (×4) | API endpoints, agents, DB queries |
-| Flutter Interns (×4) | Mobile screens, widgets, state management |
+| Role                  | Responsibility                                                 |
+| --------------------- | -------------------------------------------------------------- |
+| Senior Engineer       | Backend, infra, GCP, PR reviews for all server-side code       |
+| Lead Developer        | Flutter, therapist portal, PR reviews for all client-side code |
+| Backend Interns (×4) | API endpoints, agents, DB queries                              |
+| Flutter Interns (×4) | Mobile screens, widgets, state management                      |
 
 ---
 
