@@ -127,15 +127,26 @@ describe('generateContent', () => {
     });
 
     it('uses default Pro model when no model param provided', async () => {
-      await generateContent({
-        systemInstruction: 'test',
-        contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
-      });
+      const prevModel = process.env.GEMINI_PRO_MODEL;
+      delete process.env.GEMINI_PRO_MODEL;
 
-      const actualModel = mockGenerateContent.mock.calls[0][0].model;
-      expect(actualModel).toMatch(
-        /^projects\/evia-500215\/locations\/asia-south1\/publishers\/google\/models\//,
-      );
+      try {
+        await generateContent({
+          systemInstruction: 'test',
+          contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+        });
+
+        const actualModel = mockGenerateContent.mock.calls[0][0].model;
+        expect(actualModel).toBe(
+          'projects/evia-500215/locations/asia-south1/publishers/google/models/gemini-2.5-flash',
+        );
+      } finally {
+        if (prevModel === undefined) {
+          delete process.env.GEMINI_PRO_MODEL;
+        } else {
+          process.env.GEMINI_PRO_MODEL = prevModel;
+        }
+      }
     });
   });
 });
