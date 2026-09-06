@@ -1,4 +1,4 @@
-import { generateContent } from '../../lib/vertex-ai.js';
+import { generateContent } from '../../lib/generate-content.js';
 import { buildConversationalPrompt, ONBOARDING_SCORING_PROMPT } from './prompts.js';
 import { A2_MVP_PROMPT_VERSION } from '../../prompts/index.js';
 import type {
@@ -336,7 +336,7 @@ const SCORING_FALLBACK: OnboardingInferenceOutput = {
   depression_score: 0,
   stress_score: 0,
   confidence: 0,
-  reasoning_note: 'Gemini call failed or returned malformed output — treating as low-confidence non-contributing turn',
+  reasoning_note: 'LLM call failed or returned malformed output — treating as low-confidence non-contributing turn',
 };
 
 function isValidScore(value: unknown): value is number {

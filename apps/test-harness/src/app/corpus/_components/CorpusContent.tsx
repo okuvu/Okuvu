@@ -26,7 +26,7 @@ const CASE_TYPES: CorpusCaseType[] = ['safety', 'fidelity', 'adversarial', 'pers
 const VIRTUALIZE_THRESHOLD = 200;
 const CASE_ROW_HEIGHT_PX = 84;
 
-// Corpus runs hit the real pipeline (1-2 real Gemini calls per case in
+// Corpus runs hit the real pipeline (1-2 real LLM calls per case in
 // staging/beta) — bounded so selecting a large batch doesn't fire dozens of
 // simultaneous model calls at once.
 const RUN_CONCURRENCY = 3;
@@ -332,7 +332,7 @@ export default function CorpusContent() {
         <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
           {environment === 'sandbox'
             ? 'Running in sandbox uses simulated replies — judging against expected_output is skipped there. Switch to staging or beta to grade replies.'
-            : 'Running hits the real model — each case costs a real Gemini call. Results appear as new runs on the Results page.'}
+            : 'Running hits the real model — each case costs a real LLM call. Results appear as new runs on the Results page.'}
         </p>
       )}
 

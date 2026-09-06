@@ -11,7 +11,7 @@ import BreathingPulse from './BreathingPulse';
 import PanelHeader from './PanelHeader';
 
 // Same bound used on the Corpus page's own "Run selected" action — each case
-// costs a real Gemini call in staging/beta, so a large selection shouldn't
+// costs a real LLM call in staging/beta, so a large selection shouldn't
 // fire dozens of simultaneous model calls.
 const RUN_CONCURRENCY = 3;
 
@@ -154,7 +154,7 @@ export default function CorpusRunner({ environment }: { environment: TestEnviron
         <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
           {environment === 'sandbox'
             ? 'Running in sandbox uses simulated replies — judging against expected_output is skipped there.'
-            : 'Running hits the real model — each case costs a real Gemini call.'}
+            : 'Running hits the real model — each case costs a real LLM call.'}
         </p>
       )}
 

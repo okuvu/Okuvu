@@ -1,4 +1,4 @@
-import { generateContent } from '../../lib/vertex-ai.js';
+import { generateContent } from '../../lib/generate-content.js';
 import { buildA9PostPrompt } from './prompts.js';
 import type { A9PostInput, A9PostResult } from './types.js';
 
@@ -7,6 +7,17 @@ const VALID_CONFIDENCE: ReadonlySet<string> = new Set(['high', 'medium', 'low'])
 
 const FLASH_LITE_MODEL =
   process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-2.5-flash';
+
+/**
+ * FLASH_LITE_MODEL is a Gemini-specific model name — passing it as an
+ * explicit `model` override when OpenRouter is the active provider would
+ * send that nonexistent model id straight to OpenRouter's API. Omit it in
+ * that case so generate-content.ts's own provider-appropriate default
+ * (OPENROUTER_MODEL) applies instead.
+ */
+function resolveModelOverride(): string | undefined {
+  return process.env.LLM_PROVIDER === 'gemini' ? FLASH_LITE_MODEL : undefined;
+}
 
 export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
   const { userContent, safetyState, carePlan } = input;
@@ -17,7 +28,7 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
     const result = await generateContent({
       systemInstruction,
       contents: [{ role: 'user', parts: [{ text: userContent }] }],
-      model: FLASH_LITE_MODEL,
+      model: resolveModelOverride(),
       timeoutMs: 5000,
       generationConfig: {
         // Real root cause of the empty-response failures (confirmed live via

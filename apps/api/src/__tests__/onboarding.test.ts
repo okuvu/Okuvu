@@ -6,7 +6,7 @@ import type { ConversationTurn } from '../agents/a2/types.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
-vi.mock('../lib/vertex-ai.js', () => {
+vi.mock('../lib/generate-content.js', () => {
   return {
     generateContent: mockGenerateContent,
     DEFAULT_MAX_OUTPUT_TOKENS: 250,

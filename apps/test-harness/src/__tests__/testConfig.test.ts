@@ -70,6 +70,24 @@ describe('buildFrozenTripleMetadata', () => {
       rawOutput: 'the model said this',
     });
   });
+
+  it('carries provider through when the pin has one', () => {
+    const result = buildFrozenTripleMetadata({
+      pin: {
+        model_version: 'meta-llama/llama-3.1-8b-instruct',
+        provider: 'openrouter',
+        temperature: 0.7,
+        safety_settings: 'default',
+      },
+      promptHash: 'abc123',
+      suiteVersion: 'v1.0',
+      inputId: 'input-1',
+      rawOutput: 'the model said this',
+      timestamp: '2026-08-19T00:00:00.000Z',
+    });
+
+    expect(result.provider).toBe('openrouter');
+  });
 });
 
 // ─── testConfigRouter — pin immutability ───────────────────────────────
@@ -160,6 +178,30 @@ describe('testConfigRouter.pinModelVersion — append-only immutability', () => 
     expect(prisma!.modelConfigPin.delete).not.toHaveBeenCalled();
   });
 
+  it('defaults provider to "gemini" when omitted, and forwards an explicit provider', async () => {
+    vi.mocked(prisma!.modelConfigPin.create).mockResolvedValue({} as any);
+    const caller = testConfigRouter.createCaller(buildCtx({ role: 'PI' }));
+
+    const pinInput = {
+      environment: 'sandbox' as const,
+      model_version: 'meta-llama/llama-3.1-8b-instruct',
+      prompt_hash: 'hash-1',
+      temperature: 0.7,
+      safety_settings: 'default',
+      suite_version: 'v1.0',
+    };
+
+    await caller.pinModelVersion(pinInput);
+    expect(prisma!.modelConfigPin.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ provider: 'gemini' }) }),
+    );
+
+    await caller.pinModelVersion({ ...pinInput, provider: 'openrouter' });
+    expect(prisma!.modelConfigPin.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ provider: 'openrouter' }) }),
+    );
+  });
+
   it('rejects non-PI roles with FORBIDDEN and never touches prisma', async () => {
     const caller = testConfigRouter.createCaller(buildCtx({ role: 'ENGINEER' }));
 
@@ -188,6 +230,7 @@ describe('testConfigRouter.setTemperature — append-only, carries forward lates
       id: 'pin-1',
       environment: 'sandbox',
       model_version: 'gemini-2.5-flash',
+      provider: 'gemini',
       prompt_hash: 'hash-1',
       temperature: 0.7,
       safety_settings: 'default',
@@ -206,6 +249,7 @@ describe('testConfigRouter.setTemperature — append-only, carries forward lates
       data: {
         environment: 'sandbox',
         model_version: 'gemini-2.5-flash',
+        provider: 'gemini',
         prompt_hash: 'hash-1',
         temperature: 0.4,
         safety_settings: 'default',

@@ -15,8 +15,9 @@ export interface GateSummaryEntry {
 export interface ConfigDrift {
   hasPin: boolean;
   drifted: boolean;
-  prod: { modelVersion: string; temperature: number };
+  prod: { provider: string; modelVersion: string; temperature: number };
   pinned: {
+    provider: string;
     modelVersion: string;
     temperature: number;
     pinnedBy: string;
@@ -44,11 +45,13 @@ export default function GateSummaryCard({
             <div className="mt-2 grid grid-cols-2 gap-2 text-[var(--text-label-sm)]">
               <div>
                 <div className="font-semibold">Production (current defaults)</div>
+                <div>Provider: {configDrift.prod.provider}</div>
                 <div>Model: {configDrift.prod.modelVersion}</div>
                 <div>Temperature: {configDrift.prod.temperature}</div>
               </div>
               <div>
                 <div className="font-semibold">Pinned config</div>
+                <div>Provider: {configDrift.pinned?.provider ?? '—'}</div>
                 <div>Model: {configDrift.pinned?.modelVersion ?? '—'}</div>
                 <div>Temperature: {configDrift.pinned?.temperature ?? '—'}</div>
               </div>

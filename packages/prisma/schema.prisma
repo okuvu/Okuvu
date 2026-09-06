@@ -292,6 +292,7 @@ model ModelConfigPin {
   id              String          @id @default(uuid())
   environment     TestEnvironment
   model_version   String
+  provider        String          @default("gemini")
   prompt_hash     String
   temperature     Float
   safety_settings String

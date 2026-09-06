@@ -1,9 +1,8 @@
 import { v1beta1, protos } from '@google-cloud/aiplatform';
+import { isCannedRequested, buildCannedResult, SAFE_FALLBACK } from './canned-response.js';
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 export const DEFAULT_TIMEOUT_MS = 30_000;
-
-const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";
 
 let client: v1beta1.PredictionServiceClient | null = null;
 
@@ -119,19 +118,8 @@ export async function generateContent(
 ): Promise<GenerateContentResult> {
   const model = resolveModelName(params.model);
 
-  if (params.useCanned ?? process.env.USE_CANNED_LLM_RESPONSE === 'true') {
-    const text = params.cannedResponse ?? process.env.CANNED_LLM_RESPONSE ?? SAFE_FALLBACK;
-    // A canned reply is a deliberate simulated success, not a failure — mark
-    // it fallbackUsed:false whenever the caller supplied a real, schema-shaped
-    // cannedResponse so downstream parsing treats it like a normal result.
-    // Only the bare generic-prose default (no cannedResponse configured
-    // anywhere) still reports itself as a fallback.
-    return {
-      text,
-      fallbackUsed: params.cannedResponse === undefined && process.env.CANNED_LLM_RESPONSE === undefined,
-      model,
-      canned: true,
-    };
+  if (isCannedRequested(params)) {
+    return buildCannedResult(params, model);
   }
 
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;

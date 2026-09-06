@@ -1,4 +1,4 @@
-import { generateContent } from '../../lib/vertex-ai.js';
+import { generateContent } from '../../lib/generate-content.js';
 import type { SafetyState } from '@evia/shared-types';
 import { buildSafetyPrompt } from './prompts.js';
 import type { A1Input, A1Output } from './types.js';
@@ -68,12 +68,12 @@ export async function classifySafety(input: A1Input): Promise<A1Output> {
       cannedResponse: JSON.stringify({ safetyState: buildCannedSafetyState(input.message) }),
     });
   } catch {
-    console.error({ reason: 'gemini_api_error' }, 'A1 safety classification failed');
+    console.error({ reason: 'llm_api_error' }, 'A1 safety classification failed');
     return { safetyState: A1_FALLBACK_STATE, fallbackUsed: true };
   }
 
   if (result.fallbackUsed) {
-    const reason = result.failureReason === 'timeout' ? 'gemini_timeout' : 'gemini_api_error';
+    const reason = result.failureReason === 'timeout' ? 'llm_timeout' : 'llm_api_error';
     console.error({ reason }, 'A1 safety classification failed');
     return { safetyState: A1_FALLBACK_STATE, fallbackUsed: true };
   }

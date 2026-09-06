@@ -3,7 +3,7 @@ import { appRouter } from '@/server/routers/_app';
 import { createTRPCContext } from '@/server/trpc';
 
 // Default Vercel serverless timeout (10s) is too short for procedures that
-// run multiple sequential real Gemini calls — e.g. conversation.runPersonaScript
+// run multiple sequential real LLM calls — e.g. conversation.runPersonaScript
 // (up to 5 turns) or the Simulator's "Run all scenarios" battery (4 of those
 // in parallel). 60s was enough under canned-mode/degraded-fallback latency
 // (14-38s for a full battery run) but not under REAL Vertex AI latency

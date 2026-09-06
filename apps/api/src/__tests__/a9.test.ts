@@ -4,7 +4,7 @@ import type { GovernanceInput } from '../agents/a9/types.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
-vi.mock('../lib/vertex-ai.js', () => {
+vi.mock('../lib/generate-content.js', () => {
   return {
     generateContent: mockGenerateContent,
     DEFAULT_MAX_OUTPUT_TOKENS: 250,
@@ -76,6 +76,32 @@ describe('A9 Governance Agent', () => {
           delete process.env.GEMINI_FLASH_LITE_MODEL;
         } else {
           process.env.GEMINI_FLASH_LITE_MODEL = originalModel;
+        }
+      }
+    });
+
+    it('does not override model with a Gemini-specific name when LLM_PROVIDER=openrouter', async () => {
+      const originalProvider = process.env.LLM_PROVIDER;
+      process.env.LLM_PROVIDER = 'openrouter';
+
+      try {
+        vi.resetModules();
+        const { classifyGovernance: freshClassify } = await import('../agents/a9/agent.js');
+
+        mockGenerateContent.mockResolvedValue({
+          text: JSON.stringify({ governanceState: 'Active' }),
+          fallbackUsed: false,
+        });
+
+        await freshClassify(makeInput());
+
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        expect(callArgs.model).toBeUndefined();
+      } finally {
+        if (originalProvider === undefined) {
+          delete process.env.LLM_PROVIDER;
+        } else {
+          process.env.LLM_PROVIDER = originalProvider;
         }
       }
     });

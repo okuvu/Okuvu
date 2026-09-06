@@ -33,7 +33,7 @@ export const DEFAULT_SAMPLING_FORM_STATE: SamplingFormState = {
   n: 200,
   targetMetric: 'signal',
   threshold: 0.8,
-  model: 'gemini-2.5-flash',
+  model: 'meta-llama/llama-3.1-8b-instruct',
 };
 
 const labelClass =

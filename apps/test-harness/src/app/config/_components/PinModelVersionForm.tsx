@@ -14,7 +14,8 @@ export default function PinModelVersionForm() {
   const { environment } = useEnvironment();
   const utils = trpc.useUtils();
 
-  const [modelVersion, setModelVersion] = useState('gemini-2.5-flash');
+  const [provider, setProvider] = useState<'openrouter' | 'gemini'>('openrouter');
+  const [modelVersion, setModelVersion] = useState('meta-llama/llama-3.1-8b-instruct');
   const [promptHash, setPromptHash] = useState('');
   const [temperature, setTemperature] = useState('0.7');
   const [safetySettings, setSafetySettings] = useState('default');
@@ -38,6 +39,7 @@ export default function PinModelVersionForm() {
     pinMutation.mutate({
       environment,
       model_version: modelVersion,
+      provider,
       prompt_hash: promptHash,
       temperature: Number(temperature),
       safety_settings: safetySettings,
@@ -53,6 +55,18 @@ export default function PinModelVersionForm() {
       <h3 className="text-[var(--text-label-sm)] font-[var(--text-label-sm--font-weight)] text-[var(--color-on-surface)]">
         Pin model config for <span className="font-mono">{environment}</span>
       </h3>
+
+      <label className="flex flex-col gap-1 text-[var(--text-body-sm)]">
+        Provider
+        <select
+          value={provider}
+          onChange={(e) => setProvider(e.target.value as 'openrouter' | 'gemini')}
+          className="rounded-[var(--radius-lg)] border border-[var(--color-outline-variant)] px-2 py-1"
+        >
+          <option value="openrouter">openrouter</option>
+          <option value="gemini">gemini</option>
+        </select>
+      </label>
 
       <label className="flex flex-col gap-1 text-[var(--text-body-sm)]">
         Model version

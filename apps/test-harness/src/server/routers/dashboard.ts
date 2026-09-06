@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure, router } from '../trpc';
 import { withEnvironment } from '../../lib/prisma-rls';
+import { resolveProvider } from '@evia/api/src/lib/generate-content';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 
@@ -13,11 +14,17 @@ const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
  * (config-drift alerting is explicitly deferred per the sprint ADR — this
  * dashboard banner is read-only, no alerting infra).
  *
- * Keep these in sync with apps/api/src/lib/vertex-ai.ts:
- *   - GEMINI_PRO_MODEL env var (default 'gemini-2.5-flash')
- *   - hardcoded `temperature: 0.7` in the default generationConfig
+ * Keep these in sync with apps/api's lib/generate-content.ts dispatcher:
+ *   - LLM_PROVIDER env var (default 'openrouter')
+ *   - GEMINI_PRO_MODEL (default 'gemini-2.5-flash') / OPENROUTER_MODEL
+ *     (default 'meta-llama/llama-3.1-8b-instruct'), whichever is active
+ *   - hardcoded `temperature: 0.7` in both providers' default generationConfig
  */
-const PROD_MODEL_VERSION = process.env.GEMINI_PRO_MODEL ?? 'gemini-2.5-flash';
+const PROD_PROVIDER = resolveProvider();
+const PROD_MODEL_VERSION =
+  PROD_PROVIDER === 'gemini'
+    ? (process.env.GEMINI_PRO_MODEL ?? 'gemini-2.5-flash')
+    : (process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct');
 const PROD_TEMPERATURE = 0.7;
 
 export const dashboardRouter = router({
@@ -110,9 +117,11 @@ export const dashboardRouter = router({
             hasPin: true as const,
             drifted:
               latestPin.model_version !== PROD_MODEL_VERSION ||
+              latestPin.provider !== PROD_PROVIDER ||
               latestPin.temperature !== PROD_TEMPERATURE,
-            prod: { modelVersion: PROD_MODEL_VERSION, temperature: PROD_TEMPERATURE },
+            prod: { provider: PROD_PROVIDER, modelVersion: PROD_MODEL_VERSION, temperature: PROD_TEMPERATURE },
             pinned: {
+              provider: latestPin.provider,
               modelVersion: latestPin.model_version,
               temperature: latestPin.temperature,
               pinnedBy: latestPin.pinned_by,
@@ -122,7 +131,7 @@ export const dashboardRouter = router({
         : {
             hasPin: false as const,
             drifted: false,
-            prod: { modelVersion: PROD_MODEL_VERSION, temperature: PROD_TEMPERATURE },
+            prod: { provider: PROD_PROVIDER, modelVersion: PROD_MODEL_VERSION, temperature: PROD_TEMPERATURE },
             pinned: null,
           };
 

@@ -208,18 +208,24 @@ real `pnpm dev` — not just the test suite.
 
 ## What won't work without additional setup
 
-- **Real Gemini/Vertex AI calls** (A1/A2/A9/A9-post agent invocation
-  producing real, non-canned model output — plus `judge.ts`'s LLM-judge
-  grading and `case-factory.ts`'s variation generation, both of which call
-  the same `generateContent` function) need
+- **Real LLM calls** (A1/A2/A9/A9-post agent invocation producing real,
+  non-canned model output — plus `judge.ts`'s LLM-judge grading and
+  `case-factory.ts`'s variation generation, both of which call the same
+  `generateContent` function via `apps/api/src/lib/generate-content.ts`'s
+  provider dispatcher) need provider credentials. The dispatcher defaults to
+  `LLM_PROVIDER="openrouter"` (Llama-3.1-8B via OpenRouter) — for that you
+  need `OPENROUTER_API_KEY` set; without it the dispatcher throws
+  immediately rather than silently trying Gemini, and every caller's
+  existing try/catch degrades to its documented fallback exactly as it
+  would for any other model-call failure (S2 safety state,
+  `A2_DEGRADED_RESPONSE`, an ungraded judge verdict, a not-generated factory
+  variation, etc.) — the turn still completes, it's just not a real model
+  response. Set `LLM_PROVIDER="gemini"` instead to route to Vertex AI (needs
   `VERTEX_AI_PROJECT_ID`/`VERTEX_AI_LOCATION`/`GEMINI_PRO_MODEL`/a real
-  service-account key. Without them, `generateContent` fails and every
-  caller gracefully degrades to its documented fallback (S2 safety state,
-  `A2_DEGRADED_RESPONSE`, an ungraded judge verdict, a not-generated
-  factory variation, etc.) — the turn still completes, it's just not
-  a real model response. Set `USE_CANNED_LLM_RESPONSE="true"` in your
-  `.env` to make this the *intended* behavior (free, deterministic,
-  sandbox-appropriate) instead of an unintended failure — but see the v2
+  service-account key, same as before this dispatcher existed). Set
+  `USE_CANNED_LLM_RESPONSE="true"` in your `.env` to make no-real-call the
+  *intended* behavior (free, deterministic, sandbox-appropriate, and
+  provider-independent) instead of an unintended failure — but see the v2
   spec's reconciliation notes on the canned-mode hygiene guard: leaving
   this set will now demote `staging`/`beta` runs to `halt`, by design.
 - **A13/A15 (summary/memory)** need `WORKER_URL` pointing at a running

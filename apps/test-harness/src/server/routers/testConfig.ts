@@ -31,6 +31,7 @@ export const testConfigRouter = router({
       z.object({
         environment: environmentSchema,
         model_version: z.string().min(1),
+        provider: z.string().min(1).optional(),
         prompt_hash: z.string().min(1),
         temperature: z.number().min(0).max(2),
         safety_settings: z.string().min(1),
@@ -45,6 +46,7 @@ export const testConfigRouter = router({
           data: {
             environment: input.environment,
             model_version: input.model_version,
+            provider: input.provider ?? 'gemini',
             prompt_hash: input.prompt_hash,
             temperature: input.temperature,
             safety_settings: input.safety_settings,
@@ -129,6 +131,7 @@ export const testConfigRouter = router({
           data: {
             environment: input.environment,
             model_version: latestPin.model_version,
+            provider: latestPin.provider,
             prompt_hash: latestPin.prompt_hash,
             temperature: input.temperature,
             safety_settings: latestPin.safety_settings,

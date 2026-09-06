@@ -4,7 +4,7 @@ import type { A9PostInput } from '../agents/a9-post/types.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
-vi.mock('../lib/vertex-ai.js', () => {
+vi.mock('../lib/generate-content.js', () => {
   return {
     generateContent: mockGenerateContent,
     DEFAULT_MAX_OUTPUT_TOKENS: 250,
@@ -164,6 +164,29 @@ describe('A9-post content review agent', () => {
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.model).toBe('gemini-2.5-flash');
+    });
+
+    it('does not override model with a Gemini-specific name when LLM_PROVIDER=openrouter', async () => {
+      const originalProvider = process.env.LLM_PROVIDER;
+      process.env.LLM_PROVIDER = 'openrouter';
+
+      try {
+        vi.resetModules();
+        const { a9PostReview: freshReview } = await import('../agents/a9-post/agent.js');
+
+        mockGenerateContent.mockResolvedValue(makeResult());
+
+        await freshReview(makeInput());
+
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        expect(callArgs.model).toBeUndefined();
+      } finally {
+        if (originalProvider === undefined) {
+          delete process.env.LLM_PROVIDER;
+        } else {
+          process.env.LLM_PROVIDER = originalProvider;
+        }
+      }
     });
   });
 

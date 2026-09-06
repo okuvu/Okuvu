@@ -1,4 +1,4 @@
-import { generateContent } from '../../lib/vertex-ai.js';
+import { generateContent } from '../../lib/generate-content.js';
 import { buildGovernancePrompt } from './prompts.js';
 import type { GovernanceInput, GovernanceOutput, GovernanceState } from './types.js';
 
@@ -6,6 +6,17 @@ const VALID_STATES: ReadonlySet<string> = new Set(['Active', 'Restricted', 'Bloc
 
 const FLASH_LITE_MODEL =
   process.env.GEMINI_FLASH_LITE_MODEL ?? 'gemini-2.5-flash';
+
+/**
+ * FLASH_LITE_MODEL is a Gemini-specific model name — passing it as an
+ * explicit `model` override when OpenRouter is the active provider would
+ * send that nonexistent model id straight to OpenRouter's API. Omit it in
+ * that case so generate-content.ts's own provider-appropriate default
+ * (OPENROUTER_MODEL) applies instead.
+ */
+function resolveModelOverride(): string | undefined {
+  return process.env.LLM_PROVIDER === 'gemini' ? FLASH_LITE_MODEL : undefined;
+}
 
 export async function classifyGovernance(
   input: GovernanceInput,
@@ -16,7 +27,7 @@ export async function classifyGovernance(
     const result = await generateContent({
       systemInstruction,
       contents: [{ role: 'user', parts: [{ text: input.message }] }],
-      model: FLASH_LITE_MODEL,
+      model: resolveModelOverride(),
       generationConfig: {
         maxOutputTokens: 200,
         responseMimeType: 'application/json',

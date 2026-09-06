@@ -5,7 +5,7 @@ import { buildSafetyPrompt, SAFETY_RUBRIC } from '../agents/a1/prompts.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
-vi.mock('../lib/vertex-ai.js', () => {
+vi.mock('../lib/generate-content.js', () => {
   return {
     generateContent: mockGenerateContent,
     DEFAULT_MAX_OUTPUT_TOKENS: 250,
@@ -103,13 +103,13 @@ describe('A1 Safety Gate — classifySafety', () => {
       expect(result.fallbackUsed).toBe(true);
     });
 
-    it('logs gemini_timeout reason code on timeout', async () => {
+    it('logs llm_timeout reason code on timeout', async () => {
       const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true, failureReason: 'timeout' });
 
       await classifySafety(makeInput());
 
-      expect(spy).toHaveBeenCalledWith({ reason: 'gemini_timeout' }, expect.any(String));
+      expect(spy).toHaveBeenCalledWith({ reason: 'llm_timeout' }, expect.any(String));
       spy.mockRestore();
     });
   });
@@ -124,13 +124,13 @@ describe('A1 Safety Gate — classifySafety', () => {
       expect(result.fallbackUsed).toBe(true);
     });
 
-    it('logs gemini_api_error reason code on API failure', async () => {
+    it('logs llm_api_error reason code on API failure', async () => {
       const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true, failureReason: 'api_error' });
 
       await classifySafety(makeInput());
 
-      expect(spy).toHaveBeenCalledWith({ reason: 'gemini_api_error' }, expect.any(String));
+      expect(spy).toHaveBeenCalledWith({ reason: 'llm_api_error' }, expect.any(String));
       spy.mockRestore();
     });
   });

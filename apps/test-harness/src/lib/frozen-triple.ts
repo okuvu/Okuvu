@@ -11,6 +11,8 @@ import type { TestEnvironment } from './prisma-rls';
  */
 export interface ModelConfigPinLike {
   model_version: string;
+  /** LLM provider the pin's model_version runs on. Optional so pins from before this field existed still satisfy the shape. */
+  provider?: string;
   temperature: number;
   safety_settings: string;
 }
@@ -39,6 +41,7 @@ export function buildFrozenTripleMetadata(
 
   return {
     modelVersion: pin.model_version,
+    ...(pin.provider !== undefined ? { provider: pin.provider } : {}),
     promptHash,
     temperature: pin.temperature,
     safetySettings: pin.safety_settings,

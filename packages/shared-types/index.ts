@@ -303,6 +303,8 @@ export interface PipelineSignal {
 
 export interface FrozenTripleMetadata {
   modelVersion: string
+  /** LLM provider the pinned modelVersion runs on ('gemini' | 'openrouter'). Optional/omittable for pins captured before providers were tracked — absence means 'gemini', the only provider that existed then. */
+  provider?: string
   promptHash: string
   temperature: number
   safetySettings: string
