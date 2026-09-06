@@ -39,6 +39,17 @@ unrelated to the test-harness models — safe to accept
 (`--accept-data-loss`) on a fresh/empty branch; check first if you're not
 sure (`SELECT COUNT(*) FROM "Turn"`).
 
+If you're re-running this against a branch you set up before 2026-09-06,
+`db push` will also pick up the v2 additions (a new `BaselineArchive`
+table; `canned` on `TestRun`; `seed_id`/`adjudication_required` on
+`CorpusCase`; `model_version`/`prompt_version` on `Turn`) — same command,
+nothing extra to do. See `docs/test-harness/mvp-v2-engineering-spec.md`'s
+migration-application note if you're setting this up against a database
+that's actually tracked via `prisma migrate` rather than `db push` (e.g. a
+shared staging/prod branch, not a personal dev one) — `Turn`'s change
+specifically has real migration history and should go through `migrate
+deploy`, unlike the harness-only tables.
+
 Then generate the Prisma client:
 
 ```bash
@@ -175,17 +186,42 @@ Two more one-time fixes live in the same area, both documented inline in
   static bundling — a known category of issue with GCP's Node client
   libraries).
 
+**A fourth gotcha in the same family, easy to hit again:** `next.config.ts`
+also aliases the *entire* `apps/api/src/prompts/index.ts` module to a
+generated shim (`scripts/generate-prompt-shim.mjs`, run via `predev`/
+`prebuild` — see its own header comment for why: Vercel's file-tracing
+doesn't reliably package files outside `apps/test-harness`'s root
+directory, so the real module's `readFileSync(join(__dirname, ...))` throws
+`ENOENT` in that specific deployment shape). Because it's a whole-module
+alias, **every export the real `prompts/index.ts` has must also exist in
+the generated shim**, not just the prompt-text constants the shim was
+originally written for. Confirmed live on 2026-09-06: adding a third export
+(`A2_MVP_PROMPT_VERSION`, a plain string with no file I/O at all) to the
+real module without updating the generator broke every page at runtime
+(`'A2_MVP_PROMPT_VERSION' is not exported'`) while `tsc --noEmit` and
+`vitest` both stayed green — same category of gap as the Turbopack issue
+above: this app's real module-resolution behavior only shows up under an
+actual `pnpm dev`/build, never under `tsc`/`vitest` alone. If you add an
+export to `apps/api/src/prompts/index.ts`, update
+`scripts/generate-prompt-shim.mjs` in the same change, and verify with a
+real `pnpm dev` — not just the test suite.
+
 ## What won't work without additional setup
 
 - **Real Gemini/Vertex AI calls** (A1/A2/A9/A9-post agent invocation
-  producing real, non-canned model output) need
+  producing real, non-canned model output — plus `judge.ts`'s LLM-judge
+  grading and `case-factory.ts`'s variation generation, both of which call
+  the same `generateContent` function) need
   `VERTEX_AI_PROJECT_ID`/`VERTEX_AI_LOCATION`/`GEMINI_PRO_MODEL`/a real
   service-account key. Without them, `generateContent` fails and every
-  agent gracefully degrades to its documented fallback (S2 safety state,
-  `A2_DEGRADED_RESPONSE`, etc.) — the turn still completes, it's just not
+  caller gracefully degrades to its documented fallback (S2 safety state,
+  `A2_DEGRADED_RESPONSE`, an ungraded judge verdict, a not-generated
+  factory variation, etc.) — the turn still completes, it's just not
   a real model response. Set `USE_CANNED_LLM_RESPONSE="true"` in your
   `.env` to make this the *intended* behavior (free, deterministic,
-  sandbox-appropriate) instead of an unintended failure.
+  sandbox-appropriate) instead of an unintended failure — but see the v2
+  spec's reconciliation notes on the canned-mode hygiene guard: leaving
+  this set will now demote `staging`/`beta` runs to `halt`, by design.
 - **A13/A15 (summary/memory)** need `WORKER_URL` pointing at a running
   `apps/worker` instance, and that endpoint is OIDC-protected — expect
   this to fail gracefully (logged, not thrown) in local dev unless you

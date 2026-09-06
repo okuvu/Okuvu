@@ -51,6 +51,7 @@ export type PipelineResult =
       turnId: string | null
       timing: StageTiming[]
       fallbackUsed: boolean
+      failureReason?: 'timeout' | 'api_error'
       estimatedIntensity: number | null
       toolCard?: ToolCardConfig
       onboardingInference?: OnboardingInferenceOutput

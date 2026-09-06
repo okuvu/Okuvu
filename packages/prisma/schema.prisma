@@ -7,11 +7,11 @@ datasource db {
 }
 
 model User {
-  id                  String             @id @default(uuid())
-  firebase_uid        String             @unique
+  id                  String              @id @default(uuid())
+  firebase_uid        String              @unique
   phone_number        String
-  created_at          DateTime           @default(now())
-  updated_at          DateTime           @updatedAt
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
   deleted_at          DateTime?
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
@@ -23,21 +23,21 @@ model User {
   session_logs        SessionLog[]
   session_summaries   SessionSummary[]
   assigned_therapists TherapistClient[]
-  notes_received      TherapistNote[]    @relation("ClientToNote")
+  notes_received      TherapistNote[]     @relation("ClientToNote")
   turns               Turn[]
   journal_entries     JournalEntry[]
   access_logs         ClinicalAccessLog[] @relation("ClientToAccessLog")
 }
 
 model Therapist {
-  id                 String               @id @default(uuid())
-  email              String               @unique
+  id                 String              @id @default(uuid())
+  email              String              @unique
   name               String?
   image              String?
-  created_at         DateTime             @default(now())
-  updated_at         DateTime             @updatedAt
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
   client_assignments TherapistClient[]
-  notes              TherapistNote[]      @relation("TherapistToNote")
+  notes              TherapistNote[]     @relation("TherapistToNote")
   access_logs        ClinicalAccessLog[]
 }
 
@@ -64,15 +64,15 @@ model SafetyState {
 }
 
 model SessionLog {
-  id                     String           @id @default(uuid())
+  id                     String                      @id @default(uuid())
   user_id                String
-  session_started_at     DateTime         @default(now())
+  session_started_at     DateTime                    @default(now())
   session_ended_at       DateTime?
-  turn_count             Int              @default(0)
+  turn_count             Int                         @default(0)
   session_feedback_score Int?
-  crisis_flag_detected   Boolean          @default(false)
+  crisis_flag_detected   Boolean                     @default(false)
   summary_embedding      Unsupported("vector(768)")?
-  user                   User             @relation(fields: [user_id], references: [id])
+  user                   User                        @relation(fields: [user_id], references: [id])
   summaries              SessionSummary[]
   turns                  Turn[]
 
@@ -87,6 +87,14 @@ model Turn {
   role           String
   content        String
   is_a9_fallback Boolean    @default(false)
+  // Which model/prompt version actually produced `content` (assistant turns
+  // only — user turns have no model involved). Null when no model call
+  // completed for this turn, or when A9-post substituted a static
+  // getSafeFallback() string over A2's output (see orchestrator.ts's
+  // turnModelVersion/turnPromptVersion comments) — content that isn't
+  // actually model-produced should not be attributed to one.
+  model_version  String?
+  prompt_version String?
   created_at     DateTime   @default(now())
   session        SessionLog @relation(fields: [session_id], references: [id])
   user           User       @relation(fields: [user_id], references: [id])
@@ -127,22 +135,22 @@ model EngagementProfile {
 }
 
 model UserMemory {
-  id                String   @id @default(uuid())
-  user_id           String   @unique
-  user              User     @relation(fields: [user_id], references: [id])
+  id      String @id @default(uuid())
+  user_id String @unique
+  user    User   @relation(fields: [user_id], references: [id])
 
-  life_context      String[]
-  recurring_themes  String[]
-  what_helps        String[]
-  what_doesnt_help  String[]
+  life_context       String[]
+  recurring_themes   String[]
+  what_helps         String[]
+  what_doesnt_help   String[]
   significant_events String[]
   current_stressors  String[]
   emotional_baseline String?
 
-  session_count     Int      @default(0)
+  session_count Int @default(0)
 
-  created_at        DateTime @default(now())
-  last_updated      DateTime @updatedAt
+  created_at   DateTime @default(now())
+  last_updated DateTime @updatedAt
 
   @@index([user_id])
 }
@@ -224,15 +232,15 @@ model MoodLog {
 }
 
 model GovernanceLog {
-  id             String   @id @default(uuid())
-  session_id     String
-  turn_number    Int
-  gate           String
-  decision       String
-  violation_type String?
-  confidence     String
+  id              String   @id @default(uuid())
+  session_id      String
+  turn_number     Int
+  gate            String
+  decision        String
+  violation_type  String?
+  confidence      String
   blocked_content String?
-  created_at     DateTime @default(now())
+  created_at      DateTime @default(now())
 }
 
 enum CarePlan {
@@ -315,6 +323,13 @@ model TestRun {
   status                   TestRunStatus
   frozen_triple            Json
   results                  Json
+  // Whether this run actually executed under canned-response mode (either
+  // deliberately, per shouldUseCanned(environment), or because
+  // USE_CANNED_LLM_RESPONSE was ambiently set in-process — see
+  // canned-mode.ts's isCannedRunActive). Persisted so a non-sandbox run that
+  // went canned is visibly flagged rather than only inferable indirectly
+  // from fallbackUsed/status.
+  canned                   Boolean         @default(false)
   activated_agents         String[]
   manually_selected_agents String[]
   dependency_graph         Json
@@ -343,18 +358,30 @@ model TestResultRow {
 }
 
 model CorpusCase {
-  id              String            @id @default(uuid())
-  type            CorpusCaseType
-  version         Int               @default(1)
-  input           String
-  expected_output String?
-  tags            String[]
-  supersedes_id   String?
-  data_origin     CorpusDataOrigin  @default(synthetic)
-  created_at      DateTime          @default(now())
-  updated_at      DateTime          @updatedAt
+  id                    String           @id @default(uuid())
+  type                  CorpusCaseType
+  version               Int              @default(1)
+  input                 String
+  expected_output       String?
+  tags                  String[]
+  supersedes_id         String?
+  data_origin           CorpusDataOrigin @default(synthetic)
+  // Case-factory lineage (mvp-v2-engineering-spec.md §7): null for a golden,
+  // hand-authored seed case; set to the seed CorpusCase's id for a
+  // factory-generated variation. Distinct from supersedes_id, which tracks
+  // versions of the SAME case rather than derived variants of a seed.
+  seed_id               String?
+  // Set true by the case-factory whenever a mutation kind may have changed
+  // what expected_output should be (every kind except plain rephrasing —
+  // see case-factory.ts's LABEL_PRESERVING_KINDS). A generated case's
+  // expected_output still carries the seed's best-guess value, but it must
+  // not be trusted for grading/gating until a human confirms or edits it.
+  adjudication_required Boolean          @default(false)
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
 
   @@index([type, created_at(sort: Desc)])
+  @@index([seed_id])
 }
 
 model BlindedReviewItem {
@@ -408,6 +435,24 @@ model GateSignOff {
   signed_at   DateTime        @default(now())
 
   @@index([gate, environment, signed_at(sort: Desc)])
+}
+
+// mvp-v2-engineering-spec.md §7 "Baseline archive": pins a batch of TestRun
+// ids (e.g. a full corpus sweep) as a named, diffable reference point — most
+// commonly the pre-cutover Gemini baseline, captured before a model/prompt
+// swap, per §8's "every swap re-runs the full corpus + RCI review before
+// serving." Append-only, same pattern as GateSignOff/ModelConfigPin: pinning
+// again under the same label creates a new row rather than mutating the
+// old one, so every past baseline pin remains available.
+model BaselineArchive {
+  id          String          @id @default(uuid())
+  environment TestEnvironment
+  label       String
+  run_ids     String[]
+  pinned_by   String
+  pinned_at   DateTime        @default(now())
+
+  @@index([environment, label, pinned_at(sort: Desc)])
 }
 
 model BetaConsent {

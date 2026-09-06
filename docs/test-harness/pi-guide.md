@@ -95,7 +95,11 @@ view it.
   deployed.
 - **Frozen triple metadata** — historical runs show their frozen triple (the exact model
   version/prompt hash/temperature/safety settings that were pinned when that run happened), so
-  results stay reproducible even after the registry moves on.
+  results stay reproducible even after the registry moves on. (As of 2026-09-06 this is genuinely
+  wired into `/pipeline`, `/corpus`, and `/conversations` runs — before that fix, those three run
+  types silently recorded an empty frozen triple regardless of what was pinned. If you're looking
+  at a run from before that date, its frozen triple may be blank even though a pin existed at the
+  time.)
 
 [Screenshot: Model Config Registry showing the current pin panel, the pin form, and the prompt registry table]
 
@@ -119,7 +123,7 @@ does not change how the item was scored.
 
 [Screenshot: unblind action on a single review item, revealing the run it came from]
 
-## 6. Corpus manager — consent panel and beta isolation posture (`/corpus`)
+## 6. Corpus manager — consent panel, case factory, and beta isolation posture (`/corpus`)
 
 The Corpus manager lets you view, create, and version corpus cases (safety, fidelity,
 adversarial, persona types), across `synthetic`, `paraphrased`, and `real` data origins. The
@@ -131,6 +135,42 @@ case (relevant when `data_origin` is `real`), with a "capture consent" action re
 consent grant (participant reference + scope).
 
 [Screenshot: corpus case detail with the consent status panel and "capture consent" form]
+
+### Case factory (added 2026-09-06)
+
+Selecting a golden (hand-authored, non-generated) case shows a **Case factory** panel where you
+can pick one or more variation kinds — rephrasing, persona_shift, intensity_shift,
+disguised_crisis, injection, edge_case — and generate labelled variations from it. Two things to
+know before trusting factory output:
+
+- **Only `rephrasing` is treated as label-preserving.** Every other kind is flagged "needs
+  adjudication" automatically — the factory carries forward the seed's expected behavior as a
+  best guess, but a human must confirm it before it's trusted for grading/gating. This shows up as
+  a badge on the case in the list (`factory variant`, `needs adjudication`).
+- **A case that's itself a factory-generated variant cannot be used as a new seed** — lineage
+  stays one level deep, back to a golden case.
+
+[Screenshot: Case factory panel with kind checkboxes and the "Generate variations" button]
+
+### Adjudication queue (added 2026-09-06)
+
+The "Adjudication queue" toggle lists every case still flagged `needs adjudication`, with
+Approve/Reject actions per item. Approving is a pure status change (no content edit); rejecting
+tags the case `adjudication-rejected` rather than deleting it — no corpus case is ever deleted in
+this harness. To *correct* a case's content or expected behavior rather than just approve/reject
+it as-is, select it above and save a new version instead — a human-authored version naturally
+clears the adjudication flag on its own.
+
+[Screenshot: Adjudication queue panel listing pending items with Approve/Reject buttons]
+
+### Run-status changes to be aware of (added 2026-09-06)
+
+Runs through `/pipeline`, `/corpus`, and `/conversations` now show **Halt** (not just Pass/Error)
+when a turn silently used a fallback response, when a run went canned outside sandbox, or when a
+deterministic pipeline invariant was violated (e.g. a safety state that should have suppressed the
+therapeutic agent didn't). Previously these cases showed as a plain Pass — if you see more Halts
+than you expect on runs from before this date, that's the fix working as intended, not a new
+regression.
 
 This guide intentionally does not duplicate the full ethics/retention/isolation detail — for the
 complete picture (the Postgres Row-Level Security mechanism, the 90-day beta retention policy,
@@ -182,10 +222,16 @@ relevantly:
 - **TH-S28 (accessibility audit)** has not landed — screens have not yet been audited for
   accessibility (the `EnvironmentSelector` color-coding, for instance, has a comment noting
   colorblind labels are deferred to that story).
-- **TH-S32 (final acceptance)** is still pending, so treat this guide as describing the harness
-  as currently built, not as a finished, accepted product.
 - There is currently no in-app primary navigation (sidebar/menu) — every screen described above
   is reached by direct URL.
+- **Scorecard and baseline pinning (added 2026-09-06) have no dedicated screen yet** — they exist
+  as a `scorecard` router (`getScorecard`, `pinBaseline`, `getLatestBaseline`, `compareToBaseline`)
+  callable by engineers, but there's no `/scorecard`-style page to click through. See the Engineer
+  Runbook if you need one of these numbers before a UI exists.
+- **Important, not just a "not here yet" item:** as of 2026-09-06, a real crisis (S4) turn is not
+  captured in the database at all — see `docs/test-harness/ethics-review-prep.md`'s update and
+  open item on this. This affects what you can actually verify or sign off on for any gate related
+  to crisis handling until it's fixed.
 
 If you notice a screen or behavior in the live app that doesn't match this guide, that's a signal
 the guide (or the underlying story) is out of date — flag it to engineering rather than assuming

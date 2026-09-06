@@ -1,4 +1,7 @@
 import type { FrozenTripleMetadata } from '@evia/shared-types';
+import type { Prisma } from '@evia/prisma';
+import { getPromptManifest, hashPromptManifest } from './prompt-hash';
+import type { TestEnvironment } from './prisma-rls';
 
 /**
  * Minimal shape of a `ModelConfigPin` row needed to assemble a frozen
@@ -44,4 +47,49 @@ export function buildFrozenTripleMetadata(
     timestamp: timestamp ?? new Date().toISOString(),
     rawOutput,
   };
+}
+
+export interface ResolveFrozenTripleParams {
+  /** RLS-scoped transaction client from the caller's own `withEnvironment` call. */
+  tx: Prisma.TransactionClient;
+  environment: TestEnvironment;
+  inputId: string;
+  rawOutput: string;
+  suiteVersion?: string;
+}
+
+/**
+ * Look up the latest `ModelConfigPin` for `environment` (via the caller's
+ * already-RLS-scoped transaction — see `testConfig.ts`'s `getFrozenTripleMetadata`
+ * for the read-only counterpart of this same lookup) and assemble a full
+ * `FrozenTripleMetadata` record from it.
+ *
+ * Returns `{}` when no pin exists yet for the environment, rather than
+ * throwing: a test run shouldn't hard-fail just because nobody has pinned a
+ * model version for this environment yet — this matches the pre-existing
+ * `frozen_triple: {}` placeholder every run-creation path used before this
+ * function existed, so runs against an unpinned environment keep working
+ * exactly as before, just without frozen-triple data attached.
+ */
+export async function resolveFrozenTriple(
+  params: ResolveFrozenTripleParams,
+): Promise<FrozenTripleMetadata | Record<string, never>> {
+  const { tx, environment, inputId, rawOutput, suiteVersion } = params;
+
+  const latestPin = await tx.modelConfigPin.findFirst({
+    where: { environment },
+    orderBy: { created_at: 'desc' },
+  });
+
+  if (!latestPin) return {};
+
+  const promptHash = hashPromptManifest(getPromptManifest());
+
+  return buildFrozenTripleMetadata({
+    pin: latestPin,
+    promptHash,
+    suiteVersion: suiteVersion ?? latestPin.suite_version,
+    inputId,
+    rawOutput,
+  });
 }

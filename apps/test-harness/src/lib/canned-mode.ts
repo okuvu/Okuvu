@@ -42,6 +42,25 @@ export function shouldUseCanned(environment: TestEnvironment): boolean {
  * single-operator debugging tool, not a high-concurrency production path,
  * so this tradeoff is acceptable here and is documented rather than hidden.
  */
+/**
+ * Whether a run actually executed under canned mode — combining a deliberate
+ * per-router decision (e.g. `conversation.ts`'s `shouldUseCanned(environment)`)
+ * with a direct read of the ambient `USE_CANNED_LLM_RESPONSE` env var.
+ *
+ * The ambient check matters independently of any deliberate decision:
+ * `pipeline.ts`/`corpus.ts` never call `shouldUseCanned`/`withCannedMode` at
+ * all today — their runs go canned purely because the process-wide env var
+ * happens to be set (locally, in a shared `.env`, or left over from another
+ * test), regardless of which environment was selected. And even
+ * `withCannedMode(false, fn)` does not clear a pre-existing ambient
+ * `USE_CANNED_LLM_RESPONSE=true` — it only ever sets/restores it when
+ * `useCanned` is true. So a staging/beta run can go silently canned in every
+ * router today; this is the one place all three check for that.
+ */
+export function isCannedRunActive(deliberateUseCanned = false): boolean {
+  return deliberateUseCanned || process.env.USE_CANNED_LLM_RESPONSE === 'true';
+}
+
 export async function withCannedMode<T>(
   useCanned: boolean,
   fn: () => Promise<T>,

@@ -1,11 +1,17 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
+import type { TestRunStatus } from '@evia/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import {
   runFullPipeline as runFullPipelineImpl,
   setupSyntheticSession,
 } from '../../lib/pipeline-runner';
 import { withEnvironment, withAnyEnvironment } from '../../lib/prisma-rls';
+import { isCannedRunActive } from '../../lib/canned-mode';
+import { resolveFrozenTriple } from '../../lib/frozen-triple';
+import { checkPipelineInvariants } from '../../lib/pipeline-invariants';
+import { checkCrisisRecordCompleteness } from '../../lib/crisis-record';
+import { prisma } from '../../lib/prisma';
 
 // ─── Direct import of apps/api's real orchestrator + its test-hook types ───
 // Same relative-import pattern as pipeline-runner.ts / agent-adapter.ts.
@@ -79,15 +85,40 @@ export const pipelineRouter = router({
         testMode: input.testMode as TestModeOptions | undefined,
       });
 
-      const status = result.type === 'error' ? 'error' : 'pass';
+      // Hard-fail gating (mvp-v2-engineering-spec.md §5.1/§5.2): a canned-mode
+      // hygiene violation (this run wasn't in sandbox, yet went canned), a
+      // silent fallback, or a broken pipeline invariant (signal ordering,
+      // suppression) all demote status to 'halt' — previously this only
+      // checked result.type === 'error', so a turn that quietly degraded to
+      // a hardcoded fallback recorded identically to a genuine pass.
+      const canned = isCannedRunActive();
+      const cannedHygieneViolation = input.environment !== 'sandbox' && canned;
+      const invariantViolations = checkPipelineInvariants(result.signals ?? [], result.type);
 
-      const run = await withEnvironment(input.environment, (tx) =>
-        tx.testRun.create({
+      const status: TestRunStatus =
+        result.type === 'error'
+          ? 'error'
+          : cannedHygieneViolation ||
+              (result.type === 'agent_turn' && result.fallbackUsed) ||
+              invariantViolations.length > 0
+            ? 'halt'
+            : 'pass';
+
+      const run = await withEnvironment(input.environment, async (tx) => {
+        const frozenTriple = await resolveFrozenTriple({
+          tx,
+          environment: input.environment,
+          inputId: input.message,
+          rawOutput: result.type === 'agent_turn' ? result.message : result.type,
+        });
+
+        return tx.testRun.create({
           data: {
             environment: input.environment,
             altitude: 1,
             status,
-            frozen_triple: {},
+            canned,
+            frozen_triple: JSON.parse(JSON.stringify(frozenTriple)),
             // Prisma's Json input type wants InputJsonValue, not our typed
             // domain objects — a JSON round-trip is the simplest way to erase
             // the (structurally-JSON-safe) TS types without hand-writing casts
@@ -97,6 +128,7 @@ export const pipelineRouter = router({
                 result,
                 trace,
                 signals: result.signals ?? [],
+                invariantViolations,
               }),
             ),
             activated_agents: activatedAgents,
@@ -104,10 +136,10 @@ export const pipelineRouter = router({
             dependency_graph: {},
             completed_at: new Date(),
           },
-        }),
-      );
+        });
+      });
 
-      return { runId: run.id, result, trace };
+      return { runId: run.id, result, trace, invariantViolations };
     }),
 
   /**
@@ -177,7 +209,7 @@ export const pipelineRouter = router({
       }),
     )
     .mutation(async ({ input }) => {
-      const { uid, sessionId } = await setupSyntheticSession();
+      const { uid, userId, sessionId } = await setupSyntheticSession();
 
       const testMode: TestModeOptions = {
         injectA1: 'S4',
@@ -194,8 +226,21 @@ export const pipelineRouter = router({
 
       const verdict = result.type === 'crisis' ? 'PASS' : 'FAIL';
 
+      // Crisis-record completeness (§5.2, "audit fix 1.3" — see
+      // crisis-record.ts's module doc comment). Deliberately additive, not
+      // folded into `verdict`: `verdict` above is the routing-decision check
+      // this procedure has always made; `recordCompleteness` is new
+      // visibility into whether that crisis turn was actually persisted.
+      // Expect `complete: false` against current apps/api code — that's the
+      // real, already-flagged gap this check exists to surface, not a bug
+      // in the check.
+      const recordCompleteness = prisma
+        ? await checkCrisisRecordCompleteness({ prisma, sessionId, userId })
+        : null;
+
       return {
         verdict,
+        recordCompleteness,
         details:
           verdict === 'PASS'
             ? 'processTurn returned { type: "crisis" } — no agent_turn message, no A2 output.'

@@ -1,13 +1,16 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import type { CloseReason } from '@evia/shared-types';
+import type { CloseReason, TestRunStatus } from '@evia/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import { setupSyntheticSession } from '../../lib/pipeline-runner';
 import { withEnvironment, withAnyEnvironment } from '../../lib/prisma-rls';
-import { shouldUseCanned, withCannedMode } from '../../lib/canned-mode';
+import { shouldUseCanned, withCannedMode, isCannedRunActive } from '../../lib/canned-mode';
 import { PERSONA_SCRIPTS, type PersonaId } from '../../lib/persona-scripts';
 import { exportTraceToClinicianFormat, type PerTurnTrace } from '../../lib/trace-export';
 import { invokeAgent } from '../../lib/agent-adapter';
+import { resolveFrozenTriple } from '../../lib/frozen-triple';
+import { hasDegenerateLoop } from '../../lib/hard-fail-rules';
+import { checkPipelineInvariants, type InvariantViolation } from '../../lib/pipeline-invariants';
 
 // ─── Direct import of apps/api's real orchestrator ──────────────────────────
 // Same relative-import pattern as pipeline-runner.ts / agent-adapter.ts.
@@ -63,12 +66,15 @@ export const conversationRouter = router({
       const personaId = input.personaId as PersonaId;
       const script = PERSONA_SCRIPTS[personaId];
       const useCanned = shouldUseCanned(input.environment);
+      const canned = isCannedRunActive(useCanned);
 
       const { uid, sessionId } = await setupSyntheticSession();
 
       const turns: PerTurnTrace[] = [];
       let endedInCrisis = false;
-      let overallStatus: 'pass' | 'error' = 'pass';
+      let anyError = false;
+      let anyFallback = false;
+      let anyInvariantViolation = false;
 
       for (let i = 0; i < script.length; i++) {
         const message = script[i];
@@ -88,6 +94,8 @@ export const conversationRouter = router({
           typeof safetySignal?.payload === 'string' ? safetySignal.payload : null;
 
         const response = result.type === 'agent_turn' ? result.message : null;
+        const fallbackUsed = result.type === 'agent_turn' && result.fallbackUsed;
+        const invariantViolations: InvariantViolation[] = checkPipelineInvariants(signals, result.type);
 
         turns.push({
           turnNumber,
@@ -96,11 +104,19 @@ export const conversationRouter = router({
           latencyMs,
           resultType: result.type,
           safetyState,
+          fallbackUsed,
+          invariantViolations,
           signals,
         });
 
         if (result.type === 'error') {
-          overallStatus = 'error';
+          anyError = true;
+        }
+        if (fallbackUsed) {
+          anyFallback = true;
+        }
+        if (invariantViolations.length > 0) {
+          anyInvariantViolation = true;
         }
 
         if (result.type === 'crisis') {
@@ -109,21 +125,46 @@ export const conversationRouter = router({
         }
       }
 
-      const run = await withEnvironment(input.environment, (tx) =>
-        tx.testRun.create({
+      // Hard-fail gating (mvp-v2-engineering-spec.md §5.1/§5.2): any fallback
+      // turn, a canned-mode hygiene violation, a degenerate loop
+      // (consecutive identical responses), or a broken pipeline invariant
+      // (signal ordering, suppression) demotes the whole run to 'halt' —
+      // previously this only ever became 'error' (a genuine processTurn
+      // error) or 'pass', with no way for a silently-degraded conversation to
+      // fail.
+      const cannedHygieneViolation = input.environment !== 'sandbox' && canned;
+      const degenerateLoop = hasDegenerateLoop(turns.map((t) => t.response));
+
+      const overallStatus: TestRunStatus = anyError
+        ? 'error'
+        : cannedHygieneViolation || anyFallback || degenerateLoop || anyInvariantViolation
+          ? 'halt'
+          : 'pass';
+
+      const run = await withEnvironment(input.environment, async (tx) => {
+        const lastResponse = turns[turns.length - 1]?.response ?? '';
+        const frozenTriple = await resolveFrozenTriple({
+          tx,
+          environment: input.environment,
+          inputId: personaId,
+          rawOutput: lastResponse,
+        });
+
+        return tx.testRun.create({
           data: {
             environment: input.environment,
             altitude: 1,
             status: overallStatus,
-            frozen_triple: {},
+            canned,
+            frozen_triple: JSON.parse(JSON.stringify(frozenTriple)),
             results: JSON.parse(JSON.stringify({ turns, personaId, endedInCrisis, uid, sessionId })),
             activated_agents: [],
             manually_selected_agents: [],
             dependency_graph: {},
             completed_at: new Date(),
           },
-        }),
-      );
+        });
+      });
 
       // uid/sessionId are surfaced here (and in `results` above) so the
       // conversation driver UI can drive TH-S22's "Simulate session close"

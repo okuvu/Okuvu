@@ -56,11 +56,15 @@ function getClient(): v1beta1.PredictionServiceClient {
   return client;
 }
 
+/** The bare model name this call will use — the same resolution `getModelResource` wraps into a full GCP resource path, exposed separately so callers can attribute a result to a specific model version (see `GenerateContentResult.model`). */
+function resolveModelName(modelName?: string): string {
+  return modelName ?? process.env.GEMINI_PRO_MODEL ?? 'gemini-2.5-flash';
+}
+
 function getModelResource(modelName?: string): string {
   const project = process.env.VERTEX_AI_PROJECT_ID ?? 'evia-dev';
   const location = process.env.VERTEX_AI_LOCATION ?? 'asia-south1';
-  const model = modelName ?? process.env.GEMINI_PRO_MODEL ?? 'gemini-2.5-flash';
-  return `projects/${project}/locations/${location}/publishers/google/models/${model}`;
+  return `projects/${project}/locations/${location}/publishers/google/models/${resolveModelName(modelName)}`;
 }
 
 export interface GenerateContentParams {
@@ -98,11 +102,23 @@ export interface GenerateContentResult {
   text: string;
   fallbackUsed: boolean;
   failureReason?: 'timeout' | 'api_error';
+  /**
+   * The bare model name this call resolved to (e.g. 'gemini-2.5-flash') —
+   * present even in canned mode, reporting what *would* have been used.
+   * Callers persisting this as provenance (e.g. Turn.model_version) must
+   * check `canned` first and attribute nothing when it's true — canned text
+   * was never actually produced by this model, only resolved-but-unused.
+   */
+  model: string;
+  /** True when this result came from canned/test-hook text (useCanned/USE_CANNED_LLM_RESPONSE), not a real model call — see `model`'s doc comment. */
+  canned: boolean;
 }
 
 export async function generateContent(
   params: GenerateContentParams,
 ): Promise<GenerateContentResult> {
+  const model = resolveModelName(params.model);
+
   if (params.useCanned ?? process.env.USE_CANNED_LLM_RESPONSE === 'true') {
     const text = params.cannedResponse ?? process.env.CANNED_LLM_RESPONSE ?? SAFE_FALLBACK;
     // A canned reply is a deliberate simulated success, not a failure — mark
@@ -113,6 +129,8 @@ export async function generateContent(
     return {
       text,
       fallbackUsed: params.cannedResponse === undefined && process.env.CANNED_LLM_RESPONSE === undefined,
+      model,
+      canned: true,
     };
   }
 
@@ -166,14 +184,14 @@ export async function generateContent(
         },
         'Vertex AI returned an empty candidate',
       );
-      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error' };
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', model, canned: false };
     }
 
-    return { text, fallbackUsed: false };
+    return { text, fallbackUsed: false, model, canned: false };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
     console.error({ reason: failureReason, err: message }, 'Vertex AI call failed');
-    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason };
+    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason, model, canned: false };
   }
 }

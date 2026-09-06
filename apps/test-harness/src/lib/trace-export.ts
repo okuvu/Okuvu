@@ -16,14 +16,26 @@
  *                    see routing outcome per turn without decoding signals.
  *   - safetyState:  best-effort A1 safety-state label for this turn, read
  *                    from the captured signal bus when present, else null.
+ *   - fallbackUsed: whether this turn's agent_turn result silently degraded
+ *                    to a fallback response (false for 'crisis'/'error' turns,
+ *                    which have no A2 reply to fall back on).
+ *   - invariantViolations: deterministic pipeline-invariant violations for
+ *                    this turn (signal ordering, suppression — see
+ *                    pipeline-invariants.ts), empty when clean.
  *   - signals:      the raw `PipelineSignal[]` captured for this turn (via
  *                    `captureSignalBus`), kept for full traceability.
+ *
+ * (`InvariantViolation` is a type-only import — pipeline-invariants.ts is
+ * itself dependency-light, so this stays a pure data transformation with no
+ * new runtime dependency.)
  *
  * This module is a PURE data transformation: it takes an already-fetched
  * `PerTurnTrace[]` (assembled by the `conversation` router from a stored
  * `TestRun.results`) and formats it. No DB reads happen here, per the
  * story's explicit note, so this stays fast to unit test.
  */
+
+import type { InvariantViolation } from './pipeline-invariants';
 
 export interface PerTurnTrace {
   turnNumber: number;
@@ -32,6 +44,8 @@ export interface PerTurnTrace {
   latencyMs: number;
   resultType: 'agent_turn' | 'crisis' | 'error';
   safetyState: string | null;
+  fallbackUsed: boolean;
+  invariantViolations: InvariantViolation[];
   signals: unknown[];
 }
 
@@ -54,6 +68,8 @@ const CSV_HEADER = [
   'latency_ms',
   'result_type',
   'safety_state',
+  'fallback_used',
+  'invariant_violations',
 ];
 
 /**
@@ -74,6 +90,8 @@ export function exportTraceToClinicianFormat(turns: PerTurnTrace[]): { json: str
       csvField(String(turn.latencyMs)),
       csvField(turn.resultType),
       csvField(turn.safetyState ?? ''),
+      csvField(String(turn.fallbackUsed)),
+      csvField(turn.invariantViolations.map((v) => v.rule).join('; ')),
     ];
     lines.push(row.join(','));
   }

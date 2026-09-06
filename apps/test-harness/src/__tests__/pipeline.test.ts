@@ -19,8 +19,12 @@ vi.mock('../lib/agent-adapter', () => ({
 
 const mockUserUpsert = vi.hoisted(() => vi.fn());
 const mockSessionLogCreate = vi.hoisted(() => vi.fn());
+const mockSessionLogFindUnique = vi.hoisted(() => vi.fn());
 const mockTestRunCreate = vi.hoisted(() => vi.fn());
 const mockTestRunFindUnique = vi.hoisted(() => vi.fn());
+const mockModelConfigPinFindFirst = vi.hoisted(() => vi.fn());
+const mockTurnCount = vi.hoisted(() => vi.fn());
+const mockSafetyStateFindUnique = vi.hoisted(() => vi.fn());
 
 // `withEnvironment`/`withAnyEnvironment` (prisma-rls.ts) wrap every
 // RLS-scoped table access in `prisma.$transaction(tx => ...)` + a `SET
@@ -30,8 +34,11 @@ const mockTestRunFindUnique = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/prisma', () => {
   const mockPrisma: any = {
     user: { upsert: mockUserUpsert },
-    sessionLog: { create: mockSessionLogCreate },
+    sessionLog: { create: mockSessionLogCreate, findUnique: mockSessionLogFindUnique },
     testRun: { create: mockTestRunCreate, findUnique: mockTestRunFindUnique },
+    modelConfigPin: { findFirst: mockModelConfigPinFindFirst },
+    turn: { count: mockTurnCount },
+    safetyState: { findUnique: mockSafetyStateFindUnique },
   };
   mockPrisma.$transaction = vi.fn((fn: any) => fn(mockPrisma));
   mockPrisma.$executeRawUnsafe = vi.fn();
@@ -98,6 +105,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockUserUpsert.mockResolvedValue({ id: 'db-user-1', firebase_uid: 'test-user-pipeline-1' });
   mockSessionLogCreate.mockResolvedValue({ id: 'session-1' });
+  mockSessionLogFindUnique.mockResolvedValue(null);
+  mockModelConfigPinFindFirst.mockResolvedValue(null);
+  mockTurnCount.mockResolvedValue(0);
+  mockSafetyStateFindUnique.mockResolvedValue(null);
   mockInvokeAgent.mockResolvedValue({
     output: { processed: true, combinedCall: true, note: 'combined' },
     latencyMs: 50,
@@ -136,6 +147,55 @@ describe('pipelineRouter.runFullPipeline', () => {
     expect(result.runId).toBe('run-1');
     expect(result.result).toEqual(AGENT_TURN_RESULT);
     expect(result.trace.length).toBeGreaterThan(0);
+  });
+
+  it('demotes status to "halt" when the pipeline result silently used a fallback', async () => {
+    mockProcessTurn.mockResolvedValue({ ...AGENT_TURN_RESULT, fallbackUsed: true });
+    mockTestRunCreate.mockResolvedValue({ id: 'run-halt-1' });
+    const caller = createCaller(buildCtx());
+
+    await caller.runFullPipeline({ message: 'hello', environment: 'sandbox' });
+
+    const createArgs = mockTestRunCreate.mock.calls[0][0];
+    expect(createArgs.data.status).toBe('halt');
+    expect(createArgs.data.canned).toBe(false);
+  });
+
+  it('demotes status to "halt" when the signal bus violates a pipeline invariant (e.g. S4 that did not suppress)', async () => {
+    mockProcessTurn.mockResolvedValue({
+      ...AGENT_TURN_RESULT,
+      signals: [
+        { boundary: 'A1_result', agent: 'A1', payload: 'S4', timestamp: '2026-01-01T00:00:00.000Z' },
+        { boundary: 'A9_pre_result', agent: 'A9-pre', payload: 'Active', timestamp: '2026-01-01T00:00:00.000Z' },
+      ],
+    });
+    mockTestRunCreate.mockResolvedValue({ id: 'run-halt-invariant' });
+    const caller = createCaller(buildCtx());
+
+    const result = await caller.runFullPipeline({ message: 'hello', environment: 'sandbox' });
+
+    expect(result.invariantViolations.map((v: { rule: string }) => v.rule)).toContain('full-suppression');
+    const createArgs = mockTestRunCreate.mock.calls[0][0];
+    expect(createArgs.data.status).toBe('halt');
+  });
+
+  it('demotes status to "halt" for a non-sandbox run when USE_CANNED_LLM_RESPONSE is ambiently set', async () => {
+    mockProcessTurn.mockResolvedValue(AGENT_TURN_RESULT);
+    mockTestRunCreate.mockResolvedValue({ id: 'run-halt-2' });
+    const caller = createCaller(buildCtx());
+    const previous = process.env.USE_CANNED_LLM_RESPONSE;
+    process.env.USE_CANNED_LLM_RESPONSE = 'true';
+
+    try {
+      await caller.runFullPipeline({ message: 'hello', environment: 'staging' });
+    } finally {
+      if (previous === undefined) delete process.env.USE_CANNED_LLM_RESPONSE;
+      else process.env.USE_CANNED_LLM_RESPONSE = previous;
+    }
+
+    const createArgs = mockTestRunCreate.mock.calls[0][0];
+    expect(createArgs.data.status).toBe('halt');
+    expect(createArgs.data.canned).toBe(true);
   });
 
   it('skips the A13/A15 worker call and does not include them in activated_agents on the crisis path', async () => {
@@ -230,5 +290,34 @@ describe('pipelineRouter.validateSilencePath', () => {
     const result = await caller.validateSilencePath({ environment: 'sandbox' });
 
     expect(result.verdict).toBe('FAIL');
+  });
+
+  it('reports recordCompleteness:complete=false by default (the real, currently-unfixed persistence gap — mvp-v2-engineering-spec.md §5.2)', async () => {
+    mockProcessTurn.mockResolvedValue(CRISIS_RESULT);
+    const caller = createCaller(buildCtx());
+
+    const result = await caller.validateSilencePath({ environment: 'sandbox' });
+
+    // `verdict` (the routing-decision check) still passes — this doesn't
+    // change what verdict has always meant.
+    expect(result.verdict).toBe('PASS');
+    expect(result.recordCompleteness).toEqual({
+      turnPersisted: false,
+      safetyStateUpdated: false,
+      crisisFlagSet: false,
+      complete: false,
+    });
+  });
+
+  it('reports recordCompleteness:complete=true when the DB rows happen to be present', async () => {
+    mockProcessTurn.mockResolvedValue(CRISIS_RESULT);
+    mockTurnCount.mockResolvedValue(1);
+    mockSafetyStateFindUnique.mockResolvedValue({ safety_state_current: 'S4' });
+    mockSessionLogFindUnique.mockResolvedValue({ crisis_flag_detected: true });
+    const caller = createCaller(buildCtx());
+
+    const result = await caller.validateSilencePath({ environment: 'sandbox' });
+
+    expect(result.recordCompleteness?.complete).toBe(true);
   });
 });

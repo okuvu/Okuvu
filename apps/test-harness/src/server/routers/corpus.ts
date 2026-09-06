@@ -8,10 +8,27 @@ import { exportPairedComparisonRows } from '@/lib/paired-export';
 import { setupSyntheticSession, runFullPipeline } from '@/lib/pipeline-runner';
 import { judgeReply, type JudgeResult } from '@/lib/judge';
 import { withEnvironment } from '@/lib/prisma-rls';
+import { isCannedRunActive } from '@/lib/canned-mode';
+import { resolveFrozenTriple } from '@/lib/frozen-triple';
+import { checkPipelineInvariants } from '@/lib/pipeline-invariants';
+import {
+  ALL_VARIATION_KINDS,
+  generateVariation,
+  isDuplicateInput,
+  type VariationKind,
+} from '@/lib/case-factory';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 export const corpusCaseTypeSchema = z.enum(['safety', 'fidelity', 'adversarial', 'persona']);
 export const dataOriginSchema = z.enum(['synthetic', 'paraphrased', 'real']);
+export const variationKindSchema = z.enum([
+  'rephrasing',
+  'persona_shift',
+  'intensity_shift',
+  'disguised_crisis',
+  'injection',
+  'edge_case',
+]);
 
 /**
  * Router responses include `supersedesId` alongside the shared-types
@@ -36,6 +53,8 @@ function toCorpusCase(row: PrismaCorpusCase): CorpusCaseWithLineage {
     updatedAt: row.updated_at.toISOString(),
     dataOrigin: row.data_origin,
     supersedesId: row.supersedes_id,
+    seedId: row.seed_id,
+    adjudicationRequired: row.adjudication_required,
   };
 }
 
@@ -340,8 +359,18 @@ export const corpusRouter = router({
         message: corpusCase.input,
       });
 
+      // A fallback reply has already silently degraded — grading it against
+      // clinical expectations would be meaningless (and could produce a
+      // misleading 'warning' alongside the 'halt' the fallback itself earns
+      // below), so judging is skipped whenever fallbackUsed is true, same as
+      // it's already skipped in sandbox.
       let judge: JudgeResult | null = null;
-      if (corpusCase.expected_output && result.type === 'agent_turn' && input.environment !== 'sandbox') {
+      if (
+        corpusCase.expected_output &&
+        result.type === 'agent_turn' &&
+        !result.fallbackUsed &&
+        input.environment !== 'sandbox'
+      ) {
         judge = await judgeReply({
           caseType: corpusCase.type,
           reply: result.message,
@@ -349,16 +378,40 @@ export const corpusRouter = router({
         });
       }
 
-      const status: TestRunStatus =
-        result.type === 'error' ? 'error' : judge?.judged && judge.passed === false ? 'warning' : 'pass';
+      // Hard-fail gating (mvp-v2-engineering-spec.md §5.1/§5.2) — same
+      // priority order as pipelineRouter.runFullPipeline: error >
+      // canned-hygiene/fallback/invariant hard-fail > judge-failed warning >
+      // pass.
+      const canned = isCannedRunActive();
+      const cannedHygieneViolation = input.environment !== 'sandbox' && canned;
+      const invariantViolations = checkPipelineInvariants(result.signals ?? [], result.type);
 
-      const run = await withEnvironment(input.environment, (tx) =>
-        tx.testRun.create({
+      const status: TestRunStatus =
+        result.type === 'error'
+          ? 'error'
+          : cannedHygieneViolation ||
+              (result.type === 'agent_turn' && result.fallbackUsed) ||
+              invariantViolations.length > 0
+            ? 'halt'
+            : judge?.judged && judge.passed === false
+              ? 'warning'
+              : 'pass';
+
+      const run = await withEnvironment(input.environment, async (tx) => {
+        const frozenTriple = await resolveFrozenTriple({
+          tx,
+          environment: input.environment,
+          inputId: corpusCase.id,
+          rawOutput: result.type === 'agent_turn' ? result.message : result.type,
+        });
+
+        return tx.testRun.create({
           data: {
             environment: input.environment,
             altitude: 1,
             status,
-            frozen_triple: {},
+            canned,
+            frozen_triple: JSON.parse(JSON.stringify(frozenTriple)),
             results: JSON.parse(
               JSON.stringify({
                 result,
@@ -367,6 +420,7 @@ export const corpusRouter = router({
                 corpusCaseId: corpusCase.id,
                 corpusCaseType: corpusCase.type,
                 judge,
+                invariantViolations,
               }),
             ),
             activated_agents: activatedAgents,
@@ -374,9 +428,187 @@ export const corpusRouter = router({
             dependency_graph: {},
             completed_at: new Date(),
           },
+        });
+      });
+
+      return { runId: run.id, status, result, judge, invariantViolations };
+    }),
+
+  /**
+   * Case-factory (mvp-v2-engineering-spec.md §7): generate labelled
+   * variations of a golden seed case for one or more variation kinds.
+   *
+   * Only a case with no seed_id of its own (a golden, hand-authored case,
+   * not itself a previously-generated variant) may be used as a seed — this
+   * keeps lineage exactly one level deep rather than letting variants spawn
+   * further variants indefinitely.
+   *
+   * Each kind is generated independently and failures don't abort the
+   * batch (see case-factory.ts's generateVariation doc comment). Generated
+   * text is deduplicated against the seed's own input, against this seed's
+   * existing variants already in the corpus, and against other variations
+   * produced in this same call, before being persisted — a duplicate is
+   * dropped, not created.
+   */
+  generateVariations: protectedProcedure
+    .input(
+      z.object({
+        seedCaseId: z.string().min(1),
+        kinds: z.array(variationKindSchema).min(1).optional(),
+        environment: environmentSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+      const { prisma } = ctx;
+
+      const seed = await prisma.corpusCase.findUnique({ where: { id: input.seedCaseId } });
+      if (!seed) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Seed corpus case not found' });
+      }
+      if (seed.seed_id) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Cannot generate variations from a case that is itself a factory-generated variant.',
+        });
+      }
+      assertDataOriginAllowed(seed.data_origin, input.environment);
+
+      const kinds = input.kinds ?? ALL_VARIATION_KINDS;
+
+      const existingVariants = await prisma.corpusCase.findMany({
+        where: { seed_id: seed.id },
+        select: { input: true },
+      });
+      const existingInputs = [seed.input, ...existingVariants.map((v) => v.input)];
+
+      const created: CorpusCaseWithLineage[] = [];
+      const duplicates: { kind: VariationKind; input: string }[] = [];
+      const failed: { kind: VariationKind; reason: string }[] = [];
+      const batchInputs: string[] = [];
+
+      for (const kind of kinds) {
+        const generated = await generateVariation(
+          { type: seed.type, input: seed.input, expectedOutput: seed.expected_output },
+          kind,
+        );
+
+        if (!('input' in generated)) {
+          failed.push(generated);
+          continue;
+        }
+
+        if (isDuplicateInput(generated.input, [...existingInputs, ...batchInputs])) {
+          duplicates.push({ kind, input: generated.input });
+          continue;
+        }
+        batchInputs.push(generated.input);
+
+        const row = await prisma.corpusCase.create({
+          data: {
+            type: seed.type,
+            input: generated.input,
+            expected_output: seed.expected_output,
+            tags: [...seed.tags, 'factory-generated', `variation:${kind}`],
+            data_origin: seed.data_origin,
+            seed_id: seed.id,
+            adjudication_required: generated.adjudicationRequired,
+          },
+        });
+        created.push(toCorpusCase(row));
+      }
+
+      return { created, duplicates, failed };
+    }),
+
+  /**
+   * Review-queue extension (mvp-v2-engineering-spec.md §7 "Review-queue ...
+   * adjudication of factory flags"): lists every CorpusCase still awaiting
+   * human confirmation of its expected behavior after a case-factory
+   * mutation (see case-factory.ts's LABEL_PRESERVING_KINDS — every kind
+   * except plain rephrasing sets this). Placed on `corpus` rather than
+   * `review` since this is CorpusCase-specific data that `corpus.ts` already
+   * owns exclusively; `review.ts` stays scoped to BlindedReviewItem/
+   * ReviewRating.
+   */
+  listAdjudicationQueue: protectedProcedure
+    .input(z.object({ type: corpusCaseTypeSchema.optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+      const { prisma } = ctx;
+
+      // Same "current version only" filter as listCases: a case that's been
+      // superseded by a newer version (e.g. a reviewer used versionCase to
+      // correct it) has naturally exited the queue, without needing this
+      // procedure to also touch adjudication_required on the old row.
+      const [candidates, supersededRows] = await Promise.all([
+        prisma.corpusCase.findMany({
+          where: {
+            adjudication_required: true,
+            ...(input?.type ? { type: input.type } : {}),
+          },
+          orderBy: { created_at: 'desc' },
         }),
+        prisma.corpusCase.findMany({
+          where: { supersedes_id: { not: null } },
+          select: { supersedes_id: true },
+        }),
+      ]);
+
+      const supersededIds = new Set(
+        supersededRows.map((r) => r.supersedes_id).filter((id): id is string => !!id),
       );
 
-      return { runId: run.id, status, result, judge };
+      return candidates.filter((c) => !supersededIds.has(c.id)).map(toCorpusCase);
+    }),
+
+  /**
+   * Resolve one adjudication-queue item as a pure workflow-status flip —
+   * same precedent as `results.ts`'s `archiveRun` (the one other place in
+   * this codebase that mutates a single status-like field on an otherwise
+   * append-only row, rather than creating a new version). To *correct* a
+   * case's content (not just approve/reject its current content), use the
+   * existing `versionCase` procedure instead — a new version's
+   * `adjudication_required` naturally comes back `false` (createNewVersion
+   * doesn't carry that flag forward), so a human-authored correction is
+   * itself the resolution.
+   *
+   * Approving clears the flag with no other change. Rejecting also clears
+   * the flag but tags the case `adjudication-rejected` rather than deleting
+   * it — no CorpusCase row is ever deleted anywhere in this codebase, so a
+   * rejected variant stays in history, just excluded from trusted use via
+   * its tag.
+   */
+  resolveAdjudication: protectedProcedure
+    .input(z.object({ caseId: z.string().min(1), approved: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+
+      const existing = await ctx.prisma.corpusCase.findUnique({ where: { id: input.caseId } });
+      if (!existing) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Corpus case not found' });
+      }
+      if (!existing.adjudication_required) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'This case is not awaiting adjudication.',
+        });
+      }
+
+      const row = await ctx.prisma.corpusCase.update({
+        where: { id: input.caseId },
+        data: {
+          adjudication_required: false,
+          tags: input.approved ? existing.tags : [...existing.tags, 'adjudication-rejected'],
+        },
+      });
+
+      return toCorpusCase(row);
     }),
 });

@@ -17,6 +17,7 @@ import RunStatusBadge from '@/app/components/RunStatusBadge';
 import CaseEditor from './CaseEditor';
 import NewCaseForm from './NewCaseForm';
 import BulkImportForm from './BulkImportForm';
+import AdjudicationQueue from './AdjudicationQueue';
 
 const CASE_TYPES: CorpusCaseType[] = ['safety', 'fidelity', 'adversarial', 'persona'];
 
@@ -65,6 +66,7 @@ export default function CorpusContent() {
   const [selectedForExport, setSelectedForExport] = useState<Set<string>>(new Set());
   const [showNewCaseForm, setShowNewCaseForm] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showAdjudicationQueue, setShowAdjudicationQueue] = useState(false);
   const [exportCsv, setExportCsv] = useState<string | null>(null);
   const [runResults, setRunResults] = useState<Record<string, CaseRunState>>({});
   const [running, setRunning] = useState(false);
@@ -190,6 +192,8 @@ export default function CorpusContent() {
           <BadgeChip>{c.type}</BadgeChip>
           <BadgeChip>v{c.version}</BadgeChip>
           <BadgeChip>{c.dataOrigin ?? 'synthetic'}</BadgeChip>
+          {c.seedId && <BadgeChip>factory variant</BadgeChip>}
+          {c.adjudicationRequired && <BadgeChip>needs adjudication</BadgeChip>}
           {c.tags.map((tag) => (
             <BadgeChip key={tag}>{tag}</BadgeChip>
           ))}
@@ -264,6 +268,14 @@ export default function CorpusContent() {
 
         <button
           type="button"
+          onClick={() => setShowAdjudicationQueue((v) => !v)}
+          className="rounded-[var(--radius-lg)] border border-[var(--color-outline-variant)] px-3 py-1.5 text-[var(--text-label-sm)] text-[var(--color-on-surface)]"
+        >
+          {showAdjudicationQueue ? 'Hide adjudication queue' : 'Adjudication queue'}
+        </button>
+
+        <button
+          type="button"
           disabled={selectedForExport.size === 0 || running}
           onClick={handleRunSelected}
           className="rounded-[var(--radius-lg)] border border-[var(--color-outline-variant)] px-3 py-1.5 text-[var(--text-label-sm)] text-[var(--color-on-surface)] disabled:opacity-50"
@@ -313,6 +325,8 @@ export default function CorpusContent() {
           bulkImportCasesAction={bulkImportCasesAction}
         />
       )}
+
+      {showAdjudicationQueue && <AdjudicationQueue onResolved={refresh} />}
 
       {selectedForExport.size > 0 && (
         <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
@@ -374,6 +388,7 @@ export default function CorpusContent() {
               allCases={cases}
               environment={environment}
               onVersioned={refresh}
+              onGenerated={refresh}
             />
           ) : (
             <p className="text-[var(--text-body-main)] text-[var(--color-on-surface-variant)]">

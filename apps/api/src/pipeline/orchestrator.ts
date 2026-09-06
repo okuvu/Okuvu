@@ -188,6 +188,13 @@ export async function processTurn(
   const a2Start = now();
   let finalText: string;
   let a2Fallback = false;
+  let a2FailureReason: 'timeout' | 'api_error' | undefined;
+  // Null whenever the persisted `content` isn't actually A2's model output —
+  // either no model call completed (the outer catch block below), or
+  // A9-post substituted a static getSafeFallback() string over it (cleared
+  // again further down, at both places finalText is overwritten post-A2).
+  let turnModelVersion: string | null = null;
+  let turnPromptVersion: string | null = null;
   let a9PostBlocked = false;
   let a9PostViolation: string | null = null;
   let a9PostConfidence: string | null = null;
@@ -245,6 +252,13 @@ export async function processTurn(
 
     finalText = a2Result.userContent;
     a2Fallback = a2Result.fallbackUsed;
+    a2FailureReason = a2Result.failureReason;
+    // Canned/test-hook text was never actually produced by a2Result's
+    // resolved model/prompt — those fields report what would have been
+    // used, not what was, so attribution stays null rather than persisting
+    // a fictitious provenance record for canned content.
+    turnModelVersion = a2Result.canned ? null : a2Result.modelVersion;
+    turnPromptVersion = a2Result.canned ? null : a2Result.promptVersion;
 
     if (testMode?.captureSignalBus) {
       signals.push({ boundary: 'A2_result', agent: 'A2', payload: a2Result, timestamp: new Date().toISOString() });
@@ -272,6 +286,7 @@ export async function processTurn(
   } catch {
     finalText = A2_DEGRADED_RESPONSE;
     a2Fallback = true;
+    a2FailureReason = testMode?.faults?.boundary === 'A2' ? testMode.faults.type : 'api_error';
   }
   const a2End = now();
   recordTiming(timing, 'A2_response', a2Start, a2End);
@@ -294,6 +309,10 @@ export async function processTurn(
         finalText = getSafeFallback(safetyState);
         a9PostBlocked = true;
         a9PostViolation = a9PostResult.violation_type;
+        // finalText is now a static getSafeFallback() string, not A2's model
+        // output — the model/prompt attribution no longer applies to it.
+        turnModelVersion = null;
+        turnPromptVersion = null;
       }
 
       if (testMode?.captureSignalBus) {
@@ -308,6 +327,8 @@ export async function processTurn(
         a9PostBlocked = true;
         a9PostViolation = 'a9_post_unavailable_s2';
         a9PostConfidence = 'low';
+        turnModelVersion = null;
+        turnPromptVersion = null;
       }
 
       // Same signal shape as the success-path push above (line ~300), just
@@ -347,6 +368,8 @@ export async function processTurn(
         session_id: sessionId, user_id: user.id, turn_number: newTurnCount,
         role: 'assistant', content: finalText,
         is_a9_fallback: a9PostBlocked,
+        model_version: turnModelVersion,
+        prompt_version: turnPromptVersion,
       },
       select: { id: true },
     }),
@@ -429,6 +452,7 @@ export async function processTurn(
     turnId: assistantTurn?.id ?? null,
     timing,
     fallbackUsed: a2Fallback,
+    failureReason: a2FailureReason,
     estimatedIntensity,
     toolCard,
     onboardingInference,

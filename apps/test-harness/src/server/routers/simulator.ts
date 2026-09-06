@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
+import type { TestRunStatus } from '@evia/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import { setupSyntheticSession } from '../../lib/pipeline-runner';
-import { shouldUseCanned, withCannedMode } from '../../lib/canned-mode';
+import { shouldUseCanned, withCannedMode, isCannedRunActive } from '../../lib/canned-mode';
 import { withEnvironment } from '../../lib/prisma-rls';
 import type { PerTurnTrace } from '../../lib/trace-export';
+import { checkPipelineInvariants } from '../../lib/pipeline-invariants';
+import { resolveFrozenTriple } from '../../lib/frozen-triple';
 
 // ─── Direct import of apps/api's real orchestrator ──────────────────────────
 // Same relative-import pattern as conversation.ts / pipeline.ts.
@@ -119,6 +122,13 @@ export const simulatorRouter = router({
       const safetyState = typeof safetySignal?.payload === 'string' ? safetySignal.payload : null;
       const response = result.type === 'agent_turn' ? result.message : null;
 
+      // Same hard-fail gating priority as pipeline.ts/corpus.ts/conversation.ts
+      // (mvp-v2-engineering-spec.md §5.1/§5.2), applied incrementally here
+      // since simulator.ts's turns arrive one sendMessage call at a time
+      // rather than all at once: status/canned are "sticky worst" across
+      // calls — once a run has gone halt/error/canned, a later clean turn
+      // does not un-flag it.
+      const cannedThisTurn = isCannedRunActive(useCanned);
       const turn = await withEnvironmentOrThrow(input.environment, async (tx) => {
         const run = await tx.testRun.findUniqueOrThrow({ where: { id: input.runId } });
         const prevResults = (run.results ?? { turns: [] }) as { turns: PerTurnTrace[] } & Record<string, unknown>;
@@ -130,14 +140,37 @@ export const simulatorRouter = router({
           latencyMs,
           resultType: result.type,
           safetyState,
+          fallbackUsed: result.type === 'agent_turn' && result.fallbackUsed,
+          invariantViolations: checkPipelineInvariants(signals, result.type),
           signals,
         };
+
+        const canned = run.canned || cannedThisTurn;
+        const cannedHygieneViolation = input.environment !== 'sandbox' && canned;
+        const turnIsBad =
+          nextTurn.fallbackUsed || nextTurn.invariantViolations.length > 0 || cannedHygieneViolation;
+
+        const nextStatus: TestRunStatus =
+          result.type === 'error' || run.status === 'error'
+            ? 'error'
+            : run.status === 'halt' || turnIsBad
+              ? 'halt'
+              : 'pass';
+
+        const frozenTriple = await resolveFrozenTriple({
+          tx,
+          environment: input.environment,
+          inputId: input.runId,
+          rawOutput: response ?? result.type,
+        });
 
         await tx.testRun.update({
           where: { id: input.runId },
           data: {
             results: JSON.parse(JSON.stringify({ ...prevResults, turns: [...prevResults.turns, nextTurn] })),
-            status: result.type === 'error' ? 'error' : run.status,
+            status: nextStatus,
+            canned,
+            frozen_triple: JSON.parse(JSON.stringify(frozenTriple)),
             completed_at: new Date(),
           },
         });

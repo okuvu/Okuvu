@@ -114,7 +114,7 @@ describe('turn pipeline latency benchmark', () => {
 
     vi.mocked(handleTurn).mockImplementation(async () => {
       await simulateLatency(70);
-      return { response: 'I hear you.', userContent: 'I hear you.', signal: null, fallbackUsed: false };
+      return { response: 'I hear you.', userContent: 'I hear you.', signal: null, fallbackUsed: false, modelVersion: 'gemini-2.5-flash', promptVersion: 'v1.0', canned: false };
     });
 
     const totalTimes: number[] = [];
@@ -185,7 +185,7 @@ describe('turn pipeline latency benchmark', () => {
       return { governanceState: 'Active', fallbackUsed: false };
     });
 
-    vi.mocked(handleTurn).mockResolvedValue({ response: 'Ok.', userContent: 'Ok.', signal: null, fallbackUsed: false });
+    vi.mocked(handleTurn).mockResolvedValue({ response: 'Ok.', userContent: 'Ok.', signal: null, fallbackUsed: false, modelVersion: 'gemini-2.5-flash', promptVersion: 'v1.0', canned: false });
 
     const turnCount = 10;
     for (let i = 0; i < turnCount; i++) {

@@ -414,6 +414,33 @@ Test cases are the "exam questions" you use to evaluate the AI. The Corpus Manag
 4. **Export for paired comparison:** Check the boxes next to cases you want to export, then
    click **Export paired comparison**. A CSV file will be generated for download.
 
+### Case Factory (added 2026-09-06)
+
+Writing every test case by hand doesn't scale. The Case Factory takes one case you've already
+written (a "seed") and automatically generates variations of it — reworded, framed as a different
+kind of person, made more or less intense, disguised, adversarial, or an edge case.
+
+1. Select a case in the list (it must be an original, hand-written case — you can't generate
+   variations from a variation).
+2. In the **Case factory** panel, check which kinds of variation you want.
+3. Click **Generate variations**. Each one becomes a new case in the list, tagged
+   `factory-generated`.
+
+**Important:** only the plain "reworded" kind is safe to trust automatically — every other kind
+gets a **needs adjudication** badge, meaning a human still needs to confirm the expected behavior
+before it's used for grading. See the next section.
+
+### Adjudication Queue (added 2026-09-06)
+
+This is the review step for factory-generated cases. Click **Adjudication queue** to see every
+case still waiting for a human decision.
+
+1. Read the generated case and its expected behavior (carried over from the seed it came from).
+2. Click **Approve** if it looks right as-is, or **Reject** if it doesn't (a rejected case is kept
+   for the record, just marked so it won't be used for grading — nothing is ever deleted).
+3. If the case is close but needs a correction rather than a flat approve/reject, select it in the
+   main list instead and save it as a new version — that's treated as the human confirmation.
+
 ---
 
 ## 13. Results & Traces
@@ -477,6 +504,13 @@ crisis detection (S3/S4 safety states).
 These numbers are rough visibility indicators — they help you confirm that the system is
 capturing crisis-level interactions, not a precise statistical audit.
 
+**Update, 2026-09-06:** this indicator is known to undercount, specifically for the most severe
+case. A genuine S4 crisis turn currently isn't written to the database at all (no `SafetyState`
+row, no `Turn` row) — the pipeline sends a signal to the client and stops, without persisting
+anything. So this screen's numbers can reflect S3 turns, but not true S4 ones. See
+`docs/test-harness/ethics-review-prep.md` for the full explanation — this is a known gap being
+tracked as a priority item, not something this screen can currently show you.
+
 ---
 
 ## 16. Model Config Registry
@@ -515,11 +549,15 @@ use the same settings.
 | **Conversation Runner** | `/conversations` | Multi-turn persona conversations | PIs, SMEs |
 | **Blinded Review** | `/review` | Rate AI outputs against rubric | Raters |
 | **Review Results** | `/review/results` | Inter-rater agreement, unblinding | PIs only |
-| **Corpus Manager** | `/corpus` | Manage test cases | PIs, Engineers |
+| **Corpus Manager** | `/corpus` | Manage test cases, generate variations, adjudicate them | PIs, Engineers |
 | **Results & Traces** | `/results` | Browse run history, compare runs | Everyone |
 | **CI Dashboard** | `/ci` | Automated regression test status | PIs, Engineers |
-| **Beta Status** | `/beta` | Crisis capture verification, retention | PIs |
+| **Beta Status** | `/beta` | Retention window, crisis capture-rate proxy* | PIs |
 | **Model Config** | `/config` | Pin model versions and settings | PIs only |
+
+\* As of 2026-09-06, this proxy is known to undercount — a genuine crisis (S4) turn isn't recorded
+in the database at all today, so it can't show up in this number either. See
+`docs/test-harness/ethics-review-prep.md`.
 
 ---
 

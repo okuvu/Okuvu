@@ -367,4 +367,8 @@ export interface CorpusCase {
   createdAt: string
   updatedAt: string
   dataOrigin?: CorpusDataOrigin
+  /** Null for a golden, hand-authored seed case; set to the seed's id for a case-factory-generated variation. */
+  seedId?: string | null
+  /** True when a case-factory mutation may have changed what expectedOutput should be — needs human confirmation before it's trusted for grading/gating. */
+  adjudicationRequired?: boolean
 }

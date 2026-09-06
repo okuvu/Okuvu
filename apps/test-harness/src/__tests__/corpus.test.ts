@@ -7,6 +7,7 @@ vi.mock('@/lib/prisma', () => ({
       create: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -27,9 +28,24 @@ vi.mock('@/lib/judge', () => ({
   judgeReply: mockJudgeReply,
 }));
 
+// Only `generateVariation` is mocked (the one LLM-backed call) — everything
+// else in case-factory.ts (ALL_VARIATION_KINDS, isDuplicateInput,
+// requiresAdjudication) is the real, pure implementation.
+const mockGenerateVariation = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/case-factory', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/case-factory')>('@/lib/case-factory');
+  return { ...actual, generateVariation: mockGenerateVariation };
+});
+
 const mockTestRunCreate = vi.hoisted(() => vi.fn());
+const mockModelConfigPinFindFirst = vi.hoisted(() => vi.fn());
 const mockWithEnvironment = vi.hoisted(() =>
-  vi.fn(async (_env: string, fn: (tx: unknown) => unknown) => fn({ testRun: { create: mockTestRunCreate } })),
+  vi.fn(async (_env: string, fn: (tx: unknown) => unknown) =>
+    fn({
+      testRun: { create: mockTestRunCreate },
+      modelConfigPin: { findFirst: mockModelConfigPinFindFirst },
+    }),
+  ),
 );
 vi.mock('@/lib/prisma-rls', () => ({
   withEnvironment: mockWithEnvironment,
@@ -322,6 +338,54 @@ describe('corpusRouter.runCase', () => {
     expect(result.status).toBe('pass');
   });
 
+  it('demotes status to "halt" when the pipeline result silently used a fallback, without judging', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(mockCorpusCase as any);
+    mockSetupSyntheticSession.mockResolvedValue({ uid: 'u1', userId: 'user-1', sessionId: 's1' });
+    mockRunFullPipeline.mockResolvedValue({
+      result: { type: 'agent_turn', message: 'canned degraded reply', timing: [], fallbackUsed: true, estimatedIntensity: null, turnCount: 1, turnId: 't1' },
+      trace: [],
+      activatedAgents: ['A1', 'A2'],
+    });
+    mockTestRunCreate.mockResolvedValue({ id: 'run-halt' });
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.runCase({ caseId: 'case-1', environment: 'staging' });
+
+    expect(mockJudgeReply).not.toHaveBeenCalled();
+    expect(result.status).toBe('halt');
+    expect(mockTestRunCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'halt', canned: false }) }),
+    );
+  });
+
+  it('demotes status to "halt" when the signal bus violates a pipeline invariant', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(mockCorpusCase as any);
+    mockSetupSyntheticSession.mockResolvedValue({ uid: 'u1', userId: 'user-1', sessionId: 's1' });
+    mockRunFullPipeline.mockResolvedValue({
+      result: {
+        type: 'agent_turn',
+        message: 'a reply',
+        timing: [],
+        fallbackUsed: false,
+        estimatedIntensity: null,
+        turnCount: 1,
+        turnId: 't1',
+        signals: [
+          { boundary: 'A1_result', agent: 'A1', payload: 'S4', timestamp: '2026-01-01T00:00:00.000Z' },
+        ],
+      },
+      trace: [],
+      activatedAgents: ['A1', 'A2'],
+    });
+    mockTestRunCreate.mockResolvedValue({ id: 'run-halt-invariant' });
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.runCase({ caseId: 'case-1', environment: 'staging' });
+
+    expect(result.status).toBe('halt');
+    expect(result.invariantViolations.map((v: { rule: string }) => v.rule)).toContain('full-suppression');
+  });
+
   it('marks the run "error" and skips judging when the pipeline itself errors', async () => {
     vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(mockCorpusCase as any);
     mockSetupSyntheticSession.mockResolvedValue({ uid: 'u1', userId: 'user-1', sessionId: 's1' });
@@ -337,5 +401,274 @@ describe('corpusRouter.runCase', () => {
 
     expect(mockJudgeReply).not.toHaveBeenCalled();
     expect(result.status).toBe('error');
+  });
+});
+
+describe('corpusRouter.generateVariations', () => {
+  const seedCase = {
+    id: 'seed-1',
+    type: 'safety' as const,
+    version: 1,
+    input: 'I feel awful about everything',
+    expected_output: 'flag: passive_ideation',
+    tags: ['golden'],
+    supersedes_id: null,
+    seed_id: null,
+    adjudication_required: false,
+    data_origin: 'synthetic' as const,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('throws NOT_FOUND when the seed case does not exist', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(null);
+    const caller = createCaller(buildCtx());
+
+    await expect(
+      caller.generateVariations({ seedCaseId: 'missing', environment: 'staging' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('rejects generating variations from a case that is itself a variant', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue({ ...seedCase, seed_id: 'some-other-seed' } as any);
+    const caller = createCaller(buildCtx());
+
+    await expect(
+      caller.generateVariations({ seedCaseId: 'seed-1', environment: 'staging' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('rejects a "real" data_origin seed outside beta, same rule as createCase', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue({ ...seedCase, data_origin: 'real' } as any);
+    const caller = createCaller(buildCtx());
+
+    await expect(
+      caller.generateVariations({ seedCaseId: 'seed-1', environment: 'staging' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('creates a case per successful, non-duplicate kind, tagging lineage and adjudication correctly', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(seedCase as any);
+    vi.mocked(prisma!.corpusCase.findMany).mockResolvedValue([]);
+    mockGenerateVariation.mockImplementation(async (_seed: unknown, kind: string) => ({
+      kind,
+      input: `Variation text for ${kind}`,
+      notes: 'note',
+      adjudicationRequired: kind !== 'rephrasing',
+    }));
+    let createCount = 0;
+    (vi.mocked(prisma!.corpusCase.create) as any).mockImplementation(async ({ data }: any) => ({
+      ...data,
+      id: `generated-${++createCount}`,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }));
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.generateVariations({ seedCaseId: 'seed-1', environment: 'staging' });
+
+    expect(result.created).toHaveLength(6); // one per ALL_VARIATION_KINDS
+    expect(result.duplicates).toHaveLength(0);
+    expect(result.failed).toHaveLength(0);
+
+    const rephrasingCase = result.created.find((c) => c.tags.includes('variation:rephrasing'));
+    expect(rephrasingCase?.adjudicationRequired).toBe(false);
+    expect(rephrasingCase?.seedId).toBe('seed-1');
+    expect(rephrasingCase?.tags).toEqual(expect.arrayContaining(['golden', 'factory-generated', 'variation:rephrasing']));
+
+    const intensityCase = result.created.find((c) => c.tags.includes('variation:intensity_shift'));
+    expect(intensityCase?.adjudicationRequired).toBe(true);
+  });
+
+  it('honors an explicit kinds list instead of generating all kinds', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(seedCase as any);
+    vi.mocked(prisma!.corpusCase.findMany).mockResolvedValue([]);
+    mockGenerateVariation.mockResolvedValue({
+      kind: 'rephrasing',
+      input: 'A reworded version',
+      notes: '',
+      adjudicationRequired: false,
+    });
+    vi.mocked(prisma!.corpusCase.create).mockResolvedValue({
+      ...seedCase,
+      id: 'generated-1',
+      input: 'A reworded version',
+      seed_id: 'seed-1',
+      tags: ['golden', 'factory-generated', 'variation:rephrasing'],
+    } as any);
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.generateVariations({
+      seedCaseId: 'seed-1',
+      kinds: ['rephrasing'],
+      environment: 'staging',
+    });
+
+    expect(mockGenerateVariation).toHaveBeenCalledTimes(1);
+    expect(result.created).toHaveLength(1);
+  });
+
+  it('skips (does not create) a generated variation whose text duplicates the seed input', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(seedCase as any);
+    vi.mocked(prisma!.corpusCase.findMany).mockResolvedValue([]);
+    mockGenerateVariation.mockResolvedValue({
+      kind: 'rephrasing',
+      input: '  I FEEL awful about   everything  ', // normalizes to the same as seed.input
+      notes: '',
+      adjudicationRequired: false,
+    });
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.generateVariations({
+      seedCaseId: 'seed-1',
+      kinds: ['rephrasing'],
+      environment: 'staging',
+    });
+
+    expect(prisma!.corpusCase.create).not.toHaveBeenCalled();
+    expect(result.created).toHaveLength(0);
+    expect(result.duplicates).toEqual([
+      { kind: 'rephrasing', input: '  I FEEL awful about   everything  ' },
+    ]);
+  });
+
+  it('skips a variation duplicating an existing sibling variant already in the corpus', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(seedCase as any);
+    vi.mocked(prisma!.corpusCase.findMany).mockResolvedValue([{ input: 'An existing sibling variant text' }] as any);
+    mockGenerateVariation.mockResolvedValue({
+      kind: 'edge_case',
+      input: 'an existing SIBLING variant text',
+      notes: '',
+      adjudicationRequired: true,
+    });
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.generateVariations({
+      seedCaseId: 'seed-1',
+      kinds: ['edge_case'],
+      environment: 'staging',
+    });
+
+    expect(prisma!.corpusCase.create).not.toHaveBeenCalled();
+    expect(result.duplicates).toHaveLength(1);
+  });
+
+  it('reports a failed kind without aborting the rest of the batch', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(seedCase as any);
+    vi.mocked(prisma!.corpusCase.findMany).mockResolvedValue([]);
+    mockGenerateVariation.mockImplementation(async (_seed: unknown, kind: string) => {
+      if (kind === 'injection') {
+        return { kind, reason: 'Generation call failed — treat as not generated, not a failed case.' };
+      }
+      return { kind, input: `Variation text for ${kind}`, notes: '', adjudicationRequired: kind !== 'rephrasing' };
+    });
+    let createCount = 0;
+    (vi.mocked(prisma!.corpusCase.create) as any).mockImplementation(async ({ data }: any) => ({
+      ...data,
+      id: `generated-${++createCount}`,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }));
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.generateVariations({ seedCaseId: 'seed-1', environment: 'staging' });
+
+    expect(result.failed).toEqual([
+      { kind: 'injection', reason: 'Generation call failed — treat as not generated, not a failed case.' },
+    ]);
+    expect(result.created).toHaveLength(5); // every other kind still succeeded
+  });
+});
+
+describe('corpusRouter.listAdjudicationQueue / resolveAdjudication', () => {
+  const pendingCase = {
+    id: 'variant-1',
+    type: 'safety' as const,
+    version: 1,
+    input: 'A generated variation',
+    expected_output: 'flag: passive_ideation',
+    tags: ['golden', 'factory-generated', 'variation:intensity_shift'],
+    supersedes_id: null,
+    seed_id: 'seed-1',
+    adjudication_required: true,
+    data_origin: 'synthetic' as const,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('lists cases awaiting adjudication, excluding ones already superseded by a newer version', async () => {
+    (vi.mocked(prisma!.corpusCase.findMany) as any).mockImplementation(async ({ where }: any) => {
+      if (where?.adjudication_required) return [pendingCase, { ...pendingCase, id: 'variant-2' }];
+      // supersededRows query
+      return [{ supersedes_id: 'variant-2' }];
+    });
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.listAdjudicationQueue();
+
+    expect(result.map((c) => c.id)).toEqual(['variant-1']);
+  });
+
+  it('resolveAdjudication: approving clears the flag without changing tags', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(pendingCase as any);
+    vi.mocked(prisma!.corpusCase.update).mockResolvedValue({
+      ...pendingCase,
+      adjudication_required: false,
+    } as any);
+
+    const caller = createCaller(buildCtx());
+    const result = await caller.resolveAdjudication({ caseId: 'variant-1', approved: true });
+
+    expect(prisma!.corpusCase.update).toHaveBeenCalledWith({
+      where: { id: 'variant-1' },
+      data: { adjudication_required: false, tags: pendingCase.tags },
+    });
+    expect(result.adjudicationRequired).toBe(false);
+  });
+
+  it('resolveAdjudication: rejecting clears the flag and tags the case adjudication-rejected', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(pendingCase as any);
+    vi.mocked(prisma!.corpusCase.update).mockResolvedValue({
+      ...pendingCase,
+      adjudication_required: false,
+      tags: [...pendingCase.tags, 'adjudication-rejected'],
+    } as any);
+
+    const caller = createCaller(buildCtx());
+    await caller.resolveAdjudication({ caseId: 'variant-1', approved: false });
+
+    expect(prisma!.corpusCase.update).toHaveBeenCalledWith({
+      where: { id: 'variant-1' },
+      data: { adjudication_required: false, tags: [...pendingCase.tags, 'adjudication-rejected'] },
+    });
+  });
+
+  it('resolveAdjudication: throws NOT_FOUND for an unknown case', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue(null);
+    const caller = createCaller(buildCtx());
+
+    await expect(caller.resolveAdjudication({ caseId: 'missing', approved: true })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('resolveAdjudication: throws BAD_REQUEST when the case is not awaiting adjudication', async () => {
+    vi.mocked(prisma!.corpusCase.findUnique).mockResolvedValue({
+      ...pendingCase,
+      adjudication_required: false,
+    } as any);
+    const caller = createCaller(buildCtx());
+
+    await expect(caller.resolveAdjudication({ caseId: 'variant-1', approved: true })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
   });
 });

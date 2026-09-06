@@ -79,6 +79,9 @@ const defaultA2Result = {
   userContent: 'I hear you.',
   signal: null,
   fallbackUsed: false,
+  modelVersion: 'gemini-2.5-flash',
+  promptVersion: 'v1.0',
+  canned: false,
 };
 
 beforeEach(() => {
@@ -283,6 +286,61 @@ describe('processTurn — A2 failure', () => {
       expect(result.message!.length).toBeGreaterThan(10);
     }
     expect(a9PostReview).not.toHaveBeenCalled();
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // No model call completed at all — nothing to attribute.
+        data: expect.objectContaining({ model_version: null, prompt_version: null }),
+      }),
+    );
+  });
+});
+
+describe('processTurn — canned-reply model attribution', () => {
+  it('does NOT attribute a canned reply to a real model/prompt version on the persisted Turn', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    // handleTurn reports the resolved model it would have used (per
+    // vertex-ai.ts's contract), but canned:true means no real call happened —
+    // this must not end up as real Turn.model_version/prompt_version provenance.
+    vi.mocked(handleTurn).mockResolvedValue({
+      response: 'a canned reply',
+      userContent: 'a canned reply',
+      signal: null,
+      fallbackUsed: false,
+      modelVersion: 'gemini-2.5-flash',
+      promptVersion: 'v1.0',
+      canned: true,
+    });
+    vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message).toBe('a canned reply');
+    }
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ model_version: null, prompt_version: null }),
+      }),
+    );
+  });
+
+  it('DOES attribute a real (non-canned) reply to its model/prompt version', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result); // canned: false
+    vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
+
+    await processTurn(UID, SESSION_ID, 'test');
+
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ model_version: 'gemini-2.5-flash', prompt_version: 'v1.0' }),
+      }),
+    );
   });
 });
 
@@ -304,6 +362,15 @@ describe('processTurn — A9-post integration', () => {
     if (result.type === 'agent_turn') {
       expect(result.message).toBe('I hear you.');
     }
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          role: 'assistant',
+          model_version: 'gemini-2.5-flash',
+          prompt_version: 'v1.0',
+        }),
+      }),
+    );
   });
 
   it('returns fallback and logs governance when A9-post BLOCKS', async () => {
@@ -326,7 +393,14 @@ describe('processTurn — A9-post integration', () => {
     }
     expect(prisma.turn.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ role: 'assistant', is_a9_fallback: true }),
+        data: expect.objectContaining({
+          role: 'assistant',
+          is_a9_fallback: true,
+          // A9-post substituted a static getSafeFallback() string over A2's
+          // output — that text isn't model-produced, so attribution clears.
+          model_version: null,
+          prompt_version: null,
+        }),
       }),
     );
     expect(prisma.governanceLog.create).toHaveBeenCalledWith(
@@ -384,6 +458,11 @@ describe('processTurn — A9-post integration', () => {
         }),
       }),
     );
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ model_version: null, prompt_version: null }),
+      }),
+    );
   });
 
   it('fails open at S0 when A9-post throws', async () => {
@@ -400,6 +479,13 @@ describe('processTurn — A9-post integration', () => {
       expect(result.message).toBe('I hear you.');
     }
     expect(prisma.governanceLog.create).not.toHaveBeenCalled();
+    // A9-post failed open here (safetyState !== S2) — A2's own content and
+    // model/prompt attribution both pass through untouched.
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ model_version: 'gemini-2.5-flash', prompt_version: 'v1.0' }),
+      }),
+    );
   });
 
   it('does not call A9-post when crisis short-circuits', async () => {
@@ -496,6 +582,9 @@ describe('processTurn — S-06 integration', () => {
         care_plan_fit: 'well_matched',
       },
       fallbackUsed: false,
+      modelVersion: 'gemini-2.5-flash',
+      promptVersion: 'v1.0',
+      canned: false,
     });
 
     await processTurn(UID, SESSION_ID, 'test');
@@ -527,6 +616,9 @@ describe('processTurn — S-06 integration', () => {
         care_plan_fit: 'possible_mismatch',
       },
       fallbackUsed: false,
+      modelVersion: 'gemini-2.5-flash',
+      promptVersion: 'v1.0',
+      canned: false,
     });
 
     await processTurn(UID, SESSION_ID, 'test');

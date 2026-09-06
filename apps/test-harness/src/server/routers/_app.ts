@@ -14,6 +14,7 @@ import { consentRouter } from './consent';
 import { conversationRouter } from './conversation';
 import { ciRouter } from './ci';
 import { simulatorRouter } from './simulator';
+import { scorecardRouter } from './scorecard';
 
 export const appRouter = router({
   example: exampleRouter,
@@ -31,6 +32,7 @@ export const appRouter = router({
   conversation: conversationRouter,
   ci: ciRouter,
   simulator: simulatorRouter,
+  scorecard: scorecardRouter,
 });
 
 export type AppRouter = typeof appRouter;

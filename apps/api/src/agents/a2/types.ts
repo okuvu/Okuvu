@@ -29,6 +29,13 @@ export interface A2Output {
   userContent: string;
   signal: S06Signal | null;
   fallbackUsed: boolean;
+  failureReason?: 'timeout' | 'api_error';
+  /** The model that would produce/produced `response` (e.g. 'gemini-2.5-flash') — see `canned` before treating this as real provenance. */
+  modelVersion: string;
+  /** The A2 conversational prompt's version (see prompts/index.ts's A2_MVP_PROMPT_VERSION). */
+  promptVersion: string;
+  /** True when `response` is canned/test-hook text, not a real model call — callers persisting modelVersion/promptVersion as provenance must treat both as null when this is true. */
+  canned: boolean;
 }
 
 export interface S06MoodInference {

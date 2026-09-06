@@ -79,6 +79,26 @@ this story's scope).
 - Visible at a glance on `apps/test-harness/src/app/beta/page.tsx`, which
   also surfaces the configured `BETA_RETENTION_DAYS` value and a rough
   S3/S4 capture-rate proxy (SafetyState rows currently at S3/S4 vs. total).
+- **UPDATE 2026-09-06 — this capture-rate proxy structurally undercounts S4,
+  and no S4 crisis turn is captured at all today.** While building the test
+  harness's crisis-record-completeness check (see
+  `docs/test-harness/mvp-v2-engineering-spec.md`'s reconciliation notes and
+  Phase C writeup), tracing `apps/api/src/pipeline/orchestrator.ts`'s crisis
+  branch found that when a turn routes to crisis (S4, or governance-Blocked
+  forcing S4), `processTurn` returns **before** the code that writes the
+  `Turn` row, upserts `SafetyState`, or sets `SessionLog.crisis_flag_detected`
+  ever runs. The one production consumer, `apps/api/src/routes/websocket.ts`,
+  only sends a `CRISIS_SIGNAL` frame to the client and logs one line — it
+  persists nothing either. So the S3/S4 proxy above (`SafetyState` rows at
+  S3/S4) can reflect S3 turns (which do complete the normal write path), but
+  **a genuine S4 crisis turn leaves no `SafetyState` row, no `Turn` row, and
+  no `crisis_flag_detected` flag** — there is currently no database record of
+  a real crisis event at all, beta or otherwise. This is a production gap in
+  `apps/api`, not something in this harness's own control; per an explicit
+  decision when this was found, only the *check* that detects it was built
+  this session — fixing the underlying persistence is separate, deliberate,
+  safety-critical work that still needs to be scheduled and reviewed on its
+  own before this committee should rely on any S3/S4 capture-rate number.
 
 ## 3. Consent capture flow
 
@@ -136,3 +156,12 @@ this story's scope).
    control.
 3. Review and approve the `BETA_RETENTION_DAYS` default (90) and the exact
    `scope` values consent capture should offer participants.
+4. **New, 2026-09-06 — no real crisis (S4) turn is captured in the database
+   at all today** (see the update in §2 above). This is more consequential
+   than the retention/consent items above: it's not that beta S3/S4 data is
+   retained too long or without consent, it's that it currently isn't
+   captured *at all*, which affects clinical review, incident forensics, and
+   the "S3/S4 100% capture" expectation this doc previously implied was
+   already met by the capture-rate proxy. Recommend treating a fix to
+   `apps/api`'s crisis-turn persistence as a prerequisite to beta data
+   collection beginning, not a follow-up after.

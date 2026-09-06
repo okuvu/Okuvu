@@ -1,5 +1,6 @@
 import { generateContent } from '../../lib/vertex-ai.js';
 import { buildConversationalPrompt, ONBOARDING_SCORING_PROMPT } from './prompts.js';
+import { A2_MVP_PROMPT_VERSION } from '../../prompts/index.js';
 import type {
   A2Input,
   A2Output,
@@ -100,6 +101,10 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     userContent: parsed.userContent,
     signal: parsed.signal,
     fallbackUsed: result.fallbackUsed,
+    failureReason: result.failureReason,
+    modelVersion: result.model,
+    promptVersion: A2_MVP_PROMPT_VERSION,
+    canned: result.canned,
   };
 }
 

@@ -6,7 +6,10 @@ This runbook covers env vars, the router/procedure map, how to add a new agent t
 `singleAgent`, how to run a determinism check, how to run a stochastic sampling run, and where
 the deploy notes live. For local dev setup basics (install, `pnpm dev`, `.env` setup), see the
 [README](../../apps/test-harness/README.md) — this doc doesn't repeat that, only what's specific
-to extending the harness.
+to extending the harness. For the proposed v2 direction (case-factory test authoring, hard-fail
+verdict gating, per-turn model/prompt telemetry, scripted multi-turn suppression asserts) and how
+it reconciles against what's actually built today, see
+[mvp-v2-engineering-spec.md](./mvp-v2-engineering-spec.md).
 
 ---
 
@@ -64,21 +67,23 @@ router:
 | `stochastic` | Statistical sampling: Wilson CI, cost estimation, budget checks, N≥200 sampling runs. | `computeWilsonCI`, `estimateCost`, `checkBudget`, `runSampling` |
 | `pipeline` | Full-pipeline runs against the real orchestrator, signal overrides/capture, silence-path validation. | `runFullPipeline`, `overrideSignal`, `captureSignalBus`, `validateSilencePath` |
 | `review` | Blinded rater queue, rating submission, κ agreement, PI unblinding. | `getBlindedItems`, `submitRating`, `computeKappa`, `unblindResults` (PI-only) |
-| `corpus` | Corpus case CRUD/versioning, paired-comparison export. `real` data-origin is server-enforced to beta only. | `listCases`, `createCase`, `versionCase`, `exportPairedComparison` |
+| `corpus` | Corpus case CRUD/versioning, bulk import, case-factory variation generation, adjudication queue, paired-comparison export. `real` data-origin is server-enforced to beta only. | `listCases`, `createCase`, `versionCase`, `bulkImportCases`, `runCase`, `generateVariations`, `listAdjudicationQueue`, `resolveAdjudication`, `exportPairedComparison` |
 | `results` | Trace & Results Viewer: list/get/compare runs, archive (the only allowed `TestRun` mutation), audit artifact export. | `listRuns`, `archiveRun`, `getRun`, `compareRuns`, `getAuditArtifact` |
 | `consent` | Beta consent capture/status (TH-S31), backing the corpus consent panel. | `captureConsent`, `getConsentStatus` |
-| `conversation` | TH-08 Conversation Driver: N-turn persona scripts against one persistent synthetic session, per-turn trace, trace export. | `runPersonaScript`, `getPerTurnTrace`, `exportTrace` |
+| `conversation` | TH-08 Conversation Driver: N-turn persona scripts against one persistent synthetic session, per-turn trace (incl. per-turn fallback/invariant-violation flags), trace export. | `runPersonaScript`, `getPerTurnTrace`, `exportTrace` |
 | `ci` | GitHub Actions regression workflow status/trigger (TH-S27), backing `/ci`. | `getGateStatus`, `triggerRegression` (PI/ENGINEER-only), `getHaltFailures` |
+| `simulator` | Ad hoc multi-turn chat against one synthetic session, with optional one-off fault injection per send — backs `/simulator`'s Chat view. | `startSession`, `sendMessage` |
+| `scorecard` | v2 scorecard aggregation, baseline pinning/regression diff (mvp-v2-engineering-spec.md §7). | `getScorecard`, `pinBaseline` (PI-only), `getLatestBaseline`, `compareToBaseline` |
 
-**Note on `consent`:** the router's own header comment (and `ConsentPanel.tsx`'s comment)
-describe it as "not yet registered in `_app.ts`," with the corpus/consent UI calling it through a
-local server-action caller (`initTRPC.context<Context>().create()` + `createCallerFactory`,
-in `app/corpus/actions.ts`-style files) instead of the normal tRPC HTTP/react-query client. As of
-this writing, `_app.ts` **does** list `consent: consentRouter` — so those comments appear to be
-stale relative to the current `_app.ts`. If you touch this router, verify which is actually true
-at runtime before trusting either the comment or this note; it's a real discrepancy in the
-codebase worth resolving (removing the stale comment or removing the workaround caller, whichever
-matches reality).
+**Note on `consent` (resolved, 2026-09-06):** this used to note a discrepancy — `consent.ts`'s and
+`ConsentPanel.tsx`'s comments described the router as "not yet registered in `_app.ts`," while
+`_app.ts` already listed `consent: consentRouter`. Re-checked directly: those stale comments have
+since been removed from both files, and `consent` is confirmed registered. What's still true,
+though, and not actually a bug: the corpus/consent UI (`consent-actions.ts`) still calls it through
+its own local server-action caller (`initTRPC.context<Context>().create()` +
+`createCallerFactory(consentRouter)`, same pattern as `app/corpus/actions.ts`) rather than the
+shared `appRouter` client — harmless now that registration is confirmed, just no longer necessary,
+and a fine small cleanup if you're already touching this file.
 
 Most PI-gated procedures throw `TRPCError({ code: 'FORBIDDEN' })` via an in-file guard (e.g.
 `requirePI` in `testConfig.ts`, an inline `ctx.user.role !== 'PI'` check in `dashboard.ts` and
@@ -173,6 +178,51 @@ this monorepo has an established SSR hosting pipeline to copy from) are document
 duplicating it here. In short: `firebase experiments:enable webframeworks` must be run once
 against the project before the first deploy, and actual deployment requires GCP/Firebase
 credentials not available in this environment — it's a manual PI step.
+
+## 8. v2 additions (hard-fail gating, case factory, invariants, scorecard)
+
+Added 2026-09-06 per [mvp-v2-engineering-spec.md](./mvp-v2-engineering-spec.md) — that doc's
+"Implementation status" section is the full writeup (including two significant findings from
+along the way: a crisis-turn DB-persistence gap in `apps/api`, and the environment picker not
+actually routing to distinct backends). This section is just an orientation map for an engineer
+extending this code, not a duplicate of that writeup.
+
+New `src/lib/` modules, each independently unit-tested:
+
+| Module | Purpose |
+|---|---|
+| `hard-fail-rules.ts` | `hasDegenerateLoop` — consecutive-identical-response detection for multi-turn runs. |
+| `pipeline-invariants.ts` | `checkPipelineInvariants` (signal ordering, full suppression at S4/Blocked, S3-must-be-grounding-only) over a captured signal bus. |
+| `crisis-record.ts` | `checkCrisisRecordCompleteness` — DB-backed check for whether a crisis turn was actually persisted (Turn + SafetyState + crisis_flag_detected). Expected to report `complete: false` against current `apps/api` code — that's a real, separate, not-yet-fixed gap it exists to surface, not a bug in the check. |
+| `case-factory.ts` | `generateVariation` — case-factory generation for one `CorpusCase` seed + variation kind (rephrasing/persona_shift/intensity_shift/disguised_crisis/injection/edge_case), via a guided-JSON, temp-0 `generateContent` call. |
+| `scorecard.ts` | `computeScorecard`/`diffScorecards` — best-effort aggregation over `TestRun.results`' several heterogeneous JSON shapes; see its own doc comment for why "confusion matrix" isn't literally what this reports. |
+| `canned-mode.ts`'s `isCannedRunActive` | Combines a router's own canned-mode decision with a direct read of the ambient `USE_CANNED_LLM_RESPONSE` env var — added because `pipeline.ts`/`corpus.ts` never made their own canned-mode decision at all (canned-ness there was purely incidental to whatever the env var happened to be), and even `conversation.ts`'s deliberate decision didn't guard against the ambient var independently being left set. |
+| `frozen-triple.ts`'s `resolveFrozenTriple` | Looks up the latest `ModelConfigPin` inside a caller's own `withEnvironment` transaction and assembles a real `FrozenTripleMetadata`, replacing the `frozen_triple: {}` placeholder `pipeline.ts`/`corpus.ts`/`conversation.ts` used to persist unconditionally. |
+
+Where these are wired in: `pipeline.ts` (`runFullPipeline`, `validateSilencePath`), `corpus.ts`
+(`runCase`, plus the new `generateVariations`/`listAdjudicationQueue`/`resolveAdjudication`), and
+`conversation.ts` (`runPersonaScript`, per-turn) all now demote `TestRunStatus` to `'halt'` on a
+silent fallback, a canned-mode hygiene violation, or a broken pipeline invariant — not just on
+`result.type === 'error'` as before. `TestRun` gained a `canned: Boolean` column; `CorpusCase`
+gained `seed_id`/`adjudication_required`; a new `BaselineArchive` table backs the `scorecard`
+router's baseline pinning. Production `Turn` (not just this harness's tables) also gained
+`model_version`/`prompt_version`, populated by `apps/api`'s orchestrator — see the spec doc's
+Phase E writeup for why `SessionLog` deliberately did not get the same fields.
+
+**Schema migrations from this work:** `packages/prisma/migrations/20260906120000_...` through
+`20260906150000_...`. Per the spec doc's migration-application note: this harness's own tables
+(`TestRun`, `CorpusCase`, `BaselineArchive`, etc.) were originally applied via `prisma db push`,
+not tracked migrations, so applying the harness-table changes may mean continuing to use `db push`
+rather than `migrate deploy` — decide deliberately rather than assuming either way. `Turn`'s
+migration is different: `Turn` already has real migration history, so that one follows the normal
+`migrate deploy` path.
+
+**A gotcha this phase hit and fixed:** adding `A2_MVP_PROMPT_VERSION` to `apps/api/src/prompts/index.ts`
+broke every page at runtime under `pnpm dev`/build, with `tsc`/`vitest` both staying green — see
+`docs/test-harness/running-locally.md`'s "Why webpack, not Turbopack" section for the full
+explanation (a webpack module-alias to a generated shim that must mirror every export the real
+module has, not just the ones that existed when the shim was written). If you add an export to
+that module, update `scripts/generate-prompt-shim.mjs` too, and verify with a real `pnpm dev`.
 
 ## Scripts reference
 

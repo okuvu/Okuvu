@@ -4,8 +4,27 @@ import { useEffect, useState, useTransition } from 'react';
 import type { TestEnvironment } from '@evia/shared-types';
 import type { CorpusCaseWithLineage } from '@/server/routers/corpus';
 import { diffCases } from '@/lib/corpus-versioning';
-import { listCasesAction, versionCaseAction } from '../actions';
+import { listCasesAction, versionCaseAction, generateVariationsAction } from '../actions';
 import BadgeChip from '@/app/components/BadgeChip';
+
+// Kept as a local, presentation-only list rather than importing from
+// case-factory.ts — that module pulls in vertex-ai.ts (Node-only GCP client
+// libraries), which must never end up in a 'use client' bundle.
+const VARIATION_KINDS = [
+  'rephrasing',
+  'persona_shift',
+  'intensity_shift',
+  'disguised_crisis',
+  'injection',
+  'edge_case',
+] as const;
+type VariationKind = (typeof VARIATION_KINDS)[number];
+
+interface FactoryResult {
+  created: number;
+  duplicates: number;
+  failed: number;
+}
 
 /** Walk supersedesId edges (in either direction) to find every case in the same lineage. */
 function buildLineage(
@@ -45,11 +64,13 @@ export default function CaseEditor({
   allCases,
   environment,
   onVersioned,
+  onGenerated,
 }: {
   selectedCase: CorpusCaseWithLineage;
   allCases: CorpusCaseWithLineage[];
   environment: TestEnvironment;
   onVersioned: () => void;
+  onGenerated: () => void;
 }) {
   const [lineage, setLineage] = useState<CorpusCaseWithLineage[]>([selectedCase]);
   const [editInput, setEditInput] = useState(selectedCase.input);
@@ -58,10 +79,17 @@ export default function CaseEditor({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [selectedKinds, setSelectedKinds] = useState<Set<VariationKind>>(new Set(VARIATION_KINDS));
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [factoryError, setFactoryError] = useState<string | null>(null);
+  const [factoryResult, setFactoryResult] = useState<FactoryResult | null>(null);
+
   useEffect(() => {
     setEditInput(selectedCase.input);
     setEditExpected(selectedCase.expectedOutput ?? '');
     setEditTags(selectedCase.tags.join(', '));
+    setFactoryError(null);
+    setFactoryResult(null);
 
     // Fetch full history for this case's type so the lineage is complete
     // even if the parent list is currently showing only latest versions.
@@ -102,6 +130,41 @@ export default function CaseEditor({
         setError(result.error);
       }
     });
+  };
+
+  const toggleKind = (kind: VariationKind) => {
+    setSelectedKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  };
+
+  const handleGenerateVariations = () => {
+    if (selectedKinds.size === 0 || isGenerating) return;
+    setFactoryError(null);
+    setFactoryResult(null);
+    setIsGenerating(true);
+
+    (async () => {
+      const result = await generateVariationsAction({
+        seedCaseId: selectedCase.id,
+        kinds: Array.from(selectedKinds),
+        environment,
+      });
+      setIsGenerating(false);
+      if (result.success) {
+        setFactoryResult({
+          created: result.data.created.length,
+          duplicates: result.data.duplicates.length,
+          failed: result.data.failed.length,
+        });
+        onGenerated();
+      } else {
+        setFactoryError(result.error);
+      }
+    })();
   };
 
   return (
@@ -154,6 +217,59 @@ export default function CaseEditor({
             );
           })}
         </ul>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h3 className="text-[var(--text-label-sm)] font-medium text-[var(--color-on-surface)]">
+          Case factory
+        </h3>
+        {selectedCase.seedId ? (
+          <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
+            This case is itself a factory-generated variant (seed: {selectedCase.seedId}) — only a
+            golden, hand-authored case can be used as a seed.
+          </p>
+        ) : (
+          <>
+            <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
+              Generate labelled variations of this case. Only &quot;rephrasing&quot; is
+              label-preserving — every other kind is flagged for adjudication until a human
+              confirms the expected behavior still applies.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {VARIATION_KINDS.map((kind) => (
+                <label
+                  key={kind}
+                  className="flex items-center gap-1.5 text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedKinds.has(kind)}
+                    onChange={() => toggleKind(kind)}
+                  />
+                  {kind}
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={selectedKinds.size === 0 || isGenerating}
+              onClick={handleGenerateVariations}
+              className="self-start rounded-[var(--radius-lg)] border border-[var(--color-outline-variant)] px-3 py-1.5 text-[var(--text-label-sm)] text-[var(--color-on-surface)] disabled:opacity-50"
+            >
+              {isGenerating ? 'Generating…' : `Generate variations (${selectedKinds.size})`}
+            </button>
+            {factoryResult && (
+              <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
+                Created {factoryResult.created}, skipped {factoryResult.duplicates} duplicate
+                {factoryResult.duplicates === 1 ? '' : 's'}, {factoryResult.failed} generation
+                {factoryResult.failed === 1 ? '' : 's'} failed.
+              </p>
+            )}
+            {factoryError && (
+              <p className="text-[var(--text-body-main)] text-[var(--color-error)]">{factoryError}</p>
+            )}
+          </>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">

@@ -78,6 +78,9 @@ const defaultA2Result = {
   userContent: 'I hear you.',
   signal: null,
   fallbackUsed: false,
+  modelVersion: 'gemini-2.5-flash',
+  promptVersion: 'v1.0',
+  canned: false,
 };
 
 beforeEach(() => {
@@ -238,6 +241,22 @@ describe('processTurn — TH-S10 faults', () => {
     );
   });
 
+  it('faults.boundary A9_pre resolves governanceState to Restricted (never Active) — mvp-v2-engineering-spec.md §5.5 fail-closed guard', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+    const result = await processTurn(UID, SESSION_ID, 'test', null, {
+      testMode: { faults: { boundary: 'A9_pre', type: 'timeout' } },
+    });
+
+    expect(classifyGovernance).not.toHaveBeenCalled();
+    expect(routeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ governance_state: 'Restricted' }),
+    );
+    expect(result.type).toBe('agent_turn');
+  });
+
   it('faults.boundary A2 triggers A2_DEGRADED_RESPONSE via the existing catch block', async () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
@@ -255,9 +274,29 @@ describe('processTurn — TH-S10 faults', () => {
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
       expect(result.fallbackUsed).toBe(true);
+      expect(result.failureReason).toBe('api_error');
       expect(result.message).toBe(
         "I hear you, and I'm here to support you. Could you tell me a bit more about what's going on right now?",
       );
+    }
+  });
+
+  it('propagates A2Output.failureReason through to PipelineResult when A2 itself reports a fallback', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      ...defaultA2Result,
+      fallbackUsed: true,
+      failureReason: 'timeout',
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'test', null, {});
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.failureReason).toBe('timeout');
     }
   });
 });

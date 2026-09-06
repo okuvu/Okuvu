@@ -221,6 +221,70 @@ describe('A2 Emotion Regulation Agent', () => {
 
       await expect(handleTurn(makeInput())).resolves.toBeDefined();
     });
+
+    it('passes through failureReason from the Vertex AI wrapper', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: "I'm here to support you. Could you tell me more about how you're feeling?",
+        fallbackUsed: true,
+        failureReason: 'timeout',
+      });
+
+      const result = await handleTurn(makeInput());
+
+      expect(result.failureReason).toBe('timeout');
+    });
+
+    it('leaves failureReason undefined on a normal (non-fallback) reply', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+
+      const result = await handleTurn(makeInput());
+
+      expect(result.failureReason).toBeUndefined();
+    });
+  });
+
+  describe('model/prompt version attribution', () => {
+    it('propagates the resolved model from the Vertex AI wrapper as modelVersion', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false, model: 'gemini-2.5-flash' });
+
+      const result = await handleTurn(makeInput());
+
+      expect(result.modelVersion).toBe('gemini-2.5-flash');
+    });
+
+    it('reports the A2 conversational prompt version', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false, model: 'gemini-2.5-flash' });
+
+      const result = await handleTurn(makeInput());
+
+      expect(result.promptVersion).toBe('v1.0');
+    });
+
+    it('propagates canned:true from the Vertex AI wrapper', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: 'a canned reply',
+        fallbackUsed: false,
+        model: 'gemini-2.5-flash',
+        canned: true,
+      });
+
+      const result = await handleTurn(makeInput());
+
+      expect(result.canned).toBe(true);
+    });
+
+    it('propagates canned:false for a real (non-canned) reply', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: 'I hear you.',
+        fallbackUsed: false,
+        model: 'gemini-2.5-flash',
+        canned: false,
+      });
+
+      const result = await handleTurn(makeInput());
+
+      expect(result.canned).toBe(false);
+    });
   });
 
   describe('S-06 signal parsing', () => {

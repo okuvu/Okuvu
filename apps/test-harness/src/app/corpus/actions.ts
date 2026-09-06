@@ -105,3 +105,30 @@ export async function runCaseAction(input: { caseId: string; environment: TestEn
     return caller.runCase(input);
   });
 }
+
+export async function listAdjudicationQueueAction(input?: { type?: CorpusCaseType }) {
+  return run(async () => {
+    const caller = await getCaller();
+    return caller.listAdjudicationQueue(input);
+  });
+}
+
+export async function resolveAdjudicationAction(input: { caseId: string; approved: boolean }) {
+  return run(async () => {
+    const caller = await getCaller();
+    return caller.resolveAdjudication(input);
+  });
+}
+
+export async function generateVariationsAction(input: {
+  seedCaseId: string;
+  kinds?: Array<
+    'rephrasing' | 'persona_shift' | 'intensity_shift' | 'disguised_crisis' | 'injection' | 'edge_case'
+  >;
+  environment: TestEnvironment;
+}) {
+  return run(async () => {
+    const caller = await getCaller();
+    return caller.generateVariations(input);
+  });
+}

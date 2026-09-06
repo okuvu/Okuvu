@@ -15,6 +15,7 @@ const mockSessionLogCreate = vi.hoisted(() => vi.fn());
 const mockTestRunCreate = vi.hoisted(() => vi.fn());
 const mockTestRunFindUniqueOrThrow = vi.hoisted(() => vi.fn());
 const mockTestRunUpdate = vi.hoisted(() => vi.fn());
+const mockModelConfigPinFindFirst = vi.hoisted(() => vi.fn());
 
 // `withEnvironment` (prisma-rls.ts) wraps every RLS-scoped table access in
 // `prisma.$transaction(tx => ...)` + a `SET LOCAL` — the mock below routes
@@ -29,6 +30,7 @@ vi.mock('@/lib/prisma', () => {
       findUniqueOrThrow: mockTestRunFindUniqueOrThrow,
       update: mockTestRunUpdate,
     },
+    modelConfigPin: { findFirst: mockModelConfigPinFindFirst },
   };
   mockPrisma.$transaction = vi.fn((fn: any) => fn(mockPrisma));
   mockPrisma.$executeRawUnsafe = vi.fn();
@@ -58,11 +60,12 @@ beforeEach(() => {
   mockUserUpsert.mockResolvedValue({ id: 'db-user-1', firebase_uid: 'test-user-pipeline-1' });
   mockSessionLogCreate.mockResolvedValue({ id: 'session-1' });
   mockTestRunCreate.mockResolvedValue({ id: 'run-1' });
+  mockModelConfigPinFindFirst.mockResolvedValue(null);
 });
 
 describe('simulatorRouter.sendMessage — fault passthrough', () => {
   it('passes testMode.faults through to processTurn when a fault is provided', async () => {
-    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'pass' });
+    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'pass', canned: false });
     mockProcessTurn.mockResolvedValue({ type: 'agent_turn', message: 'A degraded reply.', signals: [] });
 
     const caller = createCaller(buildCtx());
@@ -82,7 +85,7 @@ describe('simulatorRouter.sendMessage — fault passthrough', () => {
   });
 
   it('omits testMode.faults entirely when no fault is provided', async () => {
-    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'pass' });
+    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'pass', canned: false });
     mockProcessTurn.mockResolvedValue({ type: 'agent_turn', message: 'A normal reply.', signals: [] });
 
     const caller = createCaller(buildCtx());
@@ -96,5 +99,89 @@ describe('simulatorRouter.sendMessage — fault passthrough', () => {
 
     const [, , , , opts] = mockProcessTurn.mock.calls[0];
     expect(opts.testMode.faults).toBeUndefined();
+  });
+});
+
+describe('simulatorRouter.sendMessage — hard-fail gating (mvp-v2-engineering-spec.md §5.1/§5.2)', () => {
+  it('demotes status to "halt" when the turn silently used a fallback', async () => {
+    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'pass', canned: false });
+    mockProcessTurn.mockResolvedValue({ type: 'agent_turn', message: 'A degraded reply.', fallbackUsed: true, signals: [] });
+
+    const caller = createCaller(buildCtx());
+    await caller.sendMessage({
+      runId: 'run-1',
+      uid: 'test-user-pipeline-1',
+      sessionId: 'session-1',
+      environment: 'sandbox',
+      message: 'Hello',
+    });
+
+    expect(mockTestRunUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'halt' }) }),
+    );
+  });
+
+  it('demotes status to "halt" and sets canned:true for a non-sandbox run when USE_CANNED_LLM_RESPONSE is ambiently set', async () => {
+    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'pass', canned: false });
+    mockProcessTurn.mockResolvedValue({ type: 'agent_turn', message: 'A normal-looking reply.', fallbackUsed: false, signals: [] });
+    const previous = process.env.USE_CANNED_LLM_RESPONSE;
+    process.env.USE_CANNED_LLM_RESPONSE = 'true';
+
+    try {
+      const caller = createCaller(buildCtx());
+      await caller.sendMessage({
+        runId: 'run-1',
+        uid: 'test-user-pipeline-1',
+        sessionId: 'session-1',
+        environment: 'staging',
+        message: 'Hello',
+      });
+    } finally {
+      if (previous === undefined) delete process.env.USE_CANNED_LLM_RESPONSE;
+      else process.env.USE_CANNED_LLM_RESPONSE = previous;
+    }
+
+    expect(mockTestRunUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'halt', canned: true }) }),
+    );
+  });
+
+  it('keeps status "halt" (sticky) even when a later turn is clean', async () => {
+    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'halt', canned: false });
+    mockProcessTurn.mockResolvedValue({ type: 'agent_turn', message: 'A clean reply.', fallbackUsed: false, signals: [] });
+
+    const caller = createCaller(buildCtx());
+    await caller.sendMessage({
+      runId: 'run-1',
+      uid: 'test-user-pipeline-1',
+      sessionId: 'session-1',
+      environment: 'sandbox',
+      message: 'Hello',
+    });
+
+    expect(mockTestRunUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'halt' }) }),
+    );
+  });
+
+  it('keeps status "pass" (and canned:false) for a clean turn in staging with no prior issues', async () => {
+    // staging (unlike sandbox, which is always deliberately canned per
+    // shouldUseCanned) only goes canned if USE_CANNED_LLM_RESPONSE leaks in —
+    // not the case here, so this is the genuine "everything is fine" path.
+    mockTestRunFindUniqueOrThrow.mockResolvedValue({ id: 'run-1', results: { turns: [] }, status: 'pass', canned: false });
+    mockProcessTurn.mockResolvedValue({ type: 'agent_turn', message: 'A clean reply.', fallbackUsed: false, signals: [] });
+
+    const caller = createCaller(buildCtx());
+    await caller.sendMessage({
+      runId: 'run-1',
+      uid: 'test-user-pipeline-1',
+      sessionId: 'session-1',
+      environment: 'staging',
+      message: 'Hello',
+    });
+
+    expect(mockTestRunUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'pass', canned: false }) }),
+    );
   });
 });
