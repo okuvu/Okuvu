@@ -11,6 +11,21 @@ function isValidSafetyState(value: string): value is SafetyState {
   return VALID_SAFETY_STATES.has(value);
 }
 
+/**
+ * Canned/sandbox mode never calls Gemini — without this, every message got
+ * back the same generic prose the safety classifier can't parse, so sandbox
+ * always fell back to a fixed S2. A cheap keyword heuristic keeps the
+ * classification at least responsive to what the tester actually typed.
+ */
+function buildCannedSafetyState(message: string): SafetyState {
+  const lower = message.toLowerCase();
+  if (/\b(kill myself|suicide|end my life|want to die|end it all)\b/.test(lower)) return 'S4';
+  if (/\b(harm myself|self[- ]harm|hurt myself|cutting)\b/.test(lower)) return 'S3';
+  if (/\b(angry|furious|rage|hate|pissed)\b/.test(lower)) return 'S1';
+  if (/\b(anxious|worried|scared|stressed|overwhelmed|nervous)\b/.test(lower)) return 'S1';
+  return 'S0';
+}
+
 export async function classifySafety(input: A1Input): Promise<A1Output> {
   const systemInstruction = buildSafetyPrompt(input);
 
@@ -50,6 +65,7 @@ export async function classifySafety(input: A1Input): Promise<A1Output> {
         responseMimeType: 'application/json',
         responseSchema,
       },
+      cannedResponse: JSON.stringify({ safetyState: buildCannedSafetyState(input.message) }),
     });
   } catch {
     console.error({ reason: 'gemini_api_error' }, 'A1 safety classification failed');

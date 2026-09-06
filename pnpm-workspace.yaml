@@ -1,6 +1,20 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+packageExtensions:
+  # @google-cloud/aiplatform's build output requires protobufjs directly
+  # (`require('protobufjs/minimal')` in its compiled index.js) without
+  # declaring it as a dependency — a phantom dependency that works under
+  # npm/yarn's flat node_modules hoisting but breaks under pnpm's strict
+  # per-package isolation. Surfaced when apps/test-harness's webpack build
+  # bundles apps/api's vertex-ai.ts (TH-S09/S10/S18 direct-import
+  # architecture); apps/api's own tsx/vitest runtime never hit this
+  # because Node's own require() walks further up the directory tree than
+  # webpack's resolver does. This teaches pnpm the real dependency so it's
+  # installed inside @google-cloud/aiplatform's own isolated node_modules.
+  '@google-cloud/aiplatform':
+    dependencies:
+      protobufjs: ^7.0.0
 allowBuilds:
   '@firebase/util': true
   '@prisma/client': true

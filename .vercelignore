@@ -1,0 +1,29 @@
+# vercel deploy (without a connected Git integration) does NOT respect
+# .gitignore automatically — it walks the full filesystem unless told
+# otherwise here. Keep this roughly mirroring .gitignore's exclusions
+# for anything that could bloat the upload past Vercel's 100MB/file and
+# reasonable total-size limits.
+
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.turbo/
+*.tsbuildinfo
+
+# Flutter mobile app — irrelevant to any Next.js app deployment, and its
+# build/tooling caches are huge (frequently 500MB-1GB+).
+apps/mobile/build/
+apps/mobile/.dart_tool/
+apps/mobile/android/.gradle/
+apps/mobile/ios/Pods/
+
+# Other apps' own build output — this project only ever deploys
+# apps/test-harness (via the Root Directory project setting), but keep
+# the upload lean regardless.
+apps/api/dist/
+apps/worker/dist/
+apps/therapist-portal/.next/
+apps/therapist-portal/out/
+
+.git/

@@ -177,13 +177,22 @@ describe('A9-post content review agent', () => {
       expect(callArgs.generationConfig.temperature).toBe(0.0);
     });
 
-    it('sets max_output_tokens to 100', async () => {
+    it('sets max_output_tokens to 1024 (not 100 — Gemini 2.5\'s internal "thinking" tokens can consume a tight budget entirely before any visible output; even 300 still hit MAX_TOKENS or silent mid-JSON truncation on real, longer userContent)', async () => {
       mockGenerateContent.mockResolvedValue(makeResult());
 
       await a9PostReview(makeInput());
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.generationConfig.maxOutputTokens).toBe(100);
+      expect(callArgs.generationConfig.maxOutputTokens).toBe(1024);
+    });
+
+    it('disables thinking (thinkingBudget: 0) — a fixed-shape classification task that does not need reasoning tokens, and even a 1024-token cap did not fully eliminate MAX_TOKENS live', async () => {
+      mockGenerateContent.mockResolvedValue(makeResult());
+
+      await a9PostReview(makeInput());
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
     });
 
     it('sets responseMimeType to application/json', async () => {

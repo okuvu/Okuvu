@@ -1,0 +1,47 @@
+{
+  "name": "@evia/test-harness",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/generate-prompt-shim.mjs",
+    "dev": "next dev --webpack -p 3002",
+    "prebuild": "node scripts/generate-prompt-shim.mjs",
+    "build": "next build --webpack",
+    "start": "next start -p 3002",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@evia/api": "workspace:*",
+    "@evia/prisma": "workspace:*",
+    "@google-cloud/aiplatform": "^6.8.1",
+    "@google-cloud/tasks": "^6.2.3",
+    "@evia/shared-types": "workspace:*",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-virtual": "^3.14.9",
+    "@trpc/client": "^11.18.0",
+    "@trpc/next": "^11.18.0",
+    "@trpc/react-query": "^11.18.0",
+    "@trpc/server": "^11.18.0",
+    "next": "^16.2.10",
+    "next-auth": "^4.24.14",
+    "pg": "^8.22.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
+    "@types/node": "^22.20.0",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.5.2",
+    "postcss": "^8.5.16",
+    "tailwindcss": "^4.3.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.1.1"
+  }
+}

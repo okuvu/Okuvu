@@ -20,10 +20,37 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
       model: FLASH_LITE_MODEL,
       timeoutMs: 5000,
       generationConfig: {
+        // Real root cause of the empty-response failures (confirmed live via
+        // vertex-ai.ts's finishReason diagnostic): maxOutputTokens: 100 was
+        // too tight — Gemini 2.5's internal "thinking" tokens can consume
+        // the entire budget before any visible output text is emitted,
+        // producing finishReason: 'MAX_TOKENS' with zero output. A9-pre
+        // (agents/a9/agent.ts) uses 200 and has never hit this, but 300
+        // still wasn't enough live: longer real userContent (an actual A2
+        // response, not a short test string) either still hit MAX_TOKENS
+        // outright, or silently truncated mid-JSON (caught by the parse
+        // fallback below, but returning a default APPROVED rather than
+        // the model's real assessment). Raised well past the observed
+        // failure point — this is a fast/cheap Flash-Lite classification
+        // call, so a generous budget costs little. Temperature was 0.0
+        // originally (deterministic, appropriate for a governance
+        // classifier) — briefly changed to 0.1 while misdiagnosing this as
+        // a temperature+JSON-mode interaction; reverted once the real
+        // cause (token budget) was found.
         temperature: 0.0,
-        maxOutputTokens: 100,
+        maxOutputTokens: 1024,
         responseMimeType: 'application/json',
+        // Even 1024 didn't fully eliminate MAX_TOKENS live (1/3 in a small
+        // sample) — raising the cap only shrinks the odds, since "thinking"
+        // token consumption is itself variable per-call. Disabling it
+        // outright is the actual fix: this is a small, fixed-shape
+        // classification task that doesn't need reasoning tokens at all.
+        thinkingConfig: { thinkingBudget: 0 },
       },
+      // Canned/sandbox mode never calls Gemini — without this the generic
+      // fallback prose fails to parse and result.fallbackUsed:true throws,
+      // which the caller (orchestrator) treats as a real review failure.
+      cannedResponse: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'high' }),
     });
     if (result.fallbackUsed) {
       throw new Error('A9-post LLM call failed: fallback used');

@@ -55,6 +55,9 @@ build/
 # Next.js
 apps/therapist-portal/.next/
 apps/therapist-portal/out/
+apps/test-harness/.next/
+apps/test-harness/out/
+.vercel/
 
 # ----------------------------
 # Flutter / Dart

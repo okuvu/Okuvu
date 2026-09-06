@@ -50,6 +50,9 @@ jobs:
       - name: TypeScript typecheck — therapist-portal
         run: cd apps/therapist-portal && pnpm tsc --noEmit
 
+      - name: TypeScript typecheck — test-harness
+        run: cd apps/test-harness && pnpm tsc --noEmit
+
       - name: TypeScript typecheck — shared-types
         run: cd packages/shared-types && pnpm tsc --noEmit
 
@@ -118,7 +121,7 @@ jobs:
 
       - name: Check LOCAL_DEV_BYPASS_AUTH is not hardcoded as true
         run: |
-          if grep -r 'LOCAL_DEV_BYPASS_AUTH = .*true' apps/api/src/ apps/worker/src/ apps/therapist-portal/src/ --exclude-dir=__tests__ 2>/dev/null; then
+          if grep -r 'LOCAL_DEV_BYPASS_AUTH = .*true' apps/api/src/ apps/worker/src/ apps/therapist-portal/src/ apps/test-harness/src/ --exclude-dir=__tests__ 2>/dev/null; then
             echo "ERROR: LOCAL_DEV_BYPASS_AUTH hardcoded as true in production code path."
             echo "This must only be set via .env for local development, never in source code."
             exit 1

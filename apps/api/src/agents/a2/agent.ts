@@ -18,6 +18,33 @@ Your task is to generate a brief, welcoming opening message (2-3 sentences) that
 
 Example tone: "Hi there! I'm Evia. Thanks for taking this moment for yourself. What's been on your mind lately?"`;
 
+/**
+ * Canned/sandbox mode never calls Gemini — without this, every A2 turn got
+ * back the same generic SAFE_FALLBACK prose regardless of what the user
+ * typed, which is what made sandbox conversations look broken (identical
+ * reply to every message). A small deterministic pool keyed off the message
+ * text keeps replies varied without spending real model calls.
+ */
+const CANNED_REPLIES = [
+  "That sounds like a lot to carry right now. What feels most present for you in this moment?",
+  "Thank you for sharing that with me — can you tell me a bit more about what's been going on?",
+  "I hear you. It makes sense that you'd feel that way given what you've described.",
+  "I'm glad you brought this up. What would feel most helpful to explore together right now?",
+  "That's a really valid thing to be feeling. How long has this been weighing on you?",
+];
+
+function hashString(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function buildCannedReply(message: string): string {
+  return CANNED_REPLIES[hashString(message) % CANNED_REPLIES.length];
+}
+
 export async function handleTurn(input: A2Input): Promise<A2Output> {
   const {
     message,
@@ -63,6 +90,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
   const result = await generateContent({
     systemInstruction,
     contents,
+    cannedResponse: buildCannedReply(message),
   });
 
   const parsed = parseA2Response(result.text);

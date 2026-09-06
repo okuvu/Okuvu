@@ -258,3 +258,184 @@ enum SummaryStatus {
   FAILED
   SKIPPED_TRIVIAL
 }
+
+// ─── Test Harness (TH-S03) ────────────────────────────────────────
+
+model ModelConfigPin {
+  id              String          @id @default(uuid())
+  environment     TestEnvironment
+  model_version   String
+  prompt_hash     String
+  temperature     Float
+  safety_settings String
+  suite_version   String
+  pinned_by       String
+  created_at      DateTime        @default(now())
+
+  @@index([environment, created_at(sort: Desc)])
+}
+
+model PromptRegistryEntry {
+  id            String          @id @default(uuid())
+  agent_id      String
+  version       String
+  content       String
+  content_hash  String
+  environment   TestEnvironment
+  supersedes_id String?
+  created_at    DateTime        @default(now())
+
+  @@index([agent_id, environment, created_at(sort: Desc)])
+}
+
+model TestRun {
+  id                       String          @id @default(uuid())
+  environment              TestEnvironment
+  altitude                 Int
+  agent                    String?
+  status                   TestRunStatus
+  frozen_triple            Json
+  results                  Json
+  activated_agents         String[]
+  manually_selected_agents String[]
+  dependency_graph         Json
+  created_at               DateTime        @default(now())
+  completed_at             DateTime?
+  archived_at              DateTime?
+  result_rows              TestResultRow[]
+
+  @@index([environment, created_at(sort: Desc)])
+}
+
+model TestResultRow {
+  id         String        @id @default(uuid())
+  run_id     String
+  agent_id   String
+  input      Json
+  output     Json
+  latency_ms Int
+  signals    Json
+  mock_mode  Boolean       @default(false)
+  status     TestRunStatus
+  created_at DateTime      @default(now())
+  run        TestRun       @relation(fields: [run_id], references: [id])
+
+  @@index([run_id])
+}
+
+model CorpusCase {
+  id              String            @id @default(uuid())
+  type            CorpusCaseType
+  version         Int               @default(1)
+  input           String
+  expected_output String?
+  tags            String[]
+  supersedes_id   String?
+  data_origin     CorpusDataOrigin  @default(synthetic)
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+
+  @@index([type, created_at(sort: Desc)])
+}
+
+model BlindedReviewItem {
+  id            String         @id @default(uuid())
+  run_id        String
+  output        String
+  rubric_scores Json
+  rater_id      String?
+  unblinded_at  DateTime?
+  created_at    DateTime       @default(now())
+  ratings       ReviewRating[]
+
+  @@index([run_id])
+}
+
+model ReviewRating {
+  id         String            @id @default(uuid())
+  item_id    String
+  rater_id   String
+  scores     Json
+  created_at DateTime          @default(now())
+  item       BlindedReviewItem @relation(fields: [item_id], references: [id])
+
+  @@unique([item_id, rater_id])
+}
+
+model TestBudget {
+  id              String          @id @default(uuid())
+  environment     TestEnvironment @unique
+  monthly_cap_inr Float
+  spent_inr       Float           @default(0)
+  reset_month     String
+}
+
+model TestHarnessAccess {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  role         HarnessRole
+  environments String[]
+  created_at   DateTime    @default(now())
+}
+
+model GateSignOff {
+  id          String          @id @default(uuid())
+  gate        String
+  run_id      String?
+  environment TestEnvironment
+  signed_by   String
+  decision    GateDecision
+  evidence    String?
+  signed_at   DateTime        @default(now())
+
+  @@index([gate, environment, signed_at(sort: Desc)])
+}
+
+model BetaConsent {
+  id                 String    @id @default(uuid())
+  corpus_case_id     String?
+  user_ref           String
+  scope              String
+  consent_granted_at DateTime  @default(now())
+  expires_at         DateTime?
+
+  @@index([user_ref])
+}
+
+enum TestEnvironment {
+  sandbox
+  staging
+  beta
+}
+
+enum TestRunStatus {
+  running
+  pass
+  halt
+  warning
+  error
+}
+
+enum CorpusCaseType {
+  safety
+  fidelity
+  adversarial
+  persona
+}
+
+enum CorpusDataOrigin {
+  synthetic
+  paraphrased
+  real
+}
+
+enum HarnessRole {
+  PI
+  RATER
+  ENGINEER
+}
+
+enum GateDecision {
+  APPROVED
+  REJECTED
+}

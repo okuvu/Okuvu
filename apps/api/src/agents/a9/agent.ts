@@ -21,6 +21,10 @@ export async function classifyGovernance(
         maxOutputTokens: 200,
         responseMimeType: 'application/json',
       },
+      // Canned/sandbox mode never calls Gemini — without this the generic
+      // fallback prose fails to parse and every sandbox turn silently
+      // classified as 'Restricted'.
+      cannedResponse: JSON.stringify({ governanceState: 'Active' }),
     });
 
     const parsed: unknown = JSON.parse(result.text);

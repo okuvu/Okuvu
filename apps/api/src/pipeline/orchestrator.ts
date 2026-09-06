@@ -1,4 +1,4 @@
-import type { SafetyState, GovernanceState, RouterDecision } from '@evia/shared-types';
+import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@evia/shared-types';
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
@@ -12,10 +12,14 @@ import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConvers
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { A2_DEGRADED_RESPONSE, getSafeFallback } from './fallbacks.js';
-import type { PipelineResult, StageTiming } from './types.js';
+import type { PipelineResult, StageTiming, TestModeOptions } from './types.js';
 import type { ConversationTurn } from '../agents/a1/types.js';
 import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
 import { decideAssignment } from '../onboarding/care-plan-assignment.js';
+
+function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
+  return new Error(faultType === 'timeout' ? 'injected_timeout' : 'injected_api_error');
+}
 
 function now(): number {
   return performance.now();
@@ -32,9 +36,12 @@ export async function processTurn(
   sessionId: string,
   message: string,
   perceivedIntensity: number | null = null,
+  opts?: { testMode?: TestModeOptions },
 ): Promise<PipelineResult> {
   const timing: StageTiming[] = [];
   const pipelineStart = now();
+  const testMode = opts?.testMode;
+  const signals: PipelineSignal[] = [];
 
   const closed = await isSessionClosed(sessionId);
   if (closed) {
@@ -62,18 +69,24 @@ export async function processTurn(
 
   async function timedA1() {
     const start = now();
-    try { return await classifySafety({
-      message,
-      recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
-    }); } finally { recordTiming(timing, 'A1', start, now()); }
+    try {
+      if (testMode?.faults?.boundary === 'A1') throw injectedFaultError(testMode.faults.type);
+      return await classifySafety({
+        message,
+        recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
+      });
+    } finally { recordTiming(timing, 'A1', start, now()); }
   }
 
   async function timedA9() {
     const start = now();
-    try { return await classifyGovernance({
-      userId: uid,
-      message,
-    }); } finally { recordTiming(timing, 'A9_pre', start, now()); }
+    try {
+      if (testMode?.faults?.boundary === 'A9_pre') throw injectedFaultError(testMode.faults.type);
+      return await classifyGovernance({
+        userId: uid,
+        message,
+      });
+    } finally { recordTiming(timing, 'A9_pre', start, now()); }
   }
 
   async function timedRetrieval(): Promise<string> {
@@ -94,10 +107,38 @@ export async function processTurn(
     }
   }
 
+  // TH-S10 test hooks: when an inject* option is set, the corresponding real
+  // call is skipped entirely (not invoked at all) and a "*_skipped" timing
+  // entry is recorded instead. This still flows through Promise.allSettled
+  // unchanged, so the existing fallback derivation logic is untouched.
+  let a1Promise: ReturnType<typeof timedA1>;
+  if (testMode?.injectA1 !== undefined) {
+    timing.push({ stage: 'A1_skipped', elapsedMs: 0 });
+    a1Promise = Promise.resolve({ safetyState: testMode.injectA1, fallbackUsed: false });
+  } else {
+    a1Promise = timedA1();
+  }
+
+  let a9Promise: ReturnType<typeof timedA9>;
+  if (testMode?.injectA9 !== undefined) {
+    timing.push({ stage: 'A9_pre_skipped', elapsedMs: 0 });
+    a9Promise = Promise.resolve({ governanceState: testMode.injectA9, fallbackUsed: false });
+  } else {
+    a9Promise = timedA9();
+  }
+
+  let retrievalPromise: Promise<string>;
+  if (testMode?.injectRetrievedContext !== undefined) {
+    timing.push({ stage: 'layer3_rag_skipped', elapsedMs: 0 });
+    retrievalPromise = Promise.resolve(testMode.injectRetrievedContext);
+  } else {
+    retrievalPromise = timedRetrieval();
+  }
+
   const [a1Result, a9Result, retrievalResult] = await Promise.allSettled([
-    timedA1(),
-    timedA9(),
-    timedRetrieval(),
+    a1Promise,
+    a9Promise,
+    retrievalPromise,
   ]);
 
   const safetyState: SafetyState =
@@ -107,23 +148,39 @@ export async function processTurn(
     a9Result.status === 'fulfilled' ? a9Result.value.governanceState : 'Restricted';
 
   const retrievedContext: string =
-    nextTurnNumber === 1
-      ? (retrievalResult.status === 'fulfilled' ? retrievalResult.value : 'null')
-      : (getRetrievedContext(sessionId) ?? 'null');
+    testMode?.injectRetrievedContext !== undefined
+      ? testMode.injectRetrievedContext
+      : nextTurnNumber === 1
+        ? (retrievalResult.status === 'fulfilled' ? retrievalResult.value : 'null')
+        : (getRetrievedContext(sessionId) ?? 'null');
 
-  const a8Start = now();
+  if (testMode?.captureSignalBus) {
+    signals.push({ boundary: 'A1_result', agent: 'A1', payload: safetyState, timestamp: new Date().toISOString() });
+    signals.push({ boundary: 'A9_pre_result', agent: 'A9-pre', payload: governanceState, timestamp: new Date().toISOString() });
+  }
 
-  const decision: RouterDecision = routeTurn({
-    safety_state: safetyState,
-    governance_state: governanceState,
-    session_count: sessionCount,
-    turn_count: nextTurnNumber,
-  });
-  const a8End = now();
-  recordTiming(timing, 'A8_router', a8Start, a8End);
+  let decision: RouterDecision;
+  if (testMode?.injectRouter !== undefined) {
+    timing.push({ stage: 'A8_router_skipped', elapsedMs: 0 });
+    decision = testMode.injectRouter;
+  } else {
+    const a8Start = now();
+    decision = routeTurn({
+      safety_state: safetyState,
+      governance_state: governanceState,
+      session_count: sessionCount,
+      turn_count: nextTurnNumber,
+    });
+    const a8End = now();
+    recordTiming(timing, 'A8_router', a8Start, a8End);
+  }
+
+  if (testMode?.captureSignalBus) {
+    signals.push({ boundary: 'A8_decision', agent: 'A8', payload: decision, timestamp: new Date().toISOString() });
+  }
 
   if (decision.agent === 'crisis') {
-    return { type: 'crisis', timing };
+    return { type: 'crisis', timing, ...(testMode?.captureSignalBus ? { signals } : {}) };
   }
 
   const isOnboarding = (sessionCount === 0 || contextBundle.care_plan == null) && nextTurnNumber <= 3;
@@ -161,7 +218,9 @@ export async function processTurn(
   const userMemoryContext = formatUserMemory(contextBundle.user_memory);
 
   try {
-    const a2Result = await handleTurn({
+    if (testMode?.faults?.boundary === 'A2') throw injectedFaultError(testMode.faults.type);
+
+    const a2ResultRaw = await handleTurn({
       userId: uid,
       message,
       carePlan: (contextBundle.care_plan?.care_plan_id ?? 'CP1') as 'CP1' | 'CP2' | 'CP3',
@@ -176,8 +235,20 @@ export async function processTurn(
       userMemoryContext,
       retrievedContext,
     });
+
+    // TH-S10: signalOverride only supports boundary 'a2_result' — a shallow
+    // merge onto the object returned by handleTurn, applied before any field
+    // (userContent/fallbackUsed/signal) is read from it.
+    const a2Result = testMode?.signalOverride?.boundary === 'a2_result'
+      ? ({ ...a2ResultRaw, ...(testMode.signalOverride.payload as Record<string, unknown>) } as typeof a2ResultRaw)
+      : a2ResultRaw;
+
     finalText = a2Result.userContent;
     a2Fallback = a2Result.fallbackUsed;
+
+    if (testMode?.captureSignalBus) {
+      signals.push({ boundary: 'A2_result', agent: 'A2', payload: a2Result, timestamp: new Date().toISOString() });
+    }
 
     if (a2Result.signal) {
       estimatedIntensity = a2Result.signal.estimated_intensity;
@@ -208,6 +279,8 @@ export async function processTurn(
   if (!a2Fallback) {
     const a9PostStart = now();
     try {
+      if (testMode?.faults?.boundary === 'A9_post') throw injectedFaultError(testMode.faults.type);
+
       const a9PostResult = await a9PostReview({
         userContent: finalText,
         safetyState,
@@ -222,6 +295,10 @@ export async function processTurn(
         a9PostBlocked = true;
         a9PostViolation = a9PostResult.violation_type;
       }
+
+      if (testMode?.captureSignalBus) {
+        signals.push({ boundary: 'A9_post_result', agent: 'A9-post', payload: a9PostResult, timestamp: new Date().toISOString() });
+      }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.info({ err: errMsg }, 'A9-post: call failed, applying failover strategy');
@@ -231,6 +308,26 @@ export async function processTurn(
         a9PostBlocked = true;
         a9PostViolation = 'a9_post_unavailable_s2';
         a9PostConfidence = 'low';
+      }
+
+      // Same signal shape as the success-path push above (line ~300), just
+      // reflecting what actually happened when the call itself failed. Without
+      // this, a caller reading the signal bus (e.g. the test harness's
+      // Simulator) has no way to tell that A9-post ran at all on this turn —
+      // the reply silently changes (S2 case) or goes out unreviewed
+      // (non-S2 case) with no trace of why.
+      if (testMode?.captureSignalBus) {
+        signals.push({
+          boundary: 'A9_post_result',
+          agent: 'A9-post',
+          payload: {
+            decision: a9PostBlocked ? 'BLOCKED' : 'APPROVED',
+            violation_type: a9PostViolation,
+            confidence: a9PostConfidence ?? 'low',
+            call_failed: true,
+          },
+          timestamp: new Date().toISOString(),
+        });
       }
     }
     recordTiming(timing, 'A9_post', a9PostStart, now());
@@ -335,5 +432,6 @@ export async function processTurn(
     estimatedIntensity,
     toolCard,
     onboardingInference,
+    ...(testMode?.captureSignalBus ? { signals } : {}),
   };
 }

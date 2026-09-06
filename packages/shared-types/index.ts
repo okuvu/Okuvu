@@ -273,3 +273,98 @@ export interface CreateJournalEntryBody {
   intensity: number
   content: string
 }
+
+// ─── Test Harness Types (TH-S03) ─────────────────────────────────
+
+export type TestEnvironment = 'sandbox' | 'staging' | 'beta'
+
+export type TestRunStatus = 'running' | 'pass' | 'halt' | 'warning' | 'error'
+
+export type CorpusCaseType = 'safety' | 'fidelity' | 'adversarial' | 'persona'
+
+export type TestAgentId =
+  | 'A1'
+  | 'A2'
+  | 'A8'
+  | 'A9-pre'
+  | 'A9-post'
+  | 'A10A'
+  | 'A13'
+  | 'A15'
+
+export type HarnessRole = 'PI' | 'RATER' | 'ENGINEER'
+
+export interface PipelineSignal {
+  boundary: string
+  agent: TestAgentId | 'orchestrator'
+  payload: unknown
+  timestamp: string
+}
+
+export interface FrozenTripleMetadata {
+  modelVersion: string
+  promptHash: string
+  temperature: number
+  safetySettings: string
+  suiteVersion: string
+  inputId: string
+  timestamp: string
+  rawOutput: string
+}
+
+export interface TestResult {
+  id: string
+  runId: string
+  agentId: TestAgentId
+  input: unknown
+  output: unknown
+  latencyMs: number
+  signals: PipelineSignal[]
+  mockMode: boolean
+  status: TestRunStatus
+}
+
+export interface AgentDependency {
+  agent: string
+  requiredBy: string[]
+  autoActivated: boolean
+  mockMode?: boolean
+}
+
+export interface TestRun {
+  id: string
+  environment: TestEnvironment
+  altitude: 1 | 2 | 3
+  agent?: TestAgentId
+  status: TestRunStatus
+  frozenTriple: FrozenTripleMetadata
+  results: TestResult[]
+  createdAt: string
+  completedAt?: string
+  activatedAgents: string[]
+  manuallySelectedAgents: string[]
+  dependencyGraph: AgentDependency[]
+}
+
+export interface BlindedReviewItem {
+  id: string
+  runId: string
+  output: string
+  rubricScores: Record<string, number>
+  raterId?: string
+  unblinded?: boolean
+}
+
+export type CorpusDataOrigin = 'synthetic' | 'paraphrased' | 'real'
+
+export interface CorpusCase {
+  id: string
+  type: CorpusCaseType
+  version: number
+  input: string
+  expectedOutput?: string
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+  dataOrigin?: CorpusDataOrigin
+}

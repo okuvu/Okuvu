@@ -1,0 +1,65 @@
+name: Regression
+
+# TH-S27 — CI regression gate for the harness's `ci` router
+# (getGateStatus/triggerRegression/getHaltFailures). Its run history is what
+# apps/test-harness/src/app/ci reads via the GitHub Actions REST API.
+#
+# NOTE on "blocks PR merge": this workflow failing (non-zero exit) makes
+# this a failed check on the PR, which is a necessary but not sufficient
+# condition for actually blocking merge. Making it *required* — so GitHub
+# refuses to merge while it's red — is a repo Settings > Branches > branch
+# protection rule ("Require status checks to pass"), which must be
+# configured by a repo admin outside of this YAML file. This workflow alone
+# cannot force that; it can only report red/green.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/prompts/**'
+      - 'apps/api/src/pipeline/**'
+      - 'packages/**'
+  workflow_dispatch:
+    # Enables manual/API-triggered runs, including via the harness's own
+    # "Trigger Regression" button (ci router's triggerRegression ->
+    # github-actions.ts's triggerWorkflowDispatch -> this workflow_dispatch
+    # trigger).
+
+concurrency:
+  group: regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Regression — A8 state-space check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: cd apps/api && pnpm prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+
+      # v1 scope: the DB-free A8 router state-space check only (15 cells,
+      # via the real production routeTurn — see
+      # apps/test-harness/src/scripts/run-regression-checks.ts). A fuller
+      # regression suite (validateSilencePath, canned-mode sampling) needs a
+      # live Prisma-backed synthetic session and is a natural follow-up once
+      # this simpler job has proven stable — not included here yet.
+      - name: Run regression checks (A8 state-space)
+        run: cd apps/test-harness && npx tsx src/scripts/run-regression-checks.ts
