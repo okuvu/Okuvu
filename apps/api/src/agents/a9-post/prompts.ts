@@ -20,6 +20,16 @@ Check for ANY of the following prohibited outputs:
 6. Prescription or medication references
 7. Content inappropriate for the current safety state
 
+Open-ended questions, reflections, and validation are NOT violations, even if they
+share individual words with the categories above — judge the actual meaning of the
+sentence, not just whether it contains a trigger word. For example:
+- "Can you tell me more about what's on your mind?" — NOT a violation (open question).
+- "It sounds like you're feeling uncertain right now." — NOT a violation (reflection).
+- "You should try journaling every night." — IS a violation (direct advice).
+- "Have you considered that you're overthinking this?" — IS a violation (advice/reframe).
+Only answer BLOCKED when the response actually contains one of the seven prohibited
+patterns above, not merely something that sounds superficially similar.
+
 Respond ONLY in valid JSON. No other text.
 
 {
