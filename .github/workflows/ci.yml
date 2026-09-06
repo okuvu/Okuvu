@@ -58,6 +58,9 @@ jobs:
 
       - name: Vitest — unit tests
         run: cd apps/api && pnpm vitest run
+
+      - name: Vitest — therapist-portal (auth & authorization)
+        run: cd apps/therapist-portal && pnpm vitest run
         env:
           DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
           NODE_ENV: test

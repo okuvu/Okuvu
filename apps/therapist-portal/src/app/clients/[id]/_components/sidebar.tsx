@@ -7,10 +7,6 @@ import { usePathname } from 'next/navigation';
 import { trpc } from '@/trpc/client';
 import { maskPhone } from '@/lib/format';
 
-interface SidebarProps {
-  clientName?: string;
-}
-
 const patientsIcon = (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -52,7 +48,7 @@ const disabledItems = [
   },
 ];
 
-export default function Sidebar({ clientName: _clientName }: SidebarProps) {
+export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const therapistName = session?.user?.name ?? 'Therapist';
@@ -63,6 +59,9 @@ export default function Sidebar({ clientName: _clientName }: SidebarProps) {
     enabled: isOnClientPage,
   });
   const clients = clientsQuery.data ?? [];
+
+  // F-07: only rendered for the env-configured admin allowlist.
+  const { data: adminStatus } = trpc.admin.amIAdmin.useQuery();
 
   return (
     <nav className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-200 z-50 py-5">
@@ -157,14 +156,39 @@ export default function Sidebar({ clientName: _clientName }: SidebarProps) {
           </div>
         )}
 
+        {adminStatus?.isAdmin && (
+          <Link
+            href="/admin"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              pathname === '/admin'
+                ? 'bg-[#1A6B5A] text-white'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <span className={pathname === '/admin' ? 'text-white' : 'text-gray-400'}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </span>
+            Admin
+          </Link>
+        )}
+
         <div className="mt-0">
           {disabledItems.map((item) => (
             <div
               key={item.label}
+              role="link"
+              aria-disabled="true"
+              title="Coming soon"
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 cursor-not-allowed"
             >
               <span className="text-gray-300">{item.icon}</span>
               {item.label}
+              <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-gray-300">
+                Soon
+              </span>
             </div>
           ))}
         </div>

@@ -1,84 +1,20 @@
-import type { PrismaClient } from "@evia/prisma";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { protectedProcedure, router } from "../trpc";
+import {
+  assertClientAssigned,
+  isBypassEnabled,
+  logClinicalAccess,
+  router,
+  therapistMutation,
+  therapistProcedure,
+} from "../trpc";
 
 const CARE_PLANS = ["CP1", "CP2", "CP3"] as const;
 
-function isBypassEnabled(): boolean {
-  return process.env.LOCAL_DEV_BYPASS_AUTH === "true";
-}
-
-function getPrisma(ctx: { prisma: PrismaClient | null }): PrismaClient {
-  if (!ctx.prisma) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Database not configured",
-    });
-  }
-  return ctx.prisma;
-}
-
-async function getTherapistId(ctx: {
-  user: { email?: string | null };
-  prisma: PrismaClient | null;
-}): Promise<string> {
-  const therapistEmail = ctx.user.email;
-
-  if (!therapistEmail) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "No email on session",
-    });
-  }
-
-  const db = getPrisma(ctx);
-  const therapist = await db.therapist.findUnique({
-    where: { email: therapistEmail },
-  });
-
-  if (!therapist) {
-    if (isBypassEnabled()) {
-      return "th_bypass_mock";
-    }
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Therapist not found",
-    });
-  }
-
-  return therapist.id;
-}
-
-async function assertClientAssigned(
-  db: PrismaClient,
-  therapistId: string,
-  clientUserId: string,
-): Promise<void> {
-  const assignment = await db.therapistClient.findUnique({
-    where: {
-      therapist_id_client_user_id: {
-        therapist_id: therapistId,
-        client_user_id: clientUserId,
-      },
-    },
-  });
-
-  if (!assignment) {
-    if (isBypassEnabled()) {
-      return;
-    }
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Client is not assigned to this therapist",
-    });
-  }
-}
-
 export const clientsRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const db = getPrisma(ctx);
-    const therapistId = await getTherapistId(ctx);
+  list: therapistProcedure.query(async ({ ctx }) => {
+    const db = ctx.db;
+    const therapistId = ctx.therapistId;
 
     const assignments = await db.therapistClient.findMany({
       where: { therapist_id: therapistId },
@@ -113,7 +49,7 @@ export const clientsRouter = router({
     }));
   }),
 
-  detail: protectedProcedure
+  detail: therapistProcedure
     .input(z.object({ clientUserId: z.string() }))
     .query(async ({ ctx, input }) => {
       if (isBypassEnabled()) {
@@ -127,10 +63,11 @@ export const clientsRouter = router({
         };
       }
 
-      const db = getPrisma(ctx);
-      const therapistId = await getTherapistId(ctx);
+      const db = ctx.db;
+      const therapistId = ctx.therapistId;
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
+      await logClinicalAccess(db, therapistId, input.clientUserId, "VIEW_CLIENT_DETAIL");
 
       const client = await db.user.findUnique({
         where: { id: input.clientUserId },
@@ -188,11 +125,11 @@ export const clientsRouter = router({
       };
     }),
 
-  getCarePlan: protectedProcedure
+  getCarePlan: therapistProcedure
     .input(z.object({ clientId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      const db = getPrisma(ctx);
-      const therapistId = await getTherapistId(ctx);
+      const db = ctx.db;
+      const therapistId = ctx.therapistId;
 
       await assertClientAssigned(db, therapistId, input.clientId);
 
@@ -208,7 +145,7 @@ export const clientsRouter = router({
       };
     }),
 
-  setCarePlan: protectedProcedure
+  setCarePlan: therapistMutation
     .input(
       z.object({
         clientId: z.string().min(1),
@@ -216,15 +153,10 @@ export const clientsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const db = getPrisma(ctx);
-      const therapistId = await getTherapistId(ctx);
+      const db = ctx.db;
+      const therapistId = ctx.therapistId;
 
       await assertClientAssigned(db, therapistId, input.clientId);
-
-      const existing = await db.clinicalConfig.findUnique({
-        where: { user_id: input.clientId },
-        select: { care_plan_id: true },
-      });
 
       const result = await db.clinicalConfig.upsert({
         where: { user_id: input.clientId },

@@ -17,7 +17,11 @@ function buildProviders(): NextAuthOptions['providers'] {
 
 export const authConfig: NextAuthOptions = {
   providers: buildProviders(),
-  session: { strategy: 'jwt' },
+  // F-13: this app handles clinical data, so the default 30-day NextAuth
+  // session is too long-lived. 12 hours covers a working day; NextAuth's
+  // JWT strategy re-issues the token on activity, so an active therapist
+  // isn't interrupted mid-session — an idle session simply expires.
+  session: { strategy: 'jwt', maxAge: 12 * 60 * 60 },
   callbacks: {
     async signIn({ account, profile }) {
       if (account?.provider === 'google' && profile?.email) {
@@ -60,6 +64,16 @@ const nextAuth = NextAuth(authConfig);
 export const handlers = { GET: nextAuth, POST: nextAuth };
 
 export async function auth() {
+  // Discovered while manually verifying F-01/F-07 end-to-end: proxy.ts and
+  // server/trpc.ts both honor LOCAL_DEV_BYPASS_AUTH, but this helper didn't
+  // — so dashboard/page.tsx and admin/page.tsx (both call auth() directly
+  // and redirect on no session) still bounced to /auth even with the flag
+  // set, defeating its one purpose (local dev without real Google OAuth).
+  // Safe to make consistent: F-01's boot guard already guarantees this
+  // flag can never be "true" in NODE_ENV=production.
+  if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
+    return { user: { id: 'mock', email: 'bypass@evia.dev', name: 'Bypass' } };
+  }
   return getServerSession(authConfig);
 }
 

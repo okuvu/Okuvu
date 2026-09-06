@@ -6,6 +6,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "emulator": "firebase emulators:start --only auth"
   },
   "dependencies": {
@@ -35,6 +37,7 @@
     "autoprefixer": "^10.5.2",
     "postcss": "^8.5.16",
     "tailwindcss": "^4.3.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.1.1"
   }
 }

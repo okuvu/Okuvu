@@ -26,17 +26,19 @@ model User {
   notes_received      TherapistNote[]    @relation("ClientToNote")
   turns               Turn[]
   journal_entries     JournalEntry[]
+  access_logs         ClinicalAccessLog[] @relation("ClientToAccessLog")
 }
 
 model Therapist {
-  id                 String            @id @default(uuid())
-  email              String            @unique
+  id                 String               @id @default(uuid())
+  email              String               @unique
   name               String?
   image              String?
-  created_at         DateTime          @default(now())
-  updated_at         DateTime          @updatedAt
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @updatedAt
   client_assignments TherapistClient[]
-  notes              TherapistNote[]   @relation("TherapistToNote")
+  notes              TherapistNote[]      @relation("TherapistToNote")
+  access_logs        ClinicalAccessLog[]
 }
 
 model ClinicalConfig {
@@ -167,6 +169,23 @@ model TherapistClient {
 
   @@unique([therapist_id, client_user_id])
   @@index([client_user_id])
+}
+
+// Records every therapist read of a client's clinical data (safety state,
+// reasoning note, session summary, session notes) for breach/incident
+// forensics. See docs/audit/evia-therapist-portal-audit.md F-05 — there was
+// previously no way to answer "who viewed this client's record, and when."
+model ClinicalAccessLog {
+  id             String    @id @default(uuid())
+  therapist_id   String
+  client_user_id String
+  action         String
+  created_at     DateTime  @default(now())
+  therapist      Therapist @relation(fields: [therapist_id], references: [id])
+  client         User      @relation("ClientToAccessLog", fields: [client_user_id], references: [id])
+
+  @@index([client_user_id, created_at(sort: Desc)])
+  @@index([therapist_id, created_at(sort: Desc)])
 }
 
 model SessionLimit {
