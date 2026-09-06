@@ -1,0 +1,6 @@
+{
+  "installCommand": "pnpm install && pnpm --filter @evia/prisma generate",
+  "buildCommand": "pnpm --filter @evia/therapist-portal build",
+  "framework": "nextjs",
+  "outputDirectory": ".next"
+}
