@@ -11,7 +11,7 @@ import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
-import { A2_DEGRADED_RESPONSE, getSafeFallback } from './fallbacks.js';
+import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE } from './fallbacks.js';
 import type { PipelineResult, StageTiming, TestModeOptions } from './types.js';
 import type { ConversationTurn } from '../agents/a1/types.js';
 import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
@@ -199,6 +199,12 @@ export async function processTurn(
   let a9PostViolation: string | null = null;
   let a9PostConfidence: string | null = null;
   let a9PostBlockedContent: string | null = null;
+  // Set when A8 routed this turn to A2 mode='blocked' — A9-pre (governance)
+  // rejected the message, but A1 did not find crisis-level risk. Skips the
+  // real A2 call and A9-post review entirely (there is no real model output
+  // to review), same shape as the existing A9-post-blocked path below but
+  // triggered pre-emptively instead of post-hoc.
+  let a9PreBlocked = false;
   let estimatedIntensity: number | null = null;
   let crisisFlag = false;
   let carePlanReviewFlag = false;
@@ -224,74 +230,92 @@ export async function processTurn(
 
   const userMemoryContext = formatUserMemory(contextBundle.user_memory);
 
-  try {
-    if (testMode?.faults?.boundary === 'A2') throw injectedFaultError(testMode.faults.type);
+  if (decision.mode === 'blocked') {
+    // A9-pre (governance) rejected this message and A1 did not find
+    // crisis-level risk — no real A2 call, no A9-post review (there is
+    // nothing of A2's to review). A static, non-alarming reply, always.
+    finalText = A9_PRE_BLOCKED_RESPONSE;
+    a9PreBlocked = true;
+  } else {
+    try {
+      if (testMode?.faults?.boundary === 'A2') throw injectedFaultError(testMode.faults.type);
 
-    const a2ResultRaw = await handleTurn({
-      userId: uid,
-      message,
-      carePlan: (contextBundle.care_plan?.care_plan_id ?? 'CP1') as 'CP1' | 'CP2' | 'CP3',
-      safetyState: safetyState as 'S0' | 'S1' | 'S2',
-      sessionNumber: sessionCount + 1,
-      turnNumber: nextTurnNumber,
-      sessionHistorySummary: contextBundle.session_summary,
-      perceivedIntensity,
-      mode: decision.mode ?? 'normal',
-      recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
-      toolResultContext,
-      userMemoryContext,
-      retrievedContext,
-    });
+      const a2ResultRaw = await handleTurn({
+        userId: uid,
+        message,
+        carePlan: (contextBundle.care_plan?.care_plan_id ?? 'CP1') as 'CP1' | 'CP2' | 'CP3',
+        safetyState: safetyState as 'S0' | 'S1' | 'S2',
+        sessionNumber: sessionCount + 1,
+        turnNumber: nextTurnNumber,
+        sessionHistorySummary: contextBundle.session_summary,
+        perceivedIntensity,
+        mode: decision.mode ?? 'normal',
+        recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
+        toolResultContext,
+        userMemoryContext,
+        retrievedContext,
+      });
 
-    // TH-S10: signalOverride only supports boundary 'a2_result' — a shallow
-    // merge onto the object returned by handleTurn, applied before any field
-    // (userContent/fallbackUsed/signal) is read from it.
-    const a2Result = testMode?.signalOverride?.boundary === 'a2_result'
-      ? ({ ...a2ResultRaw, ...(testMode.signalOverride.payload as Record<string, unknown>) } as typeof a2ResultRaw)
-      : a2ResultRaw;
+      // TH-S10: signalOverride only supports boundary 'a2_result' — a shallow
+      // merge onto the object returned by handleTurn, applied before any field
+      // (userContent/fallbackUsed/signal) is read from it.
+      const a2Result = testMode?.signalOverride?.boundary === 'a2_result'
+        ? ({ ...a2ResultRaw, ...(testMode.signalOverride.payload as Record<string, unknown>) } as typeof a2ResultRaw)
+        : a2ResultRaw;
 
-    finalText = a2Result.userContent;
-    a2Fallback = a2Result.fallbackUsed;
-    a2FailureReason = a2Result.failureReason;
-    // Canned/test-hook text was never actually produced by a2Result's
-    // resolved model/prompt — those fields report what would have been
-    // used, not what was, so attribution stays null rather than persisting
-    // a fictitious provenance record for canned content.
-    turnModelVersion = a2Result.canned ? null : a2Result.modelVersion;
-    turnPromptVersion = a2Result.canned ? null : a2Result.promptVersion;
+      finalText = a2Result.userContent;
+      a2Fallback = a2Result.fallbackUsed;
+      a2FailureReason = a2Result.failureReason;
+      // Canned/test-hook text was never actually produced by a2Result's
+      // resolved model/prompt — those fields report what would have been
+      // used, not what was, so attribution stays null rather than persisting
+      // a fictitious provenance record for canned content.
+      turnModelVersion = a2Result.canned ? null : a2Result.modelVersion;
+      turnPromptVersion = a2Result.canned ? null : a2Result.promptVersion;
 
-    if (testMode?.captureSignalBus) {
-      signals.push({ boundary: 'A2_result', agent: 'A2', payload: a2Result, timestamp: new Date().toISOString() });
+      if (testMode?.captureSignalBus) {
+        signals.push({ boundary: 'A2_result', agent: 'A2', payload: a2Result, timestamp: new Date().toISOString() });
+      }
+
+      if (a2Result.signal) {
+        estimatedIntensity = a2Result.signal.estimated_intensity;
+        crisisFlag = a2Result.signal.session_flags.crisis_language_detected;
+        carePlanReviewFlag = a2Result.signal.care_plan_fit === 'possible_mismatch';
+      }
+
+      toolCard = a2Result.signal?.tool_launch_recommended
+        ? buildToolCard(a2Result.signal.tool_launch_recommended, a2Result.signal.breathing_config)
+        : undefined;
+
+      // Skip when A2's real call already fell back: scoring finalText here
+      // would score the canned/degraded fallback text as if it were a real
+      // reply (misleading signal), and — since scoreOnboardingTurn makes its
+      // own real, separately-timed-out LLM call — stacks a second up-to-30s
+      // wait sequentially inside this same stage on top of A2's already-
+      // timed-out call. Confirmed live (2026-09-07): a single real A2
+      // timeout produced a 42.2s 'A2_response' stage against a 30s
+      // configured timeout — not a bug in the timeout mechanism itself
+      // (which fired correctly at ~30s), but this uninstrumented second
+      // call running immediately after it.
+      if (isOnboarding && !a2Fallback) {
+        const existingTurns = await getSessionConversationTurns(sessionId);
+        const allTurns: ConversationTurn[] = [
+          ...existingTurns,
+          { role: 'user' as const, content: message },
+          { role: 'assistant' as const, content: finalText },
+        ];
+        onboardingInference = await scoreOnboardingTurn(allTurns);
+      }
+    } catch {
+      finalText = A2_DEGRADED_RESPONSE;
+      a2Fallback = true;
+      a2FailureReason = testMode?.faults?.boundary === 'A2' ? testMode.faults.type : 'api_error';
     }
-
-    if (a2Result.signal) {
-      estimatedIntensity = a2Result.signal.estimated_intensity;
-      crisisFlag = a2Result.signal.session_flags.crisis_language_detected;
-      carePlanReviewFlag = a2Result.signal.care_plan_fit === 'possible_mismatch';
-    }
-
-    toolCard = a2Result.signal?.tool_launch_recommended
-      ? buildToolCard(a2Result.signal.tool_launch_recommended, a2Result.signal.breathing_config)
-      : undefined;
-
-    if (isOnboarding) {
-      const existingTurns = await getSessionConversationTurns(sessionId);
-      const allTurns: ConversationTurn[] = [
-        ...existingTurns,
-        { role: 'user' as const, content: message },
-        { role: 'assistant' as const, content: finalText },
-      ];
-      onboardingInference = await scoreOnboardingTurn(allTurns);
-    }
-  } catch {
-    finalText = A2_DEGRADED_RESPONSE;
-    a2Fallback = true;
-    a2FailureReason = testMode?.faults?.boundary === 'A2' ? testMode.faults.type : 'api_error';
   }
   const a2End = now();
   recordTiming(timing, 'A2_response', a2Start, a2End);
 
-  if (!a2Fallback) {
+  if (!a2Fallback && !a9PreBlocked) {
     const a9PostStart = now();
     try {
       if (testMode?.faults?.boundary === 'A9_post') throw injectedFaultError(testMode.faults.type);
@@ -367,13 +391,32 @@ export async function processTurn(
       data: {
         session_id: sessionId, user_id: user.id, turn_number: newTurnCount,
         role: 'assistant', content: finalText,
-        is_a9_fallback: a9PostBlocked,
+        is_a9_fallback: a9PostBlocked || a9PreBlocked,
         model_version: turnModelVersion,
         prompt_version: turnPromptVersion,
       },
       select: { id: true },
     }),
   ]);
+
+  if (a9PreBlocked) {
+    await prisma.governanceLog.create({
+      data: {
+        session_id: sessionId,
+        turn_number: newTurnCount,
+        gate: 'A9-PRE',
+        decision: 'Blocked',
+        // A9-pre's output today is only a bare governanceState (no
+        // reason/violation_type) — 'unavailable' documents that gap rather
+        // than inventing a fake reason. confidence is required by the
+        // schema but A9-pre has no concept of one; 'n/a' is honest about
+        // that, not a placeholder pretending to be real data.
+        violation_type: 'unavailable',
+        confidence: 'n/a',
+        blocked_content: null,
+      },
+    });
+  }
 
   if (a9PostBlocked) {
     await prisma.governanceLog.create({

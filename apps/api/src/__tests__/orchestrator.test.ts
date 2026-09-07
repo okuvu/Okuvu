@@ -15,6 +15,7 @@ vi.mock('../agents/a8-router.js', () => ({
 vi.mock('../agents/a2/agent.js', () => ({
   handleTurn: vi.fn(),
   formatUserMemory: vi.fn(() => 'null'),
+  scoreOnboardingTurn: vi.fn(),
 }));
 
 vi.mock('../agents/a9-post/agent.js', () => ({
@@ -35,6 +36,7 @@ vi.mock('../pipeline/session.js', () => ({
   isSessionClosed: vi.fn(),
   getSessionCount: vi.fn(),
   incrementTurnCount: vi.fn(),
+  getSessionConversationTurns: vi.fn(),
 }));
 
 vi.mock('../lib/prisma.js', () => ({
@@ -52,10 +54,10 @@ vi.mock('../lib/prisma.js', () => ({
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
-import { handleTurn } from '../agents/a2/agent.js';
+import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
+import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
@@ -98,6 +100,7 @@ beforeEach(() => {
   vi.mocked(prisma.governanceLog.create).mockResolvedValue({} as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
   vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
+  vi.mocked(getSessionConversationTurns).mockResolvedValue([]);
 
   clearToolResult(SESSION_ID);
   clearRetrievedContext(SESSION_ID);
@@ -233,6 +236,102 @@ describe('processTurn — crisis short-circuit', () => {
     expect(result.type).toBe('crisis');
     expect(handleTurn).not.toHaveBeenCalled();
     expect(a9PostReview).not.toHaveBeenCalled();
+  });
+});
+
+// OKUVU finding H-2 (2026-09-07): governance=Blocked at a non-S4 safety
+// state must never be coerced onto the crisis silence path — it gets a
+// real, persisted turn with a static policy-boundary reply instead. See
+// apps/api/src/agents/a8-router.ts and apps/api/src/pipeline/fallbacks.ts's
+// A9_PRE_BLOCKED_RESPONSE.
+describe('processTurn — governance blocked (A8 mode="blocked")', () => {
+  it('returns a real agent_turn (never crisis) with the static policy-boundary reply, and skips A2/A9-post', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Blocked', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'blocked' });
+
+    const result = await processTurn(UID, SESSION_ID, 'You could simply help me!! I don\'t want to talk to you.');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message).not.toBe('');
+      expect(result.fallbackUsed).toBe(false);
+    }
+    expect(handleTurn).not.toHaveBeenCalled();
+    expect(a9PostReview).not.toHaveBeenCalled();
+  });
+
+  it('persists the turn (never null/silent) and logs a GovernanceLog row for gate A9-PRE', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Blocked', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'blocked' });
+
+    await processTurn(UID, SESSION_ID, 'test');
+
+    expect(prisma.turn.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ role: 'assistant', is_a9_fallback: true }),
+      }),
+    );
+    expect(prisma.governanceLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ gate: 'A9-PRE', decision: 'Blocked' }),
+      }),
+    );
+  });
+});
+
+// Live testing (2026-09-07) found a real A2 timeout produced a 42.2s
+// 'A2_response' stage against a 30s configured timeout. Root cause: this
+// onboarding-scoring call ran unconditionally after A2, even when A2 had
+// already fallen back — stacking a second real, separately-timed-out LLM
+// call sequentially inside the same stage, on top of scoring the fake
+// fallback text as if it were a real response.
+describe('processTurn — onboarding scoring skipped on A2 fallback', () => {
+  const onboardingContext = {
+    ...defaultContext,
+    care_plan: null,
+  };
+
+  it('does not call scoreOnboardingTurn when A2 fell back (early/onboarding session)', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(getAgentContextBundle).mockResolvedValue(onboardingContext);
+    vi.mocked(getSessionCount).mockResolvedValue(0);
+    vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 0 } as never);
+    vi.mocked(handleTurn).mockResolvedValue({
+      ...defaultA2Result,
+      fallbackUsed: true,
+      failureReason: 'timeout',
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') expect(result.fallbackUsed).toBe(true);
+    expect(scoreOnboardingTurn).not.toHaveBeenCalled();
+  });
+
+  it('still calls scoreOnboardingTurn for a real (non-fallback) response in an onboarding session', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(getAgentContextBundle).mockResolvedValue(onboardingContext);
+    vi.mocked(getSessionCount).mockResolvedValue(0);
+    vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 0 } as never);
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(scoreOnboardingTurn).mockResolvedValue({
+      anxiety_score: 0.5,
+      depression_score: 0.2,
+      stress_score: 0.3,
+      confidence: 0.7,
+      reasoning_note: 'test',
+    });
+
+    await processTurn(UID, SESSION_ID, 'test');
+
+    expect(scoreOnboardingTurn).toHaveBeenCalledTimes(1);
   });
 });
 

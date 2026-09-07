@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   checkSignalOrdering,
   checkFullSuppression,
+  checkGovernanceBlockedMode,
   checkS3GroundingOnly,
   checkPipelineInvariants,
 } from '../lib/pipeline-invariants';
@@ -51,19 +52,8 @@ describe('checkFullSuppression', () => {
     expect(checkFullSuppression(signals, 'crisis')).toBeNull();
   });
 
-  it('passes when governance=Blocked correctly routes to crisis, even at S0', () => {
-    const signals = [signal('A1_result', 'A1', 'S0'), signal('A9_pre_result', 'A9-pre', 'Blocked')];
-    expect(checkFullSuppression(signals, 'crisis')).toBeNull();
-  });
-
   it('flags S4 that did NOT route to crisis', () => {
     const signals = [signal('A1_result', 'A1', 'S4'), signal('A9_pre_result', 'A9-pre', 'Active')];
-    const violation = checkFullSuppression(signals, 'agent_turn');
-    expect(violation?.rule).toBe('full-suppression');
-  });
-
-  it('flags governance=Blocked that did NOT route to crisis', () => {
-    const signals = [signal('A1_result', 'A1', 'S1'), signal('A9_pre_result', 'A9-pre', 'Blocked')];
     const violation = checkFullSuppression(signals, 'agent_turn');
     expect(violation?.rule).toBe('full-suppression');
   });
@@ -71,6 +61,65 @@ describe('checkFullSuppression', () => {
   it('does not require suppression at S3 (grounding-only, not full suppression, is correct)', () => {
     const signals = [signal('A1_result', 'A1', 'S3'), signal('A9_pre_result', 'A9-pre', 'Active')];
     expect(checkFullSuppression(signals, 'agent_turn')).toBeNull();
+  });
+
+  it('does not require suppression for governance=Blocked at a non-S4 safety state routed to A2 mode=blocked (see checkGovernanceBlockedMode)', () => {
+    const signals = [signal('A1_result', 'A1', 'S1'), signal('A9_pre_result', 'A9-pre', 'Blocked')];
+    expect(checkFullSuppression(signals, 'agent_turn')).toBeNull();
+  });
+
+  // Live E2E re-run of the OKUVU findings (2026-09-07) caught this direction
+  // was missing: crisis forced at a non-S4 safety state via a testMode
+  // override (simulating a future regression, independent of the specific
+  // Blocked-coercion bug) produced zero invariant violations.
+  it('flags crisis at a non-S4 safety state (governance Active, not Blocked)', () => {
+    for (const s of ['S0', 'S1', 'S2', 'S3'] as const) {
+      const signals = [signal('A1_result', 'A1', s), signal('A9_pre_result', 'A9-pre', 'Active')];
+      const violation = checkFullSuppression(signals, 'crisis');
+      expect(violation?.rule).toBe('full-suppression');
+    }
+  });
+
+  it('flags crisis at a non-S4 safety state even when governance is Blocked', () => {
+    const signals = [signal('A1_result', 'A1', 'S0'), signal('A9_pre_result', 'A9-pre', 'Blocked')];
+    const violation = checkFullSuppression(signals, 'crisis');
+    expect(violation?.rule).toBe('full-suppression');
+  });
+});
+
+describe('checkGovernanceBlockedMode', () => {
+  it('passes when governance=Blocked (non-S4) correctly routes to A2 mode=blocked', () => {
+    const signals = [
+      signal('A1_result', 'A1', 'S0'),
+      signal('A9_pre_result', 'A9-pre', 'Blocked'),
+      signal('A8_decision', 'A8', { agent: 'A2', mode: 'blocked' }),
+    ];
+    expect(checkGovernanceBlockedMode(signals, 'agent_turn')).toBeNull();
+  });
+
+  it('flags governance=Blocked (non-S4) routed to A2 in the wrong mode', () => {
+    const signals = [
+      signal('A1_result', 'A1', 'S0'),
+      signal('A9_pre_result', 'A9-pre', 'Blocked'),
+      signal('A8_decision', 'A8', { agent: 'A2', mode: 'normal' }),
+    ];
+    const violation = checkGovernanceBlockedMode(signals, 'agent_turn');
+    expect(violation?.rule).toBe('governance-blocked-not-crisis');
+  });
+
+  it('does not apply when governance is Blocked AND safety is S4 (crisis is correct there)', () => {
+    const signals = [signal('A1_result', 'A1', 'S4'), signal('A9_pre_result', 'A9-pre', 'Blocked')];
+    expect(checkGovernanceBlockedMode(signals, 'crisis')).toBeNull();
+  });
+
+  it('does not apply when governance is not Blocked', () => {
+    const signals = [signal('A1_result', 'A1', 'S0'), signal('A9_pre_result', 'A9-pre', 'Active')];
+    expect(checkGovernanceBlockedMode(signals, 'agent_turn')).toBeNull();
+  });
+
+  it('does not apply to resultType=crisis (that direction is checkFullSuppression\'s job now)', () => {
+    const signals = [signal('A1_result', 'A1', 'S0'), signal('A9_pre_result', 'A9-pre', 'Blocked')];
+    expect(checkGovernanceBlockedMode(signals, 'crisis')).toBeNull();
   });
 });
 
@@ -94,11 +143,11 @@ describe('checkS3GroundingOnly', () => {
     expect(violation?.rule).toBe('s3-grounding-only');
   });
 
-  it('does not apply when governance=Blocked overrides S3 to crisis', () => {
+  it('does not apply when governance=Blocked overrides S3 to blocked mode', () => {
     const signals = [
       signal('A1_result', 'A1', 'S3'),
       signal('A9_pre_result', 'A9-pre', 'Blocked'),
-      signal('A8_decision', 'A8', { agent: 'crisis' }),
+      signal('A8_decision', 'A8', { agent: 'A2', mode: 'blocked' }),
     ];
     expect(checkS3GroundingOnly(signals)).toBeNull();
   });

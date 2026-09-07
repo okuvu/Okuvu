@@ -18,26 +18,33 @@ export const FIXED_TURN_COUNT = 2;
 // Verified 15-cell expected table (safety_state x governance_state), derived
 // directly from apps/api/src/agents/a8-router.ts's routeTurn logic with the
 // fixed session_count=2, turn_count=2 baseline above.
+//
+// Fixed 2026-09-07 (OKUVU finding H-2): every Blocked row below used to
+// expect {agent: 'crisis'} regardless of safety_state — that was this table
+// encoding a real routing bug as "verified/correct" rather than checking
+// against actual intended behavior. Crisis is reserved for safety_state=S4
+// only; Blocked at any other safety state routes to A2 mode='blocked' (a
+// real, persisted turn with a static policy-boundary reply, never silence).
 const EXPECTED_TABLE: Record<SafetyState, Record<GovernanceState, RouterDecision>> = {
   S0: {
     Active: { agent: 'A2', mode: 'normal' },
     Restricted: { agent: 'A2', mode: 'grounding-only' },
-    Blocked: { agent: 'crisis' },
+    Blocked: { agent: 'A2', mode: 'blocked' },
   },
   S1: {
     Active: { agent: 'A2', mode: 'normal' },
     Restricted: { agent: 'A2', mode: 'grounding-only' },
-    Blocked: { agent: 'crisis' },
+    Blocked: { agent: 'A2', mode: 'blocked' },
   },
   S2: {
     Active: { agent: 'A2', mode: 'normal' },
     Restricted: { agent: 'A2', mode: 'grounding-only' },
-    Blocked: { agent: 'crisis' },
+    Blocked: { agent: 'A2', mode: 'blocked' },
   },
   S3: {
     Active: { agent: 'A2', mode: 'grounding-only' },
     Restricted: { agent: 'A2', mode: 'grounding-only' },
-    Blocked: { agent: 'crisis' },
+    Blocked: { agent: 'A2', mode: 'blocked' },
   },
   S4: {
     Active: { agent: 'crisis' },

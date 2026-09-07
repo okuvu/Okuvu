@@ -8,21 +8,26 @@ import type { PipelineSignal } from '@evia/shared-types';
  *
  * Precision note vs the spec's plain-English wording: §5.2 says "S3/S4 (A1)
  * or Blocked (A9-pre) ⇒ no therapeutic step fires downstream." That's not
- * quite what the already-verified `a8-router.ts` does (see
- * `a8-state-space.ts`'s EXPECTED_TABLE, confirmed against the real
- * production `routeTurn`): S4 and Blocked *do* fully suppress (route to
- * crisis), but S3 (without Blocked) routes to A2 in `grounding-only` mode —
- * A2 still fires, just restricted. Implementing the spec's literal S3
- * wording would hard-fail correct, already-signed-off routing behavior, so
- * this module checks the two distinct invariants the real code actually
- * implements: full suppression for S4/Blocked, and a grounding-only mode
- * restriction for S3.
+ * quite what `a8-router.ts` does: S4 fully suppresses (routes to crisis),
+ * S3 (without Blocked) routes to A2 in `grounding-only` mode — A2 still
+ * fires, just restricted — and Blocked (without S4) routes to A2 in
+ * `blocked` mode — a real, persisted turn with a static policy-boundary
+ * reply, never the crisis silence path.
+ *
+ * Audit note (2026-09-07, OKUVU finding H-2): this module previously
+ * treated "Blocked (any safety state) ⇒ crisis" as the correct, verified
+ * invariant — because that was what `a8-router.ts` actually did at the
+ * time. That was itself the bug: a policy-level Blocked verdict was being
+ * coerced onto the clinical crisis path, silently dropping the turn (no
+ * response, no persisted record) for messages A1 had already scored as
+ * non-crisis. `a8-router.ts` and `a8-state-space.ts`'s EXPECTED_TABLE were
+ * both fixed alongside this file — crisis is now reserved for A1=S4 only.
  */
 
 const BOUNDARY_ORDER = ['A1_result', 'A9_pre_result', 'A8_decision', 'A2_result', 'A9_post_result'];
 
 export interface InvariantViolation {
-  rule: 'signal-ordering' | 'full-suppression' | 's3-grounding-only';
+  rule: 'signal-ordering' | 'full-suppression' | 's3-grounding-only' | 'governance-blocked-not-crisis';
   reason: string;
 }
 
@@ -50,21 +55,61 @@ export function checkSignalOrdering(signals: PipelineSignal[]): InvariantViolati
   return null;
 }
 
-/** S4 (any governance state) or governance=Blocked (any safety state) must fully suppress — the crisis silence path, no A2 output at all. */
+/**
+ * S4 and the crisis silence path must imply each other exactly —
+ * `safetyState === 'S4' <=> resultType === 'crisis'`, regardless of
+ * governance state. Checked in both directions: this used to only check
+ * S4-without-crisis; a live E2E re-run of the OKUVU findings (2026-09-07)
+ * caught that crisis-without-S4 (forced via a testMode override, simulating
+ * a future regression unrelated to the specific Blocked-coercion bug)
+ * slipped through both this check and `checkGovernanceBlockedMode` when
+ * governance wasn't Blocked — neither one is scoped to catch a generic
+ * "crisis fired for the wrong reason" case. This closes that gap.
+ */
 export function checkFullSuppression(
   signals: PipelineSignal[],
   resultType: 'agent_turn' | 'crisis' | 'error',
 ): InvariantViolation | null {
   const safetyState = stringPayload(findSignal(signals, 'A1_result'));
-  const governanceState = stringPayload(findSignal(signals, 'A9_pre_result'));
 
-  const mustSuppress = safetyState === 'S4' || governanceState === 'Blocked';
-  if (!mustSuppress) return null;
-
-  if (resultType !== 'crisis') {
+  if (safetyState === 'S4' && resultType !== 'crisis') {
     return {
       rule: 'full-suppression',
-      reason: `safetyState=${safetyState ?? 'unknown'} governanceState=${governanceState ?? 'unknown'} must route to the crisis silence path, but resultType was '${resultType}'.`,
+      reason: `safetyState=S4 must route to the crisis silence path, but resultType was '${resultType}'.`,
+    };
+  }
+  if (resultType === 'crisis' && safetyState !== 'S4') {
+    return {
+      rule: 'full-suppression',
+      reason: `resultType='crisis' but safetyState=${safetyState ?? 'unknown'} (not S4) — crisis must be reserved exclusively for S4.`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Governance=Blocked at a non-S4 safety state must route to A2 in
+ * mode='blocked' — a real, persisted turn with a static policy-boundary
+ * reply. (Blocked never legitimately reaching the crisis path at all is
+ * covered generally by `checkFullSuppression` above; this check only
+ * asserts the specific positive-path routing mode.) This is the inverse of
+ * a bug this module used to encode as correct (OKUVU finding H-2,
+ * 2026-09-07): Blocked was being coerced onto the crisis path, silently
+ * dropping turns A1 had already scored as non-crisis.
+ */
+export function checkGovernanceBlockedMode(
+  signals: PipelineSignal[],
+  resultType: 'agent_turn' | 'crisis' | 'error',
+): InvariantViolation | null {
+  const safetyState = stringPayload(findSignal(signals, 'A1_result'));
+  const governanceState = stringPayload(findSignal(signals, 'A9_pre_result'));
+  if (governanceState !== 'Blocked' || safetyState === 'S4' || resultType !== 'agent_turn') return null;
+
+  const a8Decision = findSignal(signals, 'A8_decision')?.payload as { mode?: string } | undefined;
+  if (a8Decision?.mode !== 'blocked') {
+    return {
+      rule: 'governance-blocked-not-crisis',
+      reason: `governanceState=Blocked with safetyState=${safetyState ?? 'unknown'} must route A2 to mode='blocked', got mode='${a8Decision?.mode ?? 'unknown'}'.`,
     };
   }
   return null;
@@ -94,6 +139,7 @@ export function checkPipelineInvariants(
   return [
     checkSignalOrdering(signals),
     checkFullSuppression(signals, resultType),
+    checkGovernanceBlockedMode(signals, resultType),
     checkS3GroundingOnly(signals),
   ].filter((v): v is InvariantViolation => v !== null);
 }

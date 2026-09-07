@@ -82,14 +82,29 @@ describe('A8 Router — 4 Gates', () => {
   });
 
   describe('Governance state — routing influence', () => {
-    it('returns crisis when governance is Blocked (safety S0)', () => {
+    it('returns A2 blocked mode (NOT crisis) when governance is Blocked (safety S0)', () => {
       const input: RouterInput = { safety_state: 'S0', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'blocked' });
+    });
+
+    it('returns A2 blocked mode (NOT crisis) when governance is Blocked (safety S2)', () => {
+      const input: RouterInput = { safety_state: 'S2', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'blocked' });
+    });
+
+    it('still routes to crisis when governance is Blocked but safety is S4 (crisis takes precedence)', () => {
+      const input: RouterInput = { safety_state: 'S4', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
       expect(routeTurn(input)).toEqual({ agent: 'crisis' });
     });
 
-    it('returns crisis when governance is Blocked (safety S2)', () => {
-      const input: RouterInput = { safety_state: 'S2', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
-      expect(routeTurn(input)).toEqual({ agent: 'crisis' });
+    it('Blocked takes precedence over the first-turn alliance-building special case', () => {
+      const input: RouterInput = { safety_state: 'S0', governance_state: 'Blocked', session_count: 1, turn_count: 1 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'blocked' });
+    });
+
+    it('Blocked takes precedence over S3 grounding-only', () => {
+      const input: RouterInput = { safety_state: 'S3', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'blocked' });
     });
 
     it('routes grounding-only when governance is Restricted (safety S0)', () => {

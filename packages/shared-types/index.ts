@@ -38,7 +38,14 @@ export interface RouterInput {
 
 export interface RouterDecision {
   agent: 'crisis' | 'A2'
-  mode?: 'normal' | 'grounding-only' | 'alliance-building'
+  /**
+   * 'blocked' means A9-pre (governance/policy) rejected the message but A1
+   * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4').
+   * This must never be conflated with 'crisis' — crisis is an A1-only
+   * decision. A 'blocked' turn still gets a real (static, non-LLM) response
+   * and a persisted Turn, unlike the crisis silence path.
+   */
+  mode?: 'normal' | 'grounding-only' | 'alliance-building' | 'blocked'
 }
 
 // ─── WebSocket Frame Types ───────────────────────────────────────

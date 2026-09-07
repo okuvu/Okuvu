@@ -12,3 +12,11 @@ export const A9_POST_S2_FALLBACK =
 export function getSafeFallback(safetyState: string): string {
   return safetyState === 'S2' ? A9_POST_S2_FALLBACK : A9_POST_DEGRADED_RESPONSE
 }
+
+// A9-pre (governance) rejected the message but A1 did not find crisis-level
+// risk — this is the router's 'blocked' mode (a8-router.ts). Distinct from
+// the crisis path: this always gets a real, persisted, non-alarming reply,
+// never silence.
+export const A9_PRE_BLOCKED_RESPONSE =
+  "I want to keep our conversation within what I can safely help with here. " +
+  "Let's take a step back — what would be most helpful for you right now?"
