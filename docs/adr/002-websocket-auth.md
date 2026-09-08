@@ -6,7 +6,7 @@
 
 ## Context
 
-The WebSocket client was passing Firebase auth tokens as URL query parameters (`wss://api.evia.ai/ws?token=...`). This exposed tokens in GCP load balancer logs, server access logs, and potentially browser history/referer headers. Additionally, the server-side `verifyFirebaseJWT` middleware reads from the `Authorization` header, not query params — meaning auth was effectively broken outside local dev (where `LOCAL_DEV_BYPASS_AUTH=true` bypasses validation entirely).
+The WebSocket client was passing Firebase auth tokens as URL query parameters (`wss://api.okuvu.in/ws?token=...`). This exposed tokens in GCP load balancer logs, server access logs, and potentially browser history/referer headers. Additionally, the server-side `verifyFirebaseJWT` middleware reads from the `Authorization` header, not query params — meaning auth was effectively broken outside local dev (where `LOCAL_DEV_BYPASS_AUTH=true` bypasses validation entirely).
 
 ## Decision
 

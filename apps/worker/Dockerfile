@@ -10,8 +10,8 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 
 RUN pnpm install --frozen-lockfile
 
-RUN pnpm --filter @evia/prisma exec prisma generate
-RUN pnpm --filter @evia/worker build
+RUN pnpm --filter @okuvu/prisma exec prisma generate
+RUN pnpm --filter @okuvu/worker build
 
 FROM node:22-alpine
 

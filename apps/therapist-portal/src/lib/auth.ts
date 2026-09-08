@@ -72,7 +72,7 @@ export async function auth() {
   // Safe to make consistent: F-01's boot guard already guarantees this
   // flag can never be "true" in NODE_ENV=production.
   if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
-    return { user: { id: 'mock', email: 'bypass@evia.dev', name: 'Bypass' } };
+    return { user: { id: 'mock', email: 'bypass@okuvu.dev', name: 'Bypass' } };
   }
   return getServerSession(authConfig);
 }

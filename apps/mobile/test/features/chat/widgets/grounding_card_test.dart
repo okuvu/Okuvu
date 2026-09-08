@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/core/websocket_service.dart';
-import 'package:evia/src/features/chat/models/grounding_result.dart';
-import 'package:evia/src/features/chat/widgets/grounding_card.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/core/websocket_service.dart';
+import 'package:okuvu/src/features/chat/models/grounding_result.dart';
+import 'package:okuvu/src/features/chat/widgets/grounding_card.dart';
 
 class _SpyWebSocketService extends WebSocketService {
   GroundingResult? sentResult;

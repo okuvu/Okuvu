@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@evia/prisma';
+import type { PrismaClient } from '@okuvu/prisma';
 import { appRouter } from '../routers/_app';
 
 const THERAPIST = { id: 'th_1', email: 'therapist@evia.dev', name: 'Dr. Therapist' };

@@ -1,4 +1,4 @@
-import type { RouterInput, RouterDecision, SafetyState } from '@evia/shared-types'
+import type { RouterInput, RouterDecision, SafetyState } from '@okuvu/shared-types'
 
 const VALID_SAFETY_STATES: ReadonlySet<string> = new Set(['S0', 'S1', 'S2', 'S3', 'S4'])
 

@@ -1,5 +1,5 @@
-import { generateContent } from '@evia/api/src/lib/vertex-ai';
-import type { CorpusCaseType } from '@evia/shared-types';
+import { generateContent } from '@okuvu/api/src/lib/vertex-ai';
+import type { CorpusCaseType } from '@okuvu/shared-types';
 
 /**
  * `expected_output` on a CorpusCase is behavioral/rubric shorthand written by

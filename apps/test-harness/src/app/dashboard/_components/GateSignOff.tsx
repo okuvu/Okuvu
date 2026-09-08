@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 import { trpc } from '@/trpc/client';
 
 export default function GateSignOff({ environment }: { environment: TestEnvironment }) {

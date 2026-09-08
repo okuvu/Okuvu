@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 
-import 'package:evia/src/core/tts_service.dart';
+import 'package:okuvu/src/core/tts_service.dart';
 
 void main() {
   const channel = MethodChannel('flutter_tts');

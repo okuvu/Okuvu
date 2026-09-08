@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:evia/src/features/home/widgets/quick_access_tile.dart';
+import 'package:okuvu/src/features/home/widgets/quick_access_tile.dart';
 
 void main() {
   group('QuickAccessTile', () {

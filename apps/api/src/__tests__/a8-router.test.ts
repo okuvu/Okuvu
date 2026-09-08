@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { routeTurn } from '../agents/a8-router.js';
-import type { RouterInput } from '@evia/shared-types';
+import type { RouterInput } from '@okuvu/shared-types';
 
 const s0normal: RouterInput = { safety_state: 'S0', session_count: 5, turn_count: 10 };
 const s1normal: RouterInput = { safety_state: 'S1', session_count: 5, turn_count: 10 };

@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useEnvironment } from '@/lib/environment-context';
 import { listRunsAction } from '../actions';
-import type { TestRun } from '@evia/prisma';
+import type { TestRun } from '@okuvu/prisma';
 import RunList from './RunList';
 import RunDetail from './RunDetail';
 import CompareView from './CompareView';

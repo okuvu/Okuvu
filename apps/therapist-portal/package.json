@@ -1,5 +1,5 @@
 {
-  "name": "@evia/therapist-portal",
+  "name": "@okuvu/therapist-portal",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,8 +11,8 @@
     "emulator": "firebase emulators:start --only auth"
   },
   "dependencies": {
-    "@evia/prisma": "workspace:*",
-    "@evia/shared-types": "workspace:*",
+    "@okuvu/prisma": "workspace:*",
+    "@okuvu/shared-types": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",
     "@tanstack/react-query": "^5.101.2",
     "@trpc/client": "^11.18.0",

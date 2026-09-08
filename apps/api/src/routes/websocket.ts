@@ -4,7 +4,7 @@ import websocketPlugin from '@fastify/websocket';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { handleSessionOpen, type SendFrame } from '../lib/session-handler.js';
 import { closeSession } from '../lib/session-close.js';
-import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@evia/shared-types';
+import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@okuvu/shared-types';
 import { processTurn } from '../pipeline/orchestrator.js';
 import { generateOnboardingOpening } from '../agents/a2/agent.js';
 import { prisma } from '../lib/prisma.js';
@@ -339,7 +339,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
 
         setToolResult(sessionId, {
           tool_type: pld.tool_type as string,
-          result: pld.result as import('@evia/shared-types').GroundingResult,
+          result: pld.result as import('@okuvu/shared-types').GroundingResult,
           turn_number: turnNumber,
         });
 

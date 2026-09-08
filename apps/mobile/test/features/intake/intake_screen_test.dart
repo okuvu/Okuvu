@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:evia/src/config/app_config.dart';
-import 'package:evia/src/features/intake/intake_screen.dart';
-import 'package:evia/src/features/intake/widgets/onboarding_progress_bar.dart';
+import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/features/intake/intake_screen.dart';
+import 'package:okuvu/src/features/intake/widgets/onboarding_progress_bar.dart';
 
 void main() {
   AppConfig.init('dev');

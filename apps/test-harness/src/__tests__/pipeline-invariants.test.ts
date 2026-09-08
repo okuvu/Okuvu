@@ -6,7 +6,7 @@ import {
   checkS3GroundingOnly,
   checkPipelineInvariants,
 } from '../lib/pipeline-invariants';
-import type { PipelineSignal } from '@evia/shared-types';
+import type { PipelineSignal } from '@okuvu/shared-types';
 
 const ts = '2026-01-01T00:00:00.000Z';
 

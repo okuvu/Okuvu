@@ -1,4 +1,4 @@
-import type { SafetyState } from '@evia/shared-types'
+import type { SafetyState } from '@okuvu/shared-types'
 
 export interface ConversationTurn {
   role: 'user' | 'assistant'

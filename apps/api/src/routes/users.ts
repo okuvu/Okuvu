@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-import type { UserConsent, CarePlanId, AssignmentState } from '@evia/shared-types';
+import type { UserConsent, CarePlanId, AssignmentState } from '@okuvu/shared-types';
 
 interface CarePlanBody {
   care_plan_id: CarePlanId;

@@ -1,5 +1,5 @@
 {
-  "name": "@evia/worker",
+  "name": "@okuvu/worker",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@evia/prisma": "workspace:*",
-    "@evia/shared-types": "workspace:*",
+    "@okuvu/prisma": "workspace:*",
+    "@okuvu/shared-types": "workspace:*",
     "@google-cloud/aiplatform": "^6.8.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",

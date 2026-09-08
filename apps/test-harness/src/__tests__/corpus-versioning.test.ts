@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createNewVersion, diffCases } from '../lib/corpus-versioning';
-import type { CorpusCase } from '@evia/shared-types';
+import type { CorpusCase } from '@okuvu/shared-types';
 
 function makeCase(overrides?: Partial<CorpusCase>): CorpusCase {
   return {

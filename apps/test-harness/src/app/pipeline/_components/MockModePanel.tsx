@@ -1,7 +1,7 @@
 'use client';
 
-import type { GovernanceState, SafetyState, TestAgentId } from '@evia/shared-types';
-import { SAFETY_LABELS } from '@evia/shared-types';
+import type { GovernanceState, SafetyState, TestAgentId } from '@okuvu/shared-types';
+import { SAFETY_LABELS } from '@okuvu/shared-types';
 import { AGENT_ORDER, mockModeFor, type MockInput } from '@/lib/dependency-graph';
 import { MOCK_INPUT_LABELS, type MockValues } from './mock-mode-mapping';
 

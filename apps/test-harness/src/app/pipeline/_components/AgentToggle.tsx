@@ -1,6 +1,6 @@
 'use client';
 
-import type { TestAgentId } from '@evia/shared-types';
+import type { TestAgentId } from '@okuvu/shared-types';
 import type { AgentNodeState, AgentNodeStatus } from './deriveAgentStatuses';
 
 const CHIP_STYLES: Record<AgentNodeState, string> = {

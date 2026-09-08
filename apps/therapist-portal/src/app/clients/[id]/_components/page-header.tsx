@@ -1,4 +1,4 @@
-import type { AssignmentState } from '@evia/shared-types';
+import type { AssignmentState } from '@okuvu/shared-types';
 
 interface PageHeaderProps {
   phoneNumber: string;

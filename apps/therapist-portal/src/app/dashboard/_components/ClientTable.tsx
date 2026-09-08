@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ClientListItem, SafetyState } from '@evia/shared-types';
+import type { ClientListItem, SafetyState } from '@okuvu/shared-types';
 import { maskPhone } from '@/lib/format';
 
 function formatLastSession(iso: string | null): string {

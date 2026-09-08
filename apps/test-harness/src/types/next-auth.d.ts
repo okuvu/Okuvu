@@ -1,5 +1,5 @@
 import { DefaultSession } from 'next-auth';
-import type { HarnessRole, TestEnvironment } from '@evia/shared-types';
+import type { HarnessRole, TestEnvironment } from '@okuvu/shared-types';
 
 declare module 'next-auth' {
   interface Session {

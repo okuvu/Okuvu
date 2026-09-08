@@ -1,4 +1,4 @@
-import type { SafetyState, GovernanceState, RouterDecision, CarePlanId } from '@evia/shared-types';
+import type { SafetyState, GovernanceState, RouterDecision, CarePlanId } from '@okuvu/shared-types';
 
 /**
  * TH-S09 — Mocked session context for single-agent invocation.

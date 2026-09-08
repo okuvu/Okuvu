@@ -1,4 +1,4 @@
-import type { PipelineSignal } from '@evia/shared-types';
+import type { PipelineSignal } from '@okuvu/shared-types';
 import { prisma } from './prisma';
 import { TEST_USER_PREFIX } from './mock-context';
 import { invokeAgent } from './agent-adapter';
@@ -9,8 +9,8 @@ import { invokeAgent } from './agent-adapter';
 // agent-adapter.ts already established for reaching into apps/api/src from
 // apps/test-harness/src/lib (see agent-adapter.ts's comment block for why
 // this works without apps/api being a declared workspace dependency).
-import { processTurn } from '@evia/api/src/pipeline/orchestrator';
-import type { PipelineResult, TestModeOptions } from '@evia/api/src/pipeline/types';
+import { processTurn } from '@okuvu/api/src/pipeline/orchestrator';
+import type { PipelineResult, TestModeOptions } from '@okuvu/api/src/pipeline/types';
 
 export type { PipelineResult, TestModeOptions };
 

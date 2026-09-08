@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:evia/src/features/crisis/crisis_overlay.dart';
+import 'package:okuvu/src/features/crisis/crisis_overlay.dart';
 
 Widget _crisisApp() {
   return const MaterialApp(

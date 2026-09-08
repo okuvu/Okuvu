@@ -1,4 +1,4 @@
-import type { TestAgentId } from '@evia/shared-types';
+import type { TestAgentId } from '@okuvu/shared-types';
 import { buildMockSessionContext, type MockSessionContext } from './mock-context';
 import { getEnv } from './env';
 import { withCannedMode } from './canned-mode';
@@ -14,22 +14,22 @@ import { withCannedMode } from './canned-mode';
 // credentials configured — an actual agent invocation that reaches Vertex AI
 // will fail at call time instead, which is caught and surfaced below.
 //
-// apps/api is NOT declared as a workspace dependency of @evia/test-harness
-// (its package.json has no "@evia/api" entry), so these are plain relative
+// apps/api is NOT declared as a workspace dependency of @okuvu/test-harness
+// (its package.json has no "@okuvu/api" entry), so these are plain relative
 // filesystem imports rather than a package import. Node/TS resolves the
 // imported files' own dependencies (e.g. @google-cloud/aiplatform) starting
 // from apps/api/node_modules, which pnpm populates independently of
 // apps/test-harness/node_modules, so resolution works without adding
 // apps/api to `transpilePackages`.
-import { classifySafety } from '@evia/api/src/agents/a1/agent';
-import type { A1Input } from '@evia/api/src/agents/a1/types';
-import { classifyGovernance } from '@evia/api/src/agents/a9/agent';
-import type { GovernanceInput } from '@evia/api/src/agents/a9/types';
-import { routeTurn } from '@evia/api/src/agents/a8-router';
-import { handleTurn } from '@evia/api/src/agents/a2/agent';
-import type { A2Input } from '@evia/api/src/agents/a2/types';
-import { a9PostReview } from '@evia/api/src/agents/a9-post/agent';
-import type { A9PostInput } from '@evia/api/src/agents/a9-post/types';
+import { classifySafety } from '@okuvu/api/src/agents/a1/agent';
+import type { A1Input } from '@okuvu/api/src/agents/a1/types';
+import { classifyGovernance } from '@okuvu/api/src/agents/a9/agent';
+import type { GovernanceInput } from '@okuvu/api/src/agents/a9/types';
+import { routeTurn } from '@okuvu/api/src/agents/a8-router';
+import { handleTurn } from '@okuvu/api/src/agents/a2/agent';
+import type { A2Input } from '@okuvu/api/src/agents/a2/types';
+import { a9PostReview } from '@okuvu/api/src/agents/a9-post/agent';
+import type { A9PostInput } from '@okuvu/api/src/agents/a9-post/types';
 
 export interface AgentInvocationResult {
   output: unknown;

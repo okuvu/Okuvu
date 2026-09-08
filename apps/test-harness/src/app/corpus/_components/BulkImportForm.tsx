@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import * as XLSX from 'xlsx';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 import type { bulkImportCasesAction } from '../actions';
 import { parseRows, parseCsvText, type ParsedRow } from '@/lib/corpus-csv';
 

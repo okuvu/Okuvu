@@ -1,5 +1,5 @@
-name: evia
-description: Evia — AI Mental Wellness Companion
+name: okuvu
+description: Okuvu — AI Mental Wellness Companion
 publish_to: 'none'
 version: 1.0.4+5
 
@@ -44,7 +44,7 @@ flutter:
   uses-material-design: true
 
 patrol:
-  app_name: Evia
+  app_name: Okuvu
   test_directory: integration_test
   android:
-    package_name: ai.evia.app
+    package_name: ai.okuvu.app

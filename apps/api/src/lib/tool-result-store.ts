@@ -1,4 +1,4 @@
-import type { GroundingResult } from '@evia/shared-types';
+import type { GroundingResult } from '@okuvu/shared-types';
 
 interface StoredToolResult {
   tool_type: string;

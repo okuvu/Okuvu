@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../app.js';
-import { getISTDateString } from '@evia/shared-types';
+import { getISTDateString } from '@okuvu/shared-types';
 
 const mockDeleteMany = vi.fn();
 

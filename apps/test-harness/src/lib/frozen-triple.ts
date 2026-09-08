@@ -1,5 +1,5 @@
-import type { FrozenTripleMetadata } from '@evia/shared-types';
-import type { Prisma } from '@evia/prisma';
+import type { FrozenTripleMetadata } from '@okuvu/shared-types';
+import type { Prisma } from '@okuvu/prisma';
 import { getPromptManifest, hashPromptManifest } from './prompt-hash';
 import type { TestEnvironment } from './prisma-rls';
 

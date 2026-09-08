@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/trpc/client';
 import { maskPhone, formatClientLabel } from '@/lib/format';
-import { SAFETY_LABELS, type AssignmentState, type SafetyState } from '@evia/shared-types';
+import { SAFETY_LABELS, type AssignmentState, type SafetyState } from '@okuvu/shared-types';
 
 const CARE_PLAN_NAMES: Record<string, string> = {
   CP1: 'Anxiety & Worry',

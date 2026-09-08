@@ -1,4 +1,4 @@
-package ai.evia.app
+package ai.okuvu.app
 
 import io.flutter.embedding.android.FlutterActivity
 

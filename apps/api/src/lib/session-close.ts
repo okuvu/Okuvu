@@ -1,4 +1,4 @@
-import type { CloseReason } from '@evia/shared-types';
+import type { CloseReason } from '@okuvu/shared-types';
 import { prisma } from './prisma.js';
 import { enqueueSummaryJob } from './summary-enqueue.js';
 

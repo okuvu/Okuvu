@@ -7,7 +7,7 @@ import type { NextConfig } from 'next';
 // its value (and a NEXT_PUBLIC_ mirror of it, unused anywhere in the app)
 // into the client-side JS bundle for every deploy. Do not re-add it.
 const nextConfig: NextConfig = {
-  transpilePackages: ['@evia/prisma', '@evia/shared-types'],
+  transpilePackages: ['@okuvu/prisma', '@okuvu/shared-types'],
 };
 
 export default nextConfig;

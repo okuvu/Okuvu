@@ -1,4 +1,4 @@
 #include "Generated.xcconfig"
 
-APP_DISPLAY_NAME=Evia
-PRODUCT_BUNDLE_IDENTIFIER=ai.evia.app
+APP_DISPLAY_NAME=Okuvu
+PRODUCT_BUNDLE_IDENTIFIER=ai.okuvu.app

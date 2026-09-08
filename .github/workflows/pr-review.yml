@@ -199,7 +199,7 @@ jobs:
           use_github_token: true
           share: false
           prompt: |
-            You are the Senior Engineer reviewing a PR for the EVIA project.
+            You are the Senior Engineer reviewing a PR for the Okuvu project.
 
             ## Context
             - Repo: ${{ github.repository }}

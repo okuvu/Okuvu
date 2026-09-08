@@ -1,4 +1,4 @@
-import type { ToolCardConfig, ToolCardType, BreathingConfig } from '@evia/shared-types';
+import type { ToolCardConfig, ToolCardType, BreathingConfig } from '@okuvu/shared-types';
 
 const DEFAULTS: Record<ToolCardType, ToolCardConfig> = {
   guided_breathing: {

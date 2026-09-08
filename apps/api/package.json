@@ -1,5 +1,5 @@
 {
-  "name": "@evia/api",
+  "name": "@okuvu/api",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,8 +12,8 @@
     "test:load": "k6 run load-tests/k6-websocket-load.js"
   },
   "dependencies": {
-    "@evia/prisma": "workspace:*",
-    "@evia/shared-types": "workspace:*",
+    "@okuvu/prisma": "workspace:*",
+    "@okuvu/shared-types": "workspace:*",
     "@fastify/websocket": "^11.0.0",
     "@google-cloud/aiplatform": "^6.8.1",
     "@google-cloud/secret-manager": "^6.0.1",

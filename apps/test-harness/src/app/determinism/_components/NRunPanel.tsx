@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { TestAgentId } from '@evia/shared-types';
+import type { TestAgentId } from '@okuvu/shared-types';
 import { trpc } from '@/trpc/client';
 import TraceViewer from '@/app/components/TraceViewer';
 import { AgentPicker, InputJsonField, parseInputJson } from './AgentInputPicker';

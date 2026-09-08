@@ -3,8 +3,8 @@ import { TRPCError } from '@trpc/server';
 import { protectedProcedure, router } from '../trpc';
 import { diffRuns } from '../../lib/run-diff';
 import { withEnvironment, withAnyEnvironment, withAllEnvironments, type TestEnvironment } from '../../lib/prisma-rls';
-import type { Prisma } from '@evia/prisma';
-import type { FrozenTripleMetadata } from '@evia/shared-types';
+import type { Prisma } from '@okuvu/prisma';
+import type { FrozenTripleMetadata } from '@okuvu/shared-types';
 
 /**
  * TH-S25 — TH-10 Trace & Results Viewer, `results` router.

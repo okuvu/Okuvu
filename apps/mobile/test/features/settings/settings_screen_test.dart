@@ -5,13 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:evia/src/config/app_config.dart';
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/features/settings/about_screen.dart';
-import 'package:evia/src/features/settings/emergency_contact_screen.dart';
-import 'package:evia/src/features/settings/privacy_screen.dart';
-import 'package:evia/src/features/settings/settings_screen.dart';
-import 'package:evia/src/widgets/voice_toggle.dart';
+import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/settings/about_screen.dart';
+import 'package:okuvu/src/features/settings/emergency_contact_screen.dart';
+import 'package:okuvu/src/features/settings/privacy_screen.dart';
+import 'package:okuvu/src/features/settings/settings_screen.dart';
+import 'package:okuvu/src/widgets/voice_toggle.dart';
 
 Dio _createMockDio({bool voiceEnabled = false}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));

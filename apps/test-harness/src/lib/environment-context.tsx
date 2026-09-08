@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useSession } from 'next-auth/react';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 
 const STORAGE_KEY = 'test-harness-environment';
 const DEFAULT_ENVIRONMENT: TestEnvironment = 'sandbox';

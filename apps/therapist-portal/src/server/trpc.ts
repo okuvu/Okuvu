@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@evia/prisma';
+import type { PrismaClient } from '@okuvu/prisma';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -10,7 +10,7 @@ export function isBypassEnabled(): boolean {
 
 export async function createTRPCContext(opts: { headers: Headers }) {
   const session = isBypassEnabled()
-    ? { user: { id: 'mock', email: 'bypass@evia.dev', name: 'Bypass' } }
+    ? { user: { id: 'mock', email: 'bypass@okuvu.dev', name: 'Bypass' } }
     : await auth();
   return { session, prisma, ...opts };
 }

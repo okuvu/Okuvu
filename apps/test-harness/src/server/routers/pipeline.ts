@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import type { TestRunStatus } from '@evia/shared-types';
+import type { TestRunStatus } from '@okuvu/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import {
   runFullPipeline as runFullPipelineImpl,
@@ -15,8 +15,8 @@ import { prisma } from '../../lib/prisma';
 
 // ─── Direct import of apps/api's real orchestrator + its test-hook types ───
 // Same relative-import pattern as pipeline-runner.ts / agent-adapter.ts.
-import { processTurn } from '@evia/api/src/pipeline/orchestrator';
-import type { TestModeOptions } from '@evia/api/src/pipeline/types';
+import { processTurn } from '@okuvu/api/src/pipeline/orchestrator';
+import type { TestModeOptions } from '@okuvu/api/src/pipeline/types';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 

@@ -2,7 +2,7 @@ import type { NextConfig } from 'next';
 import path from 'node:path';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@evia/prisma', '@evia/shared-types', '@evia/api'],
+  transpilePackages: ['@okuvu/prisma', '@okuvu/shared-types', '@okuvu/api'],
   // apps/api/src/prompts/index.ts and apps/test-harness/src/lib/prompt-hash.ts
   // both `readFileSync` prompt .txt files using a runtime-constructed path.
   // This app's Vercel "Root Directory" is apps/test-harness (needed so

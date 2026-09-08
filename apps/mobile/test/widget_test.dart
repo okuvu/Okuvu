@@ -5,12 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 
-import 'package:evia/src/app.dart';
-import 'package:evia/src/config/app_config.dart';
-import 'package:evia/src/core/not_found_screen.dart';
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/router/router.dart';
-import 'package:evia/src/core/auth_service.dart';
+import 'package:okuvu/src/app.dart';
+import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/core/not_found_screen.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/router/router.dart';
+import 'package:okuvu/src/core/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class MockHttpClientAdapter implements HttpClientAdapter {

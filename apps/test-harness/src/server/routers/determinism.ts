@@ -3,11 +3,11 @@ import { z } from 'zod';
 import { protectedProcedure, router } from '../trpc';
 import { invokeAgent } from '../../lib/agent-adapter';
 import { enumerateA8Cells } from '../../lib/a8-state-space';
-import { clearRetrievedContext } from '@evia/api/src/lib/retrieved-context-cache';
-import { clearToolResult } from '@evia/api/src/lib/tool-result-store';
+import { clearRetrievedContext } from '@okuvu/api/src/lib/retrieved-context-cache';
+import { clearToolResult } from '@okuvu/api/src/lib/tool-result-store';
 
 // TestAgentId, spelled out as a zod enum so it can be used as tRPC input
-// validation without re-exporting the type from @evia/shared-types (same
+// validation without re-exporting the type from @okuvu/shared-types (same
 // approach as singleAgent.ts).
 const testAgentIdSchema = z.enum([
   'A1',

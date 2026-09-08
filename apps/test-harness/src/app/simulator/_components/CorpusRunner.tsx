@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { TestEnvironment, TestRunStatus } from '@evia/shared-types';
+import type { TestEnvironment, TestRunStatus } from '@okuvu/shared-types';
 import type { CorpusCaseWithLineage } from '@/server/routers/corpus';
 import { listCasesAction, bulkImportCasesAction, runCaseAction } from '@/app/corpus/actions';
 import BadgeChip from '@/app/components/BadgeChip';

@@ -1,6 +1,6 @@
 'use client';
 
-import type { TestAgentId } from '@evia/shared-types';
+import type { TestAgentId } from '@okuvu/shared-types';
 
 export const DETERMINISM_AGENT_IDS: readonly TestAgentId[] = [
   'A1',

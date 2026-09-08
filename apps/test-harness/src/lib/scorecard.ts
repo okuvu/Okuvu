@@ -1,4 +1,4 @@
-import type { TestRunStatus } from '@evia/shared-types';
+import type { TestRunStatus } from '@okuvu/shared-types';
 
 /**
  * Scorecard aggregator (mvp-v2-engineering-spec.md §6.3/§7). Best-effort,

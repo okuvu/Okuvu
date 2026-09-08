@@ -1,5 +1,5 @@
 import { prisma } from './prisma.js';
-import type { AgentContextBundle, SessionSummaryView } from '@evia/shared-types';
+import type { AgentContextBundle, SessionSummaryView } from '@okuvu/shared-types';
 import type { ConversationTurn } from '../agents/a1/types.js';
 
 export function summariesToConversationTurns(summaries: SessionSummaryView[]): ConversationTurn[] {

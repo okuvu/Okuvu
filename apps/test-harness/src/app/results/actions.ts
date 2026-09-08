@@ -3,7 +3,7 @@
 import { initTRPC } from '@trpc/server';
 import { createTRPCContext } from '@/server/trpc';
 import { resultsRouter } from '@/server/routers/results';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 
 type Context = Awaited<ReturnType<typeof createTRPCContext>>;
 

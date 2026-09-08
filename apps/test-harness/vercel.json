@@ -1,6 +1,6 @@
 {
-  "installCommand": "pnpm install && pnpm --filter @evia/prisma generate",
-  "buildCommand": "pnpm --filter @evia/test-harness build",
+  "installCommand": "pnpm install && pnpm --filter @okuvu/prisma generate",
+  "buildCommand": "pnpm --filter @okuvu/test-harness build",
   "framework": "nextjs",
   "outputDirectory": ".next"
 }

@@ -5,7 +5,7 @@ import { FAULT_OPTIONS, type FaultOptionId } from './fault-options';
 import BreathingPulse from './BreathingPulse';
 import PanelHeader from './PanelHeader';
 import type { ScenarioChoice } from './scenario-choice';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 
 const SCENARIO_DESCRIPTIONS: Record<PersonaId, string> = {
   anxious: 'Escalating anxiety over the conversation',

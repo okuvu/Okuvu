@@ -4,15 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 
-import 'package:evia/src/config/app_config.dart';
-import 'package:evia/src/features/home/home_screen.dart';
-import 'package:evia/src/features/chat/chat_screen.dart';
-import 'package:evia/src/features/progress/progress_screen.dart';
-import 'package:evia/src/features/settings/settings_screen.dart';
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/features/chat/models/agent_turn_frame.dart';
-import 'package:evia/src/core/websocket_service.dart';
-import 'package:evia/src/features/chat/models/grounding_result.dart';
+import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/features/home/home_screen.dart';
+import 'package:okuvu/src/features/chat/chat_screen.dart';
+import 'package:okuvu/src/features/progress/progress_screen.dart';
+import 'package:okuvu/src/features/settings/settings_screen.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/chat/models/agent_turn_frame.dart';
+import 'package:okuvu/src/core/websocket_service.dart';
+import 'package:okuvu/src/features/chat/models/grounding_result.dart';
 
 class FakeWebSocketService implements WebSocketService {
   @override
@@ -129,7 +129,7 @@ void main() {
       expect(find.text('Settings'), findsOneWidget);
     });
 
-    testWidgets('renders from evia label', (tester) async {
+    testWidgets('renders from okuvu label', (tester) async {
       tester.view.physicalSize = const Size(1080, 1920);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);

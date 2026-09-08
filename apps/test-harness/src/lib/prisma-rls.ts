@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@evia/prisma';
+import type { Prisma, PrismaClient } from '@okuvu/prisma';
 import { prisma } from './prisma';
 
 /**

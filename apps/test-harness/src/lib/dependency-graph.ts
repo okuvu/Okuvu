@@ -1,4 +1,4 @@
-import type { TestAgentId } from '@evia/shared-types';
+import type { TestAgentId } from '@okuvu/shared-types';
 
 // ─── TH-S19: Dependency-Aware Agent Toggle Engine ──────────────────────────
 //

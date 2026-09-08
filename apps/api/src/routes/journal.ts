@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import type { CreateJournalEntryBody } from '@evia/shared-types';
+import type { CreateJournalEntryBody } from '@okuvu/shared-types';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 

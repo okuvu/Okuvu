@@ -1,4 +1,4 @@
-import type { PipelineSignal } from '@evia/shared-types';
+import type { PipelineSignal } from '@okuvu/shared-types';
 
 /**
  * Deterministic pipeline-level invariants (mvp-v2-engineering-spec.md §5.2),

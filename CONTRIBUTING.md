@@ -1,6 +1,6 @@
-# Contributing to Evia
+# Contributing to Okuvu
 
-This guide is for the Evia engineering team. It covers local setup, our git workflow, PR process, and code conventions.
+This guide is for the Okuvu engineering team. It covers local setup, our git workflow, PR process, and code conventions.
 
 ---
 
@@ -20,8 +20,8 @@ Install these before cloning the repo:
 ### 2. Clone and install
 
 ```bash
-git clone https://github.com/suvoksystems/evia.git
-cd evia
+git clone https://github.com/OkuvuAI/okuvu.git
+cd okuvu
 pnpm install
 ```
 

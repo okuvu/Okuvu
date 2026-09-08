@@ -1,5 +1,5 @@
-import type { SafetyState, GovernanceState, RouterDecision } from '@evia/shared-types';
-import { routeTurn } from '@evia/api/src/agents/a8-router';
+import type { SafetyState, GovernanceState, RouterDecision } from '@okuvu/shared-types';
+import { routeTurn } from '@okuvu/api/src/agents/a8-router';
 
 // ─── TH-S13: A8 router decision-table state space ──────────────────────────
 //

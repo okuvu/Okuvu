@@ -1,4 +1,4 @@
-import type { ServerFrame } from '@evia/shared-types';
+import type { ServerFrame } from '@okuvu/shared-types';
 import { prisma } from './prisma.js';
 import {
   getISTDateString,

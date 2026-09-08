@@ -1,4 +1,4 @@
-import type { CorpusCase } from '@evia/shared-types';
+import type { CorpusCase } from '@okuvu/shared-types';
 
 export interface PairedComparisonRow {
   oldCase: CorpusCase;

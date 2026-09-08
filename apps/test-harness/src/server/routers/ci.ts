@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import type { TestRunStatus } from '@evia/shared-types';
+import type { TestRunStatus } from '@okuvu/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import {
   listWorkflowRuns,

@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-export { getISTDateString } from '@evia/shared-types';
+export { getISTDateString } from '@okuvu/shared-types';
 
 export function getDailyLimit(tier: 'SD' | 'TL'): number {
   const key = tier === 'SD' ? 'SESSION_LIMIT_SD_DAILY' : 'SESSION_LIMIT_TL_DAILY';

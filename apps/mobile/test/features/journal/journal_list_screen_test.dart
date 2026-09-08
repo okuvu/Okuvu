@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/features/journal/journal_list_screen.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/journal/journal_list_screen.dart';
 
 Dio _createMockDio({required List<dynamic> entries}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));

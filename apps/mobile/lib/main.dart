@@ -47,7 +47,7 @@ void main() {
     };
 
     Logger.debug('========================================');
-    Logger.debug('  Evia — Starting up');
+      Logger.debug('  Okuvu — Starting up');
     Logger.debug('  Environment: ${AppConfig.environment.label}');
     Logger.debug('  Base URL:    ${AppConfig.apiBaseUrl}');
     Logger.debug('========================================');
@@ -56,7 +56,7 @@ void main() {
   }, (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     Logger.debug('========================================');
-    Logger.debug('  Evia — Unhandled error during startup');
+      Logger.debug('  Okuvu — Unhandled error during startup');
     Logger.debug('  $error');
     Logger.debug('  $stack');
     Logger.debug('========================================');
@@ -82,7 +82,7 @@ class _FatalErrorApp extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Evia',
+                  'Okuvu',
                   style: TextStyle(
                     fontSize: 40.0,
                     fontWeight: FontWeight.bold,

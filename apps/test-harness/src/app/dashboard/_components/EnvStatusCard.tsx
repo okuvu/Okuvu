@@ -1,4 +1,4 @@
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 import { getRunStatusPresentation } from '@/lib/run-status';
 
 type StatusKey = 'running' | 'pass' | 'halt' | 'warning' | 'error';

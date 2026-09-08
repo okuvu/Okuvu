@@ -5,13 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 
-import 'package:evia/src/config/app_config.dart';
-import 'package:evia/src/features/consent/consent_screen.dart';
-import 'package:evia/src/features/consent/consent_request.dart';
-import 'package:evia/src/features/intake/intake_screen.dart';
-import 'package:evia/src/features/intake/cold_start_screen.dart';
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/core/auth_service.dart';
+import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/features/consent/consent_screen.dart';
+import 'package:okuvu/src/features/consent/consent_request.dart';
+import 'package:okuvu/src/features/intake/intake_screen.dart';
+import 'package:okuvu/src/features/intake/cold_start_screen.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/core/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class FakeAuthService implements AuthService {

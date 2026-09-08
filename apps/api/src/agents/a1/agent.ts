@@ -1,5 +1,5 @@
 import { generateContent } from '../../lib/generate-content.js';
-import type { SafetyState } from '@evia/shared-types';
+import type { SafetyState } from '@okuvu/shared-types';
 import { buildSafetyPrompt } from './prompts.js';
 import type { A1Input, A1Output } from './types.js';
 

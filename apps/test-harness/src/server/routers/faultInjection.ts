@@ -7,9 +7,9 @@ import { withEnvironment } from '../../lib/prisma-rls';
 
 // ─── Direct import of apps/api's orchestrator, following the same
 // relative-import pattern agent-adapter.ts uses (TH-S09/TH-S10 precedent).
-import { processTurn } from '@evia/api/src/pipeline/orchestrator';
-import { A2_DEGRADED_RESPONSE } from '@evia/api/src/pipeline/fallbacks';
-import type { TestModeOptions } from '@evia/api/src/pipeline/types';
+import { processTurn } from '@okuvu/api/src/pipeline/orchestrator';
+import { A2_DEGRADED_RESPONSE } from '@okuvu/api/src/pipeline/fallbacks';
+import type { TestModeOptions } from '@okuvu/api/src/pipeline/types';
 
 // ─── Shared zod pieces ──────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import type { TestRunStatus } from '@evia/shared-types';
+import type { TestRunStatus } from '@okuvu/shared-types';
 import { getRunStatusPresentation } from '@/lib/run-status';
 
 export default function RunStatusBadge({ status }: { status: TestRunStatus }) {

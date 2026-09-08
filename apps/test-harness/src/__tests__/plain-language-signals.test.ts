@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getPlainLanguageRows, getRowColorClass } from '../lib/plain-language-signals';
-import type { PipelineSignal } from '@evia/shared-types';
+import type { PipelineSignal } from '@okuvu/shared-types';
 
 function signal(boundary: string, payload: unknown): PipelineSignal {
   return { boundary, agent: 'orchestrator', payload, timestamp: '2026-01-01T00:00:00.000Z' };

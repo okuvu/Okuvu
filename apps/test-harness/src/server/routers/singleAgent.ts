@@ -6,7 +6,7 @@ import { buildMockSessionContext, TEST_USER_PREFIX, type MockSessionContext } fr
 import { getAgentSchema } from '../../lib/agent-schemas';
 
 // TestAgentId, spelled out as a zod enum so it can be used as tRPC input
-// validation without re-exporting the type from @evia/shared-types.
+// validation without re-exporting the type from @okuvu/shared-types.
 const testAgentIdSchema = z.enum([
   'A1',
   'A2',

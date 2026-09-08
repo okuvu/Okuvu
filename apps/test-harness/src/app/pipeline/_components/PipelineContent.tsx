@@ -1,11 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { TestAgentId } from '@evia/shared-types';
+import type { TestAgentId } from '@okuvu/shared-types';
 import { trpc } from '@/trpc/client';
 import { useEnvironment } from '@/lib/environment-context';
 import RunStatusBadge from '@/app/components/RunStatusBadge';
-import type { TestRunStatus } from '@evia/shared-types';
+import type { TestRunStatus } from '@okuvu/shared-types';
 import { computeActivation, tryDisable } from '@/lib/dependency-graph';
 import type { AgentTraceEntry } from '@/lib/pipeline-runner';
 import PipelineDiagram from './PipelineDiagram';

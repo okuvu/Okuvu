@@ -1,4 +1,4 @@
-import { PrismaClient, HarnessRole } from '@evia/prisma';
+import { PrismaClient, HarnessRole } from '@okuvu/prisma';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 

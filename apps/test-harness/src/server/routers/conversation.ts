@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import type { CloseReason, TestRunStatus } from '@evia/shared-types';
+import type { CloseReason, TestRunStatus } from '@okuvu/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import { setupSyntheticSession } from '../../lib/pipeline-runner';
 import { withEnvironment, withAnyEnvironment } from '../../lib/prisma-rls';
@@ -14,13 +14,13 @@ import { checkPipelineInvariants, type InvariantViolation } from '../../lib/pipe
 
 // ─── Direct import of apps/api's real orchestrator ──────────────────────────
 // Same relative-import pattern as pipeline-runner.ts / agent-adapter.ts.
-import { processTurn } from '@evia/api/src/pipeline/orchestrator';
-import type { TestModeOptions } from '@evia/api/src/pipeline/types';
+import { processTurn } from '@okuvu/api/src/pipeline/orchestrator';
+import type { TestModeOptions } from '@okuvu/api/src/pipeline/types';
 
 // ─── TH-S22: direct import of apps/api's real session-close flow ───────────
 // Same relative-import pattern/depth as the orchestrator import above
 // (server/routers/conversation.ts -> ../../../../api/src/...).
-import { closeSession } from '@evia/api/src/lib/session-close';
+import { closeSession } from '@okuvu/api/src/lib/session-close';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 const personaIdSchema = z.enum(['anxious', 'crisis-escalating', 'fidelity', 'adversarial']);

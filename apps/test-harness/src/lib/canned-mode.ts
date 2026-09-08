@@ -1,4 +1,4 @@
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 
 /**
  * TH-S17 — sandbox runs should be free/deterministic by default: no live

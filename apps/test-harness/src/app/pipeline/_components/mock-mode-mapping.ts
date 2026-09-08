@@ -1,4 +1,4 @@
-import type { GovernanceState, RouterDecision, SafetyState, TestAgentId } from '@evia/shared-types';
+import type { GovernanceState, RouterDecision, SafetyState, TestAgentId } from '@okuvu/shared-types';
 import type { MockInput } from '@/lib/dependency-graph';
 
 /**

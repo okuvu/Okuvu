@@ -1,7 +1,7 @@
 'use client';
 
 import { trpc } from '@/trpc/client';
-import { SAFETY_LABELS, type SafetyState, type GovernanceState } from '@evia/shared-types';
+import { SAFETY_LABELS, type SafetyState, type GovernanceState } from '@okuvu/shared-types';
 
 // Fixed row/column order for the two axes. Neither is exported as a const
 // array from shared-types, so mirrored here (matches the underlying

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@evia/prisma';
+import { PrismaClient } from '@okuvu/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { loadEnvFile } from 'node:process';
 import { Pool } from 'pg';

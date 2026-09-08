@@ -1,4 +1,4 @@
-# Evia — AI Mental Wellness Companion
+# Okuvu — AI Mental Wellness Companion
 
 > Internal development repository — Suvok Systems LLP, Bengaluru
 > **Confidential. Do not share outside the engineering team.**
@@ -7,7 +7,7 @@
 
 ## What This Is
 
-Evia is an AI-powered mental wellness companion for Indian Gen Z, built on a supervised therapist-led model. Users interact with an AI agent (A2) in bounded daily sessions; a licensed therapist oversees care plans and session notes via a separate portal.
+Okuvu is an AI-powered mental wellness companion for Indian Gen Z, built on a supervised therapist-led model. Users interact with an AI agent (A2) in bounded daily sessions; a licensed therapist oversees care plans and session notes via a separate portal.
 
 **This repo is the complete MVP codebase.** It is a monorepo containing three deployable apps and two shared packages.
 
@@ -16,14 +16,14 @@ Evia is an AI-powered mental wellness companion for Indian Gen Z, built on a sup
 ## Repo Structure
 
 ```
-evia/
+okuvu/
 ├── apps/
 │   ├── mobile/               Flutter app (Android-first MVP) — not an npm workspace member
-│   ├── api/                  Node.js/TypeScript backend (Cloud Run) — @evia/api
-│   └── therapist-portal/     Next.js therapist portal — @evia/therapist-portal (see apps/therapist-portal/README.md)
+ │   ├── api/                  Node.js/TypeScript backend (Cloud Run) — @okuvu/api
+ │   └── therapist-portal/     Next.js therapist portal — @okuvu/therapist-portal (see apps/therapist-portal/README.md)
 ├── packages/
-│   ├── prisma/               Prisma schema + generated client (shared) — @evia/prisma
-│   └── shared-types/         TypeScript types shared across apps — @evia/shared-types
+ │   ├── prisma/               Prisma schema + generated client (shared) — @okuvu/prisma
+ │   └── shared-types/         TypeScript types shared across apps — @okuvu/shared-types
 ├── scripts/                  Deploy and utility scripts
 ├── infra/                    Cloud Build + Cloud Run configs
 ├── load-tests/               k6 WebSocket load test scripts
@@ -68,8 +68,8 @@ See [docs/neon-setup.md](docs/neon-setup.md) for the full local database setup g
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/EviaAI/evia.git
-cd evia
+git clone https://github.com/OkuvuAI/okuvu.git
+cd okuvu
 
 # 2. Copy env template and fill in your values
 cp .env.example .env
@@ -150,4 +150,4 @@ All stories are tracked in ClickUp under the **Evia** folder.
 
 ---
 
-*EVIA · Suvok Systems LLP · Bengaluru · Confidential*
+*OKUVU · Suvok Systems LLP · Bengaluru · Confidential*

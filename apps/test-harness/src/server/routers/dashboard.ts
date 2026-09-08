@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { protectedProcedure, router } from '../trpc';
 import { withEnvironment } from '../../lib/prisma-rls';
-import { resolveProvider } from '@evia/api/src/lib/generate-content';
+import { resolveProvider } from '@okuvu/api/src/lib/generate-content';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 

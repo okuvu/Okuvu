@@ -1,4 +1,4 @@
-import { PrismaClient } from '@evia/prisma';
+import { PrismaClient } from '@okuvu/prisma';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import type { CorpusCaseType, TestEnvironment } from '@evia/shared-types';
+import type { CorpusCaseType, TestEnvironment } from '@okuvu/shared-types';
 import type { createCaseAction } from '../actions';
 
 const CASE_TYPES: CorpusCaseType[] = ['safety', 'fidelity', 'adversarial', 'persona'];

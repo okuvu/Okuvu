@@ -6,7 +6,7 @@ const TAG_LENGTH = 16;
 
 const ENCODED_SEPARATOR = ':';
 const SECRET_NAME = 'emergency-contact-key';
-const SECRET_PROJECT_ID = process.env.VERTEX_AI_PROJECT_ID ?? 'evia-dev';
+const SECRET_PROJECT_ID = process.env.VERTEX_AI_PROJECT_ID ?? 'okuvu-dev';
 
 let cachedKey: Buffer | null = null;
 

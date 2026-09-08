@@ -4,7 +4,7 @@ export interface StageTiming {
 }
 
 import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
-import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@evia/shared-types';
+import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@okuvu/shared-types';
 
 // ─── Test Hooks (TH-S10) ───────────────────────────────────────────
 //

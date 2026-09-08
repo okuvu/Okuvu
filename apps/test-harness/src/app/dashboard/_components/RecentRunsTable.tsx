@@ -1,4 +1,4 @@
-import type { TestRunStatus } from '@evia/shared-types';
+import type { TestRunStatus } from '@okuvu/shared-types';
 import RunStatusBadge from '@/app/components/RunStatusBadge';
 
 export interface RecentRunRow {

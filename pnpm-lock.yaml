@@ -12,12 +12,6 @@ importers:
 
   apps/api:
     dependencies:
-      '@evia/prisma':
-        specifier: workspace:*
-        version: link:../../packages/prisma
-      '@evia/shared-types':
-        specifier: workspace:*
-        version: link:../../packages/shared-types
       '@fastify/websocket':
         specifier: ^11.0.0
         version: 11.2.0
@@ -30,6 +24,12 @@ importers:
       '@google-cloud/tasks':
         specifier: ^6.2.3
         version: 6.2.3
+      '@okuvu/prisma':
+        specifier: workspace:*
+        version: link:../../packages/prisma
+      '@okuvu/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0
@@ -73,21 +73,21 @@ importers:
 
   apps/test-harness:
     dependencies:
-      '@evia/api':
-        specifier: workspace:*
-        version: link:../api
-      '@evia/prisma':
-        specifier: workspace:*
-        version: link:../../packages/prisma
-      '@evia/shared-types':
-        specifier: workspace:*
-        version: link:../../packages/shared-types
       '@google-cloud/aiplatform':
         specifier: ^6.8.1
         version: 6.8.1
       '@google-cloud/tasks':
         specifier: ^6.2.3
         version: 6.2.3
+      '@okuvu/api':
+        specifier: workspace:*
+        version: link:../api
+      '@okuvu/prisma':
+        specifier: workspace:*
+        version: link:../../packages/prisma
+      '@okuvu/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0
@@ -164,10 +164,10 @@ importers:
 
   apps/therapist-portal:
     dependencies:
-      '@evia/prisma':
+      '@okuvu/prisma':
         specifier: workspace:*
         version: link:../../packages/prisma
-      '@evia/shared-types':
+      '@okuvu/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
       '@prisma/adapter-pg':
@@ -246,15 +246,15 @@ importers:
 
   apps/worker:
     dependencies:
-      '@evia/prisma':
-        specifier: workspace:*
-        version: link:../../packages/prisma
-      '@evia/shared-types':
-        specifier: workspace:*
-        version: link:../../packages/shared-types
       '@google-cloud/aiplatform':
         specifier: ^6.8.1
         version: 6.8.1
+      '@okuvu/prisma':
+        specifier: workspace:*
+        version: link:../../packages/prisma
+      '@okuvu/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0

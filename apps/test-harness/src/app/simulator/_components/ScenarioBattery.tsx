@@ -5,7 +5,7 @@ import { trpc } from '@/trpc/client';
 import { PERSONA_SCRIPTS, PERSONA_LABELS, type PersonaId } from '@/lib/persona-scripts';
 import { summarizePersonaRun, getRowColorClass } from '@/lib/plain-language-signals';
 import type { PerTurnTrace } from '@/lib/trace-export';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 import ChatPane from './ChatPane';
 import FlowStatusPane from './FlowStatusPane';
 import BreathingPulse from './BreathingPulse';

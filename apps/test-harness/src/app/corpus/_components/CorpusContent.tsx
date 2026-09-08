@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEnvironment } from '@/lib/environment-context';
-import type { CorpusCaseType, TestRunStatus } from '@evia/shared-types';
+import type { CorpusCaseType, TestRunStatus } from '@okuvu/shared-types';
 import type { CorpusCaseWithLineage } from '@/server/routers/corpus';
 import {
   listCasesAction,

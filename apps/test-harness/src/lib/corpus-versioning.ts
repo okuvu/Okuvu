@@ -1,4 +1,4 @@
-import type { CorpusCase } from '@evia/shared-types';
+import type { CorpusCase } from '@okuvu/shared-types';
 
 /**
  * Build the data for a new version row of a CorpusCase.

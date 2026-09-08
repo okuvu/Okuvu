@@ -1,4 +1,4 @@
-import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@evia/shared-types';
+import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@okuvu/shared-types';
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
@@ -209,7 +209,7 @@ export async function processTurn(
   let crisisFlag = false;
   let carePlanReviewFlag = false;
   let onboardingInference: OnboardingInferenceOutput | undefined;
-  let toolCard: import('@evia/shared-types').ToolCardConfig | undefined;
+  let toolCard: import('@okuvu/shared-types').ToolCardConfig | undefined;
 
   let toolResultContext: string | undefined;
   const pendingToolResult = getToolResult(sessionId);

@@ -12,7 +12,7 @@ import { getEnv } from '@/lib/env';
  * count of `SafetyState` rows currently sitting at S3/S4 (the crisis-adjacent
  * end of the safety-state scale) against the total `SafetyState` row count,
  * alongside raw `Turn` and `GovernanceLog` counts for scale/context. These
- * are queried from the *main* `@evia/prisma` schema (User/SafetyState/Turn/
+ * are queried from the *main* `@okuvu/prisma` schema (User/SafetyState/Turn/
  * GovernanceLog — not the test-harness models), read-only, via the plain
  * `prisma` singleton — no writes happen on this page.
  *

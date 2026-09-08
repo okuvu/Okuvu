@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 import type { CorpusCaseWithLineage } from '@/server/routers/corpus';
 import { diffCases } from '@/lib/corpus-versioning';
 import { listCasesAction, versionCaseAction, generateVariationsAction } from '../actions';

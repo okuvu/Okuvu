@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { TestRun } from '@evia/prisma';
+import type { TestRun } from '@okuvu/prisma';
 import RunStatusBadge from '@/app/components/RunStatusBadge';
 import BadgeChip from '@/app/components/BadgeChip';
 import { archiveRunAction } from '../actions';

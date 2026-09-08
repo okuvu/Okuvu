@@ -1,4 +1,4 @@
-import type { FrozenTripleMetadata } from '@evia/shared-types';
+import type { FrozenTripleMetadata } from '@okuvu/shared-types';
 
 /**
  * TH-S25 — pure diff helper for the results/trace viewer's compare view.

@@ -4,7 +4,7 @@ import type { PerTurnTrace } from '@/lib/trace-export';
 import { getPlainLanguageRows, getRowColorClass, type SignalRowStatus } from '@/lib/plain-language-signals';
 import RunStatusBadge from '@/app/components/RunStatusBadge';
 import TraceViewer from '@/app/components/TraceViewer';
-import type { PipelineSignal, TestRunStatus } from '@evia/shared-types';
+import type { PipelineSignal, TestRunStatus } from '@okuvu/shared-types';
 import PanelHeader from './PanelHeader';
 
 function Icon({ name, className = '' }: { name: string; className?: string }) {

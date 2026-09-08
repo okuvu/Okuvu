@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:evia/src/config/app_config.dart';
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/features/progress/progress_screen.dart';
+import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/progress/progress_screen.dart';
 
 Dio _createMockDio({Map<String, dynamic>? contextResponse}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));

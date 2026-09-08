@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/features/journal/journal_entry.dart';
-import 'package:evia/src/features/journal/journal_provider.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/journal/journal_entry.dart';
+import 'package:okuvu/src/features/journal/journal_provider.dart';
 
 void main() {
   group('JournalEntryFormNotifier', () {

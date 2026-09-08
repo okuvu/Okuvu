@@ -1,4 +1,4 @@
-import { PrismaClient, CorpusCaseType, CorpusDataOrigin } from '@evia/prisma';
+import { PrismaClient, CorpusCaseType, CorpusDataOrigin } from '@okuvu/prisma';
 
 const prisma = new PrismaClient();
 

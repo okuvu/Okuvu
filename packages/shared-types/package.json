@@ -1,5 +1,5 @@
 {
-  "name": "@evia/shared-types",
+  "name": "@okuvu/shared-types",
   "private": true,
   "type": "module",
   "types": "index.ts",

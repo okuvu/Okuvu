@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import type { CorpusCase as PrismaCorpusCase } from '@evia/prisma';
-import type { CorpusCase, TestRunStatus } from '@evia/shared-types';
+import type { CorpusCase as PrismaCorpusCase } from '@okuvu/prisma';
+import type { CorpusCase, TestRunStatus } from '@okuvu/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import { createNewVersion } from '@/lib/corpus-versioning';
 import { exportPairedComparisonRows } from '@/lib/paired-export';

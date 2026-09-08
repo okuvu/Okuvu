@@ -15,7 +15,7 @@
  *   - A9_post_result: { decision: 'APPROVED'|'BLOCKED', violation_type, confidence }
  */
 
-import type { PipelineSignal } from '@evia/shared-types';
+import type { PipelineSignal } from '@okuvu/shared-types';
 import type { PerTurnTrace } from './trace-export';
 
 export type SignalRowStatus = 'ok' | 'warning' | 'blocked';

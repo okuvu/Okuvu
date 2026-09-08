@@ -1,4 +1,4 @@
-import type { TestAgentId } from '@evia/shared-types';
+import type { TestAgentId } from '@okuvu/shared-types';
 import { AGENT_ORDER, tryDisable } from '@/lib/dependency-graph';
 
 export type AgentNodeState = 'selected' | 'auto' | 'inactive' | 'skipped';

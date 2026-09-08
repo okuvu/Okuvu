@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/features/journal/journal_screen.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/journal/journal_screen.dart';
 
 Dio _createMockDio({int statusCode = 200, Map<String, dynamic>? data}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));

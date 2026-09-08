@@ -1,5 +1,5 @@
-import { generateContent } from '@evia/api/src/lib/vertex-ai';
-import type { CorpusCaseType } from '@evia/shared-types';
+import { generateContent } from '@okuvu/api/src/lib/vertex-ai';
+import type { CorpusCaseType } from '@okuvu/shared-types';
 
 /**
  * Case-factory (mvp-v2-engineering-spec.md §7): generates labelled test-case

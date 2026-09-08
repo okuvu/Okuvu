@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { verifyOidcToken } from '../middleware/oidc-auth.js';
 import { getPrisma } from '../lib/prisma.js';
 import { generateSessionSummary } from '../lib/summary.js';
-import { getISTDateString } from '@evia/shared-types';
+import { getISTDateString } from '@okuvu/shared-types';
 
 const STALE_PENDING_MINUTES = 60;
 

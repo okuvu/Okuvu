@@ -3,7 +3,7 @@
 import { initTRPC } from '@trpc/server';
 import { createTRPCContext } from '@/server/trpc';
 import { conversationRouter } from '@/server/routers/conversation';
-import type { TestEnvironment } from '@evia/shared-types';
+import type { TestEnvironment } from '@okuvu/shared-types';
 import type { PersonaId } from '@/lib/persona-scripts';
 
 type Context = Awaited<ReturnType<typeof createTRPCContext>>;

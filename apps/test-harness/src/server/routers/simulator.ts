@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import type { TestRunStatus } from '@evia/shared-types';
+import type { TestRunStatus } from '@okuvu/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import { setupSyntheticSession } from '../../lib/pipeline-runner';
 import { shouldUseCanned, withCannedMode, isCannedRunActive } from '../../lib/canned-mode';
@@ -11,8 +11,8 @@ import { resolveFrozenTriple } from '../../lib/frozen-triple';
 
 // ─── Direct import of apps/api's real orchestrator ──────────────────────────
 // Same relative-import pattern as conversation.ts / pipeline.ts.
-import { processTurn } from '@evia/api/src/pipeline/orchestrator';
-import type { TestModeOptions } from '@evia/api/src/pipeline/types';
+import { processTurn } from '@okuvu/api/src/pipeline/orchestrator';
+import type { TestModeOptions } from '@okuvu/api/src/pipeline/types';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 const personaIdSchema = z.enum(['anxious', 'crisis-escalating', 'fidelity', 'adversarial']);
@@ -25,7 +25,7 @@ const faultSchema = z.object({
 
 async function withEnvironmentOrThrow<T>(
   environment: 'sandbox' | 'staging' | 'beta',
-  fn: (tx: import('@evia/prisma').Prisma.TransactionClient) => Promise<T>,
+  fn: (tx: import('@okuvu/prisma').Prisma.TransactionClient) => Promise<T>,
 ): Promise<T> {
   try {
     return await withEnvironment(environment, fn);

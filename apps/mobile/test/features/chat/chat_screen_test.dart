@@ -6,12 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:evia/src/config/app_config.dart';
-import 'package:evia/src/core/providers.dart';
-import 'package:evia/src/core/tts_service.dart';
-import 'package:evia/src/core/websocket_service.dart';
-import 'package:evia/src/features/chat/chat_screen.dart';
-import 'package:evia/src/features/chat/models/chat_state.dart';
+import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/core/tts_service.dart';
+import 'package:okuvu/src/core/websocket_service.dart';
+import 'package:okuvu/src/features/chat/chat_screen.dart';
+import 'package:okuvu/src/features/chat/models/chat_state.dart';
 
 class FakeWebSocketService extends WebSocketService {
   FakeWebSocketService({WsConnectionState initialState = WsConnectionState.disconnected})
