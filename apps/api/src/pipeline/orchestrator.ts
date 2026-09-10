@@ -255,6 +255,14 @@ export async function processTurn(
 
   const userMemoryContext = formatUserMemory(contextBundle.user_memory);
 
+  // OKUVU v2.0: hardcoded until the therapist-portal integration and a
+  // per-user language-mode setting (separate, not-yet-built workstreams)
+  // exist to actually populate them. Declared once and passed to BOTH A2
+  // and A9-post so the two never drift apart — A9-post must always review
+  // under the same language_mode/care_plan_focus assumption A2 was given.
+  const languageMode: 'english' | 'mirror' = 'english';
+  const carePlanFocus: string | null = null;
+
   if (decision.agent === 'deterministic-grounding') {
     // A1 classified S3 (elevated risk) — no real A2 call, no A9-post review
     // (there is nothing of A2's to review). A static, grounding-oriented
@@ -282,14 +290,16 @@ export async function processTurn(
         toolResultContext,
         userMemoryContext,
         retrievedContext,
-        // OKUVU v2.0 additions — all null/empty until the therapist-portal
-        // integration, homework schema, and tool-id registry (separate,
-        // not-yet-built workstreams) exist to actually populate them.
+        // OKUVU v2.0 additions — therapistName/homework/toolkit are
+        // null/empty until the therapist-portal integration and homework
+        // schema (separate, not-yet-built workstreams) exist to actually
+        // populate them. languageMode/carePlanFocus are shared with the
+        // A9-post call below — see the comment above.
         therapistName: null,
-        carePlanFocus: null,
+        carePlanFocus,
         homework: null,
         toolkit: [],
-        languageMode: 'english',
+        languageMode,
       });
 
       // TH-S10: signalOverride only supports boundary 'a2_result' — a shallow
@@ -346,6 +356,11 @@ export async function processTurn(
         draftResponse: finalText,
         safetyState,
         carePlan: contextBundle.care_plan?.care_plan_id ?? 'CP1',
+        // OKUVU v2.0: must match what A2 was actually given (see the shared
+        // languageMode/carePlanFocus declaration above) — a review under the
+        // wrong language_mode assumption would misjudge a Hinglish reply.
+        languageMode,
+        carePlanFocus,
       });
 
       a9PostConfidence = a9PostResult.confidence;
@@ -422,19 +437,21 @@ export async function processTurn(
   ]);
 
   if (a9PreBlocked) {
+    // OKUVU v2.0: A9-pre's output now carries a real reasonCode/confidence
+    // (agents/a9/types.ts) — a Blocked verdict only ever comes from a real,
+    // successful classification (a failed/fallback call defaults to
+    // Restricted, never Blocked), so a9Result is reliably fulfilled here.
+    // 'unavailable'/'low' are defensive fallbacks, not the expected path.
+    const a9PreReasonCode = a9Result.status === 'fulfilled' ? a9Result.value.reasonCode : null;
+    const a9PreConfidence = a9Result.status === 'fulfilled' ? a9Result.value.confidence : 'low';
     await prisma.governanceLog.create({
       data: {
         session_id: sessionId,
         turn_number: newTurnCount,
         gate: 'A9-PRE',
         decision: 'Blocked',
-        // A9-pre's output today is only a bare governanceState (no
-        // reason/violation_type) — 'unavailable' documents that gap rather
-        // than inventing a fake reason. confidence is required by the
-        // schema but A9-pre has no concept of one; 'n/a' is honest about
-        // that, not a placeholder pretending to be real data.
-        violation_type: 'unavailable',
-        confidence: 'n/a',
+        violation_type: a9PreReasonCode ?? 'unavailable',
+        confidence: a9PreConfidence,
         blocked_content: null,
       },
     });
