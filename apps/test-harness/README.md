@@ -1,4 +1,4 @@
-# Evia Test Harness
+# OKUVU Test Harness
 
 Internal web application for pipeline testing, deterministic verification, and SME access.
 

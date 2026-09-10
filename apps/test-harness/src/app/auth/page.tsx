@@ -41,7 +41,7 @@ function AuthContent() {
     <main className="flex min-h-screen items-center justify-center bg-[#F4F6F8] p-4 md:p-8">
       <div className="w-full max-w-[480px]">
         <div className="mb-6 flex flex-col items-center">
-          <div className="mb-4 text-2xl font-bold text-[#1A6B5A]">Evia</div>
+          <div className="mb-4 text-2xl font-bold text-[#1A6B5A]">OKUVU</div>
           <span className="text-xs font-medium uppercase tracking-wider text-[#6f7975]">
             Test Harness
           </span>
@@ -50,7 +50,7 @@ function AuthContent() {
         <div className="rounded-xl border border-[#DDE2E8] bg-white p-8 shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
           <div className="mb-8 text-center">
             <h1 className="mb-2 text-2xl font-semibold tracking-tight text-[#191c1e]">
-              Sign in to Evia Test Harness
+              Sign in to OKUVU Test Harness
             </h1>
             <p className="text-base leading-relaxed text-[#3f4945]">
               Use your Google account registered with the test harness.

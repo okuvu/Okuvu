@@ -6,8 +6,8 @@ import { EnvironmentProvider } from '@/lib/environment-context';
 import { getEnv } from '@/lib/env';
 
 export const metadata: Metadata = {
-  title: 'Evia — Test Harness',
-  description: 'Internal test harness for Evia pipeline testing',
+  title: 'OKUVU — Test Harness',
+  description: 'Internal test harness for OKUVU pipeline testing',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

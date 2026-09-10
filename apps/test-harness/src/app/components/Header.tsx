@@ -17,7 +17,7 @@ export default function Header() {
         title="Back to dashboard"
       >
         <h1 className="text-[var(--text-section-header)] font-[var(--text-section-header--font-weight)] text-[var(--color-primary)]">
-          Evia
+          OKUVU
         </h1>
         <span className="h-4 w-px bg-[var(--color-outline-variant)]" aria-hidden="true" />
         <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
