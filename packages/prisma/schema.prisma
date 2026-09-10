@@ -13,6 +13,10 @@ model User {
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
   deleted_at          DateTime?
+  /// OKUVU v2.0: english (default) | mirror (adaptive Hinglish). No UI writes
+  /// this yet (that's mobile settings work, a separate not-yet-built
+  /// workstream) — see docs/okuvu-v2.0/00-doc-map-and-parity-resolutions.md B.1.
+  language_mode       LanguageMode        @default(english)
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
   engagement_profile  EngagementProfile?
@@ -27,6 +31,8 @@ model User {
   turns               Turn[]
   journal_entries     JournalEntry[]
   access_logs         ClinicalAccessLog[] @relation("ClientToAccessLog")
+  homeworks           Homework[]          @relation("ClientToHomework")
+  reminders           Reminder[]
 }
 
 model Therapist {
@@ -39,6 +45,7 @@ model Therapist {
   client_assignments TherapistClient[]
   notes              TherapistNote[]     @relation("TherapistToNote")
   access_logs        ClinicalAccessLog[]
+  homeworks_assigned Homework[]          @relation("TherapistToHomework")
 }
 
 model ClinicalConfig {
@@ -51,6 +58,12 @@ model ClinicalConfig {
   turns_evaluated          Int             @default(0)
   reasoning_note           String?
   care_plan_review_flagged Boolean         @default(false)
+  /// OKUVU v2.0: therapist-authored free text steering A2's
+  /// ${care_plan_focus} — replaces gating A2's prompt on the bare CP1/2/3
+  /// label. Null until the portal gets a write path for it (out of scope
+  /// this pass); agent-context.ts falls back to a generic label derived
+  /// from care_plan_id until then.
+  care_plan_focus          String?
   user                     User            @relation(fields: [user_id], references: [id])
 }
 
@@ -175,11 +188,55 @@ model TherapistClient {
   therapist_id   String
   client_user_id String
   created_at     DateTime  @default(now())
+  /// OKUVU v2.0: client's consent for this therapist to view raw chat
+  /// content (vs. summaries only). Defaults false (opt-in). Not enforced
+  /// anywhere yet — that's the portal-side consent UI + API check, out of
+  /// scope this pass. Field name matches
+  /// docs/okuvu-v2.0/01-parity-audit-v1.md's own proposal.
+  chat_access_granted Boolean @default(false)
   client         User      @relation(fields: [client_user_id], references: [id])
   therapist      Therapist @relation(fields: [therapist_id], references: [id])
 
   @@unique([therapist_id, client_user_id])
   @@index([client_user_id])
+}
+
+/// OKUVU v2.0: therapist-assigned homework. Read by A2's ${homework}
+/// (agent-context.ts pulls the most recent `active` row's description) and
+/// (eventually) Worker 05's homework_progress. No portal UI creates these
+/// yet — that write path is a separate, not-yet-built workstream.
+model Homework {
+  id             String         @id @default(uuid())
+  client_user_id String
+  therapist_id   String
+  description    String
+  status         HomeworkStatus @default(active)
+  assigned_at    DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+  client         User           @relation("ClientToHomework", fields: [client_user_id], references: [id])
+  therapist      Therapist      @relation("TherapistToHomework", fields: [therapist_id], references: [id])
+  reminders      Reminder[]
+
+  @@index([client_user_id, status, assigned_at(sort: Desc)])
+}
+
+/// OKUVU v2.0: scheduler source for homework/tool-practice reminders.
+/// `schedule_note` is deliberately free text, not a structured cron/
+/// day-of-week shape — that shape is itself an open product decision
+/// (doc-map B.3). Nothing reads or writes this yet; it exists so the
+/// scheduler+push workstream (out of scope this pass) doesn't need its own
+/// migration later.
+model Reminder {
+  id            String    @id @default(uuid())
+  user_id       String
+  homework_id   String?
+  schedule_note String
+  active        Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  user          User      @relation(fields: [user_id], references: [id])
+  homework      Homework? @relation(fields: [homework_id], references: [id])
+
+  @@index([user_id, active])
 }
 
 // Records every therapist read of a client's clinical data (safety state,
@@ -287,6 +344,44 @@ enum SummaryStatus {
   COMPLETED
   FAILED
   SKIPPED_TRIVIAL
+}
+
+enum HomeworkStatus {
+  active
+  completed
+  archived
+}
+
+enum LanguageMode {
+  english
+  mirror
+}
+
+/// OKUVU v2.0: canonical tool-id registry (docs/okuvu-v2.0's B.3 — "chat
+/// parity: T1-T8 column" replacement). Seeded with only the 3 ids already
+/// live in apps/api/src/lib/tool-card.ts — the full proposed list is
+/// pending clinical review (Shubhangi), not invented here. Not yet wired as
+/// a runtime dependency of any code path; forward infrastructure only.
+model ToolRegistryEntry {
+  id            String   @id @default(uuid())
+  tool_id       String   @unique
+  label         String
+  chat_guidable Boolean  @default(true)
+  created_at    DateTime @default(now())
+}
+
+/// OKUVU v2.0: canonical crisis-helpline source (master-handoff O7 —
+/// "iCall+Vandrevala minimum, decide rest"). Seeded with exactly the two
+/// numbers A1's prompt and A9-post's helpline-integrity check already treat
+/// as approved. Does NOT resolve the mobile app's separate 5-number
+/// crisis_overlay.dart — reconciling those is a real clinical/product
+/// decision, not made here. Nothing reads this table yet.
+model CrisisResource {
+  id         String   @id @default(uuid())
+  name       String
+  phone      String
+  order      Int      @default(0)
+  created_at DateTime @default(now())
 }
 
 // ─── Test Harness (TH-S03) ────────────────────────────────────────

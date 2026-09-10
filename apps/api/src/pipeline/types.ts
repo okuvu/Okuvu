@@ -20,6 +20,14 @@ export interface TestModeOptions {
   injectRouter?: RouterDecision
   /** Skip the Layer 3 RAG retrieval entirely and use this string directly as retrievedContext. */
   injectRetrievedContext?: string
+  /** OKUVU v2.0: use this instead of contextBundle.language_mode (no DB seeding needed for harness runs). */
+  injectLanguageMode?: 'english' | 'mirror'
+  /** OKUVU v2.0: use this instead of contextBundle.homework. */
+  injectHomework?: string
+  /** OKUVU v2.0: use this instead of contextBundle.therapist_name. */
+  injectTherapistName?: string
+  /** OKUVU v2.0: use this instead of contextBundle.care_plan_focus. */
+  injectCarePlanFocus?: string
   /**
    * Shallow-merge `payload` onto a boundary's result object before it is read.
    * Only `boundary: 'a2_result'` is supported for this story: it merges onto

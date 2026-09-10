@@ -254,6 +254,18 @@ export interface AgentContextBundle {
   session_summary: string | null
   engagement: EngagementStats
   user_memory: UserMemoryData | null
+  /** OKUVU v2.0 — english | mirror, from User.language_mode. */
+  language_mode: 'english' | 'mirror'
+  /** OKUVU v2.0 — the assigned therapist's display name, or null if unassigned. */
+  therapist_name: string | null
+  /**
+   * OKUVU v2.0 — therapist-authored free text (ClinicalConfig.care_plan_focus).
+   * Falls back to a generic label derived from care_plan_id when null (no
+   * portal write path exists yet) — never null when a care_plan exists.
+   */
+  care_plan_focus: string | null
+  /** OKUVU v2.0 — the client's most recent active Homework.description, or null. */
+  homework: string | null
 }
 
 // ─── Therapist Portal (T-01 Dashboard) ─────────────────────────

@@ -60,6 +60,18 @@ export const conversationRouter = router({
       z.object({
         personaId: personaIdSchema,
         environment: environmentSchema,
+        // OKUVU v2.0: optional per-run overrides for the new orchestrator
+        // context fields (languageMode/homework/therapistName/carePlanFocus
+        // — see apps/api/src/pipeline/types.ts's TestModeOptions). Lets a
+        // tester exercise mirror-mode/homework-aware A2 replies against any
+        // existing built-in persona without a DB seed or a new persona
+        // script — persona-scripts.ts's own doc comment reserves new/custom
+        // scripts for the CorpusCase-backed corpus manager (TH-S26), not
+        // this static file.
+        languageModeOverride: z.enum(['english', 'mirror']).optional(),
+        homeworkOverride: z.string().optional(),
+        therapistNameOverride: z.string().optional(),
+        carePlanFocusOverride: z.string().optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -80,7 +92,13 @@ export const conversationRouter = router({
         const message = script[i];
         const turnNumber = i + 1;
 
-        const testMode: TestModeOptions = { captureSignalBus: true };
+        const testMode: TestModeOptions = {
+          captureSignalBus: true,
+          ...(input.languageModeOverride !== undefined ? { injectLanguageMode: input.languageModeOverride } : {}),
+          ...(input.homeworkOverride !== undefined ? { injectHomework: input.homeworkOverride } : {}),
+          ...(input.therapistNameOverride !== undefined ? { injectTherapistName: input.therapistNameOverride } : {}),
+          ...(input.carePlanFocusOverride !== undefined ? { injectCarePlanFocus: input.carePlanFocusOverride } : {}),
+        };
 
         const start = performance.now();
         const result = await withCannedMode(useCanned, () =>

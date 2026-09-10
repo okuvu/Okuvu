@@ -255,13 +255,16 @@ export async function processTurn(
 
   const userMemoryContext = formatUserMemory(contextBundle.user_memory);
 
-  // OKUVU v2.0: hardcoded until the therapist-portal integration and a
-  // per-user language-mode setting (separate, not-yet-built workstreams)
-  // exist to actually populate them. Declared once and passed to BOTH A2
-  // and A9-post so the two never drift apart — A9-post must always review
-  // under the same language_mode/care_plan_focus assumption A2 was given.
-  const languageMode: 'english' | 'mirror' = 'english';
-  const carePlanFocus: string | null = null;
+  // OKUVU v2.0: sourced from getAgentContextBundle's real DB reads (User.
+  // language_mode, ClinicalConfig.care_plan_focus — see agent-context.ts),
+  // with testMode injection for harness runs that don't want to seed DB
+  // rows. Declared once and passed to BOTH A2 and A9-post so the two never
+  // drift apart — A9-post must always review under the same language_mode/
+  // care_plan_focus assumption A2 was given.
+  const languageMode: 'english' | 'mirror' = testMode?.injectLanguageMode ?? contextBundle.language_mode;
+  const carePlanFocus: string | null = testMode?.injectCarePlanFocus ?? contextBundle.care_plan_focus;
+  const therapistName: string | null = testMode?.injectTherapistName ?? contextBundle.therapist_name;
+  const homework: string | null = testMode?.injectHomework ?? contextBundle.homework;
 
   if (decision.agent === 'deterministic-grounding') {
     // A1 classified S3 (elevated risk) — no real A2 call, no A9-post review
@@ -290,14 +293,13 @@ export async function processTurn(
         toolResultContext,
         userMemoryContext,
         retrievedContext,
-        // OKUVU v2.0 additions — therapistName/homework/toolkit are
-        // null/empty until the therapist-portal integration and homework
-        // schema (separate, not-yet-built workstreams) exist to actually
-        // populate them. languageMode/carePlanFocus are shared with the
-        // A9-post call below — see the comment above.
-        therapistName: null,
+        // OKUVU v2.0 additions. toolkit stays empty — no data source yet
+        // for "tools this therapist selected for this client" (that's
+        // portal UI, out of scope), so it degrades to the prompt's own
+        // "always-available tools" default, which is correct as-is.
+        therapistName,
         carePlanFocus,
-        homework: null,
+        homework,
         toolkit: [],
         languageMode,
       });

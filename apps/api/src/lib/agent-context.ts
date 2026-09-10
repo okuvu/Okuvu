@@ -13,6 +13,16 @@ export function summariesToConversationTurns(summaries: SessionSummaryView[]): C
 
 const FALLBACK_TURN_LIMIT = 20;
 
+// OKUVU v2.0: generic labels for A2's ${care_plan_focus} until a therapist
+// writes real free text via ClinicalConfig.care_plan_focus (no portal write
+// path exists yet — out of scope). Matches the old v1 prompt's own CP1-3
+// descriptions, so the fallback reads the same as what shipped before.
+const DEFAULT_CARE_PLAN_FOCUS: Record<'CP1' | 'CP2' | 'CP3', string> = {
+  CP1: 'anxiety and worry',
+  CP2: 'depression and low mood',
+  CP3: 'stress and burnout',
+};
+
 export async function getAgentContextBundle(firebaseUid: string): Promise<AgentContextBundle> {
   const user = await prisma.user.findUnique({
     where: { firebase_uid: firebaseUid },
@@ -48,6 +58,17 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
         select: { summary_text: true, created_at: true },
       },
       user_memory: true,
+      assigned_therapists: {
+        take: 1,
+        orderBy: { created_at: 'desc' },
+        select: { therapist: { select: { name: true } } },
+      },
+      homeworks: {
+        where: { status: 'active' },
+        take: 1,
+        orderBy: { assigned_at: 'desc' },
+        select: { description: true },
+      },
     },
   });
 
@@ -59,6 +80,10 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       session_summary: null,
       engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
       user_memory: null,
+      language_mode: 'english',
+      therapist_name: null,
+      care_plan_focus: null,
+      homework: null,
     };
   }
 
@@ -125,6 +150,12 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
       consent_4: user.engagement_profile?.consent_4 ?? false,
     },
     user_memory: userMemoryRecord,
+    language_mode: user.language_mode,
+    therapist_name: user.assigned_therapists[0]?.therapist.name ?? null,
+    care_plan_focus:
+      user.clinical_config?.care_plan_focus ??
+      (user.clinical_config ? DEFAULT_CARE_PLAN_FOCUS[user.clinical_config.care_plan_id] : null),
+    homework: user.homeworks[0]?.description ?? null,
   };
 }
 

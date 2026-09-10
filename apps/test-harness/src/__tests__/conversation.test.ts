@@ -171,6 +171,41 @@ describe('conversationRouter.runPersonaScript', () => {
     expect(createArgs.data.status).toBe('halt');
   });
 
+  it('threads languageMode/homework/therapistName/carePlanFocus overrides into every turn\'s testMode (OKUVU v2.0)', async () => {
+    mockProcessTurn.mockResolvedValue(agentTurn('yaar aaj bohot heavy lag raha hai.'));
+    mockTestRunCreate.mockResolvedValue({ id: 'run-mirror' });
+    const caller = createCaller(buildCtx());
+
+    await caller.runPersonaScript({
+      personaId: 'anxious',
+      environment: 'sandbox',
+      languageModeOverride: 'mirror',
+      homeworkOverride: 'Practice box breathing before bed.',
+      therapistNameOverride: 'Dr. Priya Nair',
+      carePlanFocusOverride: 'anxiety and worry',
+    });
+
+    expect(mockProcessTurn).toHaveBeenCalledTimes(5);
+    for (const call of mockProcessTurn.mock.calls) {
+      const testMode = call[4]?.testMode;
+      expect(testMode.injectLanguageMode).toBe('mirror');
+      expect(testMode.injectHomework).toBe('Practice box breathing before bed.');
+      expect(testMode.injectTherapistName).toBe('Dr. Priya Nair');
+      expect(testMode.injectCarePlanFocus).toBe('anxiety and worry');
+    }
+  });
+
+  it('omits the OKUVU v2.0 inject fields from testMode when no overrides are given', async () => {
+    mockProcessTurn.mockResolvedValue(agentTurn('Reply.'));
+    mockTestRunCreate.mockResolvedValue({ id: 'run-no-override' });
+    const caller = createCaller(buildCtx());
+
+    await caller.runPersonaScript({ personaId: 'fidelity', environment: 'sandbox' });
+
+    const testMode = mockProcessTurn.mock.calls[0][4]?.testMode;
+    expect(testMode).toEqual({ captureSignalBus: true });
+  });
+
   it('stops early and sets endedInCrisis when a turn routes to the crisis silence path', async () => {
     mockProcessTurn.mockResolvedValueOnce(CRISIS_RESULT);
     mockTestRunCreate.mockResolvedValue({ id: 'run-5' });

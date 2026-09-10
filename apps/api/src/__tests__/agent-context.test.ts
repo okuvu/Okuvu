@@ -28,6 +28,7 @@ function buildFullUser() {
     phone_number: '+15551234567',
     created_at: new Date('2026-01-01'),
     updated_at: new Date('2026-06-29'),
+    language_mode: 'english' as const,
     safety_state: {
       id: 'ss-1',
       user_id: 'user-1',
@@ -42,6 +43,7 @@ function buildFullUser() {
       assignment_state: 'confirmed' as const,
       confidence_at_last_eval: 0.85,
       turns_evaluated: 42,
+      care_plan_focus: null,
     },
     engagement_profile: {
       current_streak: 5,
@@ -84,6 +86,8 @@ function buildFullUser() {
     session_summaries: [
       { summary_text: 'Latest overall summary.', created_at: new Date('2026-06-29T14:00:00Z'), status: 'COMPLETED' },
     ],
+    assigned_therapists: [{ therapist: { name: 'Dr. Priya Nair' } }],
+    homeworks: [{ description: 'Practice box breathing before bed.' }],
   };
 }
 
@@ -94,6 +98,7 @@ function buildUserWithManySessions(count: number) {
     phone_number: '+15559876543',
     created_at: new Date('2025-01-01'),
     updated_at: new Date('2026-06-29'),
+    language_mode: 'english' as const,
     safety_state: null,
     clinical_config: {
       id: 'cc-2',
@@ -102,6 +107,7 @@ function buildUserWithManySessions(count: number) {
       assignment_state: 'provisional' as const,
       confidence_at_last_eval: null,
       turns_evaluated: 0,
+      care_plan_focus: null,
     },
     engagement_profile: {
       current_streak: 1,
@@ -124,6 +130,8 @@ function buildUserWithManySessions(count: number) {
     session_summaries: [
       { summary_text: 'Latest overall summary for many sessions.', created_at: new Date('2026-06-29T14:00:00Z'), status: 'COMPLETED' },
     ],
+    assigned_therapists: [],
+    homeworks: [],
   };
   return user;
 }
@@ -135,11 +143,14 @@ function buildUserWithNoRelations() {
     phone_number: '+15551112222',
     created_at: new Date('2026-06-29'),
     updated_at: new Date('2026-06-29'),
+    language_mode: 'english' as const,
     safety_state: null,
     clinical_config: null,
     engagement_profile: null,
     session_logs: [],
     session_summaries: [],
+    assigned_therapists: [],
+    homeworks: [],
   };
 }
 
@@ -185,6 +196,17 @@ describe('GET /users/me/context', () => {
       });
       expect(body.session_summary).toMatch(/^\[\d+ days ago\]: Latest overall summary\.$/);
       expect(body.engagement).toEqual({ current_streak: 5, longest_streak: 0, voice_mode_enabled: true, consent_1: true, consent_2: false, consent_3: true, consent_4: false });
+      expect(body.language_mode).toBe('english');
+      expect(body.therapist_name).toBe('Dr. Priya Nair');
+      expect(body.homework).toBe('Practice box breathing before bed.');
+    });
+
+    it('falls back to a generic care_plan_focus label when ClinicalConfig.care_plan_focus is null (OKUVU v2.0)', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/context' });
+      const body = response.json();
+
+      // buildFullUser() is CP1 with care_plan_focus: null
+      expect(body.care_plan_focus).toBe('anxiety and worry');
     });
 
     it('queries with correct include structure and take limit', async () => {
@@ -202,6 +224,8 @@ describe('GET /users/me/context', () => {
             }),
             session_logs: expect.objectContaining({ take: 6 }),
             session_summaries: expect.objectContaining({ take: 3, where: { status: 'COMPLETED', summary_text: { not: null } } }),
+            assigned_therapists: expect.objectContaining({ take: 1 }),
+            homeworks: expect.objectContaining({ take: 1, where: { status: 'active' } }),
           }),
         }),
       );
@@ -234,16 +258,20 @@ describe('GET /users/me/context', () => {
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
     });
 
-    it('returns only the 6 expected top-level fields', async () => {
+    it('returns only the 10 expected top-level fields', async () => {
       const response = await app.inject({ method: 'GET', url: '/users/me/context' });
       const body = response.json();
 
       expect(Object.keys(body).sort()).toEqual([
         'care_plan',
+        'care_plan_focus',
         'engagement',
+        'homework',
+        'language_mode',
         'recent_history',
         'safety_state',
         'session_summary',
+        'therapist_name',
         'user_memory',
       ]);
     });
@@ -267,12 +295,20 @@ describe('GET /users/me/context', () => {
       expect(body.recent_history).toEqual([]);
       expect(body.session_summary).toBeNull();
       expect(body.engagement).toEqual({ current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false });
+      expect(body.language_mode).toBe('english');
+      expect(body.therapist_name).toBeNull();
+      expect(body.care_plan_focus).toBeNull();
+      expect(body.homework).toBeNull();
       expect(Object.keys(body).sort()).toEqual([
         'care_plan',
+        'care_plan_focus',
         'engagement',
+        'homework',
+        'language_mode',
         'recent_history',
         'safety_state',
         'session_summary',
+        'therapist_name',
         'user_memory',
       ]);
     });
