@@ -150,8 +150,8 @@ export const faultInjectionRouter = router({
    * `handleTurn` returns), so this endpoint demonstrates one working
    * example: it nulls out A2's `signal` field before it's read, which is
    * exactly what a dropped/missing signal from A2 would look like to the
-   * rest of the pipeline (no estimated_intensity, no crisis flag, no tool
-   * card derivation). Extending this to other boundaries would require
+   * rest of the pipeline (no intensity estimate, no tool card derivation).
+   * Extending this to other boundaries would require
    * TH-S10 to add more `signalOverride` boundary support — out of scope
    * here.
    */

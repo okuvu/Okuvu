@@ -22,7 +22,6 @@ export interface MockSessionContext {
   retrievedContext: string | null;
   carePlan: CarePlanId;
   sessionCount: number;
-  sessionNumber: number;
   turnNumber: number;
   sessionHistorySummary: string | null;
   perceivedIntensity: number | null;
@@ -46,7 +45,6 @@ export function defaultMockSessionContext(): MockSessionContext {
     retrievedContext: null,
     carePlan: 'CP1',
     sessionCount: 1,
-    sessionNumber: 1,
     turnNumber: 1,
     sessionHistorySummary: null,
     perceivedIntensity: null,

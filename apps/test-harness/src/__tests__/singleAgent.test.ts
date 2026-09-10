@@ -128,9 +128,6 @@ describe('singleAgentRouter.invokeAgent', () => {
     // All required A2Input fields must be present even though the test only
     // supplied `message` — mock-context.ts defaults fill the rest.
     expect(calledWith.carePlan).toBe('CP1');
-    expect(calledWith.sessionNumber).toBe(1);
-    expect(calledWith.turnNumber).toBe(1);
-    expect(calledWith.mode).toBe('normal');
     expect(calledWith.safetyState).toBe('S0');
     expect(result.output).toEqual({
       response: 'hello',
@@ -144,7 +141,7 @@ describe('singleAgentRouter.invokeAgent', () => {
     mockA9PostReview.mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
     const caller = createCaller(buildCtx());
 
-    const result = await caller.invokeAgent({ agentId: 'A9-post', input: { userContent: 'draft response' } });
+    const result = await caller.invokeAgent({ agentId: 'A9-post', input: { draftResponse: 'draft response' } });
 
     expect(mockA9PostReview).toHaveBeenCalledTimes(1);
     expect(result.output).toEqual({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
@@ -211,9 +208,7 @@ describe('singleAgentRouter.getAgentSchema', () => {
         'message',
         'carePlan',
         'safetyState',
-        'sessionNumber',
-        'turnNumber',
-        'mode',
+        'languageMode',
       ]),
     );
   });

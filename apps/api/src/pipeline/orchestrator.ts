@@ -1,24 +1,27 @@
-import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@okuvu/shared-types';
+import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal, ToolCardType } from '@okuvu/shared-types';
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
-import { handleTurn, scoreOnboardingTurn, formatUserMemory } from '../agents/a2/agent.js';
+import { handleTurn, formatUserMemory } from '../agents/a2/agent.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle, summariesToConversationTurns } from '../lib/agent-context.js';
 import { buildToolCard } from '../lib/tool-card.js';
 import { getToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { prisma } from '../lib/prisma.js';
-import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
+import { incrementTurnCount, isSessionClosed, getSessionCount } from './session.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
-import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE } from './fallbacks.js';
+import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE } from './fallbacks.js';
 import type { PipelineResult, StageTiming, TestModeOptions } from './types.js';
-import type { ConversationTurn } from '../agents/a1/types.js';
-import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
-import { decideAssignment } from '../onboarding/care-plan-assignment.js';
 
 function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
   return new Error(faultType === 'timeout' ? 'injected_timeout' : 'injected_api_error');
+}
+
+const KNOWN_TOOL_CARD_TYPES: ReadonlySet<string> = new Set(['guided_breathing', 'box_breathing', 'grounding_5431']);
+
+function isKnownToolCardType(value: string): value is ToolCardType {
+  return KNOWN_TOOL_CARD_TYPES.has(value);
 }
 
 function now(): number {
@@ -114,7 +117,14 @@ export async function processTurn(
   let a1Promise: ReturnType<typeof timedA1>;
   if (testMode?.injectA1 !== undefined) {
     timing.push({ stage: 'A1_skipped', elapsedMs: 0 });
-    a1Promise = Promise.resolve({ safetyState: testMode.injectA1, fallbackUsed: false });
+    a1Promise = Promise.resolve({
+      safetyState: testMode.injectA1,
+      fallbackUsed: false,
+      crisis_language_detected: false,
+      basis: 'literal',
+      signal_strength: 'medium',
+      notes: null,
+    });
   } else {
     a1Promise = timedA1();
   }
@@ -122,7 +132,13 @@ export async function processTurn(
   let a9Promise: ReturnType<typeof timedA9>;
   if (testMode?.injectA9 !== undefined) {
     timing.push({ stage: 'A9_pre_skipped', elapsedMs: 0 });
-    a9Promise = Promise.resolve({ governanceState: testMode.injectA9, fallbackUsed: false });
+    a9Promise = Promise.resolve({
+      governanceState: testMode.injectA9,
+      fallbackUsed: false,
+      reasonCode: null,
+      confidence: 'medium',
+      notes: null,
+    });
   } else {
     a9Promise = timedA9();
   }
@@ -183,8 +199,6 @@ export async function processTurn(
     return { type: 'crisis', timing, ...(testMode?.captureSignalBus ? { signals } : {}) };
   }
 
-  const isOnboarding = (sessionCount === 0 || contextBundle.care_plan == null) && nextTurnNumber <= 3;
-
   const a2Start = now();
   let finalText: string;
   let a2Fallback = false;
@@ -205,10 +219,21 @@ export async function processTurn(
   // to review), same shape as the existing A9-post-blocked path below but
   // triggered pre-emptively instead of post-hoc.
   let a9PreBlocked = false;
+  // OKUVU v2.0: set when A8 routed this turn to agent='deterministic-grounding'
+  // — A1 classified S3 (elevated risk). Same shape as a9PreBlocked: a real,
+  // persisted turn with static content, no real A2 call, no A9-post review.
+  let a8GroundingDeterministic = false;
   let estimatedIntensity: number | null = null;
-  let crisisFlag = false;
-  let carePlanReviewFlag = false;
-  let onboardingInference: OnboardingInferenceOutput | undefined;
+  // OKUVU v2.0: A1 is now the authoritative source for crisis_language_detected
+  // (it classifies every message, not just ones A2 responds to, and runs
+  // before A2 ever sees the turn) — previously sourced from A2's S-06 signal,
+  // which only existed on turns that actually reached a real A2 call.
+  const crisisFlag: boolean =
+    a1Result.status === 'fulfilled' ? a1Result.value.crisis_language_detected : false;
+  // OKUVU v2.0: care_plan_fit is dropped from A2's signal (S-07) — the audit's
+  // recommended owner is Worker 05 (session-summary), not yet built. No
+  // replacement source exists yet, so care_plan_review_flagged is not set
+  // anywhere in this phase.
   let toolCard: import('@okuvu/shared-types').ToolCardConfig | undefined;
 
   let toolResultContext: string | undefined;
@@ -230,7 +255,13 @@ export async function processTurn(
 
   const userMemoryContext = formatUserMemory(contextBundle.user_memory);
 
-  if (decision.mode === 'blocked') {
+  if (decision.agent === 'deterministic-grounding') {
+    // A1 classified S3 (elevated risk) — no real A2 call, no A9-post review
+    // (there is nothing of A2's to review). A static, grounding-oriented
+    // reply, always.
+    finalText = A8_S3_GROUNDING_RESPONSE;
+    a8GroundingDeterministic = true;
+  } else if (decision.mode === 'blocked') {
     // A9-pre (governance) rejected this message and A1 did not find
     // crisis-level risk — no real A2 call, no A9-post review (there is
     // nothing of A2's to review). A static, non-alarming reply, always.
@@ -245,15 +276,20 @@ export async function processTurn(
         message,
         carePlan: (contextBundle.care_plan?.care_plan_id ?? 'CP1') as 'CP1' | 'CP2' | 'CP3',
         safetyState: safetyState as 'S0' | 'S1' | 'S2',
-        sessionNumber: sessionCount + 1,
-        turnNumber: nextTurnNumber,
         sessionHistorySummary: contextBundle.session_summary,
         perceivedIntensity,
-        mode: decision.mode ?? 'normal',
         recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
         toolResultContext,
         userMemoryContext,
         retrievedContext,
+        // OKUVU v2.0 additions — all null/empty until the therapist-portal
+        // integration, homework schema, and tool-id registry (separate,
+        // not-yet-built workstreams) exist to actually populate them.
+        therapistName: null,
+        carePlanFocus: null,
+        homework: null,
+        toolkit: [],
+        languageMode: 'english',
       });
 
       // TH-S10: signalOverride only supports boundary 'a2_result' — a shallow
@@ -278,34 +314,20 @@ export async function processTurn(
       }
 
       if (a2Result.signal) {
-        estimatedIntensity = a2Result.signal.estimated_intensity;
-        crisisFlag = a2Result.signal.session_flags.crisis_language_detected;
-        carePlanReviewFlag = a2Result.signal.care_plan_fit === 'possible_mismatch';
+        estimatedIntensity = a2Result.signal.intensity;
       }
 
-      toolCard = a2Result.signal?.tool_launch_recommended
-        ? buildToolCard(a2Result.signal.tool_launch_recommended, a2Result.signal.breathing_config)
+      // OKUVU v2.0: tool_launched is now a free-form tool-id string (the
+      // T1-T8 codes and fixed breathing_config shape are retired — a real
+      // tool-id registry is a separate, not-yet-built workstream). Only
+      // build a tool card when it happens to match one of the app's
+      // currently-known card types; anything else is a valid tool-id with
+      // no app-side card yet, not an error.
+      const toolLaunched = a2Result.signal?.tool_launched;
+      toolCard = toolLaunched && isKnownToolCardType(toolLaunched)
+        ? buildToolCard(toolLaunched)
         : undefined;
 
-      // Skip when A2's real call already fell back: scoring finalText here
-      // would score the canned/degraded fallback text as if it were a real
-      // reply (misleading signal), and — since scoreOnboardingTurn makes its
-      // own real, separately-timed-out LLM call — stacks a second up-to-30s
-      // wait sequentially inside this same stage on top of A2's already-
-      // timed-out call. Confirmed live (2026-09-07): a single real A2
-      // timeout produced a 42.2s 'A2_response' stage against a 30s
-      // configured timeout — not a bug in the timeout mechanism itself
-      // (which fired correctly at ~30s), but this uninstrumented second
-      // call running immediately after it.
-      if (isOnboarding && !a2Fallback) {
-        const existingTurns = await getSessionConversationTurns(sessionId);
-        const allTurns: ConversationTurn[] = [
-          ...existingTurns,
-          { role: 'user' as const, content: message },
-          { role: 'assistant' as const, content: finalText },
-        ];
-        onboardingInference = await scoreOnboardingTurn(allTurns);
-      }
     } catch {
       finalText = A2_DEGRADED_RESPONSE;
       a2Fallback = true;
@@ -315,13 +337,13 @@ export async function processTurn(
   const a2End = now();
   recordTiming(timing, 'A2_response', a2Start, a2End);
 
-  if (!a2Fallback && !a9PreBlocked) {
+  if (!a2Fallback && !a9PreBlocked && !a8GroundingDeterministic) {
     const a9PostStart = now();
     try {
       if (testMode?.faults?.boundary === 'A9_post') throw injectedFaultError(testMode.faults.type);
 
       const a9PostResult = await a9PostReview({
-        userContent: finalText,
+        draftResponse: finalText,
         safetyState,
         carePlan: contextBundle.care_plan?.care_plan_id ?? 'CP1',
       });
@@ -445,43 +467,6 @@ export async function processTurn(
     });
   }
 
-  if (carePlanReviewFlag && contextBundle.care_plan?.id) {
-    await prisma.clinicalConfig.update({
-      where: { id: contextBundle.care_plan.id },
-      data: { care_plan_review_flagged: true },
-    });
-  }
-
-  if (isOnboarding && onboardingInference && nextTurnNumber === 3) {
-    const assignment = decideAssignment([onboardingInference]);
-    await prisma.clinicalConfig.upsert({
-      where: { user_id: user.id },
-      create: {
-        user_id: user.id,
-        care_plan_id: assignment.care_plan_id,
-        assignment_state: assignment.assignment_state,
-        confidence_at_last_eval: assignment.confidence_at_last_eval,
-        turns_evaluated: assignment.turns_evaluated,
-        reasoning_note: assignment.reasoning_note,
-      },
-      update: {
-        care_plan_id: assignment.care_plan_id,
-        assignment_state: assignment.assignment_state,
-        confidence_at_last_eval: assignment.confidence_at_last_eval,
-        turns_evaluated: assignment.turns_evaluated,
-        reasoning_note: assignment.reasoning_note,
-      },
-    });
-    console.log({
-      event: 'onboarding_assignment',
-      user_id: user.id,
-      session_id: sessionId,
-      care_plan_id: assignment.care_plan_id,
-      assignment_state: assignment.assignment_state,
-      turns_evaluated: assignment.turns_evaluated,
-    }, 'Onboarding care plan assigned');
-  }
-
   console.log({
     perf: 'total_turn',
     elapsedMs: Math.round(now() - pipelineStart),
@@ -498,7 +483,6 @@ export async function processTurn(
     failureReason: a2FailureReason,
     estimatedIntensity,
     toolCard,
-    onboardingInference,
     ...(testMode?.captureSignalBus ? { signals } : {}),
   };
 }

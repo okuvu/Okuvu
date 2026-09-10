@@ -3,7 +3,6 @@ export interface StageTiming {
   elapsedMs: number
 }
 
-import type { OnboardingInferenceOutput } from '../agents/a2/types.js';
 import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@okuvu/shared-types';
 
 // ─── Test Hooks (TH-S10) ───────────────────────────────────────────
@@ -54,7 +53,6 @@ export type PipelineResult =
       failureReason?: 'timeout' | 'api_error'
       estimatedIntensity: number | null
       toolCard?: ToolCardConfig
-      onboardingInference?: OnboardingInferenceOutput
       signals?: PipelineSignal[]
     }
   | {

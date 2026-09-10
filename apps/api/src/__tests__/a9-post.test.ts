@@ -14,7 +14,7 @@ vi.mock('../lib/generate-content.js', () => {
 
 function makeInput(overrides: Partial<A9PostInput> = {}): A9PostInput {
   return {
-    userContent: 'That sounds really difficult. How are you coping with it?',
+    draftResponse: 'That sounds really difficult. How are you coping with it?',
     safetyState: 'S1',
     carePlan: 'CP1',
     ...overrides,
@@ -27,6 +27,7 @@ function makeResult(overrides: Record<string, unknown> = {}) {
       decision: 'APPROVED',
       violation_type: null,
       confidence: 'high',
+      notes: null,
       ...overrides,
     }),
     fallbackUsed: false,
@@ -52,16 +53,31 @@ describe('A9-post content review agent', () => {
     it('returns BLOCKED for clinical diagnostic language', async () => {
       mockGenerateContent.mockResolvedValue(makeResult({
         decision: 'BLOCKED',
-        violation_type: 'clinical_diagnostic_language',
+        violation_type: 'diagnosis_explicit',
         confidence: 'high',
       }));
 
       const result = await a9PostReview(makeInput({
-        userContent: 'You have anxiety disorder.',
+        draftResponse: 'You have anxiety disorder.',
       }));
 
       expect(result.decision).toBe('BLOCKED');
-      expect(result.violation_type).toBe('clinical_diagnostic_language');
+      expect(result.violation_type).toBe('diagnosis_explicit');
+    });
+
+    it('returns BLOCKED for covert diagnostic language', async () => {
+      mockGenerateContent.mockResolvedValue(makeResult({
+        decision: 'BLOCKED',
+        violation_type: 'diagnosis_covert',
+        confidence: 'high',
+      }));
+
+      const result = await a9PostReview(makeInput({
+        draftResponse: "It sounds like you're dealing with a lot of anxiety lately.",
+      }));
+
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('diagnosis_covert');
     });
 
     it('returns BLOCKED for direct advice', async () => {
@@ -72,7 +88,7 @@ describe('A9-post content review agent', () => {
       }));
 
       const result = await a9PostReview(makeInput({
-        userContent: 'You should try breathing exercises.',
+        draftResponse: 'You should try breathing exercises.',
       }));
 
       expect(result.decision).toBe('BLOCKED');
@@ -87,7 +103,7 @@ describe('A9-post content review agent', () => {
       }));
 
       const result = await a9PostReview(makeInput({
-        userContent: 'This will help you feel better.',
+        draftResponse: 'This will help you feel better.',
       }));
 
       expect(result.decision).toBe('BLOCKED');
@@ -102,7 +118,7 @@ describe('A9-post content review agent', () => {
       }));
 
       const result = await a9PostReview(makeInput({
-        userContent: 'Maybe another way to look at this is...',
+        draftResponse: 'Maybe another way to look at this is...',
       }));
 
       expect(result.decision).toBe('BLOCKED');
@@ -117,7 +133,7 @@ describe('A9-post content review agent', () => {
       }));
 
       const result = await a9PostReview(makeInput({
-        userContent: 'Your anxiety is caused by your childhood experiences.',
+        draftResponse: 'Your anxiety is caused by your childhood experiences.',
       }));
 
       expect(result.decision).toBe('BLOCKED');
@@ -127,32 +143,77 @@ describe('A9-post content review agent', () => {
     it('returns BLOCKED for medication references', async () => {
       mockGenerateContent.mockResolvedValue(makeResult({
         decision: 'BLOCKED',
-        violation_type: 'medication_reference',
+        violation_type: 'medication_content',
         confidence: 'high',
       }));
 
       const result = await a9PostReview(makeInput({
-        userContent: 'Have you considered discussing SSRIs with your doctor?',
+        draftResponse: 'Have you considered discussing SSRIs with your doctor?',
       }));
 
       expect(result.decision).toBe('BLOCKED');
-      expect(result.violation_type).toBe('medication_reference');
+      expect(result.violation_type).toBe('medication_content');
     });
 
     it('returns BLOCKED for content inappropriate for safety state', async () => {
       mockGenerateContent.mockResolvedValue(makeResult({
         decision: 'BLOCKED',
-        violation_type: 'safety_state_inappropriate',
+        violation_type: 'safety_state_mismatch',
         confidence: 'high',
       }));
 
       const result = await a9PostReview(makeInput({
         safetyState: 'S0',
-        userContent: 'It sounds like you are in crisis. Please call a helpline.',
+        draftResponse: 'It sounds like you are in crisis. Please call a helpline.',
       }));
 
       expect(result.decision).toBe('BLOCKED');
-      expect(result.violation_type).toBe('safety_state_inappropriate');
+      expect(result.violation_type).toBe('safety_state_mismatch');
+    });
+
+    it('returns BLOCKED for a fabricated helpline number (v2.0 — the missing check)', async () => {
+      mockGenerateContent.mockResolvedValue(makeResult({
+        decision: 'BLOCKED',
+        violation_type: 'helpline_fabrication',
+        confidence: 'high',
+      }));
+
+      const result = await a9PostReview(makeInput({
+        draftResponse: 'You can call iCall at 9152987821 any time.',
+      }));
+
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('helpline_fabrication');
+    });
+
+    it('returns BLOCKED for a false "crisis team notified" claim (v2.0 — the missing check)', async () => {
+      mockGenerateContent.mockResolvedValue(makeResult({
+        decision: 'BLOCKED',
+        violation_type: 'false_alert_claim',
+        confidence: 'high',
+      }));
+
+      const result = await a9PostReview(makeInput({
+        draftResponse: 'The crisis team has been notified and will reach out.',
+      }));
+
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('false_alert_claim');
+    });
+
+    it('returns BLOCKED for therapist/clinician impersonation (v2.0 — the missing check)', async () => {
+      mockGenerateContent.mockResolvedValue(makeResult({
+        decision: 'BLOCKED',
+        violation_type: 'impersonation',
+        confidence: 'high',
+      }));
+
+      const result = await a9PostReview(makeInput({
+        draftResponse: "I'm here for you, and I'm not a therapist, but I think you should get checked out.",
+      }));
+
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('impersonation');
     });
   });
 
@@ -200,7 +261,7 @@ describe('A9-post content review agent', () => {
       expect(callArgs.generationConfig.temperature).toBe(0.0);
     });
 
-    it('sets max_output_tokens to 1024 (not 100 — Gemini 2.5\'s internal "thinking" tokens can consume a tight budget entirely before any visible output; even 300 still hit MAX_TOKENS or silent mid-JSON truncation on real, longer userContent)', async () => {
+    it('sets max_output_tokens to 1024 (not 100 — Gemini 2.5\'s internal "thinking" tokens can consume a tight budget entirely before any visible output; even 300 still hit MAX_TOKENS or silent mid-JSON truncation on real, longer draftResponse)', async () => {
       mockGenerateContent.mockResolvedValue(makeResult());
 
       await a9PostReview(makeInput());
@@ -229,11 +290,11 @@ describe('A9-post content review agent', () => {
   });
 
   describe('prompt construction', () => {
-    it('includes user content, safety state, and care plan in the prompt', async () => {
+    it('includes the draft response, safety state, and care plan in the prompt', async () => {
       mockGenerateContent.mockResolvedValue(makeResult());
 
       await a9PostReview(makeInput({
-        userContent: 'Some test content',
+        draftResponse: 'Some test content',
         safetyState: 'S2',
         carePlan: 'CP2',
       }));
@@ -244,24 +305,35 @@ describe('A9-post content review agent', () => {
       expect(callArgs.systemInstruction).toContain('CP2');
     });
 
-    it('lists all seven prohibited categories', async () => {
+    it('lists the v2.0 checklist categories, including the new helpline-integrity and impersonation checks', async () => {
       mockGenerateContent.mockResolvedValue(makeResult());
 
       await a9PostReview(makeInput());
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('Clinical diagnostic language');
-      expect(callArgs.systemInstruction).toContain('Direct advice');
-      expect(callArgs.systemInstruction).toContain('Outcome promises');
-      expect(callArgs.systemInstruction).toContain('Cognitive reframes');
-      expect(callArgs.systemInstruction).toContain('Causal attribution');
-      expect(callArgs.systemInstruction).toContain('Prescription or medication');
-      expect(callArgs.systemInstruction).toContain('Content inappropriate for the current safety state');
+      expect(callArgs.systemInstruction).toContain('Helpline & crisis-integrity');
+      expect(callArgs.systemInstruction).toContain('Clinical language & impersonation');
+      expect(callArgs.systemInstruction).toContain('Direct advice —');
+      expect(callArgs.systemInstruction).toContain('Outcome promises —');
+      expect(callArgs.systemInstruction).toContain('Cognitive reframes —');
+      expect(callArgs.systemInstruction).toContain('Causal attribution —');
+      expect(callArgs.systemInstruction).toContain('No medication content —');
+      expect(callArgs.systemInstruction).toContain('Safety-state fit');
+    });
+
+    it('defaults language_mode to english and care_plan_focus to null when not provided', async () => {
+      mockGenerateContent.mockResolvedValue(makeResult());
+
+      await a9PostReview(makeInput());
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('language_mode=english');
+      expect(callArgs.systemInstruction).toContain('care_plan_focus=null');
     });
   });
 
-  describe('fallback — malformed JSON', () => {
-    it('falls back to APPROVED when Gemini returns non-JSON text', async () => {
+  describe('fallback — malformed JSON (fail-closed, OKUVU v2.0 / audit P2 fix)', () => {
+    it('fails closed to BLOCKED when Gemini returns non-JSON text', async () => {
       mockGenerateContent.mockResolvedValue({
         text: 'Sure, here is my analysis...',
         fallbackUsed: false,
@@ -269,12 +341,12 @@ describe('A9-post content review agent', () => {
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
-      expect(result.violation_type).toBeNull();
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
       expect(result.confidence).toBe('low');
     });
 
-    it('falls back to APPROVED when JSON is invalid', async () => {
+    it('fails closed to BLOCKED when JSON is invalid', async () => {
       mockGenerateContent.mockResolvedValue({
         text: '{bad json}',
         fallbackUsed: false,
@@ -282,13 +354,13 @@ describe('A9-post content review agent', () => {
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
-      expect(result.violation_type).toBeNull();
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
     });
   });
 
-  describe('fallback — missing or invalid fields', () => {
-    it('falls back to APPROVED when response is not an object', async () => {
+  describe('fallback — missing or invalid fields (fail-closed, OKUVU v2.0 / audit P2 fix)', () => {
+    it('fails closed to BLOCKED when response is not an object', async () => {
       mockGenerateContent.mockResolvedValue({
         text: '"just a string"',
         fallbackUsed: false,
@@ -296,63 +368,106 @@ describe('A9-post content review agent', () => {
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
       expect(result.confidence).toBe('low');
     });
 
-    it('falls back to APPROVED when decision is missing', async () => {
+    it('fails closed to BLOCKED when decision is missing', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ violation_type: null, confidence: 'high' }),
+        text: JSON.stringify({ violation_type: null, confidence: 'high', notes: null }),
         fallbackUsed: false,
       });
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
     });
 
-    it('falls back to APPROVED when decision is invalid', async () => {
+    it('fails closed to BLOCKED when decision is invalid', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ decision: 'INVALID', violation_type: null, confidence: 'high' }),
+        text: JSON.stringify({ decision: 'INVALID', violation_type: null, confidence: 'high', notes: null }),
         fallbackUsed: false,
       });
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
     });
 
-    it('falls back to APPROVED when confidence is invalid', async () => {
+    it('fails closed to BLOCKED when confidence is invalid', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'invalid' }),
+        text: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'invalid', notes: null }),
         fallbackUsed: false,
       });
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
     });
 
-    it('falls back to APPROVED when violation_type is not string or null', async () => {
+    it('fails closed to BLOCKED when violation_type is not string or null', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ decision: 'BLOCKED', violation_type: 42, confidence: 'high' }),
+        text: JSON.stringify({ decision: 'BLOCKED', violation_type: 42, confidence: 'high', notes: null }),
         fallbackUsed: false,
       });
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
     });
 
-    it('does not normalize case — APPROVED (uppercase) is valid, approved (lowercase) is not', async () => {
+    it('fails closed to BLOCKED when notes is not string or null', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ decision: 'approved', violation_type: null, confidence: 'high' }),
+        text: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'high', notes: 42 }),
         fallbackUsed: false,
       });
 
       const result = await a9PostReview(makeInput());
 
-      expect(result.decision).toBe('APPROVED');
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
+    });
+
+    it('does not normalize case — APPROVED (uppercase) is valid, approved (lowercase) fails closed to BLOCKED', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({ decision: 'approved', violation_type: null, confidence: 'high', notes: null }),
+        fallbackUsed: false,
+      });
+
+      const result = await a9PostReview(makeInput());
+
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('parse_failure');
+    });
+  });
+
+  describe('v2.0 output field — notes', () => {
+    it('passes through notes when present', async () => {
+      mockGenerateContent.mockResolvedValue(makeResult({
+        decision: 'BLOCKED',
+        violation_type: 'direct_advice',
+        notes: 'You should try breathing exercises.',
+      }));
+
+      const result = await a9PostReview(makeInput());
+
+      expect(result.notes).toBe('You should try breathing exercises.');
+    });
+
+    it('defaults notes to null when omitted', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'high' }),
+        fallbackUsed: false,
+      });
+
+      const result = await a9PostReview(makeInput());
+
+      expect(result.notes).toBeNull();
     });
   });
 
@@ -379,7 +494,7 @@ describe('A9-post content review agent', () => {
         confidence: 'high',
       }));
 
-      await a9PostReview(makeInput({ userContent: 'You should do X.' }));
+      await a9PostReview(makeInput({ draftResponse: 'You should do X.' }));
 
       expect(infoSpy).toHaveBeenCalledWith(
         { decision: 'BLOCKED', violation_type: 'direct_advice', confidence: 'high' },

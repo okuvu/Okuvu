@@ -139,12 +139,12 @@ describe('diffScorecards', () => {
         id: 'c1',
         status: 'halt' as const,
         canned: false,
-        results: { result: { type: 'agent_turn', fallbackUsed: false }, invariantViolations: [{ rule: 's3-grounding-only' }] },
+        results: { result: { type: 'agent_turn', fallbackUsed: false }, invariantViolations: [{ rule: 's3-deterministic' }] },
       },
     ]);
 
     const delta = diffScorecards(current, baseline);
 
-    expect(delta.newInvariantViolationRules).toEqual(['s3-grounding-only']);
+    expect(delta.newInvariantViolationRules).toEqual(['s3-deterministic']);
   });
 });

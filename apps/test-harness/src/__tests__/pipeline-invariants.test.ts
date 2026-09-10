@@ -3,7 +3,7 @@ import {
   checkSignalOrdering,
   checkFullSuppression,
   checkGovernanceBlockedMode,
-  checkS3GroundingOnly,
+  checkS3Deterministic,
   checkPipelineInvariants,
 } from '../lib/pipeline-invariants';
 import type { PipelineSignal } from '@okuvu/shared-types';
@@ -58,7 +58,7 @@ describe('checkFullSuppression', () => {
     expect(violation?.rule).toBe('full-suppression');
   });
 
-  it('does not require suppression at S3 (grounding-only, not full suppression, is correct)', () => {
+  it('does not require suppression at S3 (deterministic-grounding, not full suppression, is correct)', () => {
     const signals = [signal('A1_result', 'A1', 'S3'), signal('A9_pre_result', 'A9-pre', 'Active')];
     expect(checkFullSuppression(signals, 'agent_turn')).toBeNull();
   });
@@ -121,35 +121,54 @@ describe('checkGovernanceBlockedMode', () => {
     const signals = [signal('A1_result', 'A1', 'S0'), signal('A9_pre_result', 'A9-pre', 'Blocked')];
     expect(checkGovernanceBlockedMode(signals, 'crisis')).toBeNull();
   });
+
+  it('does not apply when safety is S3 — deterministic-grounding takes precedence over Blocked (OKUVU v2.0, checkS3Deterministic\'s job now)', () => {
+    const signals = [
+      signal('A1_result', 'A1', 'S3'),
+      signal('A9_pre_result', 'A9-pre', 'Blocked'),
+      signal('A8_decision', 'A8', { agent: 'deterministic-grounding' }),
+    ];
+    expect(checkGovernanceBlockedMode(signals, 'agent_turn')).toBeNull();
+  });
 });
 
-describe('checkS3GroundingOnly', () => {
-  it('passes when S3 (non-Blocked) routes A2 to grounding-only mode', () => {
+describe('checkS3Deterministic (OKUVU v2.0 — S3 is deterministic, same tier as S4/crisis)', () => {
+  it('passes when S3 routes to agent=deterministic-grounding', () => {
     const signals = [
       signal('A1_result', 'A1', 'S3'),
       signal('A9_pre_result', 'A9-pre', 'Active'),
-      signal('A8_decision', 'A8', { agent: 'A2', mode: 'grounding-only' }),
+      signal('A8_decision', 'A8', { agent: 'deterministic-grounding' }),
     ];
-    expect(checkS3GroundingOnly(signals)).toBeNull();
+    expect(checkS3Deterministic(signals, 'agent_turn')).toBeNull();
   });
 
-  it('flags S3 routed to a non-grounding-only mode', () => {
+  it('flags S3 routed to A2 instead of deterministic-grounding', () => {
     const signals = [
       signal('A1_result', 'A1', 'S3'),
       signal('A9_pre_result', 'A9-pre', 'Active'),
       signal('A8_decision', 'A8', { agent: 'A2', mode: 'normal' }),
     ];
-    const violation = checkS3GroundingOnly(signals);
-    expect(violation?.rule).toBe('s3-grounding-only');
+    const violation = checkS3Deterministic(signals, 'agent_turn');
+    expect(violation?.rule).toBe('s3-deterministic');
   });
 
-  it('does not apply when governance=Blocked overrides S3 to blocked mode', () => {
+  it('S3 takes precedence over governance=Blocked — still routes to deterministic-grounding, not A2 blocked mode', () => {
+    const signals = [
+      signal('A1_result', 'A1', 'S3'),
+      signal('A9_pre_result', 'A9-pre', 'Blocked'),
+      signal('A8_decision', 'A8', { agent: 'deterministic-grounding' }),
+    ];
+    expect(checkS3Deterministic(signals, 'agent_turn')).toBeNull();
+  });
+
+  it('flags S3 with governance=Blocked incorrectly routed to A2 blocked mode instead of deterministic-grounding', () => {
     const signals = [
       signal('A1_result', 'A1', 'S3'),
       signal('A9_pre_result', 'A9-pre', 'Blocked'),
       signal('A8_decision', 'A8', { agent: 'A2', mode: 'blocked' }),
     ];
-    expect(checkS3GroundingOnly(signals)).toBeNull();
+    const violation = checkS3Deterministic(signals, 'agent_turn');
+    expect(violation?.rule).toBe('s3-deterministic');
   });
 
   it('does not apply outside S3', () => {
@@ -158,7 +177,17 @@ describe('checkS3GroundingOnly', () => {
       signal('A9_pre_result', 'A9-pre', 'Active'),
       signal('A8_decision', 'A8', { agent: 'A2', mode: 'normal' }),
     ];
-    expect(checkS3GroundingOnly(signals)).toBeNull();
+    expect(checkS3Deterministic(signals, 'agent_turn')).toBeNull();
+  });
+
+  it('flags agent=deterministic-grounding fired at a non-S3 safety state', () => {
+    const signals = [
+      signal('A1_result', 'A1', 'S1'),
+      signal('A9_pre_result', 'A9-pre', 'Active'),
+      signal('A8_decision', 'A8', { agent: 'deterministic-grounding' }),
+    ];
+    const violation = checkS3Deterministic(signals, 'agent_turn');
+    expect(violation?.rule).toBe('s3-deterministic');
   });
 });
 

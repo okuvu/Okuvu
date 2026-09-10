@@ -109,6 +109,77 @@ describe('generateSessionSummary', () => {
       expect(callArgs.contents[0].parts[0].text).toContain('Assistant response 2');
       expect(callArgs.generationConfig.responseMimeType).toBe('application/json');
     });
+
+    it('sets temperature to 0.0 (OKUVU v2.0 — deterministic summarization)', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.generationConfig.temperature).toBe(0.0);
+    });
+  });
+
+  describe('OKUVU v2.0 output — homework_progress, safety_flags, and other new fields', () => {
+    const richOutput = JSON.stringify({
+      narrative_summary: 'User opened about exam pressure and did a grounding exercise.',
+      themes: ['exam pressure', 'sleep'],
+      emotional_state: 'anxious at open, settled after grounding',
+      techniques_used: ['grounding_5431'],
+      homework_progress: {
+        assigned: '5-4-3-2-1 grounding before bed',
+        user_reported: 'not_done',
+        user_quotes: ['yaar homework hi nahi hua, bhool hi gayi'],
+      },
+      safety_flags: {
+        crisis_language_detected: false,
+        elevated_risk_turns: 0,
+        escalation_handled: 'none_needed',
+        quotes: [],
+      },
+      referrals_made: 'therapist_referral',
+      key_points: ['exam pressure primary stressor'],
+      open_loops: ['grounding homework still pending'],
+      language: 'hinglish',
+    });
+
+    it('accepts the full v2.0 shape (homework_progress, safety_flags, referrals_made, open_loops, language) and persists it as COMPLETED', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: richOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      const upsertCall = mockUpsert.mock.calls[0][0];
+      const persisted = JSON.parse(upsertCall.create.summary_text);
+      expect(persisted.homework_progress.user_reported).toBe('not_done');
+      expect(persisted.safety_flags.crisis_language_detected).toBe(false);
+      expect(persisted.referrals_made).toBe('therapist_referral');
+      expect(persisted.open_loops).toEqual(['grounding homework still pending']);
+      expect(persisted.language).toBe('hinglish');
+    });
+
+    it('still succeeds when the new v2.0 fields are entirely absent (backward-tolerant parsing)', async () => {
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+    });
   });
 
   describe('positive — idempotent upsert', () => {
@@ -384,6 +455,78 @@ describe('generateSessionSummary', () => {
           where: { user_id: 'user-1' },
           create: expect.objectContaining({ emotional_baseline: null }),
           update: expect.objectContaining({ emotional_baseline: null }),
+        }),
+      );
+    });
+
+    it('persists homework_track from the memory-extraction output (OKUVU v2.0 — the new field)', async () => {
+      const memoryWithHomework = JSON.stringify({
+        life_context: [],
+        recurring_themes: [],
+        what_helps: [],
+        what_doesnt_help: [],
+        significant_events: [],
+        current_stressors: [],
+        homework_track: ['grounding before bed — not_done, forgot [session 5]'],
+        emotional_baseline: null,
+      });
+
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent
+        .mockResolvedValueOnce({ text: validFlashLiteOutput, fallbackUsed: false })
+        .mockResolvedValueOnce({ text: memoryWithHomework, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockCount.mockResolvedValue(5);
+      mockUserMemoryFind.mockResolvedValue(null);
+      mockUserMemoryUpsert.mockResolvedValue({ id: 'mem-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockUserMemoryUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { user_id: 'user-1' },
+          create: expect.objectContaining({
+            homework_track: ['grounding before bed — not_done, forgot [session 5]'],
+          }),
+          update: expect.objectContaining({
+            homework_track: ['grounding before bed — not_done, forgot [session 5]'],
+          }),
+        }),
+      );
+    });
+
+    it('defaults homework_track to an empty array when the memory-extraction output omits it', async () => {
+      const memoryWithoutHomework = JSON.stringify({
+        life_context: [],
+        recurring_themes: [],
+        what_helps: [],
+        what_doesnt_help: [],
+        significant_events: [],
+        current_stressors: [],
+        emotional_baseline: null,
+      });
+
+      const turns = makeTranscriptTurns(4);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
+      mockGenerateContent
+        .mockResolvedValueOnce({ text: validFlashLiteOutput, fallbackUsed: false })
+        .mockResolvedValueOnce({ text: memoryWithoutHomework, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+      mockCount.mockResolvedValue(5);
+      mockUserMemoryFind.mockResolvedValue(null);
+      mockUserMemoryUpsert.mockResolvedValue({ id: 'mem-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockUserMemoryUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ homework_track: [] }),
+          update: expect.objectContaining({ homework_track: [] }),
         }),
       );
     });

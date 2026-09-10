@@ -87,7 +87,7 @@ function setupBaseMocks(): void {
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
   vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-  vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
+  vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high', notes: null });
 }
 
 describe('turn pipeline latency benchmark', () => {
@@ -104,12 +104,12 @@ describe('turn pipeline latency benchmark', () => {
   it('meets p50 latency target under 2000ms across 20 simulated turns', { timeout: 15000 }, async () => {
     vi.mocked(classifySafety).mockImplementation(async () => {
       await simulateLatency(50);
-      return { safetyState: 'S2', fallbackUsed: false };
+      return { safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null };
     });
 
     vi.mocked(classifyGovernance).mockImplementation(async () => {
       await simulateLatency(35);
-      return { governanceState: 'Active', fallbackUsed: false };
+      return { governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null };
     });
 
     vi.mocked(handleTurn).mockImplementation(async () => {
@@ -174,7 +174,7 @@ describe('turn pipeline latency benchmark', () => {
       await simulateLatency(50);
       const end = performance.now();
       a1Windows.push({ start, end });
-      return { safetyState: 'S2', fallbackUsed: false };
+      return { safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null };
     });
 
     vi.mocked(classifyGovernance).mockImplementation(async () => {
@@ -182,7 +182,7 @@ describe('turn pipeline latency benchmark', () => {
       await simulateLatency(30);
       const end = performance.now();
       a9Windows.push({ start, end });
-      return { governanceState: 'Active', fallbackUsed: false };
+      return { governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null };
     });
 
     vi.mocked(handleTurn).mockResolvedValue({ response: 'Ok.', userContent: 'Ok.', signal: null, fallbackUsed: false, modelVersion: 'gemini-2.5-flash', promptVersion: 'v1.0', canned: false });

@@ -20,3 +20,15 @@ export function getSafeFallback(safetyState: string): string {
 export const A9_PRE_BLOCKED_RESPONSE =
   "I want to keep our conversation within what I can safely help with here. " +
   "Let's take a step back — what would be most helpful for you right now?"
+
+// OKUVU v2.0: A1 classified this turn S3 (elevated risk — hopelessness,
+// worthlessness, or escape themes, without a stated plan or method). This is
+// the router's 'deterministic-grounding' agent (a8-router.ts) — the same
+// tier of clinical determinism as crisis (S4), one step down: A2 is skipped
+// entirely, but this always gets a real, persisted, grounding-oriented
+// reply, never silence. Content TBD by whoever owns crisis/grounding copy —
+// same open item as A9_PRE_BLOCKED_RESPONSE and the crisis path's no-script
+// gap.
+export const A8_S3_GROUNDING_RESPONSE =
+  "It sounds like things feel really heavy right now. Let's slow down together — " +
+  "can you take a breath with me, and tell me what's around you right now?"

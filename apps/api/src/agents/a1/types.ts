@@ -10,7 +10,14 @@ export interface A1Input {
   recentHistory?: ConversationTurn[]
 }
 
+export type A1Basis = 'literal' | 'contextual' | 'ambiguous'
+export type A1SignalStrength = 'high' | 'medium' | 'low'
+
 export interface A1Output {
   safetyState: SafetyState
   fallbackUsed: boolean
+  crisis_language_detected: boolean
+  basis: A1Basis
+  signal_strength: A1SignalStrength
+  notes: string | null
 }

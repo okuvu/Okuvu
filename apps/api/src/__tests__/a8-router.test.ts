@@ -8,7 +8,7 @@ const s2normal: RouterInput = { safety_state: 'S2', session_count: 5, turn_count
 const s3grounding: RouterInput = { safety_state: 'S3', session_count: 5, turn_count: 10 };
 const s4crisis: RouterInput = { safety_state: 'S4', session_count: 5, turn_count: 10 };
 
-describe('A8 Router — 4 Gates', () => {
+describe('A8 Router — 3 Gates (OKUVU v2.0 — deterministic S3, no first-turn special case)', () => {
   describe('Gate 1 — Crisis (S4)', () => {
     it('returns crisis for S4', () => {
       expect(routeTurn(s4crisis)).toEqual({ agent: 'crisis' });
@@ -18,11 +18,31 @@ describe('A8 Router — 4 Gates', () => {
       const input: RouterInput = { safety_state: 'S4', session_count: 1, turn_count: 1 };
       expect(routeTurn(input)).toEqual({ agent: 'crisis' });
     });
+
+    it('returns crisis for S4 even when governance is Blocked (crisis takes precedence)', () => {
+      const input: RouterInput = { safety_state: 'S4', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'crisis' });
+    });
   });
 
-  describe('Gate 2 — Grounding (S3)', () => {
-    it('returns A2 grounding-only for S3', () => {
-      expect(routeTurn(s3grounding)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+  describe('Gate 2 — Deterministic grounding (S3)', () => {
+    it('returns deterministic-grounding for S3', () => {
+      expect(routeTurn(s3grounding)).toEqual({ agent: 'deterministic-grounding' });
+    });
+
+    it('returns deterministic-grounding for S3 even when first session and first turn', () => {
+      const input: RouterInput = { safety_state: 'S3', session_count: 1, turn_count: 1 };
+      expect(routeTurn(input)).toEqual({ agent: 'deterministic-grounding' });
+    });
+
+    it('returns deterministic-grounding for S3 even when governance is Blocked (S3 takes precedence — checked before governance)', () => {
+      const input: RouterInput = { safety_state: 'S3', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'deterministic-grounding' });
+    });
+
+    it('returns deterministic-grounding for S3 regardless of governance state (Restricted)', () => {
+      const input: RouterInput = { safety_state: 'S3', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'deterministic-grounding' });
     });
   });
 
@@ -38,12 +58,10 @@ describe('A8 Router — 4 Gates', () => {
     it('returns A2 normal for S2', () => {
       expect(routeTurn(s2normal)).toEqual({ agent: 'A2', mode: 'normal' });
     });
-  });
 
-  describe('Gate 4 — Alliance-building (first session + first turn)', () => {
-    it('returns A2 alliance-building for first session and first turn with S0', () => {
+    it('returns A2 normal for first session and first turn (no alliance-building special case in v2.0 — continuous chat has no "first thread" concept)', () => {
       const input: RouterInput = { safety_state: 'S0', session_count: 1, turn_count: 1 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'alliance-building' });
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'normal' });
     });
   });
 
@@ -97,34 +115,24 @@ describe('A8 Router — 4 Gates', () => {
       expect(routeTurn(input)).toEqual({ agent: 'crisis' });
     });
 
-    it('Blocked takes precedence over the first-turn alliance-building special case', () => {
+    it('Blocked takes precedence over the (now-removed) first-turn special case', () => {
       const input: RouterInput = { safety_state: 'S0', governance_state: 'Blocked', session_count: 1, turn_count: 1 };
       expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'blocked' });
     });
 
-    it('Blocked takes precedence over S3 grounding-only', () => {
+    it('S3 deterministic-grounding takes precedence over Blocked governance', () => {
       const input: RouterInput = { safety_state: 'S3', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'blocked' });
+      expect(routeTurn(input)).toEqual({ agent: 'deterministic-grounding' });
     });
 
-    it('routes grounding-only when governance is Restricted (safety S0)', () => {
+    it('routes A2 normal when governance is Restricted (safety S0) — v2.0 has no distinct grounding-only mode', () => {
       const input: RouterInput = { safety_state: 'S0', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'normal' });
     });
 
-    it('routes grounding-only when governance is Restricted (safety S2)', () => {
+    it('routes A2 normal when governance is Restricted (safety S2)', () => {
       const input: RouterInput = { safety_state: 'S2', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
-    });
-
-    it('alliance-building takes precedence over Restricted governance', () => {
-      const input: RouterInput = { safety_state: 'S0', governance_state: 'Restricted', session_count: 1, turn_count: 1 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'alliance-building' });
-    });
-
-    it('S3 grounding-only takes precedence over Restricted governance', () => {
-      const input: RouterInput = { safety_state: 'S3', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'normal' });
     });
 
     it('normal behavior when governance is Active', () => {
@@ -147,27 +155,31 @@ describe('A8 Router — 4 Gates', () => {
         expect(routeTurn(input)).toEqual(expected);
       }
     });
+
+    it('returns identical output for identical S3 input across 100 calls', () => {
+      const input: RouterInput = { safety_state: 'S3', session_count: 5, turn_count: 10 };
+      const expected = { agent: 'deterministic-grounding' as const };
+
+      for (let i = 0; i < 100; i++) {
+        expect(routeTurn(input)).toEqual(expected);
+      }
+    });
   });
 
-  describe('A8 Router — 4 Gates (exactly one test per gate)', () => {
+  describe('A8 Router — 3 Gates (exactly one test per gate)', () => {
     it('Gate 1 — Crisis: S4 routes to crisis agent', () => {
       const input: RouterInput = { safety_state: 'S4', session_count: 5, turn_count: 10 };
       expect(routeTurn(input)).toEqual({ agent: 'crisis' });
     });
 
-    it('Gate 2 — Grounding: S3 routes to A2 grounding-only', () => {
+    it('Gate 2 — Deterministic grounding: S3 routes to deterministic-grounding agent (A2 never sees it)', () => {
       const input: RouterInput = { safety_state: 'S3', session_count: 5, turn_count: 10 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+      expect(routeTurn(input)).toEqual({ agent: 'deterministic-grounding' });
     });
 
-    it('Gate 3 — Alliance-building: first session + first turn routes to A2 alliance-building', () => {
-      const input: RouterInput = { safety_state: 'S0', session_count: 1, turn_count: 1 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'alliance-building' });
-    });
-
-    it('Gate 4 — Restricted governance: Restricted routes to A2 grounding-only', () => {
-      const input: RouterInput = { safety_state: 'S0', governance_state: 'Restricted', session_count: 5, turn_count: 10 };
-      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'grounding-only' });
+    it('Gate 3 — Blocked governance: Blocked at S0-S2 routes to A2 blocked mode', () => {
+      const input: RouterInput = { safety_state: 'S0', governance_state: 'Blocked', session_count: 5, turn_count: 10 };
+      expect(routeTurn(input)).toEqual({ agent: 'A2', mode: 'blocked' });
     });
   });
 });

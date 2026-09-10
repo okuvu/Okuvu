@@ -1,6 +1,5 @@
-export type AgentMode = 'normal' | 'grounding-only' | 'alliance-building';
-
 export type CarePlan = 'CP1' | 'CP2' | 'CP3';
+export type LanguageMode = 'english' | 'mirror';
 
 export interface ConversationTurn {
   role: 'user' | 'assistant';
@@ -12,65 +11,74 @@ export interface A2Input {
   message: string;
   carePlan: CarePlan;
   safetyState: 'S0' | 'S1' | 'S2';
-  sessionNumber: number;
-  turnNumber: number;
   sessionHistorySummary: string | null;
   perceivedIntensity: number | null;
-  mode: AgentMode;
   recentHistory: ConversationTurn[];
   sessionSummary?: string | null;
   toolResultContext?: string;
   userMemoryContext?: string | null;
   retrievedContext?: string | null;
+  /**
+   * OKUVU v2.0 additions. All optional and degrade gracefully to a safe
+   * default (see prompts.ts's buildConversationalPrompt) — the
+   * therapist-portal integration, homework schema, and tool-id registry
+   * that would fully populate these are separate, not-yet-built
+   * workstreams (docs/okuvu-v2.0/02-master-handoff.md §4).
+   */
+  therapistName?: string | null;
+  carePlanFocus?: string | null;
+  homework?: string | null;
+  toolkit?: string[];
+  languageMode?: LanguageMode;
 }
 
 export interface A2Output {
   response: string;
   userContent: string;
-  signal: S06Signal | null;
+  signal: S07Signal | null;
   fallbackUsed: boolean;
   failureReason?: 'timeout' | 'api_error';
   /** The model that would produce/produced `response` (e.g. 'gemini-2.5-flash') — see `canned` before treating this as real provenance. */
   modelVersion: string;
-  /** The A2 conversational prompt's version (see prompts/index.ts's A2_MVP_PROMPT_VERSION). */
+  /** The A2 conversational prompt's version (see prompts/index.ts's A2_PROMPT_VERSION). */
   promptVersion: string;
   /** True when `response` is canned/test-hook text, not a real model call — callers persisting modelVersion/promptVersion as provenance must treat both as null when this is true. */
   canned: boolean;
 }
 
-export interface S06MoodInference {
+export interface S07MoodInference {
   primary_emotion: string | null;
   confidence: 'high' | 'medium' | 'low';
 }
 
-export interface S06SessionFlags {
-  crisis_language_detected: boolean;
-  validation_only_turn: boolean;
-  technique_refused_by_user: boolean;
-}
+export type TaperState = 'none' | 'solution_reached' | 'pacifying' | 'nowhere';
 
-export interface S06Signal {
-  signal: 'S-06';
+/**
+ * OKUVU v2.0 signal — supersedes S-06. Continuous chat has no turn_number;
+ * crisis_language_detected moves to A1 (the authoritative source, see
+ * orchestrator.ts); care_plan_fit moves to Worker 05 (session-summary,
+ * not yet built); technique_used/tool_launched become free-form tool-id
+ * strings (the T1-T8 codes and the fixed breathing_config shape are
+ * retired — a real tool-id registry is a separate, not-yet-built
+ * workstream, so these are opaque strings until then).
+ */
+export interface S07Signal {
+  signal: 'S-07';
   agent: 'A2';
-  turn_number: number;
-  technique_used: 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'T8' | null;
-  estimated_intensity: number | null;
-  intensity_direction: 'rising' | 'falling' | 'stable' | 'unknown';
-  mood_inference: S06MoodInference;
-  session_flags: S06SessionFlags;
-  care_plan_fit: 'well_matched' | 'uncertain' | 'possible_mismatch';
-  tool_launch_recommended?: 'guided_breathing' | 'box_breathing' | 'grounding_5431';
-  breathing_config?: {
-    inhale_seconds?: number;
-    hold_seconds?: number;
-    exhale_seconds?: number;
-    cycles?: number;
-  };
+  technique_used: string | null;
+  tool_launched: string | null;
+  taper_state: TaperState;
+  closure_offered: boolean;
+  frustration_event: boolean;
+  homework_referenced: boolean;
+  therapist_referral: boolean;
+  intensity: number | null;
+  mood_inference: S07MoodInference;
 }
 
 export interface A2ParsedResponse {
   userContent: string;
-  signal: S06Signal | null;
+  signal: S07Signal | null;
 }
 
 export interface OnboardingInferenceOutput {

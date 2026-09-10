@@ -96,7 +96,7 @@ beforeEach(() => {
   vi.mocked(prisma.sessionLog.update).mockResolvedValue({ turn_count: 4 } as never);
   vi.mocked(prisma.governanceLog.create).mockResolvedValue({} as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: UID } as never);
-  vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high' });
+  vi.mocked(a9PostReview).mockResolvedValue({ decision: 'APPROVED', violation_type: null, confidence: 'high', notes: null });
 
   clearToolResult(SESSION_ID);
   clearRetrievedContext(SESSION_ID);
@@ -104,8 +104,8 @@ beforeEach(() => {
 
 describe('processTurn — TH-S10 default path (opts absent)', () => {
   it('produces the same result when called with no 5th argument as before TH-S10', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
@@ -125,7 +125,6 @@ describe('processTurn — TH-S10 default path (opts absent)', () => {
       expect(result.turnId).toBe('assistant-turn-1');
       expect(result.estimatedIntensity).toBeNull();
       expect(result.toolCard).toBeUndefined();
-      expect(result.onboardingInference).toBeUndefined();
       expect(result.signals).toBeUndefined();
       const stages = result.timing.map((t) => t.stage);
       expect(stages).toEqual(['A1', 'A9_pre', 'A8_router', 'A2_response', 'A9_post']);
@@ -135,7 +134,7 @@ describe('processTurn — TH-S10 default path (opts absent)', () => {
 
 describe('processTurn — TH-S10 injectA1', () => {
   it('skips classifySafety entirely and flows the injected value to A2', async () => {
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
@@ -158,8 +157,8 @@ describe('processTurn — TH-S10 injectA1', () => {
 
 describe('processTurn — TH-S10 signalOverride', () => {
   it('overrides the a2_result boundary and changes the returned message', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
@@ -178,8 +177,8 @@ describe('processTurn — TH-S10 signalOverride', () => {
 
 describe('processTurn — TH-S10 captureSignalBus', () => {
   it('returns a non-empty ordered signal array', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
@@ -203,8 +202,8 @@ describe('processTurn — TH-S10 captureSignalBus', () => {
   });
 
   it('still captures A1/A9 signals on the crisis short-circuit path', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
 
     const result = await processTurn(UID, SESSION_ID, 'I want to hurt myself', null, {
@@ -223,7 +222,7 @@ describe('processTurn — TH-S10 captureSignalBus', () => {
 
 describe('processTurn — TH-S10 faults', () => {
   it('faults.boundary A1 triggers the existing S2 fallback without calling the real classifySafety', async () => {
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
@@ -242,7 +241,7 @@ describe('processTurn — TH-S10 faults', () => {
   });
 
   it('faults.boundary A9_pre resolves governanceState to Restricted (never Active) — mvp-v2-engineering-spec.md §5.5 fail-closed guard', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false });
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
@@ -258,8 +257,8 @@ describe('processTurn — TH-S10 faults', () => {
   });
 
   it('faults.boundary A2 triggers A2_DEGRADED_RESPONSE via the existing catch block', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
 
@@ -282,8 +281,8 @@ describe('processTurn — TH-S10 faults', () => {
   });
 
   it('propagates A2Output.failureReason through to PipelineResult when A2 itself reports a fallback', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false });
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue({
       ...defaultA2Result,

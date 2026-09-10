@@ -6,12 +6,9 @@ import { handleSessionOpen, type SendFrame } from '../lib/session-handler.js';
 import { closeSession } from '../lib/session-close.js';
 import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@okuvu/shared-types';
 import { processTurn } from '../pipeline/orchestrator.js';
-import { generateOnboardingOpening } from '../agents/a2/agent.js';
-import { prisma } from '../lib/prisma.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 
-const CAP_TURN_LIMIT = 10;
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 interface IdleEntry {
@@ -117,47 +114,12 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             log: req.log,
             send,
             sessionId,
+            // OKUVU v2.0: no self-serve/auto-scored onboarding opening — care
+            // plan assignment is therapist-driven, not an automatic scored
+            // message sequence. See docs/okuvu-v2.0/00-README-v2.0.md.
             onSessionOpened: async (sessionId: string) => {
               currentSessionId = sessionId;
               activeSessions.set(sessionId, { perceivedIntensity: null, createdAt: Date.now() });
-
-              try {
-                const user = await prisma.user.findUnique({
-                  where: { firebase_uid: uid },
-                  select: {
-                    id: true,
-                    clinical_config: { select: { care_plan_id: true } },
-                  },
-                });
-                if (user && user.clinical_config?.care_plan_id == null) {
-                  const opening = await generateOnboardingOpening();
-                  const turnId = crypto.randomUUID();
-                  await prisma.turn.create({
-                    data: {
-                      id: turnId,
-                      session_id: sessionId,
-                      user_id: user.id,
-                      turn_number: 0,
-                      role: 'assistant',
-                      content: opening,
-                    },
-                  }).catch((err: unknown) => {
-                    req.log.warn({ event: 'onboarding_opening_persist', user_id: uid, err }, 'Failed to persist onboarding opening');
-                  });
-                  send({
-                    type: 'AGENT_TURN',
-                    payload: {
-                      session_id: sessionId,
-                      message: opening,
-                      turn_count: 0,
-                      turn_id: turnId,
-                      tts_url: null,
-                    },
-                  });
-                }
-              } catch (err) {
-                req.log.warn({ event: 'onboarding_opening', user_id: uid, err }, 'Failed to send onboarding opening message');
-              }
             },
           });
         } catch (err) {
@@ -253,25 +215,6 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           }, 'Turn completed');
 
           setIdleTimer(connId, session_id, socket, uid, req.log);
-
-          if (result.turnCount >= CAP_TURN_LIMIT) {
-            closeSession(session_id, req.user.uid, 'TURN_CAP', req.log).then((closeResult) => {
-              if (!closeResult.alreadyClosed) {
-                activeSessions.delete(session_id);
-                clearToolResult(session_id);
-                clearRetrievedContext(session_id);
-                send({
-                  type: 'SESSION_CLOSED',
-                  payload: {
-                    session_id,
-                    reason: 'TURN_CAP',
-                    session_ended_at: closeResult.session_ended_at!,
-                  },
-                });
-                clearIdleTimerByConnection(connId);
-              }
-            });
-          }
         } catch (err) {
           req.log.error({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, err }, 'Unexpected error during turn');
           send({

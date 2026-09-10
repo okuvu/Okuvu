@@ -37,15 +37,23 @@ export interface RouterInput {
 }
 
 export interface RouterDecision {
-  agent: 'crisis' | 'A2'
+  /**
+   * 'deterministic-grounding' (OKUVU v2.0) means A1 classified this turn S3
+   * (elevated risk) — same tier of determinism as 'crisis' (S4), checked
+   * before governance so a policy-level Blocked verdict can never downgrade
+   * an elevated-risk user to a static policy-boundary reply. Unlike
+   * 'crisis', this still gets a real, persisted, grounding-oriented reply —
+   * A2 is simply never called for the turn at all.
+   */
+  agent: 'crisis' | 'deterministic-grounding' | 'A2'
   /**
    * 'blocked' means A9-pre (governance/policy) rejected the message but A1
-   * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4').
-   * This must never be conflated with 'crisis' — crisis is an A1-only
-   * decision. A 'blocked' turn still gets a real (static, non-LLM) response
-   * and a persisted Turn, unlike the crisis silence path.
+   * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4'
+   * and !== 'S3'). This must never be conflated with 'crisis' — crisis is
+   * an A1-only decision. A 'blocked' turn still gets a real (static,
+   * non-LLM) response and a persisted Turn, unlike the crisis silence path.
    */
-  mode?: 'normal' | 'grounding-only' | 'alliance-building' | 'blocked'
+  mode?: 'normal' | 'blocked'
 }
 
 // ─── WebSocket Frame Types ───────────────────────────────────────

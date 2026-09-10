@@ -20,16 +20,22 @@ function resolveModelOverride(): string | undefined {
 }
 
 export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
-  const { userContent, safetyState, carePlan } = input;
-  const systemInstruction = buildA9PostPrompt(userContent, safetyState, carePlan);
+  const { draftResponse, safetyState, carePlan, languageMode = 'english', carePlanFocus = null } = input;
+  const systemInstruction = buildA9PostPrompt(draftResponse, safetyState, carePlan, languageMode, carePlanFocus);
 
   let resultText: string;
   try {
     const result = await generateContent({
       systemInstruction,
-      contents: [{ role: 'user', parts: [{ text: userContent }] }],
+      contents: [{ role: 'user', parts: [{ text: draftResponse }] }],
       model: resolveModelOverride(),
-      timeoutMs: 5000,
+      // OKUVU v2.0's checklist-heavy prompt (helpline-integrity, impersonation,
+      // subtlety-lens worked examples) is ~9KB, well past the old v1.0 prompt's
+      // size — confirmed live that a real OpenRouter/Llama call now regularly
+      // takes ~11s, well past the old 5000ms budget (every call was timing out
+      // and throwing, silently defeating content review on every turn). 20000ms
+      // leaves real headroom without adopting the full 30000ms platform default.
+      timeoutMs: 20000,
       generationConfig: {
         // Real root cause of the empty-response failures (confirmed live via
         // vertex-ai.ts's finishReason diagnostic): maxOutputTokens: 100 was
@@ -61,7 +67,7 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
       // Canned/sandbox mode never calls Gemini — without this the generic
       // fallback prose fails to parse and result.fallbackUsed:true throws,
       // which the caller (orchestrator) treats as a real review failure.
-      cannedResponse: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'high' }),
+      cannedResponse: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'high', notes: null }),
     });
     if (result.fallbackUsed) {
       throw new Error('A9-post LLM call failed: fallback used');
@@ -73,39 +79,48 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
     throw err;
   }
 
+  // Fail-closed (OKUVU v2.0 spec, A9-post decision rule 4 / audit "P2 fix"):
+  // a parse failure means the reviewer's actual verdict on A2's draft is
+  // unknown, not that the draft is safe. Defaulting to APPROVED here let
+  // every malformed-but-received response bypass content moderation
+  // entirely — the exact "fail-open vs prompt fail-closed" gap the audit
+  // flagged. BLOCKED is the correct default: a wrongly-blocked reply costs
+  // a re-draft/fallback; a wrongly-approved one reaches a vulnerable user.
   let parsed: unknown;
   try {
     parsed = JSON.parse(resultText);
   } catch {
-    console.info({ raw: resultText }, 'A9-post: invalid JSON, falling back to APPROVED');
-    return { decision: 'APPROVED', violation_type: null, confidence: 'low' };
+    console.info({ raw: resultText }, 'A9-post: invalid JSON, failing closed to BLOCKED');
+    return { decision: 'BLOCKED', violation_type: 'parse_failure', confidence: 'low', notes: 'parse_failure' };
   }
 
   if (
     typeof parsed !== 'object' ||
     parsed === null
   ) {
-    console.info({ raw: resultText }, 'A9-post: non-object response, falling back to APPROVED');
-    return { decision: 'APPROVED', violation_type: null, confidence: 'low' };
+    console.info({ raw: resultText }, 'A9-post: non-object response, failing closed to BLOCKED');
+    return { decision: 'BLOCKED', violation_type: 'parse_failure', confidence: 'low', notes: 'parse_failure' };
   }
 
   const obj = parsed as Record<string, unknown>;
   const decision = obj.decision;
   const violation_type = obj.violation_type ?? null;
   const confidence = obj.confidence;
+  const notes = obj.notes ?? null;
 
   if (
     typeof decision !== 'string' || !VALID_DECISIONS.has(decision) ||
     (violation_type !== null && typeof violation_type !== 'string') ||
-    typeof confidence !== 'string' || !VALID_CONFIDENCE.has(confidence)
+    typeof confidence !== 'string' || !VALID_CONFIDENCE.has(confidence) ||
+    (notes !== null && typeof notes !== 'string')
   ) {
     console.info(
       { decision, violation_type, confidence, raw: resultText },
-      'A9-post: invalid fields, falling back to APPROVED',
+      'A9-post: invalid fields, failing closed to BLOCKED',
     );
-    return { decision: 'APPROVED', violation_type: null, confidence: 'low' };
+    return { decision: 'BLOCKED', violation_type: 'parse_failure', confidence: 'low', notes: 'parse_failure' };
   }
 
   console.info({ decision, violation_type, confidence }, 'A9-post: review complete');
-  return { decision, violation_type, confidence } as A9PostResult;
+  return { decision, violation_type, confidence, notes } as A9PostResult;
 }

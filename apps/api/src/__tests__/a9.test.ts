@@ -20,6 +20,23 @@ function makeInput(overrides: Partial<GovernanceInput> = {}): GovernanceInput {
   };
 }
 
+// Full valid v2.0 output — reasonCode/confidence are required by the parser
+// now, so every "success path" mock needs them present.
+function validJson(overrides: Partial<{
+  governanceState: string;
+  reasonCode: string | null;
+  confidence: string;
+  notes: string | null;
+}> = {}): string {
+  return JSON.stringify({
+    governanceState: 'Active',
+    reasonCode: null,
+    confidence: 'medium',
+    notes: null,
+    ...overrides,
+  });
+}
+
 describe('A9 Governance Agent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -29,7 +46,7 @@ describe('A9 Governance Agent', () => {
     for (const state of ['Active', 'Restricted', 'Blocked'] as const) {
       it(`returns ${state} when Gemini responds with ${state}`, async () => {
         mockGenerateContent.mockResolvedValue({
-          text: JSON.stringify({ governanceState: state }),
+          text: validJson({ governanceState: state }),
           fallbackUsed: false,
         });
 
@@ -44,7 +61,7 @@ describe('A9 Governance Agent', () => {
   describe('model selection', () => {
     it('calls Gemini Flash-Lite (not Pro)', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'Active' }),
+        text: validJson(),
         fallbackUsed: false,
       });
 
@@ -63,7 +80,7 @@ describe('A9 Governance Agent', () => {
         const { classifyGovernance: freshClassify } = await import('../agents/a9/agent.js');
 
         mockGenerateContent.mockResolvedValue({
-          text: JSON.stringify({ governanceState: 'Active' }),
+          text: validJson(),
           fallbackUsed: false,
         });
 
@@ -89,7 +106,7 @@ describe('A9 Governance Agent', () => {
         const { classifyGovernance: freshClassify } = await import('../agents/a9/agent.js');
 
         mockGenerateContent.mockResolvedValue({
-          text: JSON.stringify({ governanceState: 'Active' }),
+          text: validJson(),
           fallbackUsed: false,
         });
 
@@ -108,9 +125,21 @@ describe('A9 Governance Agent', () => {
   });
 
   describe('generation config', () => {
+    it('sets temperature to 0.0 (OKUVU v2.0 — deterministic governance classification)', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson(),
+        fallbackUsed: false,
+      });
+
+      await classifyGovernance(makeInput());
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.generationConfig.temperature).toBe(0.0);
+    });
+
     it('sets max_output_tokens to 200', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'Active' }),
+        text: validJson(),
         fallbackUsed: false,
       });
 
@@ -122,7 +151,7 @@ describe('A9 Governance Agent', () => {
 
     it('sets responseMimeType to application/json', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'Active' }),
+        text: validJson(),
         fallbackUsed: false,
       });
 
@@ -136,22 +165,36 @@ describe('A9 Governance Agent', () => {
   describe('prompt construction', () => {
     it('passes the governance prompt as system instruction', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'Active' }),
+        text: validJson(),
         fallbackUsed: false,
       });
 
       await classifyGovernance(makeInput());
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('governance classifier');
+      expect(callArgs.systemInstruction).toContain('governance gate of OKUVU');
       expect(callArgs.systemInstruction).toContain('Active');
       expect(callArgs.systemInstruction).toContain('Restricted');
       expect(callArgs.systemInstruction).toContain('Blocked');
     });
 
+    it('includes the reasonCode taxonomy and the narrow-Blocked doctrine', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson(),
+        fallbackUsed: false,
+      });
+
+      await classifyGovernance(makeInput());
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('safety_relevant_defer');
+      expect(callArgs.systemInstruction).toContain('boundary_repeat');
+      expect(callArgs.systemInstruction).toContain('Blocked is narrow');
+    });
+
     it('passes the user message as content', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'Active' }),
+        text: validJson(),
         fallbackUsed: false,
       });
 
@@ -159,6 +202,72 @@ describe('A9 Governance Agent', () => {
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.contents[0].parts[0].text).toBe('I want to hurt myself');
+    });
+  });
+
+  describe('v2.0 output fields — reasonCode, confidence, notes', () => {
+    it('passes through reasonCode and confidence', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ governanceState: 'Restricted', reasonCode: 'medication_request', confidence: 'high' }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.reasonCode).toBe('medication_request');
+      expect(result.confidence).toBe('high');
+    });
+
+    it('passes through notes when present', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ notes: 'naive cry for help' }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.notes).toBe('naive cry for help');
+    });
+
+    it('defaults notes to null when omitted', async () => {
+      const { notes: _omit, ...rest } = JSON.parse(validJson());
+      mockGenerateContent.mockResolvedValue({ text: JSON.stringify(rest), fallbackUsed: false });
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.notes).toBeNull();
+    });
+
+    it('falls back to Restricted when confidence is missing', async () => {
+      const { confidence: _omit, ...rest } = JSON.parse(validJson());
+      mockGenerateContent.mockResolvedValue({ text: JSON.stringify(rest), fallbackUsed: false });
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.governanceState).toBe('Restricted');
+      expect(result.fallbackUsed).toBe(true);
+    });
+
+    it('falls back to Restricted when reasonCode is an unknown value', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ reasonCode: 'not_a_real_code' }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.governanceState).toBe('Restricted');
+      expect(result.fallbackUsed).toBe(true);
+    });
+
+    it('fallback output has fail-closed defaults (reasonCode: null, confidence: low, notes: parse_error)', async () => {
+      mockGenerateContent.mockRejectedValue(new Error('timeout'));
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.reasonCode).toBeNull();
+      expect(result.confidence).toBe('low');
+      expect(result.notes).toBe('parse_error');
     });
   });
 
@@ -203,7 +312,7 @@ describe('A9 Governance Agent', () => {
 
     it('falls back to Restricted when governanceState is not a string', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 42 }),
+        text: validJson({ governanceState: '42' }).replace('"42"', '42'),
         fallbackUsed: false,
       });
 
@@ -215,7 +324,7 @@ describe('A9 Governance Agent', () => {
 
     it('falls back to Restricted when governanceState is an unknown value', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'UnknownState' }),
+        text: validJson({ governanceState: 'UnknownState' }),
         fallbackUsed: false,
       });
 
@@ -227,7 +336,7 @@ describe('A9 Governance Agent', () => {
 
     it('does not normalize case — Active (capitalized) is valid, active (lowercase) is not', async () => {
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'active' }),
+        text: validJson({ governanceState: 'active' }),
         fallbackUsed: false,
       });
 
@@ -271,7 +380,7 @@ describe('A9 Governance Agent', () => {
     it('logs the governance state on successful classification', async () => {
       const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
       mockGenerateContent.mockResolvedValue({
-        text: JSON.stringify({ governanceState: 'Active' }),
+        text: validJson({ governanceState: 'Active' }),
         fallbackUsed: false,
       });
 

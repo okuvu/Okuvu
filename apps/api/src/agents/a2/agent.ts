@@ -1,11 +1,11 @@
 import { generateContent } from '../../lib/generate-content.js';
 import { buildConversationalPrompt, ONBOARDING_SCORING_PROMPT } from './prompts.js';
-import { A2_MVP_PROMPT_VERSION } from '../../prompts/index.js';
+import { A2_PROMPT_VERSION } from '../../prompts/index.js';
 import type {
   A2Input,
   A2Output,
   A2ParsedResponse,
-  S06Signal,
+  S07Signal,
   ConversationTurn,
   OnboardingInferenceOutput,
 } from './types.js';
@@ -49,28 +49,31 @@ function buildCannedReply(message: string): string {
 export async function handleTurn(input: A2Input): Promise<A2Output> {
   const {
     message,
-    carePlan,
     safetyState,
-    sessionNumber,
-    turnNumber,
     sessionHistorySummary,
     perceivedIntensity,
-    mode,
     recentHistory,
     toolResultContext,
     userMemoryContext,
     retrievedContext,
+    therapistName,
+    carePlanFocus,
+    homework,
+    toolkit,
+    languageMode,
   } = input;
 
   let systemInstruction = buildConversationalPrompt({
-    carePlan,
     safetyState,
-    sessionNumber,
-    turnNumber,
     sessionHistorySummary,
     perceivedIntensity,
     userMemoryContext,
     retrievedContext,
+    therapistName,
+    carePlanFocus,
+    homework,
+    toolkit,
+    languageMode,
   });
 
   if (toolResultContext) {
@@ -103,7 +106,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     fallbackUsed: result.fallbackUsed,
     failureReason: result.failureReason,
     modelVersion: result.model,
-    promptVersion: A2_MVP_PROMPT_VERSION,
+    promptVersion: A2_PROMPT_VERSION,
     canned: result.canned,
   };
 }
@@ -150,14 +153,14 @@ export function formatUserMemory(memory: {
 export function parseA2Response(raw: string): A2ParsedResponse {
   let userContent = stripFencedBlocks(raw);
 
-  let signal: S06Signal | null = null;
+  let signal: S07Signal | null = null;
 
   const jsonBlock = extractFirstJsonBlock(raw);
   if (jsonBlock) {
     try {
-      signal = JSON.parse(jsonBlock) as S06Signal;
+      signal = JSON.parse(jsonBlock) as S07Signal;
     } catch {
-      console.error({ text: jsonBlock }, 'A2: failed to parse S-06 JSON block');
+      console.error({ text: jsonBlock }, 'A2: failed to parse S-07 JSON block');
     }
   }
 
@@ -165,7 +168,7 @@ export function parseA2Response(raw: string): A2ParsedResponse {
     const fallback = tryParseJsonFallback(raw);
     if (fallback) {
       try {
-        signal = JSON.parse(fallback) as S06Signal;
+        signal = JSON.parse(fallback) as S07Signal;
       } catch {
         console.error({ text: fallback }, 'A2: fallback parse also failed');
       }
@@ -173,12 +176,12 @@ export function parseA2Response(raw: string): A2ParsedResponse {
   }
 
   if (!jsonBlock && !signal) {
-    console.error({ text: raw.slice(0, 200) }, 'A2: no S-06 JSON block found in LLM response');
+    console.error({ text: raw.slice(0, 200) }, 'A2: no S-07 JSON block found in LLM response');
   }
 
   const leakedJson = tryParseJsonFallback(userContent);
   if (leakedJson) {
-    console.warn({ userContentLength: userContent.length }, 'A2: defense-in-depth caught leaked S-06 signal in userContent');
+    console.warn({ userContentLength: userContent.length }, 'A2: defense-in-depth caught leaked S-07 signal in userContent');
     userContent = userContent.replace(leakedJson, '').replace(/\n{3,}/g, '\n\n').trim();
   }
 
@@ -304,7 +307,7 @@ function tryParseJsonFallback(raw: string): string | null {
       depth--;
       if (depth === 0 && braceStart !== -1) {
         const candidate = raw.slice(braceStart, i + 1);
-        if (candidate.includes('"signal"') && candidate.includes('"S-06"')) {
+        if (candidate.includes('"signal"') && candidate.includes('"S-07"')) {
           return candidate;
         }
         braceStart = -1;

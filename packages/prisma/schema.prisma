@@ -145,6 +145,9 @@ model UserMemory {
   what_doesnt_help   String[]
   significant_events String[]
   current_stressors  String[]
+  /// OKUVU v2.0: assigned homework + the user's reported outcome, tagged by
+  /// session (e.g. "grounding before bed — not_done, forgot [session 5]").
+  homework_track     String[]
   emotional_baseline String?
 
   session_count Int @default(0)

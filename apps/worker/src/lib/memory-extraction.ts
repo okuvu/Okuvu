@@ -19,6 +19,8 @@ interface UserMemoryUpdate {
   what_doesnt_help: string[];
   significant_events: string[];
   current_stressors: string[];
+  /** OKUVU v2.0: assigned homework + the user's reported outcome, tagged by session. */
+  homework_track: string[];
   emotional_baseline: string | null;
 }
 
@@ -27,7 +29,7 @@ let promptTemplate: string | null = null;
 function getPromptTemplate(): string {
   if (!promptTemplate) {
     promptTemplate = readFileSync(
-      resolve(__dirname, '..', 'prompts', 'memory-extraction-v1.0.txt'),
+      resolve(__dirname, '..', 'prompts', 'memory-extraction-v2.0.txt'),
       'utf-8',
     );
   }
@@ -63,6 +65,7 @@ function parseMemoryOutput(text: string): UserMemoryUpdate | null {
       what_doesnt_help: arrayOfStrings(obj.what_doesnt_help),
       significant_events: arrayOfStrings(obj.significant_events),
       current_stressors: arrayOfStrings(obj.current_stressors),
+      homework_track: arrayOfStrings(obj.homework_track),
       emotional_baseline:
         typeof obj.emotional_baseline === 'string'
           ? obj.emotional_baseline
@@ -165,6 +168,7 @@ export async function updateUserMemory(
         what_doesnt_help: extracted.what_doesnt_help,
         significant_events: extracted.significant_events,
         current_stressors: extracted.current_stressors,
+        homework_track: extracted.homework_track,
         emotional_baseline: extracted.emotional_baseline,
         session_count: 1,
       },
@@ -175,6 +179,7 @@ export async function updateUserMemory(
         what_doesnt_help: extracted.what_doesnt_help,
         significant_events: extracted.significant_events,
         current_stressors: extracted.current_stressors,
+        homework_track: extracted.homework_track,
         emotional_baseline: extracted.emotional_baseline,
         session_count: { increment: 1 },
       },

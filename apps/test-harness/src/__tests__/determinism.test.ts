@@ -32,14 +32,22 @@ describe('enumerateA8Cells (real routeTurn, no mocks)', () => {
     expect(cells.every((c) => c.actual.agent === 'crisis')).toBe(true);
   });
 
-  it('Blocked governance routes to A2 mode=blocked, except at S4 where crisis takes precedence', () => {
+  it('S3 always routes to deterministic-grounding regardless of governance state (OKUVU v2.0 — same tier as S4, checked before governance)', () => {
+    const cells = enumerateA8Cells().filter((c) => c.safety_state === 'S3');
+    expect(cells).toHaveLength(3);
+    expect(cells.every((c) => c.actual.agent === 'deterministic-grounding')).toBe(true);
+  });
+
+  it('Blocked governance routes to A2 mode=blocked, except at S3/S4 where the deterministic safety route takes precedence', () => {
     const cells = enumerateA8Cells().filter((c) => c.governance_state === 'Blocked');
     expect(cells).toHaveLength(5);
-    const nonS4 = cells.filter((c) => c.safety_state !== 'S4');
-    expect(nonS4).toHaveLength(4);
-    expect(nonS4.every((c) => c.actual.agent === 'A2' && c.actual.mode === 'blocked')).toBe(true);
+    const nonDeterministic = cells.filter((c) => c.safety_state !== 'S3' && c.safety_state !== 'S4');
+    expect(nonDeterministic).toHaveLength(3);
+    expect(nonDeterministic.every((c) => c.actual.agent === 'A2' && c.actual.mode === 'blocked')).toBe(true);
     const s4 = cells.find((c) => c.safety_state === 'S4');
     expect(s4?.actual.agent).toBe('crisis');
+    const s3 = cells.find((c) => c.safety_state === 'S3');
+    expect(s3?.actual.agent).toBe('deterministic-grounding');
   });
 });
 
@@ -154,7 +162,7 @@ describe('determinismRouter.runNtimes', () => {
   it('detects divergent outputs across runs', async () => {
     mockInvokeAgent
       .mockResolvedValueOnce({ output: { agent: 'A2', mode: 'normal' }, latencyMs: 1, mockMode: true })
-      .mockResolvedValueOnce({ output: { agent: 'A2', mode: 'grounding-only' }, latencyMs: 1, mockMode: true })
+      .mockResolvedValueOnce({ output: { agent: 'A2', mode: 'blocked' }, latencyMs: 1, mockMode: true })
       .mockResolvedValueOnce({ output: { agent: 'A2', mode: 'normal' }, latencyMs: 1, mockMode: true });
     const caller = createCaller(buildCtx());
 

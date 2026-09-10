@@ -12,15 +12,20 @@ function resolveSafetyState(input: RouterInput): SafetyState | null {
 
 /**
  * Crisis (agent: 'crisis') is reserved exclusively for A1 = S4 — a clinical
- * safety-risk determination. Governance ('Blocked' from A9-pre) is a
- * separate, policy-level decision and must never be coerced into the crisis
- * path: crisis silently drops the turn with no response and no persisted
- * record, which is the wrong outcome for a policy disagreement (e.g. an
- * angry or off-topic message) and — worse — makes a real crisis
- * indistinguishable from a false one in every downstream log. A Blocked
- * verdict at any non-S4 safety state routes to A2 in 'blocked' mode
- * instead: a real, persisted turn with a static policy-boundary response,
- * never the crisis silence path.
+ * safety-risk determination. Deterministic grounding (agent:
+ * 'deterministic-grounding') is reserved exclusively for A1 = S3 — the same
+ * tier of clinical determinism, one step down: A2 is skipped, but a real,
+ * persisted reply is still sent (never the crisis silence path). Governance
+ * ('Blocked' from A9-pre) is a separate, policy-level decision and must
+ * never be coerced into either safety path: crisis silently drops the turn
+ * with no response and no persisted record, which is the wrong outcome for
+ * a policy disagreement (e.g. an angry or off-topic message) — and, worse,
+ * makes a real crisis indistinguishable from a false one in every downstream
+ * log. Both S4 and S3 are checked before governance for the same reason: a
+ * policy-level Blocked verdict must never downgrade a clinically elevated
+ * user to a static policy-boundary reply. A Blocked verdict at any other
+ * (S0-S2) safety state routes to A2 in 'blocked' mode instead: a real,
+ * persisted turn with a static policy-boundary response, never silence.
  */
 export function routeTurn(input: RouterInput): RouterDecision {
   if (!input) {
@@ -37,20 +42,12 @@ export function routeTurn(input: RouterInput): RouterDecision {
     return { agent: 'crisis' }
   }
 
+  if (safetyState === 'S3') {
+    return { agent: 'deterministic-grounding' }
+  }
+
   if (input.governance_state === 'Blocked') {
     return { agent: 'A2', mode: 'blocked' }
-  }
-
-  if (safetyState === 'S3') {
-    return { agent: 'A2', mode: 'grounding-only' }
-  }
-
-  if (input.session_count === 1 && input.turn_count === 1) {
-    return { agent: 'A2', mode: 'alliance-building' }
-  }
-
-  if (input.governance_state === 'Restricted') {
-    return { agent: 'A2', mode: 'grounding-only' }
   }
 
   return { agent: 'A2', mode: 'normal' }

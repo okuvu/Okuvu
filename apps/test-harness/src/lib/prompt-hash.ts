@@ -50,19 +50,20 @@ export interface PromptManifestEntry {
  * The known, committed prompt files this registry hashes today.
  *
  * agent_id mapping (documented per story spec — no external prompt file
- * exists yet for A1/A8/A9/A9-post/A12, whose prompts are inline TS, so they
- * are intentionally out of scope for this manifest):
- *   - a2-mvp-v1.0.txt         -> 'A2'   (A2's main/MVP conversation prompt)
+ * exists yet for A1/A8/A9/A9-post, whose prompts are inline TS, so they
+ * are intentionally out of scope for this manifest; A12 was retired
+ * entirely in OKUVU v2.0 — dead code, never wired in):
+ *   - a2-okuvu-v2.0.txt       -> 'A2'   (A2's main OKUVU conversation prompt)
  *   - a2-onboarding-v1.0.txt  -> 'A2'   (A2's onboarding-flow variant prompt)
- *   - memory-extraction-v1.0.txt -> 'A15' (memory extraction agent, worker-side)
+ *   - memory-extraction-v2.0.txt -> 'A15' (memory extraction agent, worker-side)
  */
 export function getPromptManifest(): PromptManifestEntry[] {
   const root = getMonorepoRoot();
   return [
     {
       agentId: 'A2',
-      version: 'v1.0',
-      path: path.join(root, 'apps', 'api', 'src', 'prompts', 'a2-mvp-v1.0.txt'),
+      version: 'v2.0',
+      path: path.join(root, 'apps', 'api', 'src', 'prompts', 'a2-okuvu-v2.0.txt'),
     },
     {
       agentId: 'A2',
@@ -71,8 +72,8 @@ export function getPromptManifest(): PromptManifestEntry[] {
     },
     {
       agentId: 'A15',
-      version: 'v1.0',
-      path: path.join(root, 'apps', 'worker', 'src', 'prompts', 'memory-extraction-v1.0.txt'),
+      version: 'v2.0',
+      path: path.join(root, 'apps', 'worker', 'src', 'prompts', 'memory-extraction-v2.0.txt'),
     },
   ];
 }

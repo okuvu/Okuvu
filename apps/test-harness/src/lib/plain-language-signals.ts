@@ -10,7 +10,7 @@
  * `signals.push(...)` call sites, not guessed:
  *   - A1_result: SafetyState string ('S0'..'S4')
  *   - A9_pre_result: GovernanceState string ('Active'|'Restricted'|'Blocked')
- *   - A8_decision: RouterDecision { agent: 'crisis'|'A2', mode?: string }
+ *   - A8_decision: RouterDecision { agent: 'crisis'|'deterministic-grounding'|'A2', mode?: string }
  *   - A2_result: { userContent, fallbackUsed, signal? , ... }
  *   - A9_post_result: { decision: 'APPROVED'|'BLOCKED', violation_type, confidence }
  */
@@ -84,6 +84,9 @@ function describeRouting(signals: PipelineSignal[]): PlainLanguageRow | null {
 
   if (decision?.agent === 'crisis') {
     return { label: 'Routing', status: 'blocked', detail: 'Routed to the crisis pathway' };
+  }
+  if (decision?.agent === 'deterministic-grounding') {
+    return { label: 'Routing', status: 'warning', detail: 'Routed to deterministic grounding (elevated risk, S3) — the companion was not called' };
   }
   return { label: 'Routing', status: 'ok', detail: 'Message routed correctly' };
 }

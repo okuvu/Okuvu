@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
       '.js': ['.ts', '.tsx', '.js'],
     };
     // The actual fix for the ENOENT above: apps/api/src/agents/a2/prompts.ts
-    // imports A2_MVP_PROMPT/A2_ONBOARDING_PROMPT from
+    // imports A2_PROMPT/A2_ONBOARDING_PROMPT from
     // apps/api/src/prompts/index.ts, which reads them from disk at module
     // load — meaning EVERY procedure that transitively imports the
     // orchestrator crashes on Vercel, not just ones that use A2 directly.

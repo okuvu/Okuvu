@@ -21,6 +21,26 @@ function makeInput(overrides: Partial<A1Input> = {}): A1Input {
   };
 }
 
+// Full valid v2.0 output — safetyState is the only field most tests care
+// about, but crisis_language_detected/basis/signal_strength are required by
+// the parser now, so every "success path" mock needs them present.
+function validJson(overrides: Partial<{
+  safetyState: string;
+  crisis_language_detected: boolean;
+  basis: string;
+  signal_strength: string;
+  notes: string | null;
+}> = {}): string {
+  return JSON.stringify({
+    safetyState: 'S0',
+    crisis_language_detected: false,
+    basis: 'literal',
+    signal_strength: 'medium',
+    notes: null,
+    ...overrides,
+  });
+}
+
 describe('A1 Safety Gate — classifySafety', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -28,7 +48,7 @@ describe('A1 Safety Gate — classifySafety', () => {
 
   describe('valid classifications (S0–S4)', () => {
     it('classifies normal message as S0', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S0"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({ text: validJson({ safetyState: 'S0' }), fallbackUsed: false });
 
       const result = await classifySafety(makeInput({ message: 'I had a great day' }));
 
@@ -37,7 +57,7 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
 
     it('classifies mild distress as S1', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S1"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({ text: validJson({ safetyState: 'S1' }), fallbackUsed: false });
 
       const result = await classifySafety(makeInput({ message: 'I am a bit nervous about my exam' }));
 
@@ -46,7 +66,7 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
 
     it('classifies moderate distress as S2', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S2"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({ text: validJson({ safetyState: 'S2' }), fallbackUsed: false });
 
       const result = await classifySafety(makeInput({ message: 'I have been struggling with anxiety all week' }));
 
@@ -55,7 +75,7 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
 
     it('classifies elevated risk as S3', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S3"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({ text: validJson({ safetyState: 'S3' }), fallbackUsed: false });
 
       const result = await classifySafety(makeInput({ message: 'I feel like nothing matters anymore' }));
 
@@ -64,9 +84,23 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
   });
 
+  describe('generation config', () => {
+    it('sets temperature to 0.0 (OKUVU v2.0 — deterministic safety classification)', async () => {
+      mockGenerateContent.mockResolvedValue({ text: validJson(), fallbackUsed: false });
+
+      await classifySafety(makeInput());
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.generationConfig.temperature).toBe(0.0);
+    });
+  });
+
   describe('S4 crisis detection — at least 3 distinct examples', () => {
     it('classifies explicit suicide intent as S4', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S4"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ safetyState: 'S4', crisis_language_detected: true, signal_strength: 'high' }),
+        fallbackUsed: false,
+      });
 
       const result = await classifySafety(makeInput({ message: 'I want to end my life' }));
 
@@ -75,7 +109,10 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
 
     it('classifies active crisis plan as S4', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S4"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ safetyState: 'S4', crisis_language_detected: true, signal_strength: 'high' }),
+        fallbackUsed: false,
+      });
 
       const result = await classifySafety(makeInput({ message: 'I have a plan to kill myself tonight' }));
 
@@ -84,12 +121,83 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
 
     it('classifies immediate self-harm language as S4', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S4"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ safetyState: 'S4', crisis_language_detected: true, signal_strength: 'high' }),
+        fallbackUsed: false,
+      });
 
       const result = await classifySafety(makeInput({ message: 'I am going to hurt myself right now' }));
 
       expect(result.safetyState).toBe('S4');
       expect(result.fallbackUsed).toBe(false);
+    });
+  });
+
+  describe('v2.0 output fields — crisis_language_detected, basis, signal_strength, notes', () => {
+    it('passes through crisis_language_detected=true even on a non-S4 classification', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ safetyState: 'S1', crisis_language_detected: true, basis: 'ambiguous' }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifySafety(makeInput({ message: 'this exam is killing me' }));
+
+      expect(result.safetyState).toBe('S1');
+      expect(result.crisis_language_detected).toBe(true);
+      expect(result.basis).toBe('ambiguous');
+    });
+
+    it('passes through basis and signal_strength', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ basis: 'contextual', signal_strength: 'low' }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifySafety(makeInput());
+
+      expect(result.basis).toBe('contextual');
+      expect(result.signal_strength).toBe('low');
+    });
+
+    it('passes through notes when present', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: validJson({ notes: 'ladder' }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifySafety(makeInput());
+
+      expect(result.notes).toBe('ladder');
+    });
+
+    it('defaults notes to null when omitted', async () => {
+      const { notes: _omit, ...rest } = JSON.parse(validJson());
+      mockGenerateContent.mockResolvedValue({ text: JSON.stringify(rest), fallbackUsed: false });
+
+      const result = await classifySafety(makeInput());
+
+      expect(result.notes).toBeNull();
+    });
+
+    it('falls back to S2 when a required v2.0 field (basis) is missing', async () => {
+      const { basis: _omit, ...rest } = JSON.parse(validJson());
+      mockGenerateContent.mockResolvedValue({ text: JSON.stringify(rest), fallbackUsed: false });
+
+      const result = await classifySafety(makeInput());
+
+      expect(result.safetyState).toBe('S2');
+      expect(result.fallbackUsed).toBe(true);
+    });
+
+    it('fallback output has fail-closed defaults (crisis_language_detected: false, basis: ambiguous, signal_strength: low)', async () => {
+      mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true, failureReason: 'timeout' });
+
+      const result = await classifySafety(makeInput());
+
+      expect(result.crisis_language_detected).toBe(false);
+      expect(result.basis).toBe('ambiguous');
+      expect(result.signal_strength).toBe('low');
+      expect(result.notes).toBe('llm_timeout');
     });
   });
 
@@ -146,7 +254,7 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
 
     it('returns S2 when safetyState is not a valid value', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S7"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({ text: validJson({ safetyState: 'S7' }), fallbackUsed: false });
 
       const result = await classifySafety(makeInput());
 
@@ -193,7 +301,7 @@ describe('A1 Safety Gate — classifySafety', () => {
 
   describe('very short message', () => {
     it('calls Gemini for "hi" — no shortcut logic', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S0"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({ text: validJson({ safetyState: 'S0' }), fallbackUsed: false });
 
       await classifySafety(makeInput({ message: 'hi' }));
 
@@ -201,7 +309,7 @@ describe('A1 Safety Gate — classifySafety', () => {
     });
 
     it('classifies "hi" as genuine S0', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S0"}', fallbackUsed: false });
+      mockGenerateContent.mockResolvedValue({ text: validJson({ safetyState: 'S0' }), fallbackUsed: false });
 
       const result = await classifySafety(makeInput({ message: 'hi' }));
 
@@ -222,22 +330,36 @@ describe('A1 Safety Gate — classifySafety', () => {
   });
 
   describe('A1 never returns user-facing conversational text', () => {
-    it('output is always { safetyState, fallbackUsed } — never prose', async () => {
-      mockGenerateContent.mockResolvedValue({ text: '{"safetyState":"S0"}', fallbackUsed: false });
+    it('output is always the fixed A1Output shape — never prose', async () => {
+      mockGenerateContent.mockResolvedValue({ text: validJson(), fallbackUsed: false });
 
       const result = await classifySafety(makeInput());
 
-      expect(Object.keys(result).sort()).toEqual(['fallbackUsed', 'safetyState']);
+      expect(Object.keys(result).sort()).toEqual([
+        'basis',
+        'crisis_language_detected',
+        'fallbackUsed',
+        'notes',
+        'safetyState',
+        'signal_strength',
+      ]);
       expect(typeof result.safetyState).toBe('string');
       expect(typeof result.fallbackUsed).toBe('boolean');
     });
 
-    it('fallback output is still { safetyState, fallbackUsed }', async () => {
+    it('fallback output is still the fixed A1Output shape', async () => {
       mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true, failureReason: 'timeout' });
 
       const result = await classifySafety(makeInput());
 
-      expect(Object.keys(result).sort()).toEqual(['fallbackUsed', 'safetyState']);
+      expect(Object.keys(result).sort()).toEqual([
+        'basis',
+        'crisis_language_detected',
+        'fallbackUsed',
+        'notes',
+        'safetyState',
+        'signal_strength',
+      ]);
     });
   });
 
@@ -256,7 +378,7 @@ describe('A1 Safety Gate — classifySafety', () => {
     it('includes the safety rubric', () => {
       const prompt = buildSafetyPrompt({ message: 'hello' });
 
-      expect(prompt).toContain('safety classification system');
+      expect(prompt).toContain('safety triage layer of OKUVU');
       expect(prompt).toContain('S0');
       expect(prompt).toContain('S1');
       expect(prompt).toContain('S2');
@@ -268,23 +390,20 @@ describe('A1 Safety Gate — classifySafety', () => {
       const prompt = buildSafetyPrompt({ message: 'hello' });
 
       const crisisExamples = [
-        'I want to end my life',
-        'I have a plan to kill myself tonight',
-        'I am going to hurt myself right now',
-        "I've already taken pills",
-        "I'm standing on the edge of a bridge",
+        "I've decided to end it tonight. I have the pills.",
+        "I'm going to jump. I'm on the terrace now.",
+        "I already took something. I don't know how much.",
       ];
       for (const example of crisisExamples) {
         expect(prompt).toContain(example);
       }
     });
 
-    it('instructs ambiguous S2/S3 to choose S3 (safer)', () => {
+    it('instructs ambiguous S2/S3 splits to choose S3 (the higher state)', () => {
       const prompt = buildSafetyPrompt({ message: 'hello' });
 
-      expect(prompt).toContain('S3');
-      expect(prompt).toContain('safer');
-      expect(prompt).toContain('higher');
+      expect(prompt).toContain('Between S2 and S3 -> S3');
+      expect(prompt).toContain('choose the higher');
     });
 
     it('includes the user message', () => {
@@ -305,6 +424,14 @@ describe('A1 Safety Gate — classifySafety', () => {
       expect(prompt).toContain('I had a bad day');
       expect(prompt).toContain('That sounds tough');
       expect(prompt).toContain('Recent conversation context');
+    });
+
+    it('includes the output JSON schema fields', () => {
+      const prompt = buildSafetyPrompt({ message: 'hello' });
+
+      expect(prompt).toContain('crisis_language_detected');
+      expect(prompt).toContain('signal_strength');
+      expect(prompt).toContain('"basis"');
     });
   });
 });

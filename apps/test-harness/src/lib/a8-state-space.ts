@@ -3,11 +3,12 @@ import { routeTurn } from '@okuvu/api/src/agents/a8-router';
 
 // ─── TH-S13: A8 router decision-table state space ──────────────────────────
 //
-// Fixed session_count/turn_count baseline (2, 2) so the special
-// session_count === 1 && turn_count === 1 first-turn case (which forces
-// A2/alliance-building regardless of safety/governance state) never fires,
-// per the story spec. This lets us enumerate the "steady state" 5x3 = 15
-// cell decision table below.
+// Fixed session_count/turn_count baseline (2, 2). OKUVU v2.0 dropped the
+// session_count===1 && turn_count===1 "alliance-building" first-turn special
+// case entirely (continuous chat has no "first thread" concept) — the
+// baseline is kept fixed here anyway since session/turn counters no longer
+// affect routing at all, so any values would enumerate the same table. This
+// lets us enumerate the "steady state" 5x3 = 15 cell decision table below.
 
 export const ALL_SAFETY_STATES: readonly SafetyState[] = ['S0', 'S1', 'S2', 'S3', 'S4'];
 export const ALL_GOVERNANCE_STATES: readonly GovernanceState[] = ['Active', 'Restricted', 'Blocked'];
@@ -25,26 +26,35 @@ export const FIXED_TURN_COUNT = 2;
 // against actual intended behavior. Crisis is reserved for safety_state=S4
 // only; Blocked at any other safety state routes to A2 mode='blocked' (a
 // real, persisted turn with a static policy-boundary reply, never silence).
+//
+// Updated for OKUVU v2.0: S3 is now its own deterministic routing outcome
+// (agent: 'deterministic-grounding'), checked before governance in
+// a8-router.ts — so every S3 row is 'deterministic-grounding' regardless of
+// governance state, same as every S4 row is 'crisis' regardless of
+// governance state. The distinct 'grounding-only' A2 mode is retired
+// entirely: Restricted governance at S0-S2 now folds into plain 'normal'
+// (mode was already dead code in A2's prompt construction, so this is a
+// routing-table simplification, not a behavior change to A2's replies).
 const EXPECTED_TABLE: Record<SafetyState, Record<GovernanceState, RouterDecision>> = {
   S0: {
     Active: { agent: 'A2', mode: 'normal' },
-    Restricted: { agent: 'A2', mode: 'grounding-only' },
+    Restricted: { agent: 'A2', mode: 'normal' },
     Blocked: { agent: 'A2', mode: 'blocked' },
   },
   S1: {
     Active: { agent: 'A2', mode: 'normal' },
-    Restricted: { agent: 'A2', mode: 'grounding-only' },
+    Restricted: { agent: 'A2', mode: 'normal' },
     Blocked: { agent: 'A2', mode: 'blocked' },
   },
   S2: {
     Active: { agent: 'A2', mode: 'normal' },
-    Restricted: { agent: 'A2', mode: 'grounding-only' },
+    Restricted: { agent: 'A2', mode: 'normal' },
     Blocked: { agent: 'A2', mode: 'blocked' },
   },
   S3: {
-    Active: { agent: 'A2', mode: 'grounding-only' },
-    Restricted: { agent: 'A2', mode: 'grounding-only' },
-    Blocked: { agent: 'A2', mode: 'blocked' },
+    Active: { agent: 'deterministic-grounding' },
+    Restricted: { agent: 'deterministic-grounding' },
+    Blocked: { agent: 'deterministic-grounding' },
   },
   S4: {
     Active: { agent: 'crisis' },

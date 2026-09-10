@@ -29,7 +29,6 @@ const mockContextOverridesSchema = z
     governanceState: z.enum(['Active', 'Restricted', 'Blocked']).optional(),
     carePlan: z.enum(['CP1', 'CP2', 'CP3']).optional(),
     sessionCount: z.number().optional(),
-    sessionNumber: z.number().optional(),
     turnNumber: z.number().optional(),
     sessionHistorySummary: z.string().nullable().optional(),
     perceivedIntensity: z.number().nullable().optional(),

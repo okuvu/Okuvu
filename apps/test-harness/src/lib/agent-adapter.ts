@@ -126,13 +126,10 @@ function toA2Input(ctx: MockSessionContext, overrides: Record<string, unknown>):
     message: (overrides.message as string) ?? ctx.message,
     carePlan: (overrides.carePlan as A2Input['carePlan']) ?? ctx.carePlan,
     safetyState: (overrides.safetyState as A2Input['safetyState']) ?? (ctx.safetyState as A2Input['safetyState']),
-    sessionNumber: (overrides.sessionNumber as number) ?? ctx.sessionNumber,
-    turnNumber: (overrides.turnNumber as number) ?? ctx.turnNumber,
     sessionHistorySummary:
       (overrides.sessionHistorySummary as string | null) ?? ctx.sessionHistorySummary,
     perceivedIntensity:
       (overrides.perceivedIntensity as number | null) ?? ctx.perceivedIntensity,
-    mode: (overrides.mode as A2Input['mode']) ?? ctx.routerDecision.mode ?? 'normal',
     recentHistory: (overrides.recentHistory as A2Input['recentHistory']) ?? ctx.recentHistory,
     sessionSummary: (overrides.sessionSummary as string | null | undefined) ?? ctx.sessionSummary,
     toolResultContext: (overrides.toolResultContext as string | undefined) ?? ctx.toolResultContext,
@@ -140,12 +137,20 @@ function toA2Input(ctx: MockSessionContext, overrides: Record<string, unknown>):
       (overrides.userMemoryContext as string | null | undefined) ?? ctx.userMemoryContext,
     retrievedContext:
       (overrides.retrievedContext as string | null | undefined) ?? ctx.retrievedContext,
+    // OKUVU v2.0 additions — degrade gracefully to safe defaults, same as
+    // the real orchestrator does until the therapist-portal/homework/tool-id
+    // workstreams exist.
+    therapistName: (overrides.therapistName as string | null | undefined) ?? null,
+    carePlanFocus: (overrides.carePlanFocus as string | null | undefined) ?? null,
+    homework: (overrides.homework as string | null | undefined) ?? null,
+    toolkit: (overrides.toolkit as string[] | undefined) ?? [],
+    languageMode: (overrides.languageMode as A2Input['languageMode']) ?? 'english',
   };
 }
 
 function toA9PostInput(ctx: MockSessionContext, overrides: Record<string, unknown>): A9PostInput {
   return {
-    userContent: (overrides.userContent as string) ?? ctx.message,
+    draftResponse: (overrides.draftResponse as string) ?? ctx.message,
     safetyState: (overrides.safetyState as string) ?? ctx.safetyState,
     carePlan: (overrides.carePlan as string) ?? ctx.carePlan,
   };

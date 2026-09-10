@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTurn, parseA2Response } from '../agents/a2/agent.js';
-import type { A2Input, S06Signal } from '../agents/a2/types.js';
+import type { A2Input, S07Signal } from '../agents/a2/types.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
@@ -17,57 +17,27 @@ function makeInput(overrides: Partial<A2Input> = {}): A2Input {
     message: 'I have been feeling anxious lately',
     carePlan: 'CP1',
     safetyState: 'S1',
-    sessionNumber: 2,
-    turnNumber: 1,
     sessionHistorySummary: null,
     perceivedIntensity: null,
-    mode: 'normal',
     recentHistory: [],
     sessionSummary: null,
     ...overrides,
   };
 }
 
-describe('A2 Emotion Regulation Agent', () => {
+describe('A2 Support Companion (OKUVU v2.0)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('context variable injection', () => {
-    it('replaces ${care_plan} in the prompt', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
-
-      await handleTurn(makeInput({ carePlan: 'CP2' }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('CP2');
-    });
-
     it('replaces ${safety_state} in the prompt', async () => {
       mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
 
       await handleTurn(makeInput({ safetyState: 'S0' }));
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('S0');
-    });
-
-    it('replaces ${session_number} in the prompt', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
-
-      await handleTurn(makeInput({ sessionNumber: 5 }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('session_number: 5');
-    });
-
-    it('replaces ${turn_number} in the prompt', async () => {
-      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
-
-      await handleTurn(makeInput({ turnNumber: 3 }));
-
-      const callArgs = mockGenerateContent.mock.calls[0][0];
-      expect(callArgs.systemInstruction).toContain('turn_number: 3');
+      expect(callArgs.systemInstruction).toContain('safety_state: S0');
     });
 
     it('replaces ${session_history_summary} with value when provided', async () => {
@@ -128,6 +98,96 @@ describe('A2 Emotion Regulation Agent', () => {
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.systemInstruction).toContain('retrieved_context: null');
+    });
+
+    it('replaces ${therapist_name} with value when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ therapistName: 'Dr. Mehta' }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('Dr. Mehta');
+    });
+
+    it('replaces ${therapist_name} with "null" when not provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ therapistName: undefined }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('therapist_name: null');
+    });
+
+    it('replaces ${care_plan_focus} with value when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ carePlanFocus: 'anxiety around exams' }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('anxiety around exams');
+    });
+
+    it('replaces ${homework} with value when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ homework: '5-4-3-2-1 grounding before bed' }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('5-4-3-2-1 grounding before bed');
+    });
+
+    it('replaces ${toolkit} with a joined list when provided', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ toolkit: ['box_breathing', 'grounding_5431'] }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('box_breathing, grounding_5431');
+    });
+
+    it('falls back to the always-available-tools note when toolkit is empty', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ toolkit: [] }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('always-available tools');
+    });
+
+    it('replaces ${language_mode} with "english" by default', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ languageMode: undefined }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('language_mode: english');
+    });
+
+    it('replaces ${language_mode} with "mirror" when set', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I see.', fallbackUsed: false });
+
+      await handleTurn(makeInput({ languageMode: 'mirror' }));
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('language_mode: mirror');
+    });
+  });
+
+  describe('continuous chat — no turn/session numbering (OKUVU v2.0)', () => {
+    it('never mentions a turn cap or session-closure script in the prompt', async () => {
+      mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+
+      await handleTurn(makeInput());
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).not.toContain('Sessions are capped at 10 turns');
+      expect(callArgs.systemInstruction).not.toContain('TURN CAP');
+    });
+
+    it('A2Input has no sessionNumber/turnNumber fields', () => {
+      const input = makeInput();
+      expect(input).not.toHaveProperty('sessionNumber');
+      expect(input).not.toHaveProperty('turnNumber');
     });
   });
 
@@ -257,7 +317,7 @@ describe('A2 Emotion Regulation Agent', () => {
 
       const result = await handleTurn(makeInput());
 
-      expect(result.promptVersion).toBe('v1.0');
+      expect(result.promptVersion).toBe('v2.0');
     });
 
     it('propagates canned:true from the Vertex AI wrapper', async () => {
@@ -287,27 +347,32 @@ describe('A2 Emotion Regulation Agent', () => {
     });
   });
 
-  describe('S-06 signal parsing', () => {
+  describe('S-07 signal parsing (OKUVU v2.0 — supersedes S-06)', () => {
+    const validSignal: S07Signal = {
+      signal: 'S-07',
+      agent: 'A2',
+      technique_used: 'box_breathing',
+      tool_launched: null,
+      taper_state: 'none',
+      closure_offered: false,
+      frustration_event: false,
+      homework_referenced: false,
+      therapist_referral: false,
+      intensity: 6,
+      mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
+    };
+    const jsonStr = JSON.stringify(validSignal);
+
     it('extracts user content and signal from a response with a JSON block', () => {
-      const raw = `That sounds really difficult.\n\n\`\`\`json\n${JSON.stringify({
-        signal: 'S-06',
-        agent: 'A2',
-        turn_number: 1,
-        technique_used: 'T2',
-        estimated_intensity: 6,
-        intensity_direction: 'rising',
-        mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
-        session_flags: { crisis_language_detected: false, validation_only_turn: false, technique_refused_by_user: false },
-        care_plan_fit: 'well_matched',
-      })}\n\`\`\``;
+      const raw = `That sounds really difficult.\n\n\`\`\`json\n${jsonStr}\n\`\`\``;
 
       const parsed = parseA2Response(raw);
 
       expect(parsed.userContent).toBe('That sounds really difficult.');
       expect(parsed.signal).not.toBeNull();
-      expect(parsed.signal!.estimated_intensity).toBe(6);
-      expect(parsed.signal!.session_flags.crisis_language_detected).toBe(false);
-      expect(parsed.signal!.care_plan_fit).toBe('well_matched');
+      expect(parsed.signal!.intensity).toBe(6);
+      expect(parsed.signal!.taper_state).toBe('none');
+      expect(parsed.signal!.technique_used).toBe('box_breathing');
     });
 
     it('returns userContent as-is when no JSON block is present', () => {
@@ -328,60 +393,67 @@ describe('A2 Emotion Regulation Agent', () => {
       expect(parsed.signal).toBeNull();
     });
 
-    describe('robust parsing against LLM output variations', () => {
-      const validSignal: S06Signal = {
-        signal: 'S-06',
-        agent: 'A2',
-        turn_number: 1,
-        technique_used: 'T2',
-        estimated_intensity: 6,
-        intensity_direction: 'rising',
-        mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
-        session_flags: { crisis_language_detected: false, validation_only_turn: false, technique_refused_by_user: false },
-        care_plan_fit: 'well_matched',
+    it('parses the taper_state/closure_offered/frustration_event/homework_referenced/therapist_referral fields', () => {
+      const closingSignal: S07Signal = {
+        ...validSignal,
+        taper_state: 'solution_reached',
+        closure_offered: true,
+        frustration_event: true,
+        homework_referenced: true,
+        therapist_referral: true,
       };
-      const jsonStr = JSON.stringify(validSignal);
+      const raw = `Take care.\n\n\`\`\`json\n${JSON.stringify(closingSignal)}\n\`\`\``;
 
+      const parsed = parseA2Response(raw);
+
+      expect(parsed.signal!.taper_state).toBe('solution_reached');
+      expect(parsed.signal!.closure_offered).toBe(true);
+      expect(parsed.signal!.frustration_event).toBe(true);
+      expect(parsed.signal!.homework_referenced).toBe(true);
+      expect(parsed.signal!.therapist_referral).toBe(true);
+    });
+
+    describe('robust parsing against LLM output variations', () => {
       it('handles trailing spaces after ```json', () => {
         const raw = `I hear you.\n\n\`\`\`json   \n${jsonStr}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles \\r\\n line endings', () => {
         const raw = `I hear you.\r\n\r\n\`\`\`json\r\n${jsonStr}\r\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles missing final newline before closing fence', () => {
         const raw = `I hear you.\n\n\`\`\`json\n${jsonStr}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles uppercase JSON language identifier', () => {
         const raw = `I hear you.\n\n\`\`\`JSON\n${jsonStr}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles mixed-case JSON language identifier', () => {
         const raw = `I hear you.\n\n\`\`\`Json\n${jsonStr}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles extra content after closing fence', () => {
         const raw = `I hear you.\n\n\`\`\`json\n${jsonStr}\n\`\`\`\nSome trailing text.`;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('strips signal block from user content', () => {
@@ -394,11 +466,11 @@ describe('A2 Emotion Regulation Agent', () => {
         const raw = `Response text.\`\`\`json\n${jsonStr}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles content with multiple JSON blocks, extracting the first valid one', () => {
-        const signal2 = { ...validSignal, estimated_intensity: 8, turn_number: 2 };
+        const signal2 = { ...validSignal, intensity: 8 };
         const raw = `First response.\n\n\`\`\`json\n${jsonStr}\n\`\`\`\n\nSecond response.\n\n\`\`\`json\n${JSON.stringify(signal2)}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
@@ -416,21 +488,21 @@ describe('A2 Emotion Regulation Agent', () => {
         const raw = `I hear you.\n\n\`\`\`\n${jsonStr}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles signal on same line as opening fence (no newline after ```json)', () => {
         const raw = `I hear you.\n\n\`\`\`json{${jsonStr.slice(1, -1)}}\n\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('handles 4-backtick fences (````json...````)', () => {
         const raw = `I hear you.\n\n\`\`\`\`json\n${jsonStr}\n\`\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
         expect(parsed.userContent).toBe('I hear you.');
       });
 
@@ -438,30 +510,30 @@ describe('A2 Emotion Regulation Agent', () => {
         const raw = `I hear you.\n\`\`\`\`json\n${jsonStr}\n\`\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.userContent).toBe('I hear you.');
-        expect(parsed.userContent).not.toContain('estimated_intensity');
-        expect(parsed.userContent).not.toContain('S-06');
+        expect(parsed.userContent).not.toContain('intensity');
+        expect(parsed.userContent).not.toContain('S-07');
       });
 
       it('handles inline JSON without any fences via fallback extraction', () => {
         const raw = `I hear you. ${jsonStr}`;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
       });
 
       it('defense-in-depth strips inline JSON from userContent when no fences present', () => {
         const raw = `I hear you. ${jsonStr}`;
         const parsed = parseA2Response(raw);
         expect(parsed.userContent).toBe('I hear you.');
-        expect(parsed.userContent).not.toContain('estimated_intensity');
-        expect(parsed.userContent).not.toContain('S-06');
+        expect(parsed.userContent).not.toContain('intensity');
+        expect(parsed.userContent).not.toContain('S-07');
       });
 
       it('handles content on same line as closing fence', () => {
         const raw = `Start.\n\`\`\`json\n${jsonStr}\n\`\`\` And some trailing text.`;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
         expect(parsed.userContent).toBe('Start.\nAnd some trailing text.');
       });
 
@@ -469,14 +541,14 @@ describe('A2 Emotion Regulation Agent', () => {
         const raw = `Some text.\n\`\`\`json\n${jsonStr}`;
         const parsed = parseA2Response(raw);
         expect(parsed.userContent).toBe('Some text.');
-        expect(parsed.userContent).not.toContain('estimated_intensity');
+        expect(parsed.userContent).not.toContain('intensity');
       });
 
       it('handles 4-backtick fences with no language identifier', () => {
         const raw = `I hear you.\n\`\`\`\`\n${jsonStr}\n\`\`\`\``;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
         expect(parsed.userContent).toBe('I hear you.');
       });
 
@@ -484,7 +556,7 @@ describe('A2 Emotion Regulation Agent', () => {
         const raw = `Some conversational text.\n${jsonStr}\nMore text.`;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.userContent).not.toContain('estimated_intensity');
+        expect(parsed.userContent).not.toContain('intensity');
         expect(parsed.userContent).not.toContain('"signal"');
       });
 
@@ -492,10 +564,10 @@ describe('A2 Emotion Regulation Agent', () => {
         const raw = `Some text. before \`\`\`json ${jsonStr} \`\`\` and after.`;
         const parsed = parseA2Response(raw);
         expect(parsed.signal).not.toBeNull();
-        expect(parsed.signal!.estimated_intensity).toBe(6);
+        expect(parsed.signal!.intensity).toBe(6);
         expect(parsed.userContent).toContain('Some text. before');
         expect(parsed.userContent).toContain('and after');
-        expect(parsed.userContent).not.toContain('estimated_intensity');
+        expect(parsed.userContent).not.toContain('intensity');
         expect(parsed.userContent).not.toContain('"signal"');
       });
     });
