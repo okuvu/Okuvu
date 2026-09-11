@@ -79,7 +79,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               FadeTransition(
                 opacity: _wordmarkFade,
                 child: const Text(
-                  'Evia',
+                  'OKUVU',
                   // TODO: Replace with official logo asset when available
                   style: TextStyle(
                     fontSize: 40.0,

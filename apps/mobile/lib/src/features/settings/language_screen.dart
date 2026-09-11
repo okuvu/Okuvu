@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class LanguageScreen extends StatelessWidget {
+import 'language_notifier.dart';
+
+class LanguageScreen extends ConsumerWidget {
   const LanguageScreen({super.key});
 
-  static const _languages = [
-    _Language('English', isActive: true),
-    _Language('Hindi'),
-    _Language('Tamil'),
-    _Language('Telugu'),
-    _Language('Bengali'),
-    _Language('Marathi'),
-  ];
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final languageState = ref.watch(languageSettingsStateProvider);
 
     return PopScope(
       canPop: false,
@@ -30,96 +25,72 @@ class LanguageScreen extends StatelessWidget {
           ),
           title: const Text('Language'),
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _languages.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
-                itemBuilder: (context, index) {
-                  final lang = _languages[index];
-                  return _LanguageTile(language: lang, theme: theme);
-                },
+        body: languageState.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                    child: Text(
+                      'How OKUVU talks with you',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  _LanguageOptionTile(
+                    title: 'English',
+                    subtitle: 'OKUVU replies in English only.',
+                    selected: languageState.languageMode == 'english',
+                    theme: theme,
+                    onTap: () => ref
+                        .read(languageSettingsProvider.notifier)
+                        .setLanguageMode('english'),
+                  ),
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  _LanguageOptionTile(
+                    title: 'Mirror',
+                    subtitle: 'OKUVU mixes English and Hindi the way you do.',
+                    selected: languageState.languageMode == 'mirror',
+                    theme: theme,
+                    onTap: () => ref
+                        .read(languageSettingsProvider.notifier)
+                        .setLanguageMode('mirror'),
+                  ),
+                ],
               ),
-            ),
-            const Divider(height: 1),
-            Opacity(
-              opacity: 0.5,
-              child: SwitchListTile(
-                secondary: Icon(Icons.compare_arrows, color: theme.colorScheme.onSurfaceVariant),
-                title: Text(
-                  'Code-switch',
-                  style: theme.textTheme.bodyLarge,
-                ),
-                subtitle: Text(
-                  'Mix languages in conversation',
-                  style: theme.textTheme.bodySmall,
-                ),
-                value: false,
-                onChanged: null,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 }
 
-class _Language {
-  final String name;
-  final bool isActive;
-
-  const _Language(this.name, {this.isActive = false});
-}
-
-class _LanguageTile extends StatelessWidget {
-  final _Language language;
+class _LanguageOptionTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool selected;
   final ThemeData theme;
+  final VoidCallback onTap;
 
-  const _LanguageTile({required this.language, required this.theme});
+  const _LanguageOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.theme,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final opacity = language.isActive ? 1.0 : 0.5;
-
-    return Opacity(
-      opacity: opacity,
-      child: ListTile(
-        leading: Icon(
-          Icons.check_circle,
-          color: language.isActive
-              ? const Color(0xFF1A6B5A)
-              : Colors.transparent,
-        ),
-        title: Text(
-          language.name,
-          style: theme.textTheme.bodyLarge,
-        ),
-        trailing: language.isActive
-            ? null
-            : Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Coming Soon',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-        enabled: language.isActive,
-        onTap: language.isActive ? null : null,
+    return ListTile(
+      leading: Icon(
+        selected ? Icons.check_circle : Icons.circle_outlined,
+        color: selected
+            ? const Color(0xFF1A6B5A)
+            : theme.colorScheme.onSurfaceVariant,
       ),
+      title: Text(title, style: theme.textTheme.bodyLarge),
+      subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+      onTap: onTap,
     );
   }
 }

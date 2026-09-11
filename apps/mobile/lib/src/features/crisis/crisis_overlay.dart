@@ -65,7 +65,7 @@ class CrisisOverlay extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                         child: Text(
-                          "Your next session with Evia will be here when you're ready.",
+                          "Your next session with OKUVU will be here when you're ready.",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.7),

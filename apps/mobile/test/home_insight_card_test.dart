@@ -18,7 +18,7 @@ void main() {
       expect(find.text(testMessage), findsOneWidget);
     });
 
-    testWidgets('renders FROM EVIA label', (tester) async {
+    testWidgets('renders FROM OKUVU label', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -27,7 +27,7 @@ void main() {
         ),
       );
 
-      expect(find.text('FROM EVIA'), findsOneWidget);
+      expect(find.text('FROM OKUVU'), findsOneWidget);
     });
 
     testWidgets('renders card container with rounded corners', (tester) async {

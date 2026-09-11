@@ -212,7 +212,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           title: Column(
             children: [
-              Text('Evia',
+              Text('OKUVU',
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium

@@ -27,7 +27,7 @@ class AboutScreen extends StatelessWidget {
             children: [
               const FlutterLogo(size: 80),
               const SizedBox(height: 24),
-              Text('Evia', style: theme.textTheme.headlineMedium),
+              Text('OKUVU', style: theme.textTheme.headlineMedium),
               const Text('AI Mental Wellness Companion'),
               const SizedBox(height: 8),
               const Text('Version 1.0.0'),

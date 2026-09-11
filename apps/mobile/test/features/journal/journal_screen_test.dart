@@ -153,7 +153,7 @@ void main() {
 
       expect(
         find.text(
-          "Your journal is private. Evia doesn't read it and your therapist can't see it.",
+          "Your journal is private. OKUVU doesn't read it and your therapist can't see it.",
         ),
         findsOneWidget,
       );
@@ -169,7 +169,7 @@ void main() {
 
       expect(
         find.text(
-          "Your journal is private. Evia doesn't read it and your therapist can't see it.",
+          "Your journal is private. OKUVU doesn't read it and your therapist can't see it.",
         ),
         findsNothing,
       );

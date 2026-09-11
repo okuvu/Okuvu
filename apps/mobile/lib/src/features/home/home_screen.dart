@@ -61,7 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'Your insights will appear here after your first check-in.';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Evia')),
+      appBar: AppBar(title: const Text('OKUVU')),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [

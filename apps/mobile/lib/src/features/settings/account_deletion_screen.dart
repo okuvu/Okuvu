@@ -96,7 +96,7 @@ class _AccountDeletionScreenState extends ConsumerState<AccountDeletionScreen> {
     String appBarTitle;
     switch (_currentStep) {
       case _DeletionStep.warning:
-        appBarTitle = 'Evia';
+        appBarTitle = 'OKUVU';
       case _DeletionStep.confirm:
         appBarTitle = 'Confirm deletion';
       case _DeletionStep.sessionError:
@@ -358,7 +358,7 @@ class _WarningStep extends StatelessWidget {
                       const SizedBox(height: 12),
                       _DeletionRow(
                         theme: theme,
-                        text: 'All session history with Evia',
+                        text: 'All session history with OKUVU',
                       ),
                       const SizedBox(height: 12),
                       _DeletionRow(
@@ -802,7 +802,7 @@ class _SuccessStepState extends State<_SuccessStep> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Evia',
+              'OKUVU',
               style: widget.theme.textTheme.titleLarge?.copyWith(
                 fontSize: 22,
                 fontWeight: FontWeight.w600,

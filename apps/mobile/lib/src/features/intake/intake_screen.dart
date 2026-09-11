@@ -112,7 +112,7 @@ class _IntakeScreenState extends ConsumerState<IntakeScreen> {
                 onPressed: () => context.go('/onboarding/consent'),
               )
             : null,
-        title: const Text('Evia'),
+        title: const Text('OKUVU'),
         centerTitle: true,
       ),
       body: SafeArea(

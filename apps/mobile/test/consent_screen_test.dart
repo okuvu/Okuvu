@@ -138,7 +138,7 @@ void main() {
 
       expect(find.text('Before we begin'), findsOneWidget);
       expect(
-        find.text('A few things to know about how Evia works.'),
+        find.text('A few things to know about how OKUVU works.'),
         findsOneWidget,
       );
       expect(find.text('Step 1 of 8'), findsOneWidget);

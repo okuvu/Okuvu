@@ -258,4 +258,80 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       return reply.send({ success: true });
     },
   });
+
+  // OKUVU v2.0: English | Mirror (adaptive Hinglish) — drives A2's/A9-post's
+  // ${language_mode}. Defaults to 'english' (User.language_mode's own DB
+  // default) until the user opts in; see docs/okuvu-v2.0/00-doc-map-and-
+  // parity-resolutions.md B.1.
+  type LanguageMode = 'english' | 'mirror';
+  const VALID_LANGUAGE_MODES: ReadonlySet<string> = new Set(['english', 'mirror']);
+
+  interface LanguageModeBody {
+    language_mode: LanguageMode
+  }
+
+  app.get('/settings/language', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { language_mode: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      request.log.info(
+        { event: 'language_settings_read', language_mode: user.language_mode },
+        'Language settings read',
+      );
+
+      return reply.send({ language_mode: user.language_mode });
+    },
+  });
+
+  app.patch<{ Body: LanguageModeBody }>('/settings/language', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body;
+
+      if (typeof body.language_mode !== 'string' || !VALID_LANGUAGE_MODES.has(body.language_mode)) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_BODY',
+            message: "language_mode must be 'english' or 'mirror'",
+          },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { language_mode: body.language_mode },
+      });
+
+      request.log.info(
+        { event: 'language_settings_updated', user_id: user.id, language_mode: body.language_mode },
+        'Language settings updated',
+      );
+
+      return reply.send({ success: true });
+    },
+  });
 }

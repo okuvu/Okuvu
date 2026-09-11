@@ -37,7 +37,7 @@ void main() {
       await tester.pumpWidget(_aboutApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Evia'), findsOneWidget);
+      expect(find.text('OKUVU'), findsOneWidget);
       expect(find.text('AI Mental Wellness Companion'), findsOneWidget);
       expect(find.text('Version 1.0.0'), findsOneWidget);
       expect(find.byType(FlutterLogo), findsOneWidget);

@@ -253,7 +253,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
       children: [
         Icon(Icons.phone_android, size: 80, color: theme.colorScheme.primary),
         const SizedBox(height: 24),
-        Text('Welcome to Evia', style: theme.textTheme.headlineMedium),
+        Text('Welcome to OKUVU', style: theme.textTheme.headlineMedium),
         const SizedBox(height: 8),
         Text(
           'Enter your phone number to get started',

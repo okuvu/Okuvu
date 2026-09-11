@@ -22,7 +22,7 @@ class HomeInsightCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'FROM EVIA',
+            'FROM OKUVU',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

@@ -109,7 +109,7 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: App()));
     await tester.pump();
 
-    expect(find.text('Evia'), findsOneWidget);
+    expect(find.text('OKUVU'), findsOneWidget);
     expect(find.text('A space that listens.'), findsOneWidget);
   });
 
@@ -178,7 +178,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('How are you feeling today?'), findsOneWidget);
-    expect(find.text('FROM EVIA'), findsOneWidget);
+    expect(find.text('FROM OKUVU'), findsOneWidget);
     expect(
       find.text(
         'Your insights will appear here after your first check-in.',

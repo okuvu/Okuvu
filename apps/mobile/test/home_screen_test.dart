@@ -138,7 +138,7 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('FROM EVIA'), findsOneWidget);
+      expect(find.text('FROM OKUVU'), findsOneWidget);
     });
 
     testWidgets('renders progress summary empty state', (tester) async {
@@ -166,11 +166,11 @@ void main() {
       );
     });
 
-    testWidgets('renders AppBar with Evia title', (tester) async {
+    testWidgets('renders AppBar with OKUVU title', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Evia'), findsOneWidget);
+      expect(find.text('OKUVU'), findsOneWidget);
     });
 
     testWidgets('renders cleanly with no user data', (tester) async {
@@ -190,7 +190,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('No mood check-ins yet'), findsOneWidget);
-      expect(find.text('FROM EVIA'), findsOneWidget);
+      expect(find.text('FROM OKUVU'), findsOneWidget);
       expect(find.text('Crisis Support'), findsOneWidget);
     });
 

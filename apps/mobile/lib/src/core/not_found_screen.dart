@@ -7,7 +7,7 @@ class NotFoundScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Evia')),
+      appBar: AppBar(title: const Text('OKUVU')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

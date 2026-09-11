@@ -159,7 +159,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
                         icon: Icons.favorite,
                         title: 'Mood understanding',
                         description:
-                            'Allows Evia to adapt its tone based on your emotional state.',
+                            'Allows OKUVU to adapt its tone based on your emotional state.',
                         value: _moodUnderstanding,
                         onChanged: _isSubmitting
                             ? null
@@ -345,7 +345,7 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'A few things to know about how Evia works.',
+            'A few things to know about how OKUVU works.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

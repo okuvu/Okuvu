@@ -80,7 +80,7 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Evia',
+                    'OKUVU',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -106,7 +106,7 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    "Your therapist has set up your focus area and you're ready to begin. Evia will work alongside your sessions.",
+                    "Your therapist has set up your focus area and you're ready to begin. OKUVU will work alongside your sessions.",
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),

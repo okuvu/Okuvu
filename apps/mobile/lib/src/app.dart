@@ -28,7 +28,7 @@ class App extends ConsumerWidget {
     ref.watch(voiceSyncProvider);
 
     return MaterialApp.router(
-      title: 'Evia',
+      title: 'OKUVU',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: Colors.teal,

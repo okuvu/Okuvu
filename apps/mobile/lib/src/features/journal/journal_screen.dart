@@ -110,7 +110,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          "Your journal is private. Evia doesn't read it and your therapist can't see it.",
+                          "Your journal is private. OKUVU doesn't read it and your therapist can't see it.",
                           style: theme.textTheme.bodySmall,
                         ),
                       ),

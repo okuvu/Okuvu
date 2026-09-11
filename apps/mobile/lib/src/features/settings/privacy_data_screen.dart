@@ -43,7 +43,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                     icon: Icons.favorite,
                     title: 'Mood understanding',
                     subtitle:
-                        'Allows Evia to adapt its tone based on your emotional state.',
+                        'Allows OKUVU to adapt its tone based on your emotional state.',
                     value: consentState.moodInference,
                     onChanged: (v) => notifier.setMoodInference(v),
                     theme: theme,
