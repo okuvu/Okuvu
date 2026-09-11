@@ -163,6 +163,15 @@ export async function processTurn(
   const governanceState: GovernanceState =
     a9Result.status === 'fulfilled' ? a9Result.value.governanceState : 'Restricted';
 
+  // OKUVU v2.0: A1 is now the authoritative source for crisis_language_detected
+  // (it classifies every message, not just ones A2 responds to, and runs
+  // before A2 ever sees the turn) — previously sourced from A2's S-06 signal,
+  // which only existed on turns that actually reached a real A2 call. Computed
+  // here (rather than after the crisis branch below) because the crisis path
+  // needs it too.
+  const crisisFlag: boolean =
+    a1Result.status === 'fulfilled' ? a1Result.value.crisis_language_detected : false;
+
   const retrievedContext: string =
     testMode?.injectRetrievedContext !== undefined
       ? testMode.injectRetrievedContext
@@ -196,6 +205,34 @@ export async function processTurn(
   }
 
   if (decision.agent === 'crisis') {
+    // Audit 1.3 / OKUVU v2.0: a genuine S4 crisis must still leave a real,
+    // reviewable record — client-facing behavior (a bare CRISIS_SIGNAL frame,
+    // no message text) is unchanged; this only adds persistence. There is
+    // still no approved crisis-response script anywhere in the codebase (a
+    // separate, clinically-owned content gap — see the companion Fix Log),
+    // so only the user's own message is persisted here, never a fabricated
+    // assistant reply.
+    const persistStart = now();
+    const crisisTurnCount = await incrementTurnCount(sessionId);
+    await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: crisisTurnCount,
+        role: 'user', content: message,
+      },
+    });
+    await prisma.safetyState.upsert({
+      where: { user_id: user.id },
+      update: { safety_state_current: safetyState },
+      create: { user_id: user.id, safety_state_current: safetyState },
+    });
+    if (crisisFlag) {
+      await prisma.sessionLog.update({
+        where: { id: sessionId },
+        data: { crisis_flag_detected: true },
+      });
+    }
+    recordTiming(timing, 'crisis_persistence', persistStart, now());
+
     return { type: 'crisis', timing, ...(testMode?.captureSignalBus ? { signals } : {}) };
   }
 
@@ -224,12 +261,6 @@ export async function processTurn(
   // persisted turn with static content, no real A2 call, no A9-post review.
   let a8GroundingDeterministic = false;
   let estimatedIntensity: number | null = null;
-  // OKUVU v2.0: A1 is now the authoritative source for crisis_language_detected
-  // (it classifies every message, not just ones A2 responds to, and runs
-  // before A2 ever sees the turn) — previously sourced from A2's S-06 signal,
-  // which only existed on turns that actually reached a real A2 call.
-  const crisisFlag: boolean =
-    a1Result.status === 'fulfilled' ? a1Result.value.crisis_language_detected : false;
   // OKUVU v2.0: care_plan_fit is dropped from A2's signal (S-07) — the audit's
   // recommended owner is Worker 05 (session-summary), not yet built. No
   // replacement source exists yet, so care_plan_review_flagged is not set

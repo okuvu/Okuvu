@@ -292,7 +292,7 @@ describe('pipelineRouter.validateSilencePath', () => {
     expect(result.verdict).toBe('FAIL');
   });
 
-  it('reports recordCompleteness:complete=false by default (the real, currently-unfixed persistence gap — mvp-v2-engineering-spec.md §5.2)', async () => {
+  it('reports recordCompleteness:complete=false when the DB has no matching rows (checker wiring, not real processTurn — that gap was fixed in apps/api\'s orchestrator.ts; see the "DB rows happen to be present" case below and apps/api/src/__tests__/orchestrator.test.ts\'s "crisis turn persistence" suite for the real behavior)', async () => {
     mockProcessTurn.mockResolvedValue(CRISIS_RESULT);
     const caller = createCaller(buildCtx());
 

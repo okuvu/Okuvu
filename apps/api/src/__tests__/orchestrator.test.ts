@@ -241,6 +241,83 @@ describe('processTurn — crisis short-circuit', () => {
     expect(handleTurn).not.toHaveBeenCalled();
     expect(a9PostReview).not.toHaveBeenCalled();
   });
+
+  // Audit 1.3 / OKUVU v2.0: a genuine S4 crisis must still leave a real,
+  // reviewable record. This was a real, live gap — processTurn's crisis
+  // branch used to return before any persistence ran at all.
+  describe('crisis turn persistence (audit 1.3)', () => {
+    it('persists the user\'s message as a real Turn row', async () => {
+      vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false, crisis_language_detected: true, basis: 'literal', signal_strength: 'high', notes: null });
+      vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+      vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
+
+      await processTurn(UID, SESSION_ID, "I've decided how and when I'll end it");
+
+      expect(incrementTurnCount).toHaveBeenCalledWith(SESSION_ID);
+      expect(prisma.turn.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            session_id: SESSION_ID,
+            role: 'user',
+            content: "I've decided how and when I'll end it",
+            turn_number: 4,
+          }),
+        }),
+      );
+      // Never fabricates an assistant reply — no approved crisis script exists.
+      expect(prisma.turn.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('updates SafetyState to S4', async () => {
+      vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false, crisis_language_detected: true, basis: 'literal', signal_strength: 'high', notes: null });
+      vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+      vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
+
+      await processTurn(UID, SESSION_ID, 'test');
+
+      expect(prisma.safetyState.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { user_id: UID },
+          update: { safety_state_current: 'S4' },
+          create: { user_id: UID, safety_state_current: 'S4' },
+        }),
+      );
+    });
+
+    it('sets SessionLog.crisis_flag_detected when A1 reports crisis_language_detected', async () => {
+      vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false, crisis_language_detected: true, basis: 'literal', signal_strength: 'high', notes: null });
+      vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+      vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
+
+      await processTurn(UID, SESSION_ID, 'test');
+
+      expect(prisma.sessionLog.update).toHaveBeenCalledWith({
+        where: { id: SESSION_ID },
+        data: { crisis_flag_detected: true },
+      });
+    });
+
+    it('does not set crisis_flag_detected when A1 does not report crisis_language_detected', async () => {
+      vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false, crisis_language_detected: false, basis: 'contextual', signal_strength: 'low', notes: null });
+      vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+      vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
+
+      await processTurn(UID, SESSION_ID, 'test');
+
+      expect(prisma.sessionLog.update).not.toHaveBeenCalled();
+    });
+
+    it('still returns { type: "crisis" } with no message field — client-facing behavior is unchanged', async () => {
+      vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false, crisis_language_detected: true, basis: 'literal', signal_strength: 'high', notes: null });
+      vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+      vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
+
+      const result = await processTurn(UID, SESSION_ID, 'test');
+
+      expect(result).toEqual(expect.objectContaining({ type: 'crisis' }));
+      expect(result).not.toHaveProperty('message');
+    });
+  });
 });
 
 // OKUVU finding H-2 (2026-09-07): governance=Blocked at a non-S4 safety

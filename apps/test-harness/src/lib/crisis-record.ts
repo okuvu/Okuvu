@@ -1,16 +1,16 @@
 /**
  * Crisis-record completeness (mvp-v2-engineering-spec.md §5.2, "audit fix
- * 1.3"). This check exists to make a real gap visible, not to paper over
- * it: as of this writing, `processTurn`'s crisis branch
- * (apps/api/src/pipeline/orchestrator.ts) returns before any of the Turn
- * insert / SafetyState upsert / crisis_flag_detected update run, and the one
- * production consumer (apps/api/src/routes/websocket.ts) only sends a
- * CRISIS_SIGNAL frame and logs one line — no database row is written for a
- * crisis-routed turn at all today. This function will therefore report
- * `complete: false` against current code; that's the correct, expected
- * result until the underlying persistence gap is deliberately fixed (a
- * separate, safety-critical change to apps/api, out of scope for this
- * check).
+ * 1.3"). This check existed to make a real gap visible, not to paper over
+ * it: for a long time, `processTurn`'s crisis branch
+ * (apps/api/src/pipeline/orchestrator.ts) returned before any of the Turn
+ * insert / SafetyState upsert / crisis_flag_detected update ran, and the one
+ * production consumer (apps/api/src/routes/websocket.ts) only sent a
+ * CRISIS_SIGNAL frame and logged one line — no database row was written for
+ * a crisis-routed turn at all. That gap is now fixed (see orchestrator.ts's
+ * crisis branch and its "crisis turn persistence" test suite) — a genuine
+ * S4 turn persists the user's message, upserts SafetyState to S4, and sets
+ * crisis_flag_detected when A1 reported it. This check remains live so a
+ * future regression against any of those three records is still caught.
  */
 
 interface CrisisRecordPrisma {
