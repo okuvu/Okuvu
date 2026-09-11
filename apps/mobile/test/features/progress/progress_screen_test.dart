@@ -7,7 +7,7 @@ import 'package:okuvu/src/config/app_config.dart';
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/features/progress/progress_screen.dart';
 
-Dio _createMockDio({Map<String, dynamic>? contextResponse}) {
+Dio _createMockDio() {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
   dio.interceptors.add(InterceptorsWrapper(
     onRequest: (options, handler) {
@@ -38,7 +38,7 @@ Dio _createMockDio({Map<String, dynamic>? contextResponse}) {
         handler.resolve(Response(
           requestOptions: options,
           statusCode: 200,
-          data: contextResponse ?? {
+          data: {
             'care_plan': {
               'care_plan_id': 'CP1',
               'assignment_state': 'confirmed',
@@ -98,44 +98,6 @@ void main() {
       );
     });
 
-    testWidgets('renders streak card with 0 streak in empty state',
-        (tester) async {
-      final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
-      dio.interceptors.add(InterceptorsWrapper(
-        onRequest: (options, handler) {
-          if (options.path == '/users/me/context') {
-            handler.resolve(Response(
-              requestOptions: options,
-              statusCode: 200,
-              data: {
-                'care_plan': {
-                  'care_plan_id': 'CP1',
-                  'assignment_state': 'confirmed',
-                },
-                'engagement': {
-                  'current_streak': 0,
-                  'longest_streak': 0,
-                  'voice_mode_enabled': false,
-                },
-              },
-            ));
-            return;
-          }
-          handler.resolve(Response(
-            requestOptions: options,
-            statusCode: 200,
-            data: {'entries': []},
-          ));
-        },
-      ));
-
-      await tester.pumpWidget(_buildTestApp(dio: dio));
-      await tester.pumpAndSettle();
-
-      expect(find.text('0 days'), findsOneWidget);
-      expect(find.text('current streak'), findsOneWidget);
-    });
-
     testWidgets('renders care phase placeholder in empty state',
         (tester) async {
       final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
@@ -169,14 +131,6 @@ void main() {
       expect(find.text('Each dot is a mood you logged.'), findsOneWidget);
     });
 
-    testWidgets('renders streak card with correct value', (tester) async {
-      await tester.pumpWidget(_buildTestApp(dio: _createMockDio()));
-      await tester.pumpAndSettle();
-
-      expect(find.text('3 days'), findsOneWidget);
-      expect(find.text('current streak'), findsOneWidget);
-    });
-
     testWidgets('renders care phase card in filled state', (tester) async {
       await tester.pumpWidget(_buildTestApp(dio: _createMockDio()));
       await tester.pumpAndSettle();
@@ -190,37 +144,6 @@ void main() {
       );
     });
 
-    testWidgets('renders CP2 gap message when applicable', (tester) async {
-      final dio = _createMockDio(contextResponse: {
-        'care_plan': {
-          'care_plan_id': 'CP2',
-          'assignment_state': 'confirmed',
-        },
-        'engagement': {
-          'current_streak': 2,
-          'longest_streak': 4,
-          'voice_mode_enabled': false,
-        },
-      });
-
-      await tester.pumpWidget(_buildTestApp(dio: dio));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text("Gaps happen. You're still here."),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('does not render CP2 gap message for CP1', (tester) async {
-      await tester.pumpWidget(_buildTestApp(dio: _createMockDio()));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text("Gaps happen. You're still here."),
-        findsNothing,
-      );
-    });
   });
 
   group('ProgressScreen - error state', () {

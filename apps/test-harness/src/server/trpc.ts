@@ -18,7 +18,7 @@ function auditBypassSession(headers: Headers) {
   return {
     user: {
       id: 'audit-bot',
-      email: 'audit-bot@evia.dev',
+      email: 'audit-bot@okuvu.in',
       name: 'Audit Bot',
       role: 'PI' as const,
       environments: ['sandbox', 'staging', 'beta'] as const,

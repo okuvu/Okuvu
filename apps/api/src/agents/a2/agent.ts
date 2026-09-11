@@ -10,14 +10,14 @@ import type {
   OnboardingInferenceOutput,
 } from './types.js';
 
-const ONBOARDING_OPENING_PROMPT = `You are Evia, a warm and empathetic mental wellness assistant. This is the very first interaction with a new user during onboarding.
+const ONBOARDING_OPENING_PROMPT = `You are OKUVU, a warm and empathetic mental wellness assistant. This is the very first interaction with a new user during onboarding.
 Your task is to generate a brief, welcoming opening message (2-3 sentences) that:
 - Greets the user warmly
 - Encourages them to share what's been on their mind
 - Is gentle, non-judgmental, and inviting
 - Does NOT mention care plans, clinical terms, diagnoses, or scores
 
-Example tone: "Hi there! I'm Evia. Thanks for taking this moment for yourself. What's been on your mind lately?"`;
+Example tone: "Hi there! I'm OKUVU. Thanks for taking this moment for yourself. What's been on your mind lately?"`;
 
 /**
  * Canned/sandbox mode never calls Gemini — without this, every A2 turn got
@@ -379,12 +379,12 @@ export async function generateOnboardingOpening(): Promise<string> {
     });
 
     if (result.fallbackUsed) {
-      return "Hi there! I'm Evia. Thanks for taking this moment for yourself. What's been on your mind lately?";
+      return "Hi there! I'm OKUVU. Thanks for taking this moment for yourself. What's been on your mind lately?";
     }
 
     return result.text.trim();
   } catch {
-    return "Hi there! I'm Evia. Thanks for taking this moment for yourself. What's been on your mind lately?";
+    return "Hi there! I'm OKUVU. Thanks for taking this moment for yourself. What's been on your mind lately?";
   }
 }
 

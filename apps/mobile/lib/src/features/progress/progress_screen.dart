@@ -44,12 +44,9 @@ class ProgressScreen extends ConsumerWidget {
           data: (entries) {
             final days = _buildLast14Days(entries);
             final carePlanData = carePlanAsync.asData?.value;
-            final streak = carePlanData?.currentStreak ?? 0;
-            final isCP2 = carePlanData?.carePlanId == 'CP2';
-            final hasGaps = days.any((d) => d.mood == null);
 
             if (days.every((day) => day.mood == null)) {
-              return _EmptyProgressState(streak: streak);
+              return const _EmptyProgressState();
             }
 
             final carePlanId = carePlanData?.carePlanId;
@@ -59,11 +56,6 @@ class ProgressScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _StreakCard(
-                    currentStreak: streak,
-                    longestStreak: carePlanData?.longestStreak ?? 0,
-                  ),
-                  const SizedBox(height: 24),
                   _CarePhaseCard(carePlanId: carePlanId),
                   const SizedBox(height: 24),
                   Text(
@@ -82,10 +74,6 @@ class ProgressScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   const _ChartCaption(),
-                  if (isCP2 && hasGaps) ...[
-                    const SizedBox(height: 16),
-                    const _StreakBreakText(),
-                  ],
                 ],
               ),
             );
@@ -115,117 +103,6 @@ List<MoodDataPoint> _buildLast14Days(List<MoodDataPoint> entries) {
       mood: matchingEntry?.mood,
     );
   });
-}
-
-class _StreakCard extends StatelessWidget {
-  const _StreakCard({
-    required this.currentStreak,
-    required this.longestStreak,
-  });
-
-  final int currentStreak;
-  final int longestStreak;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final daysLabel = currentStreak == 1 ? 'day' : 'days';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.local_fire_department,
-            size: 36,
-            color: Color(0xFFE8A020),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$currentStreak $daysLabel',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                'current streak',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          _MilestoneBar(currentStreak: currentStreak),
-        ],
-      ),
-    );
-  }
-}
-
-class _MilestoneBar extends StatelessWidget {
-  const _MilestoneBar({required this.currentStreak});
-
-  final int currentStreak;
-
-  static const _milestones = [3, 7, 14, 30, 60];
-
-  int get _currentMilestone {
-    for (final m in _milestones) {
-      if (currentStreak < m) return m;
-    }
-    return _milestones.last;
-  }
-
-  double get _progress {
-    final idx = _milestones.indexOf(_currentMilestone);
-    final prev = idx > 0 ? _milestones[idx - 1] : 0;
-    final range = _currentMilestone - prev;
-    final progress = (currentStreak - prev) / range;
-    return progress.clamp(0.0, 1.0);
-  }
-
-  String get _milestoneLabel {
-    if (currentStreak >= _milestones.last) return 'Max!';
-    return '$currentStreak / $_currentMilestone days';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          _milestoneLabel,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        SizedBox(
-          width: 80,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: _progress,
-              backgroundColor: theme.colorScheme.surfaceContainerHighest,
-              color: const Color(0xFFE8A020),
-              minHeight: 6,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _CarePhaseCard extends StatelessWidget {
@@ -428,24 +305,8 @@ class _ChartCaption extends StatelessWidget {
   }
 }
 
-class _StreakBreakText extends StatelessWidget {
-  const _StreakBreakText();
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      "Gaps happen. You're still here.",
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        color: Theme.of(context).colorScheme.primary,
-      ),
-    );
-  }
-}
-
 class _EmptyProgressState extends StatelessWidget {
-  const _EmptyProgressState({required this.streak});
-
-  final int streak;
+  const _EmptyProgressState();
 
   @override
   Widget build(BuildContext context) {
@@ -468,11 +329,6 @@ class _EmptyProgressState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-            _StreakCard(
-              currentStreak: streak,
-              longestStreak: 0,
-            ),
-            const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
