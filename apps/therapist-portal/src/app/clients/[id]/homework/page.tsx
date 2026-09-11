@@ -1,0 +1,264 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { useState } from 'react';
+import { trpc } from '@/trpc/client';
+import { formatClientLabel } from '@/lib/format';
+
+type HomeworkStatus = 'active' | 'completed' | 'archived';
+
+function formatHomeworkDate(iso: string | Date): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function StatusBadge({ status }: { status: HomeworkStatus }) {
+  if (status === 'completed') {
+    return (
+      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-[#E8F5EE] text-[#2D8A5E]">
+        Completed
+      </span>
+    );
+  }
+  if (status === 'active') {
+    return (
+      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-[#FEF3E2] text-[#E8A020]">
+        Active
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-gray-100 text-gray-500">
+      Archived
+    </span>
+  );
+}
+
+export default function ClientHomeworkPage() {
+  const params = useParams<{ id: string }>();
+  const clientId = params.id;
+
+  const DRAFT_KEY = `homework-draft-${clientId}`;
+
+  const [description, setDescription] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem(DRAFT_KEY) || '';
+    }
+    return '';
+  });
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const homeworkQuery = trpc.homework.listHomework.useQuery(
+    { clientId },
+    { enabled: Boolean(clientId) },
+  );
+
+  const assignHomework = trpc.homework.assign.useMutation({
+    onSuccess: async () => {
+      setSuccessMessage('Homework assigned.');
+      setErrorMessage(null);
+      setValidationError(null);
+      setDescription('');
+      sessionStorage.removeItem(DRAFT_KEY);
+      await homeworkQuery.refetch();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    },
+    onError: (err) => {
+      setErrorMessage(err.message || 'Could not assign homework.');
+      setSuccessMessage(null);
+      setTimeout(() => setErrorMessage(null), 5000);
+    },
+  });
+
+  const markCompleted = trpc.homework.markCompleted.useMutation({
+    onSuccess: async () => {
+      await homeworkQuery.refetch();
+    },
+    onError: (err) => {
+      setErrorMessage(err.message || 'Could not mark homework completed.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!description.trim()) {
+      setValidationError('Homework description cannot be empty.');
+      return;
+    }
+    if (!clientId) return;
+    setSuccessMessage(null);
+    setErrorMessage(null);
+    setValidationError(null);
+    assignHomework.mutate({ clientUserId: clientId, description: description.trim() });
+  }
+
+  const clientLabel = formatClientLabel(clientId);
+
+  return (
+    <div className="min-h-screen bg-[#F4F6F8]">
+      <div className="p-4 md:p-8">
+        <div className="mx-auto max-w-3xl space-y-4">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Link href="/dashboard" className="hover:text-[#1A6B5A] transition-colors">
+              Dashboard
+            </Link>
+            <span className="text-gray-300">/</span>
+            <Link href={`/clients/${clientId}`} className="hover:text-[#1A6B5A] transition-colors">
+              {clientLabel}
+            </Link>
+            <span className="text-gray-300">/</span>
+            <span className="text-gray-900 font-medium">Homework</span>
+          </div>
+
+          {/* Info notice */}
+          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">
+            <h1 className="text-lg font-semibold text-gray-900">Homework</h1>
+            <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+              Homework you assign here appears in the client&rsquo;s chat context, so OKUVU can
+              coach and check in on it. Mark an item completed once the client has reported back.
+            </p>
+          </div>
+
+          {/* Homework list */}
+          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
+              HOMEWORK HISTORY
+            </h2>
+
+            {homeworkQuery.isLoading ? (
+              <div className="space-y-3 animate-pulse">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-20 rounded-lg bg-gray-100" />
+                ))}
+              </div>
+            ) : homeworkQuery.isError ? (
+              <p className="text-sm text-red-600">
+                Could not load homework. Please refresh and try again.
+              </p>
+            ) : homeworkQuery.data && homeworkQuery.data.length > 0 ? (
+              <div className="space-y-3">
+                {homeworkQuery.data.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-lg bg-gray-50 p-4 border border-gray-100"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        {item.description}
+                      </p>
+                      <StatusBadge status={item.status as HomeworkStatus} />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-400">
+                        Assigned {formatHomeworkDate(item.assigned_at)}
+                      </span>
+                      {item.status === 'active' && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            markCompleted.mutate({ homeworkId: item.id, clientId })
+                          }
+                          disabled={markCompleted.isPending}
+                          className="text-xs font-medium text-[#1A6B5A] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Mark completed
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 text-center">
+                <p className="text-sm text-gray-400 italic">No homework assigned yet.</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  Homework you assign below will appear here.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Assign homework form */}
+          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
+              ASSIGN HOMEWORK
+            </h2>
+
+            <form onSubmit={handleSubmit}>
+              <label htmlFor="homework-description" className="sr-only">
+                Homework description
+              </label>
+              <textarea
+                id="homework-description"
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  sessionStorage.setItem(DRAFT_KEY, e.target.value);
+                  if (validationError) setValidationError(null);
+                }}
+                rows={4}
+                placeholder="e.g. Practice box breathing before bed each night this week."
+                disabled={assignHomework.isPending}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60 disabled:cursor-not-allowed"
+              />
+              <button
+                type="submit"
+                disabled={assignHomework.isPending || !description.trim()}
+                className="mt-3 w-full rounded-lg bg-[#1A6B5A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {assignHomework.isPending ? 'Assigning...' : 'Assign homework'}
+              </button>
+            </form>
+
+            {validationError && (
+              <p
+                role="alert"
+                aria-live="assertive"
+                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
+              >
+                {validationError}
+              </p>
+            )}
+            {successMessage && (
+              <p
+                role="status"
+                aria-live="polite"
+                className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800 text-center"
+              >
+                {successMessage}
+              </p>
+            )}
+            {errorMessage && (
+              <p
+                role="alert"
+                aria-live="assertive"
+                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
+              >
+                {errorMessage}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

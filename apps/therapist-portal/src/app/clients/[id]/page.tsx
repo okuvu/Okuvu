@@ -263,6 +263,19 @@ export default function ClientDetailPage() {
             )}
           </div>
 
+          {/* Homework link */}
+          <Link
+            href={`/clients/${clientId}/homework`}
+            className="block rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 hover:shadow-md transition text-center"
+          >
+            <span className="text-sm font-medium text-[#1A6B5A]">
+              View and assign homework &rarr;
+            </span>
+            <p className="mt-1 text-xs text-gray-500">
+              Assigned homework appears in the client&rsquo;s chat context.
+            </p>
+          </Link>
+
           {/* Session notes link */}
           <Link
             href={`/clients/${clientId}/notes`}
