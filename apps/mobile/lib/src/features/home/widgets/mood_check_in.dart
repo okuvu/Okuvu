@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../progress/providers/progress_provider.dart';
 
 const Map<int, Color> kMoodColors = {
   1: Color(0xFFE8A020),
@@ -19,14 +22,14 @@ const Map<int, String> kMoodLabels = {
   5: 'Great',
 };
 
-class MoodCheckIn extends StatefulWidget {
+class MoodCheckIn extends ConsumerStatefulWidget {
   const MoodCheckIn({super.key});
 
   @override
-  State<MoodCheckIn> createState() => _MoodCheckInState();
+  ConsumerState<MoodCheckIn> createState() => _MoodCheckInState();
 }
 
-class _MoodCheckInState extends State<MoodCheckIn> {
+class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
   int? _selectedMood;
   Timer? _dismissTimer;
 
@@ -38,20 +41,31 @@ class _MoodCheckInState extends State<MoodCheckIn> {
 
   void _selectMood(int mood) {
     _dismissTimer?.cancel();
-    setState(() {
-      if (_selectedMood == mood) {
-        _selectedMood = null;
-      } else {
-        _selectedMood = mood;
-        if (mood >= 4) {
-          _dismissTimer = Timer(const Duration(seconds: 3), () {
-            if (mounted) {
-              setState(() {
-                _selectedMood = null;
-              });
-            }
+
+    if (_selectedMood == mood) {
+      setState(() => _selectedMood = null);
+      return;
+    }
+
+    setState(() => _selectedMood = mood);
+
+    if (mood >= 4) {
+      _dismissTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _selectedMood = null;
           });
         }
+      });
+    }
+
+    ref.read(moodCheckinProvider.notifier).checkIn(mood).then((success) {
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Couldn't save your check-in. Please try again."),
+          ),
+        );
       }
     });
   }
