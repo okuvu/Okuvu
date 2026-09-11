@@ -1,4 +1,4 @@
-import { A2_PROMPT, A2_ONBOARDING_PROMPT } from '../../prompts/index.js';
+import { A2_PROMPT } from '../../prompts/index.js';
 import type { CarePlan } from './types.js';
 
 export function buildConversationalPrompt(params: {
@@ -42,5 +42,3 @@ export function buildConversationalPrompt(params: {
     .replaceAll('${toolkit}', toolkit && toolkit.length > 0 ? toolkit.join(', ') : 'none selected — use the always-available tools')
     .replaceAll('${language_mode}', languageMode ?? 'english');
 }
-
-export const ONBOARDING_SCORING_PROMPT = A2_ONBOARDING_PROMPT;

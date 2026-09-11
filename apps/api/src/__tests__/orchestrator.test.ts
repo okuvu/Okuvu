@@ -15,7 +15,6 @@ vi.mock('../agents/a8-router.js', () => ({
 vi.mock('../agents/a2/agent.js', () => ({
   handleTurn: vi.fn(),
   formatUserMemory: vi.fn(() => 'null'),
-  scoreOnboardingTurn: vi.fn(),
 }));
 
 vi.mock('../agents/a9-post/agent.js', () => ({
@@ -54,7 +53,7 @@ vi.mock('../lib/prisma.js', () => ({
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
-import { handleTurn, scoreOnboardingTurn } from '../agents/a2/agent.js';
+import { handleTurn } from '../agents/a2/agent.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
@@ -477,58 +476,6 @@ describe('processTurn — deterministic grounding (A8 agent="deterministic-groun
     expect(result.type).toBe('agent_turn');
     expect(handleTurn).not.toHaveBeenCalled();
     expect(a9PostReview).not.toHaveBeenCalled();
-  });
-});
-
-// Live testing (2026-09-07) found a real A2 timeout produced a 42.2s
-// OKUVU v2.0 (Phase 5): self-serve/auto-scored onboarding is retired — care
-// plan assignment is therapist-driven now, not an automatic scored message
-// sequence. This directly retires the 2026-09-07 latency-fix regression
-// test's premise (onboarding-scoring stacking a second real LLM call after
-// an already-timed-out A2 call) — that call no longer exists at all.
-// scoreOnboardingTurn/decideAssignment are NOT deleted (docs/okuvu-v2.0's
-// own open question O4 — a portal-side replacement is undecided), just no
-// longer invoked from the pipeline.
-describe('processTurn — onboarding auto-scoring retired (OKUVU v2.0)', () => {
-  const onboardingContext = {
-    ...defaultContext,
-    care_plan: null,
-  };
-
-  it('never calls scoreOnboardingTurn, even for a real (non-fallback) response with no care plan yet', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
-    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(getAgentContextBundle).mockResolvedValue(onboardingContext);
-    vi.mocked(getSessionCount).mockResolvedValue(0);
-    vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 0 } as never);
-    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
-
-    const result = await processTurn(UID, SESSION_ID, 'test');
-
-    expect(result.type).toBe('agent_turn');
-    expect(scoreOnboardingTurn).not.toHaveBeenCalled();
-    expect(prisma.clinicalConfig.upsert).not.toHaveBeenCalled();
-  });
-
-  it('never calls scoreOnboardingTurn when A2 fell back', async () => {
-    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
-    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
-    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
-    vi.mocked(getAgentContextBundle).mockResolvedValue(onboardingContext);
-    vi.mocked(getSessionCount).mockResolvedValue(0);
-    vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 0 } as never);
-    vi.mocked(handleTurn).mockResolvedValue({
-      ...defaultA2Result,
-      fallbackUsed: true,
-      failureReason: 'timeout',
-    });
-
-    const result = await processTurn(UID, SESSION_ID, 'test');
-
-    expect(result.type).toBe('agent_turn');
-    if (result.type === 'agent_turn') expect(result.fallbackUsed).toBe(true);
-    expect(scoreOnboardingTurn).not.toHaveBeenCalled();
   });
 });
 

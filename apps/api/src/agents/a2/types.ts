@@ -80,11 +80,3 @@ export interface A2ParsedResponse {
   userContent: string;
   signal: S07Signal | null;
 }
-
-export interface OnboardingInferenceOutput {
-  anxiety_score: number;
-  depression_score: number;
-  stress_score: number;
-  confidence: number;
-  reasoning_note: string;
-}
