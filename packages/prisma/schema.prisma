@@ -107,11 +107,15 @@ model Turn {
   model_version  String?
   prompt_version String?
   // A2's own S-07 signal (assistant turns only) — okuvu-remaining-changes.md
-  // §B.2: previously computed by the LLM every turn and discarded entirely,
-  // no consumer read them. Persisted here so a future pass (§C.2) has data
-  // to build on; no consumer logic (auto-close, report card) exists yet.
-  taper_state     String    @default("none")
-  closure_offered Boolean   @default(false)
+  // §B.2/§C.2: previously computed by the LLM every turn and discarded
+  // entirely, no consumer read them. Persisted here so a future pass has
+  // data to build on; no consumer logic (auto-close, report card, therapist
+  // notifications) exists yet.
+  taper_state         String  @default("none")
+  closure_offered     Boolean @default(false)
+  frustration_event   Boolean @default(false)
+  homework_referenced Boolean @default(false)
+  therapist_referral  Boolean @default(false)
   created_at     DateTime   @default(now())
   session        SessionLog @relation(fields: [session_id], references: [id])
   user           User       @relation(fields: [user_id], references: [id])

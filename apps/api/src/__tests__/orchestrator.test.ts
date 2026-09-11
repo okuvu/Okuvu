@@ -264,18 +264,20 @@ describe('processTurn — tool_launched -> tool card wiring (okuvu-remaining-cha
   });
 });
 
-// okuvu-remaining-changes.md §B.2: taper_state/closure_offered were computed
-// by A2 every turn and silently discarded — nothing persisted them. This
-// covers only the persistence itself, not any consumer (auto-close, report
-// card, etc. — §C.2's job).
-describe('processTurn — taper_state/closure_offered persistence (okuvu-remaining-changes.md §B.2)', () => {
+// okuvu-remaining-changes.md §B.2/§C.2: A2's 5 S-07 flags (taper_state,
+// closure_offered, frustration_event, homework_referenced,
+// therapist_referral) were computed every turn and silently discarded —
+// nothing persisted them. This covers only the persistence itself, not any
+// consumer (auto-close, report card, therapist notifications, etc. — a
+// separate, not-yet-built workstream).
+describe('processTurn — S-07 signal persistence (okuvu-remaining-changes.md §B.2/§C.2)', () => {
   function assistantTurnCreateCall() {
     return vi.mocked(prisma.turn.create).mock.calls.find(
       (call) => (call[0] as { data: { role: string } }).data.role === 'assistant',
     );
   }
 
-  it('persists taper_state and closure_offered from a real A2 signal', async () => {
+  it('persists all 5 S-07 flags from a real A2 signal', async () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
@@ -288,9 +290,9 @@ describe('processTurn — taper_state/closure_offered persistence (okuvu-remaini
         tool_launched: null,
         taper_state: 'solution_reached',
         closure_offered: true,
-        frustration_event: false,
-        homework_referenced: false,
-        therapist_referral: false,
+        frustration_event: true,
+        homework_referenced: true,
+        therapist_referral: true,
         intensity: 2,
         mood_inference: { primary_emotion: 'relief', confidence: 'medium' },
       },
@@ -300,11 +302,17 @@ describe('processTurn — taper_state/closure_offered persistence (okuvu-remaini
 
     const call = assistantTurnCreateCall();
     expect(call?.[0]).toMatchObject({
-      data: expect.objectContaining({ taper_state: 'solution_reached', closure_offered: true }),
+      data: expect.objectContaining({
+        taper_state: 'solution_reached',
+        closure_offered: true,
+        frustration_event: true,
+        homework_referenced: true,
+        therapist_referral: true,
+      }),
     });
   });
 
-  it('defaults to none/false when A2 has no signal (fallback)', async () => {
+  it('defaults every flag to none/false when A2 has no signal (fallback)', async () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
@@ -319,7 +327,13 @@ describe('processTurn — taper_state/closure_offered persistence (okuvu-remaini
 
     const call = assistantTurnCreateCall();
     expect(call?.[0]).toMatchObject({
-      data: expect.objectContaining({ taper_state: 'none', closure_offered: false }),
+      data: expect.objectContaining({
+        taper_state: 'none',
+        closure_offered: false,
+        frustration_event: false,
+        homework_referenced: false,
+        therapist_referral: false,
+      }),
     });
   });
 });

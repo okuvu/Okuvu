@@ -261,12 +261,15 @@ export async function processTurn(
   // persisted turn with static content, no real A2 call, no A9-post review.
   let a8GroundingDeterministic = false;
   let estimatedIntensity: number | null = null;
-  // okuvu-remaining-changes.md §B.2: persisted onto the assistant Turn below
-  // so A2's own per-turn taper judgment isn't silently discarded — no
-  // consumer (auto-close, report card) reads these yet, see Turn's schema
-  // comment.
+  // okuvu-remaining-changes.md §B.2/§C.2: persisted onto the assistant Turn
+  // below so A2's own per-turn S-07 judgments aren't silently discarded —
+  // no consumer (auto-close, report card, therapist notifications) reads
+  // these yet, see Turn's schema comment.
   let taperState = 'none';
   let closureOffered = false;
+  let frustrationEvent = false;
+  let homeworkReferenced = false;
+  let therapistReferral = false;
   // OKUVU v2.0: care_plan_fit is dropped from A2's signal (S-07) — the audit's
   // recommended owner is Worker 05 (session-summary), not yet built. No
   // replacement source exists yet, so care_plan_review_flagged is not set
@@ -366,6 +369,9 @@ export async function processTurn(
         estimatedIntensity = a2Result.signal.intensity;
         taperState = a2Result.signal.taper_state;
         closureOffered = a2Result.signal.closure_offered;
+        frustrationEvent = a2Result.signal.frustration_event;
+        homeworkReferenced = a2Result.signal.homework_referenced;
+        therapistReferral = a2Result.signal.therapist_referral;
       }
 
       // OKUVU v2.0: tool_launched is now a free-form tool-id string (the
@@ -474,6 +480,9 @@ export async function processTurn(
         prompt_version: turnPromptVersion,
         taper_state: taperState,
         closure_offered: closureOffered,
+        frustration_event: frustrationEvent,
+        homework_referenced: homeworkReferenced,
+        therapist_referral: therapistReferral,
       },
       select: { id: true },
     }),
