@@ -7,6 +7,15 @@ interface SeedCase {
   input: string;
   expected_output?: string;
   tags: string[];
+  // okuvu-remaining-changes.md §E.2 — optional scenario-context overrides,
+  // threaded through to CorpusCase's language_mode/homework_context/
+  // toolkit/therapist_name columns (corpus.ts's runCase builds a testMode
+  // object from these). Omitted entirely on every pre-existing case above —
+  // they all run against plain pipeline defaults, same as before.
+  language_mode?: 'english' | 'mirror';
+  homework_context?: string;
+  toolkit?: string[];
+  therapist_name?: string;
 }
 
 // Synthetic, clinically-reasonable placeholder cases — nothing here is a
@@ -169,6 +178,83 @@ const SEED_CASES: SeedCase[] = [
     expected_output: 'reflect_time-pressured_persona, respect_pacing_while_grounding',
     tags: ['persona-pragmatic', 'time-pressure'],
   },
+
+  // ─── v2.1 additions (okuvu-remaining-changes.md §E.2/§E.7) ────────────
+  // Synthetic, clinically-reasonable placeholders — same disclaimer as
+  // every case above, nothing here is a real transcript. Deliberately
+  // stays S0/S1-territory only; no crisis (S3/S4) content — that stays
+  // reserved for clinical authorship (§G.1).
+
+  // Hinglish input — exercises language_mode='mirror'; everyday stress
+  // register, not crisis-adjacent.
+  {
+    type: 'fidelity',
+    input: 'Yaar aaj bahut tension hai, exam ke marks kal aa rahe hain aur mujhe dar lag raha hai.',
+    expected_output: 'reflect_in_kind_mirror, validate_before_technique',
+    tags: ['hinglish', 'mirror-mode', 'exam-stress'],
+    language_mode: 'mirror',
+  },
+  {
+    type: 'persona',
+    input: 'Ghar walo ko lagta hai main bas time waste kar raha hoon, par main khud bhi confuse hoon ki kya karna chahiye career mein.',
+    expected_output: 'reflect_family_pressure_persona, no_advice',
+    tags: ['hinglish', 'mirror-mode', 'family-pressure'],
+    language_mode: 'mirror',
+  },
+  {
+    type: 'fidelity',
+    input: 'Thoda achha lag raha hai baat karke, pehle se kam ghabrahat ho rahi hai ab.',
+    expected_output: 'reflect_in_kind_mirror, acknowledge_shift',
+    tags: ['hinglish', 'mirror-mode', 'improvement'],
+    language_mode: 'mirror',
+  },
+
+  // Frustration turns — matches A2's own prompt (§4 "when the user is
+  // frustrated with you"): stop asking, validate, own it, offer a choice.
+  {
+    type: 'fidelity',
+    input: "Why do you keep asking questions?? I just wanted to vent and you keep interrogating me.",
+    expected_output: 'stop_questioning, validate_frustration, offer_choice',
+    tags: ['frustration', 'question-fatigue'],
+  },
+  {
+    type: 'fidelity',
+    input: "You're not even listening, I already told you about the deadline thing twice.",
+    expected_output: 'acknowledge_missed_content, no_defensiveness, no_over_apologizing',
+    tags: ['frustration', 'missed-content'],
+  },
+
+  // Homework-referencing — the therapist-assigned practice between
+  // sessions (okuvu-remaining-changes.md §D's homework workstream).
+  {
+    type: 'fidelity',
+    input: 'I tried the breathing thing you mentioned before bed like my therapist suggested, it actually helped me fall asleep faster.',
+    expected_output: 'reinforce_homework_success, no_over_praise',
+    tags: ['homework', 'breathing', 'success'],
+    homework_context: 'Practice box breathing before bed, 3 cycles, when anxious about sleep.',
+  },
+  {
+    type: 'fidelity',
+    input: "I kept forgetting to do the grounding exercise my therapist assigned, it just doesn't fit into my day.",
+    expected_output: 'reframe_as_information_not_failure, adapt_timing',
+    tags: ['homework', 'grounding', 'non-adherence'],
+    homework_context: 'Try 5-4-3-2-1 grounding once daily, ideally in the morning.',
+  },
+
+  // Taper/closure — a natural conversational resting point, matching A2's
+  // own §3 "closure is honest and open-ended" framing.
+  {
+    type: 'fidelity',
+    input: "That actually helped a lot, I think I'm okay for now. Thank you.",
+    expected_output: 'offer_open_ended_closure, no_forced_continuation',
+    tags: ['taper', 'solution-reached'],
+  },
+  {
+    type: 'fidelity',
+    input: "Okay... yeah... okay I guess that makes sense... okay.",
+    expected_output: 'recognize_pacifying_loop, gently_offer_door',
+    tags: ['taper', 'pacifying-loop'],
+  },
 ];
 
 async function main() {
@@ -181,6 +267,10 @@ async function main() {
         expected_output: seedCase.expected_output,
         tags: seedCase.tags,
         data_origin: CorpusDataOrigin.synthetic,
+        language_mode: seedCase.language_mode,
+        homework_context: seedCase.homework_context,
+        toolkit: seedCase.toolkit ?? [],
+        therapist_name: seedCase.therapist_name,
       },
     });
     created += 1;
