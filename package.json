@@ -9,7 +9,6 @@
     "e2e:login": "patrol test -t apps/mobile/integration_test/e2e_login_test.dart --flavor beta --dart-define=E2E_TEST_PHONE=9999999999 --dart-define=E2E_TEST_OTP=123456",
     "e2e:onboarding": "patrol test -t apps/mobile/integration_test/e2e_onboarding_test.dart --flavor beta --dart-define=E2E_TEST_PHONE=9999999999 --dart-define=E2E_TEST_OTP=123456",
     "e2e:crisis": "patrol test -t apps/mobile/integration_test/e2e_crisis_offline_test.dart --flavor beta --dart-define=E2E_TEST_PHONE=9999999999 --dart-define=E2E_TEST_OTP=123456",
-    "e2e:session": "patrol test -t apps/mobile/integration_test/e2e_session_cap_test.dart --flavor beta --dart-define=E2E_TEST_PHONE=9999999999 --dart-define=E2E_TEST_OTP=123456",
     "e2e:all": "patrol test -t apps/mobile/integration_test/ --flavor beta --dart-define=E2E_TEST_PHONE=9999999999 --dart-define=E2E_TEST_OTP=123456"
   }
 }

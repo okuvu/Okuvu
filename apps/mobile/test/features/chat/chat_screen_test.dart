@@ -156,8 +156,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('10 of 10'), findsOneWidget);
-      expect(find.text('Session complete for today.'), findsOneWidget);
+      expect(find.text('This session has ended.'), findsOneWidget);
 
       expect(find.byType(TextField), findsNothing);
       expect(find.text('Back to Home'), findsOneWidget);

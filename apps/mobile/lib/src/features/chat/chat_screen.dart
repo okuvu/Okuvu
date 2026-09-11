@@ -223,22 +223,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ],
           ),
           actions: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: chatState.turnCount >= 9
-                    ? const Color(0xFFFEF3E2)
-                    : const Color(0xFFE8E4DF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${chatState.turnCount} of 10',
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87),
-              ),
-            ),
             if (!isOnline)
               const Padding(
                 padding: EdgeInsets.only(left: 8),
@@ -333,7 +317,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Session complete for today.',
+              'This session has ended.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

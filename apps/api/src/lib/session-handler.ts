@@ -99,46 +99,6 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
         return;
       }
 
-      if (!latestUserTurn) {
-        const assistantOnlyTurn = await prisma.turn.findFirst({
-          where: { session_id: existingSession.id, role: 'assistant' },
-          orderBy: [{ turn_number: 'asc' }, { created_at: 'asc' }],
-          select: { id: true, content: true, turn_number: true },
-        });
-
-        if (assistantOnlyTurn) {
-          send({
-            type: 'SESSION_OPEN_CONFIRMED',
-            payload: {
-              session_id: existingSession.id,
-              session_started_at: existingSession.session_started_at.toISOString(),
-              crisis_bypass: false,
-            },
-          });
-          send({
-            type: 'AGENT_TURN',
-            payload: {
-              session_id: existingSession.id,
-              message: assistantOnlyTurn.content,
-              turn_count: assistantOnlyTurn.turn_number,
-              turn_id: assistantOnlyTurn.id,
-              tts_url: null,
-            },
-          });
-          log.info(
-            {
-              event: 'session_reconnect',
-              request_id: requestId,
-              user_id: user.id,
-              session_id: existingSession.id,
-              outcome: 'replayed_onboarding_opening',
-            },
-            'Reconnect replayed the onboarding opening',
-          );
-          return;
-        }
-      }
-
       send({
         type: 'SESSION_OPEN_CONFIRMED',
         payload: {

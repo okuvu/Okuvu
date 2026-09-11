@@ -112,14 +112,20 @@ final wsShowBannerProvider =
 
 class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<AgentTurnFrame>? _turnSub;
-  StreamSubscription<void>? _sessionSub;
+  StreamSubscription<String?>? _sessionSub;
   StreamSubscription<String?>? _crisisSub;
 
   @override
   ChatState build() {
     final ws = ref.watch(webSocketServiceProvider);
     _turnSub = ws.agentTurnStream.listen(_onAgentTurn);
-    _sessionSub = ws.sessionClosedStream.listen((_) {
+    _sessionSub = ws.sessionClosedStream.listen((reason) {
+      // okuvu-remaining-changes.md §B.2: an idle-timeout close is a silent
+      // runaway bound — WebSocketService already quietly reopens a fresh
+      // thread for it, so the UI must not show the "session ended" screen
+      // (or trigger the SRS modal) for that specific reason. Any other
+      // reason (user-requested, unknown) keeps today's behavior.
+      if (reason == 'IDLE_TIMEOUT') return;
       state = state.copyWith(isSessionClosed: true);
     });
     _crisisSub = ws.crisisSignalStream.listen((_) {

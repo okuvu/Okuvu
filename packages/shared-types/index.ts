@@ -138,7 +138,7 @@ export interface CrisisSignalFrame {
   }
 }
 
-export type CloseReason = 'TURN_CAP' | 'IDLE_TIMEOUT' | 'USER_REQUESTED'
+export type CloseReason = 'IDLE_TIMEOUT' | 'USER_REQUESTED'
 
 export interface SessionCloseFrame {
   type: 'SESSION_CLOSE'

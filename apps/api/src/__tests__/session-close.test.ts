@@ -54,17 +54,6 @@ describe('closeSession()', () => {
       expect(mockEnqueueJob).toHaveBeenCalledWith('sess-1', 'user-1', undefined);
     });
 
-    it('auto-closes at turn cap with exactly one enqueue', async () => {
-      mockUpdateMany.mockResolvedValue({ count: 1 });
-      mockEnqueueJob.mockResolvedValue(undefined);
-
-      const result = await closeSession('sess-cap', 'user-1', 'TURN_CAP');
-
-      expect(result.alreadyClosed).toBe(false);
-      expect(result.reason).toBe('TURN_CAP');
-      expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
-    });
-
     it('auto-closes after idle timeout with exactly one enqueue', async () => {
       mockUpdateMany.mockResolvedValue({ count: 1 });
       mockEnqueueJob.mockResolvedValue(undefined);
@@ -125,7 +114,7 @@ describe('closeSession()', () => {
     });
   });
 
-  describe('edge — race between cap and idle', () => {
+  describe('edge — race between manual close and idle timeout', () => {
     it('only one close succeeds when two concurrent calls race', async () => {
       mockUpdateMany
         .mockResolvedValueOnce({ count: 1 })
@@ -133,7 +122,7 @@ describe('closeSession()', () => {
       mockEnqueueJob.mockResolvedValue(undefined);
 
       const [first, second] = await Promise.all([
-        closeSession('sess-race', 'user-1', 'TURN_CAP'),
+        closeSession('sess-race', 'user-1', 'USER_REQUESTED'),
         closeSession('sess-race', 'user-1', 'IDLE_TIMEOUT'),
       ]);
 

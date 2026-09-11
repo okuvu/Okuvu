@@ -37,7 +37,7 @@ class FakeWebSocketService implements WebSocketService {
   Stream<AgentTurnFrame> get agentTurnStream => const Stream.empty();
 
   @override
-  Stream<void> get sessionClosedStream => const Stream.empty();
+  Stream<String?> get sessionClosedStream => const Stream.empty();
 
   @override
   Stream<bool> get showBannerStream => const Stream.empty();

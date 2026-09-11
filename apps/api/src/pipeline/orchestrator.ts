@@ -261,6 +261,12 @@ export async function processTurn(
   // persisted turn with static content, no real A2 call, no A9-post review.
   let a8GroundingDeterministic = false;
   let estimatedIntensity: number | null = null;
+  // okuvu-remaining-changes.md §B.2: persisted onto the assistant Turn below
+  // so A2's own per-turn taper judgment isn't silently discarded — no
+  // consumer (auto-close, report card) reads these yet, see Turn's schema
+  // comment.
+  let taperState = 'none';
+  let closureOffered = false;
   // OKUVU v2.0: care_plan_fit is dropped from A2's signal (S-07) — the audit's
   // recommended owner is Worker 05 (session-summary), not yet built. No
   // replacement source exists yet, so care_plan_review_flagged is not set
@@ -358,6 +364,8 @@ export async function processTurn(
 
       if (a2Result.signal) {
         estimatedIntensity = a2Result.signal.intensity;
+        taperState = a2Result.signal.taper_state;
+        closureOffered = a2Result.signal.closure_offered;
       }
 
       // OKUVU v2.0: tool_launched is now a free-form tool-id string (the
@@ -464,6 +472,8 @@ export async function processTurn(
         is_a9_fallback: a9PostBlocked || a9PreBlocked,
         model_version: turnModelVersion,
         prompt_version: turnPromptVersion,
+        taper_state: taperState,
+        closure_offered: closureOffered,
       },
       select: { id: true },
     }),

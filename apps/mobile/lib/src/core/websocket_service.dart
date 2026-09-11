@@ -42,8 +42,8 @@ class WebSocketService {
       StreamController<String?>.broadcast();
   final StreamController<AgentTurnFrame> _agentTurnController =
       StreamController<AgentTurnFrame>.broadcast();
-  final StreamController<void> _sessionClosedController =
-      StreamController<void>.broadcast();
+  final StreamController<String?> _sessionClosedController =
+      StreamController<String?>.broadcast();
   final StreamController<String?> _crisisSignalController =
       StreamController<String?>.broadcast();
   final StreamController<bool> _showBannerController =
@@ -56,7 +56,7 @@ class WebSocketService {
   Stream<WsConnectionState> get stateStream => _stateController.stream;
   Stream<String?> get errorTypeStream => _errorTypeController.stream;
   Stream<AgentTurnFrame> get agentTurnStream => _agentTurnController.stream;
-  Stream<void> get sessionClosedStream => _sessionClosedController.stream;
+  Stream<String?> get sessionClosedStream => _sessionClosedController.stream;
   Stream<String?> get crisisSignalStream => _crisisSignalController.stream;
   Stream<bool> get showBannerStream => _showBannerController.stream;
 
@@ -161,13 +161,29 @@ class WebSocketService {
           if (kDebugMode) debugPrint('[WebSocketService] Server error: $errorReason');
           break;
         case 'SESSION_CLOSED':
+          final closedPayload = data['payload'] as Map<String, dynamic>?;
+          final closeReason = closedPayload?['reason'] as String?;
+
+          if (closeReason == 'IDLE_TIMEOUT') {
+            // Silent runaway bound (okuvu-remaining-changes.md §B.2) — the
+            // idle timeout must stay invisible, unlike a user-requested
+            // close. Quietly open a fresh thread on the same connection
+            // instead of tearing down state; the client never visibly
+            // leaves sessionActive.
+            _sessionId = null;
+            _mockTurnCount = 0;
+            _sendFrame({'type': 'SESSION_OPEN', 'payload': <String, dynamic>{}});
+            _sessionClosedController.add('IDLE_TIMEOUT');
+            break;
+          }
+
           _sessionId = null;
           _intentionalDisconnect = true;
           _cancelReconnect();
           _hideBanner();
           _setState(WsConnectionState.disconnected);
           _mockTurnCount = 0;
-          _sessionClosedController.add(null);
+          _sessionClosedController.add(closeReason);
           break;
         default:
           Logger.debug('[WebSocketService] Unknown message type: $type');
