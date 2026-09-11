@@ -163,6 +163,68 @@ describe('processTurn — normal flow', () => {
   });
 });
 
+// okuvu-remaining-changes.md §E — A1's own prompt has asked for
+// gap_before_ms/repetition_count as "when available" metadata since it was
+// written, but nothing computed them until now. These verify the
+// orchestrator actually derives and passes both from the session's real
+// turn history, not just that A1Input accepts the fields.
+describe('processTurn — A1 gap_before_ms/repetition_count (okuvu-remaining-changes.md §E)', () => {
+  it('passes gap_before_ms=null and repetition_count=0 on a session\'s first turn (no prior turns)', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(getSessionConversationTurns).mockResolvedValue([]);
+
+    await processTurn(UID, SESSION_ID, 'hello');
+
+    expect(classifySafety).toHaveBeenCalledWith(
+      expect.objectContaining({ gap_before_ms: null, repetition_count: 0 }),
+    );
+  });
+
+  it('computes gap_before_ms from the most recent user turn and ignores assistant turns', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    vi.mocked(getSessionConversationTurns).mockResolvedValue([
+      { role: 'user', content: 'first message', created_at: fiveMinutesAgo },
+      { role: 'assistant', content: 'reply', created_at: oneMinuteAgo }, // more recent than the last user turn — must not be used
+    ]);
+
+    await processTurn(UID, SESSION_ID, 'second message');
+
+    const call = vi.mocked(classifySafety).mock.calls[0][0];
+    expect(call.gap_before_ms).toBeGreaterThanOrEqual(5 * 60 * 1000 - 1000);
+    expect(call.gap_before_ms).toBeLessThan(5 * 60 * 1000 + 5000);
+  });
+
+  it('counts exact repeats of the current message among the last 5 user turns, case/whitespace-insensitive', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+    const now = new Date();
+    vi.mocked(getSessionConversationTurns).mockResolvedValue([
+      { role: 'user', content: 'nobody understands me', created_at: now },
+      { role: 'assistant', content: 'nobody understands me', created_at: now }, // same text, wrong role — must not count
+      { role: 'user', content: '  Nobody Understands Me  ', created_at: now }, // case/whitespace variant — must count
+      { role: 'user', content: 'something else entirely', created_at: now },
+    ]);
+
+    await processTurn(UID, SESSION_ID, 'nobody understands me');
+
+    expect(classifySafety).toHaveBeenCalledWith(
+      expect.objectContaining({ repetition_count: 2 }),
+    );
+  });
+});
+
 // okuvu-remaining-changes.md §C.1 flagged tool_launched as only
 // integration-tested for grounding_5431 despite orchestrator.ts's
 // KNOWN_TOOL_CARD_TYPES covering guided_breathing/box_breathing too — the

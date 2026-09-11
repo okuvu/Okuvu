@@ -31,6 +31,7 @@ vi.mock('../pipeline/session.js', () => ({
   isSessionClosed: vi.fn(),
   getSessionCount: vi.fn(),
   incrementTurnCount: vi.fn(),
+  getSessionConversationTurns: vi.fn(),
 }));
 
 vi.mock('../lib/prisma.js', () => ({
@@ -55,7 +56,7 @@ import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn } from '../agents/a2/agent.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
+import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
 
@@ -83,6 +84,7 @@ function setupBaseMocks(): void {
   vi.mocked(isSessionClosed).mockResolvedValue(false);
   vi.mocked(getSessionCount).mockResolvedValue(3);
   vi.mocked(incrementTurnCount).mockResolvedValue(4);
+  vi.mocked(getSessionConversationTurns).mockResolvedValue([]);
   vi.mocked(getAgentContextBundle).mockResolvedValue(defaultContext);
   vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 3 } as never);
   vi.mocked(prisma.turn.createMany).mockResolvedValue({ count: 2 } as never);

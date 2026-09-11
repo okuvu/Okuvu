@@ -8,7 +8,7 @@ import { getAgentContextBundle, summariesToConversationTurns } from '../lib/agen
 import { buildToolCard } from '../lib/tool-card.js';
 import { getToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { prisma } from '../lib/prisma.js';
-import { incrementTurnCount, isSessionClosed, getSessionCount } from './session.js';
+import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE } from './fallbacks.js';
@@ -32,6 +32,26 @@ function recordTiming(timing: StageTiming[], stage: string, startMs: number, end
   const elapsedMs = Math.round(endMs - startMs);
   timing.push({ stage, elapsedMs });
   console.log({ perf: stage, elapsedMs });
+}
+
+// okuvu-remaining-changes.md §E — A1's own prompt has asked for
+// gap_before_ms/repetition_count as "when available" metadata since it was
+// written, but nothing computed them until now (same "prompt asks for it,
+// nothing produces it" gap taper_state had before §B.2). Deliberately not
+// attempting register_shift here — a real style-shift heuristic needs its
+// own design pass, not a mechanical computation like these two.
+
+/** Null on a session's first turn — there is no previous user turn to diff against. */
+function computeGapBeforeMs(turns: Array<{ role: string; created_at: Date }>): number | null {
+  const lastUserTurn = [...turns].reverse().find((t) => t.role === 'user');
+  return lastUserTurn ? Date.now() - lastUserTurn.created_at.getTime() : null;
+}
+
+/** How many of the user's last `window` messages in this session exactly match the current one (normalized, case-insensitive) — deliberately simple, not a similarity/fuzzy-match heuristic. */
+function computeRepetitionCount(turns: Array<{ role: string; content: string }>, message: string, window = 5): number {
+  const normalized = message.trim().toLowerCase();
+  const recentUserMessages = turns.filter((t) => t.role === 'user').slice(-window);
+  return recentUserMessages.filter((t) => t.content.trim().toLowerCase() === normalized).length;
 }
 
 export async function processTurn(
@@ -74,9 +94,12 @@ export async function processTurn(
     const start = now();
     try {
       if (testMode?.faults?.boundary === 'A1') throw injectedFaultError(testMode.faults.type);
+      const sessionTurns = await getSessionConversationTurns(sessionId);
       return await classifySafety({
         message,
         recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
+        gap_before_ms: computeGapBeforeMs(sessionTurns),
+        repetition_count: computeRepetitionCount(sessionTurns, message),
       });
     } finally { recordTiming(timing, 'A1', start, now()); }
   }

@@ -35,6 +35,7 @@ vi.mock('../pipeline/session.js', () => ({
   isSessionClosed: vi.fn(),
   getSessionCount: vi.fn(),
   incrementTurnCount: vi.fn(),
+  getSessionConversationTurns: vi.fn(),
 }));
 
 vi.mock('../lib/prisma.js', () => ({
@@ -55,7 +56,7 @@ import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn } from '../agents/a2/agent.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-import { isSessionClosed, getSessionCount, incrementTurnCount } from '../pipeline/session.js';
+import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
 import { clearToolResult } from '../lib/tool-result-store.js';
@@ -93,6 +94,7 @@ beforeEach(() => {
   vi.mocked(isSessionClosed).mockResolvedValue(false);
   vi.mocked(getSessionCount).mockResolvedValue(3);
   vi.mocked(incrementTurnCount).mockResolvedValue(4);
+  vi.mocked(getSessionConversationTurns).mockResolvedValue([]);
   vi.mocked(getAgentContextBundle).mockResolvedValue(defaultContext);
   vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 3 } as never);
   vi.mocked(prisma.turn.create).mockResolvedValue({ id: 'assistant-turn-1' } as never);
@@ -130,8 +132,16 @@ describe('processTurn — TH-S10 default path (opts absent)', () => {
       expect(result.estimatedIntensity).toBeNull();
       expect(result.toolCard).toBeUndefined();
       expect(result.signals).toBeUndefined();
+      // A1/A9-pre run in parallel (Promise.allSettled) — which finishes
+      // first is a race, not a contract (A1 legitimately does one more
+      // await than A9-pre since okuvu-remaining-changes.md §E added a
+      // getSessionConversationTurns call, which can flip which settles
+      // first even against instantly-resolving mocks). A8/A2/A9-post are
+      // genuinely sequential, so only their relative order is asserted.
       const stages = result.timing.map((t) => t.stage);
-      expect(stages).toEqual(['A1', 'A9_pre', 'A8_router', 'A2_response', 'A9_post']);
+      expect(stages).toHaveLength(5);
+      expect(new Set(stages)).toEqual(new Set(['A1', 'A9_pre', 'A8_router', 'A2_response', 'A9_post']));
+      expect(stages.slice(-3)).toEqual(['A8_router', 'A2_response', 'A9_post']);
     }
   });
 });

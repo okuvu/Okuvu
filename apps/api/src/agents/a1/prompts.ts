@@ -124,7 +124,7 @@ Field notes:
 Fail-closed: if you genuinely cannot parse the message at all (gibberish, binary, empty) -> S2, notes "unparseable". If in doubt between two states -> the higher one, notes "ladder".`
 
 export function buildSafetyPrompt(input: A1Input): string {
-  const { message, recentHistory } = input
+  const { message, recentHistory, gap_before_ms, repetition_count } = input
 
   let prompt = SAFETY_RUBRIC
 
@@ -133,6 +133,17 @@ export function buildSafetyPrompt(input: A1Input): string {
     for (const turn of recentHistory) {
       prompt += `\n${turn.role === 'assistant' ? 'Assistant' : 'User'}: ${turn.content}`
     }
+  }
+
+  // okuvu-remaining-changes.md §E — the rubric's own §2.C already describes
+  // receiving these two fields "when available"; only they (of the full
+  // set the rubric lists) are actually computed today. Omitted entirely
+  // when null, matching §2's "if metadata is missing or null, classify on
+  // text + conversation alone" rule rather than sending a misleading 0.
+  if (gap_before_ms != null || repetition_count != null) {
+    prompt += '\n\nCommunication metadata:'
+    if (gap_before_ms != null) prompt += `\ngap_before_ms: ${gap_before_ms}`
+    if (repetition_count != null) prompt += `\nrepetition_count: ${repetition_count}`
   }
 
   prompt += `\n\nUser message to classify:\n${message}`
