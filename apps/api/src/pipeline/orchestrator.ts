@@ -305,6 +305,11 @@ export async function processTurn(
   const carePlanFocus: string | null = testMode?.injectCarePlanFocus ?? contextBundle.care_plan_focus;
   const therapistName: string | null = testMode?.injectTherapistName ?? contextBundle.therapist_name;
   const homework: string | null = testMode?.injectHomework ?? contextBundle.homework;
+  // No real data source yet for "tools this therapist selected for this
+  // client" (that's portal UI, out of scope) — production always sees [],
+  // degrading to the prompt's own "always-available tools" default. Harness
+  // runs can override via injectToolkit to exercise A2 with a real toolkit.
+  const toolkit: string[] = testMode?.injectToolkit ?? [];
 
   if (decision.agent === 'deterministic-grounding') {
     // A1 classified S3 (elevated risk) — no real A2 call, no A9-post review
@@ -333,14 +338,11 @@ export async function processTurn(
         toolResultContext,
         userMemoryContext,
         retrievedContext,
-        // OKUVU v2.0 additions. toolkit stays empty — no data source yet
-        // for "tools this therapist selected for this client" (that's
-        // portal UI, out of scope), so it degrades to the prompt's own
-        // "always-available tools" default, which is correct as-is.
+        // OKUVU v2.0 additions.
         therapistName,
         carePlanFocus,
         homework,
-        toolkit: [],
+        toolkit,
         languageMode,
       });
 

@@ -18,6 +18,10 @@ export function createNewVersion(
     input: string;
     expectedOutput: string;
     tags: string[];
+    languageMode: 'english' | 'mirror';
+    homeworkContext: string;
+    toolkit: string[];
+    therapistName: string;
   }>,
 ): NewCorpusVersionData {
   return {
@@ -31,6 +35,10 @@ export function createNewVersion(
     tags: updates.tags ?? [...previous.tags],
     dataOrigin: previous.dataOrigin,
     supersedesId: previous.id,
+    languageMode: updates.languageMode ?? previous.languageMode,
+    homeworkContext: updates.homeworkContext ?? previous.homeworkContext,
+    toolkit: updates.toolkit ?? previous.toolkit,
+    therapistName: updates.therapistName ?? previous.therapistName,
   };
 }
 

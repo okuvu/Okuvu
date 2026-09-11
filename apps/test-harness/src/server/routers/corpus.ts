@@ -5,7 +5,7 @@ import type { CorpusCase, TestRunStatus } from '@okuvu/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import { createNewVersion } from '@/lib/corpus-versioning';
 import { exportPairedComparisonRows } from '@/lib/paired-export';
-import { setupSyntheticSession, runFullPipeline } from '@/lib/pipeline-runner';
+import { setupSyntheticSession, runFullPipeline, type TestModeOptions } from '@/lib/pipeline-runner';
 import { judgeReply, type JudgeResult } from '@/lib/judge';
 import { withEnvironment } from '@/lib/prisma-rls';
 import { isCannedRunActive } from '@/lib/canned-mode';
@@ -55,6 +55,10 @@ function toCorpusCase(row: PrismaCorpusCase): CorpusCaseWithLineage {
     supersedesId: row.supersedes_id,
     seedId: row.seed_id,
     adjudicationRequired: row.adjudication_required,
+    languageMode: row.language_mode as 'english' | 'mirror' | null,
+    homeworkContext: row.homework_context,
+    toolkit: row.toolkit,
+    therapistName: row.therapist_name,
   };
 }
 
@@ -139,6 +143,10 @@ export const corpusRouter = router({
         tags: z.array(z.string()).default([]),
         data_origin: dataOriginSchema,
         environment: environmentSchema,
+        language_mode: z.enum(['english', 'mirror']).optional(),
+        homework_context: z.string().optional(),
+        toolkit: z.array(z.string()).default([]),
+        therapist_name: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -157,6 +165,10 @@ export const corpusRouter = router({
           expected_output: input.expected_output,
           tags: input.tags,
           data_origin: input.data_origin,
+          language_mode: input.language_mode,
+          homework_context: input.homework_context,
+          toolkit: input.toolkit,
+          therapist_name: input.therapist_name,
         },
       });
 
@@ -172,6 +184,10 @@ export const corpusRouter = router({
           expectedOutput: z.string().optional(),
           tags: z.array(z.string()).optional(),
           dataOrigin: dataOriginSchema.optional(),
+          languageMode: z.enum(['english', 'mirror']).optional(),
+          homeworkContext: z.string().optional(),
+          toolkit: z.array(z.string()).optional(),
+          therapistName: z.string().optional(),
         }),
         environment: environmentSchema,
       }),
@@ -192,6 +208,10 @@ export const corpusRouter = router({
         input: input.updates.input,
         expectedOutput: input.updates.expectedOutput,
         tags: input.updates.tags,
+        languageMode: input.updates.languageMode,
+        homeworkContext: input.updates.homeworkContext,
+        toolkit: input.updates.toolkit,
+        therapistName: input.updates.therapistName,
       });
 
       // A version may change data_origin, so re-validate the rule against
@@ -208,6 +228,10 @@ export const corpusRouter = router({
           tags: newVersion.tags,
           data_origin: nextDataOrigin,
           supersedes_id: newVersion.supersedesId,
+          language_mode: newVersion.languageMode,
+          homework_context: newVersion.homeworkContext,
+          toolkit: newVersion.toolkit ?? [],
+          therapist_name: newVersion.therapistName,
         },
       });
 
@@ -353,10 +377,22 @@ export const corpusRouter = router({
       }
 
       const { uid, sessionId } = await setupSyntheticSession();
+      // okuvu-remaining-changes.md §E.2 — thread the case's optional
+      // scenario-context fields through as testMode overrides, same
+      // mechanism runPersonaScript (conversation.ts) already uses. undefined
+      // for any unset field means "fall through to the pipeline's normal
+      // default," not "force empty."
+      const testMode: TestModeOptions = {
+        injectLanguageMode: (corpusCase.language_mode as 'english' | 'mirror' | null) ?? undefined,
+        injectHomework: corpusCase.homework_context ?? undefined,
+        injectTherapistName: corpusCase.therapist_name ?? undefined,
+        injectToolkit: corpusCase.toolkit.length > 0 ? corpusCase.toolkit : undefined,
+      };
       const { result, trace, activatedAgents } = await runFullPipeline({
         uid,
         sessionId,
         message: corpusCase.input,
+        testMode,
       });
 
       // A fallback reply has already silently degraded — grading it against

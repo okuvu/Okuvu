@@ -398,4 +398,9 @@ export interface CorpusCase {
   seedId?: string | null
   /** True when a case-factory mutation may have changed what expectedOutput should be — needs human confirmation before it's trusted for grading/gating. */
   adjudicationRequired?: boolean
+  /** Optional per-case pipeline context (okuvu-remaining-changes.md §E.2), mirroring apps/api's TestModeOptions inject* fields — null/absent means "use the pipeline's normal default." */
+  languageMode?: 'english' | 'mirror' | null
+  homeworkContext?: string | null
+  toolkit?: string[]
+  therapistName?: string | null
 }

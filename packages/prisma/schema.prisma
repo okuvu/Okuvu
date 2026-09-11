@@ -468,6 +468,17 @@ model CorpusCase {
   // expected_output still carries the seed's best-guess value, but it must
   // not be trusted for grading/gating until a human confirms or edits it.
   adjudication_required Boolean          @default(false)
+  // okuvu-remaining-changes.md §E.2 — optional per-case pipeline context,
+  // mirroring apps/api's TestModeOptions inject* fields (orchestrator.ts):
+  // runCase builds a testMode object from these so a case can exercise A2
+  // under a specific language mode / homework / toolkit / therapist-name
+  // context instead of always hitting the synthetic session's defaults.
+  // Null/empty means "use the pipeline's normal default," same as omitting
+  // the corresponding inject* field.
+  language_mode         String?
+  homework_context      String?
+  toolkit               String[]         @default([])
+  therapist_name        String?
   created_at            DateTime         @default(now())
   updated_at            DateTime         @updatedAt
 

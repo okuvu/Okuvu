@@ -281,6 +281,10 @@ describe('corpusRouter.runCase', () => {
     tags: [],
     supersedes_id: null,
     data_origin: 'synthetic' as const,
+    language_mode: null,
+    homework_context: null,
+    toolkit: [],
+    therapist_name: null,
     created_at: new Date(),
     updated_at: new Date(),
   };
