@@ -163,6 +163,107 @@ describe('processTurn — normal flow', () => {
   });
 });
 
+// okuvu-remaining-changes.md §C.1 flagged tool_launched as only
+// integration-tested for grounding_5431 despite orchestrator.ts's
+// KNOWN_TOOL_CARD_TYPES covering guided_breathing/box_breathing too — the
+// wiring itself (isKnownToolCardType -> buildToolCard) was already complete
+// end-to-end (tool-card.ts's DEFAULTS and mobile's tool_card_widget.dart
+// both already handle all three), just never asserted on here.
+describe('processTurn — tool_launched -> tool card wiring (okuvu-remaining-changes.md §C.1)', () => {
+  it.each([
+    ['guided_breathing', { inhale_seconds: 4, hold_seconds: 2, exhale_seconds: 6, cycles: 3, label: 'Guided Breathing' }],
+    ['box_breathing', { inhale_seconds: 4, hold_seconds: 4, exhale_seconds: 4, cycles: 3, label: 'Box Breathing' }],
+  ] as const)('builds a %s tool card from A2\'s tool_launched signal', async (toolId, expectedBreathingConfig) => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      ...defaultA2Result,
+      signal: {
+        signal: 'S-07',
+        agent: 'A2',
+        technique_used: toolId,
+        tool_launched: toolId,
+        taper_state: 'none',
+        closure_offered: false,
+        frustration_event: false,
+        homework_referenced: false,
+        therapist_referral: false,
+        intensity: 5,
+        mood_inference: { primary_emotion: 'anxiety', confidence: 'medium' },
+      },
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'can we try a breathing exercise');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.toolCard).toEqual({
+        type: toolId,
+        breathing_config: expectedBreathingConfig,
+      });
+    }
+  });
+
+  it('builds a grounding_5431 tool card with no breathing_config', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      ...defaultA2Result,
+      signal: {
+        signal: 'S-07',
+        agent: 'A2',
+        technique_used: 'grounding_5431',
+        tool_launched: 'grounding_5431',
+        taper_state: 'none',
+        closure_offered: false,
+        frustration_event: false,
+        homework_referenced: false,
+        therapist_referral: false,
+        intensity: 6,
+        mood_inference: { primary_emotion: 'anxiety', confidence: 'medium' },
+      },
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'I feel scattered');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.toolCard).toEqual({ type: 'grounding_5431' });
+    }
+  });
+
+  it('leaves toolCard undefined for a tool-id with no app-side card yet', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      ...defaultA2Result,
+      signal: {
+        signal: 'S-07',
+        agent: 'A2',
+        technique_used: 'self_compassion_break',
+        tool_launched: 'self_compassion_break',
+        taper_state: 'none',
+        closure_offered: false,
+        frustration_event: false,
+        homework_referenced: false,
+        therapist_referral: false,
+        intensity: 4,
+        mood_inference: { primary_emotion: 'shame', confidence: 'low' },
+      },
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'I keep being hard on myself');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.toolCard).toBeUndefined();
+    }
+  });
+});
+
 describe('processTurn — Layer 3 RAG semantic retrieval', () => {
   it('triggers retrieval on Turn 1 and injects context into A2', async () => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
