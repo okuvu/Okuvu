@@ -13,9 +13,8 @@ model User {
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
   deleted_at          DateTime?
-  /// OKUVU v2.0: english (default) | mirror (adaptive Hinglish). No UI writes
-  /// this yet (that's mobile settings work, a separate not-yet-built
-  /// workstream) — see docs/okuvu-v2.0/00-doc-map-and-parity-resolutions.md B.1.
+  /// OKUVU v2.0: english (default) | mirror (adaptive Hinglish). Set via
+  /// GET/PATCH /settings/language — apps/mobile's Settings > Language screen.
   language_mode       LanguageMode        @default(english)
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
@@ -23,7 +22,6 @@ model User {
   user_memory         UserMemory?
   mood_logs           MoodLog[]
   safety_state        SafetyState?
-  session_limits      SessionLimit[]
   session_logs        SessionLog[]
   session_summaries   SessionSummary[]
   assigned_therapists TherapistClient[]
@@ -256,18 +254,6 @@ model ClinicalAccessLog {
   @@index([therapist_id, created_at(sort: Desc)])
 }
 
-model SessionLimit {
-  id            String   @id @default(uuid())
-  user_id       String
-  tier          Tier
-  date_ist      DateTime @db.Date
-  sessions_used Int      @default(0)
-  updated_at    DateTime @updatedAt
-  user          User     @relation(fields: [user_id], references: [id])
-
-  @@unique([user_id, date_ist])
-}
-
 model EmergencyContact {
   id              String   @id @default(uuid())
   user_id         String   @unique
@@ -322,10 +308,6 @@ enum SafetyStateEnum {
   S4
 }
 
-enum Tier {
-  SD
-  TL
-}
 
 model JournalEntry {
   id         String   @id @default(uuid())

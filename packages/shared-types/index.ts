@@ -66,7 +66,6 @@ export interface SessionOpenFrame {
 }
 
 export type SessionOpenRejectionReason =
-  | 'DAILY_LIMIT_EXCEEDED'
   | 'USER_NOT_FOUND'
   | 'INTERNAL_ERROR'
 
@@ -83,7 +82,6 @@ export interface SessionOpenRejectedFrame {
   type: 'SESSION_OPEN_REJECTED'
   payload: {
     reason: SessionOpenRejectionReason
-    retry_after?: string
   }
 }
 

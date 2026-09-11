@@ -26,7 +26,6 @@ try {
 
 import { buildApp } from './app.js';
 import { prisma } from './lib/prisma.js';
-import { validateSessionConfig } from './lib/session-limits.js';
 
 async function checkDatabaseConnection(app: ReturnType<typeof buildApp>): Promise<void> {
   try {
@@ -39,8 +38,6 @@ async function checkDatabaseConnection(app: ReturnType<typeof buildApp>): Promis
 }
 
 async function main() {
-  validateSessionConfig();
-
   const app = buildApp();
 
   app.log.info(

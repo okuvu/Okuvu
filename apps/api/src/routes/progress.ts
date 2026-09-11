@@ -3,7 +3,7 @@ import { FastifyInstance } from 'fastify';
 // Route handlers
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
-import { getISTDateString } from '../lib/session-limits.js';
+import { getISTDateString } from '@okuvu/shared-types';
 
 const MOOD_MIN = 1;
 const MOOD_MAX = 5;

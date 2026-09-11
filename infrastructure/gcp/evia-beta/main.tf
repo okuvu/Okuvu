@@ -122,31 +122,6 @@ resource "google_project_service" "cloud_scheduler" {
   disable_on_destroy = false
 }
 
-resource "google_cloud_scheduler_job" "session_limits_cleanup" {
-  depends_on = [google_project_service.cloud_scheduler]
-  project    = google_project.evia_beta.project_id
-  name       = "session-limits-cleanup-beta"
-  region     = var.gcp_region
-  schedule   = "0 2 * * *"
-  time_zone  = "Asia/Kolkata"
-
-  http_target {
-    http_method = "POST"
-    uri         = "${var.worker_url}/cleanup/session-limits?retention_days=30"
-
-    oidc_token {
-      service_account_email = var.worker_service_account_email
-      audience              = "${var.worker_url}/"
-    }
-  }
-}
-
-resource "google_project_iam_member" "scheduler_cloud_run_invoker" {
-  project = google_project.evia_beta.project_id
-  role    = "roles/run.invoker"
-  member  = "serviceAccount:${var.worker_service_account_email}"
-}
-
 resource "google_project_iam_member" "admin_owner" {
   project = google_project.evia_beta.project_id
   role    = "roles/owner"

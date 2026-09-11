@@ -20,9 +20,6 @@ vi.mock('../lib/prisma.js', () => ({
     engagementProfile: {
       deleteMany: vi.fn(),
     },
-    sessionLimit: {
-      deleteMany: vi.fn(),
-    },
     clinicalConfig: {
       deleteMany: vi.fn(),
     },
@@ -78,7 +75,6 @@ describe('POST /account/delete', () => {
         const tx = {
           emergencyContact: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
           engagementProfile: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-          sessionLimit: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
           clinicalConfig: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
           safetyState: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
           turn: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
@@ -117,7 +113,6 @@ describe('POST /account/delete', () => {
       const tx = {
         emergencyContact: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         engagementProfile: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-        sessionLimit: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         clinicalConfig: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         safetyState: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
         turn: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
@@ -133,9 +128,6 @@ describe('POST /account/delete', () => {
         where: { user_id: MOCK_USER_ID },
       });
       expect(tx.engagementProfile.deleteMany).toHaveBeenCalledWith({
-        where: { user_id: MOCK_USER_ID },
-      });
-      expect(tx.sessionLimit.deleteMany).toHaveBeenCalledWith({
         where: { user_id: MOCK_USER_ID },
       });
       expect(tx.clinicalConfig.deleteMany).toHaveBeenCalledWith({
