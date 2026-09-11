@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-import type { UserConsent, CarePlanId, AssignmentState } from '@okuvu/shared-types';
+import type { UserConsent, CarePlanId, AssignmentState, TodayCard } from '@okuvu/shared-types';
 
 interface CarePlanBody {
   care_plan_id: CarePlanId;
@@ -74,6 +74,94 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       const { uid } = request.user;
       const bundle = await getAgentContextBundle(uid);
       return reply.send(bundle);
+    },
+  });
+
+  // §D Today-card — pull-based homework + active reminders. Push/scheduler
+  // delivery is a separate, out-of-scope-this-pass workstream; this route
+  // is what the mobile Home screen polls when the app is open.
+  app.get('/users/me/today', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: {
+          id: true,
+          homeworks: {
+            where: { status: 'active' },
+            take: 1,
+            orderBy: { assigned_at: 'desc' },
+            select: { id: true, description: true },
+          },
+        },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      const reminders = await prisma.reminder.findMany({
+        where: { user_id: user.id, active: true },
+        include: { tool: { select: { label: true } } },
+        orderBy: { created_at: 'desc' },
+      });
+
+      const body: TodayCard = {
+        homeworkId: user.homeworks[0]?.id ?? null,
+        homework: user.homeworks[0]?.description ?? null,
+        reminders: reminders.map((r) => ({
+          id: r.id,
+          scheduleNote: r.schedule_note,
+          toolLabel: r.tool?.label ?? null,
+        })),
+      };
+
+      reply.send(body);
+    },
+  });
+
+  // §D user-confirmed homework completion. Product spec requires
+  // completion be BOTH user-confirmed (this route) and chat-reported
+  // (Worker 05's homework_progress) — therapist-side markCompleted
+  // (therapist-portal homework.ts) remains the separate therapist path.
+  app.post<{ Params: { id: string } }>('/users/me/homework/:id/complete', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const { id } = request.params;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      const homework = await prisma.homework.findUnique({
+        where: { id },
+        select: { client_user_id: true },
+      });
+
+      if (!homework || homework.client_user_id !== user.id) {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'Homework not found' },
+        });
+      }
+
+      const updated = await prisma.homework.update({
+        where: { id },
+        data: { status: 'completed' },
+      });
+
+      reply.send({ success: true, status: updated.status });
     },
   });
 

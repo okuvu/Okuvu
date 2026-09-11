@@ -33,7 +33,18 @@ function buildPrisma(overrides: CtxOverrides = {}) {
       create: vi.fn(),
       findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn(),
+      groupBy: vi.fn().mockResolvedValue([]),
     },
+    reminder: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
+    },
+    toolRegistryEntry: { findMany: vi.fn().mockResolvedValue([]) },
+    sessionSummary: { findMany: vi.fn().mockResolvedValue([]) },
+    userMemory: { findUnique: vi.fn().mockResolvedValue(null) },
+    moodLog: { findMany: vi.fn().mockResolvedValue([]) },
     clinicalAccessLog: { create: vi.fn().mockResolvedValue({}) },
   } as unknown as PrismaClient;
 }
@@ -104,6 +115,46 @@ describe('authorization: a therapist can never reach a client not assigned to th
     const caller = buildCaller();
     await expect(
       caller.homework.markCompleted({ homeworkId: 'hw_1', clientId: UNASSIGNED_CLIENT_ID }),
+    ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('reminders.listReminders throws FORBIDDEN', async () => {
+    const caller = buildCaller();
+    await expect(
+      caller.reminders.listReminders({ clientId: UNASSIGNED_CLIENT_ID }),
+    ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('reminders.create throws FORBIDDEN', async () => {
+    const caller = buildCaller();
+    await expect(
+      caller.reminders.create({
+        clientUserId: UNASSIGNED_CLIENT_ID,
+        scheduleNote: 'Try box breathing.',
+        frequency: 'as_needed',
+        times: [],
+      }),
+    ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('reminders.setActive throws FORBIDDEN', async () => {
+    const caller = buildCaller();
+    await expect(
+      caller.reminders.setActive({ id: 'rem_1', clientUserId: UNASSIGNED_CLIENT_ID, active: false }),
+    ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('reportCard.sessionPrep throws FORBIDDEN', async () => {
+    const caller = buildCaller();
+    await expect(
+      caller.reportCard.sessionPrep({ clientId: UNASSIGNED_CLIENT_ID }),
+    ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('reportCard.reportCard throws FORBIDDEN', async () => {
+    const caller = buildCaller();
+    await expect(
+      caller.reportCard.reportCard({ clientId: UNASSIGNED_CLIENT_ID }),
     ).rejects.toThrow(/not assigned/i);
   });
 });
@@ -192,6 +243,62 @@ describe('authorization: an assigned therapist can read their own client', () =>
         description: 'Practice box breathing before bed.',
       },
       select: { id: true, status: true, assigned_at: true },
+    });
+  });
+});
+
+describe('§D reminders + report-card', () => {
+  it('reminders.listReminders succeeds and records a clinical access log entry', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1' } });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.reminders.listReminders({ clientId: 'client_1' });
+
+    expect(result).toEqual([]);
+    expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
+      data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'VIEW_REMINDERS' },
+    });
+  });
+
+  it('reportCard.reportCard returns granted:false without querying clinical data when consent is not granted', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: false } });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.reportCard.reportCard({ clientId: 'client_1' });
+
+    expect(result).toEqual({ granted: false });
+    expect(prisma.sessionSummary.findMany).not.toHaveBeenCalled();
+    expect(prisma.clinicalAccessLog.create).not.toHaveBeenCalled();
+  });
+
+  it('reportCard.reportCard returns aggregated data and logs access when consent is granted', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true } });
+    vi.mocked(prisma.homework.groupBy).mockResolvedValue([
+      { status: 'active', _count: 2 },
+      { status: 'completed', _count: 3 },
+    ] as never);
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.reportCard.reportCard({ clientId: 'client_1' });
+
+    expect(result.granted).toBe(true);
+    if (result.granted) {
+      expect(result.homeworkCounts).toEqual({ active: 2, completed: 3 });
+    }
+    expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
+      data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'VIEW_REPORT_CARD' },
     });
   });
 });

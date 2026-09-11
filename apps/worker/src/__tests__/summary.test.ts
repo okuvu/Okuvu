@@ -9,12 +9,14 @@ const mockUserMemoryFind = vi.fn();
 const mockUserMemoryUpsert = vi.fn();
 const mockExecuteRaw = vi.fn();
 const mockGenerateEmbedding = vi.fn();
+const mockHomeworkFindFirst = vi.fn();
 
 vi.mock('../lib/prisma.js', () => ({
   getPrisma: () => ({
     sessionLog: { findUnique: mockFindUnique, count: mockCount },
     sessionSummary: { upsert: mockUpsert },
     userMemory: { findUnique: mockUserMemoryFind, upsert: mockUserMemoryUpsert },
+    homework: { findFirst: mockHomeworkFindFirst },
     $executeRaw: mockExecuteRaw,
   }),
 }));
@@ -70,6 +72,7 @@ const validFlashLiteOutput = JSON.stringify({
 describe('generateSessionSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHomeworkFindFirst.mockResolvedValue(null);
   });
 
   describe('positive — normal session', () => {
@@ -122,6 +125,39 @@ describe('generateSessionSummary', () => {
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.generationConfig.temperature).toBe(0.0);
+    });
+
+    it('includes the client\'s active Homework.description in the prompt (§D wiring)', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockHomeworkFindFirst.mockResolvedValue({ description: 'Practice box breathing before bed' });
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockHomeworkFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { client_user_id: 'user-1', status: 'active' } }),
+      );
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('Practice box breathing before bed');
+    });
+
+    it('falls back to null homework when the client has no active assignment', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockHomeworkFindFirst.mockResolvedValue(null);
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('What the therapist had set as active homework (may be null): null');
     });
   });
 

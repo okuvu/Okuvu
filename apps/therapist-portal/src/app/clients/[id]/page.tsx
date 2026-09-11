@@ -12,6 +12,19 @@ const CARE_PLAN_NAMES: Record<string, string> = {
   CP3: 'Stress & Burnout',
 };
 
+// Worker 05 persists summary_text as JSON.stringify(parsed) (the whole
+// structured record, not prose) — parse it back for display. Falls back to
+// the raw string for any legacy/non-JSON row.
+function summaryNarrative(summaryText: string | null | undefined): string {
+  if (!summaryText) return '';
+  try {
+    const parsed = JSON.parse(summaryText) as { narrative_summary?: string };
+    return parsed.narrative_summary ?? summaryText;
+  } catch {
+    return summaryText;
+  }
+}
+
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('en-US', {
@@ -237,12 +250,20 @@ export default function ClientDetailPage() {
             </h2>
             {summaryStatus === 'available' && data.summary?.summary_text ? (
               <div>
-                <p className="text-sm text-gray-700 leading-relaxed">{data.summary.summary_text}</p>
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {summaryNarrative(data.summary.summary_text)}
+                </p>
                 {data.summary.session_id && (
                   <p className="mt-3 text-xs text-gray-400">
                     Session ID: {data.summary.session_id}
                   </p>
                 )}
+                <Link
+                  href={`/clients/${clientId}/report`}
+                  className="mt-3 inline-block text-xs font-medium text-[#1A6B5A] hover:underline"
+                >
+                  View full Session Prep &rarr;
+                </Link>
               </div>
             ) : summaryStatus === 'generating' ? (
               <div className="flex items-center gap-2">
@@ -276,6 +297,19 @@ export default function ClientDetailPage() {
             </p>
           </Link>
 
+          {/* Reminders link */}
+          <Link
+            href={`/clients/${clientId}/reminders`}
+            className="block rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 hover:shadow-md transition text-center"
+          >
+            <span className="text-sm font-medium text-[#1A6B5A]">
+              View and schedule reminders &rarr;
+            </span>
+            <p className="mt-1 text-xs text-gray-500">
+              Reminders appear on the client&rsquo;s Today card in the app.
+            </p>
+          </Link>
+
           {/* Session notes link */}
           <Link
             href={`/clients/${clientId}/notes`}
@@ -286,6 +320,19 @@ export default function ClientDetailPage() {
             </span>
             <p className="mt-1 text-xs text-gray-500">
               Notes are private and never read by the AI.
+            </p>
+          </Link>
+
+          {/* Report card link */}
+          <Link
+            href={`/clients/${clientId}/report`}
+            className="block rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 hover:shadow-md transition text-center"
+          >
+            <span className="text-sm font-medium text-[#1A6B5A]">
+              Session Prep &amp; Report Card &rarr;
+            </span>
+            <p className="mt-1 text-xs text-gray-500">
+              Digest of recent sessions plus homework/mood progress, permission-gated.
             </p>
           </Link>
         </div>

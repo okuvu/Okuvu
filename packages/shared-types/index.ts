@@ -266,6 +266,39 @@ export interface AgentContextBundle {
   homework: string | null
 }
 
+// ─── §D Reminders / Today-card (pull-based; push/scheduler deferred) ────
+
+export interface TodayCardReminder {
+  id: string
+  scheduleNote: string
+  toolLabel: string | null
+}
+
+export interface TodayCard {
+  homeworkId: string | null
+  homework: string | null
+  reminders: TodayCardReminder[]
+}
+
+export type ReminderFrequency = 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed'
+
+export interface ToolRegistryEntryView {
+  toolId: string
+  label: string
+  chatGuidable: boolean
+}
+
+export interface ReminderView {
+  id: string
+  scheduleNote: string
+  frequency: ReminderFrequency
+  times: string[]
+  active: boolean
+  homeworkId: string | null
+  toolId: string | null
+  createdAt: string
+}
+
 // ─── Therapist Portal (T-01 Dashboard) ─────────────────────────
 
 export type ClientCarePlan = {

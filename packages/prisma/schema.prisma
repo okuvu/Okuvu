@@ -229,20 +229,27 @@ model Homework {
 }
 
 /// OKUVU v2.0: scheduler source for homework/tool-practice reminders.
-/// `schedule_note` is deliberately free text, not a structured cron/
-/// day-of-week shape — that shape is itself an open product decision
-/// (doc-map B.3). Nothing reads or writes this yet; it exists so the
-/// scheduler+push workstream (out of scope this pass) doesn't need its own
-/// migration later.
+/// `schedule_note` stays free text (therapist-authored) alongside the
+/// structured `frequency`/`times` fields — those two are read by the
+/// Today-card pull API; delivery (push/scheduler) is a separate,
+/// out-of-scope-this-pass workstream. `frequency` is a plain string, not an
+/// enum, to avoid the CREATE TYPE privilege friction hit earlier this
+/// session: one of 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' |
+/// 'as_needed'. `times` holds up to 3 "HH:mm" entries, meaningful only for
+/// the *_daily frequencies.
 model Reminder {
-  id            String    @id @default(uuid())
+  id            String             @id @default(uuid())
   user_id       String
   homework_id   String?
+  tool_id       String?
+  frequency     String             @default("off")
+  times         String[]           @default([])
   schedule_note String
-  active        Boolean   @default(true)
-  created_at    DateTime  @default(now())
-  user          User      @relation(fields: [user_id], references: [id])
-  homework      Homework? @relation(fields: [homework_id], references: [id])
+  active        Boolean            @default(true)
+  created_at    DateTime           @default(now())
+  user          User               @relation(fields: [user_id], references: [id])
+  homework      Homework?          @relation(fields: [homework_id], references: [id])
+  tool          ToolRegistryEntry? @relation(fields: [tool_id], references: [tool_id])
 
   @@index([user_id, active])
 }
@@ -352,14 +359,15 @@ enum LanguageMode {
 /// OKUVU v2.0: canonical tool-id registry (docs/okuvu-v2.0's B.3 — "chat
 /// parity: T1-T8 column" replacement). Seeded with only the 3 ids already
 /// live in apps/api/src/lib/tool-card.ts — the full proposed list is
-/// pending clinical review (Shubhangi), not invented here. Not yet wired as
-/// a runtime dependency of any code path; forward infrastructure only.
+/// pending clinical review (Shubhangi), not invented here. Now wired as the
+/// optional tool link on Reminder (§D reminders workstream).
 model ToolRegistryEntry {
-  id            String   @id @default(uuid())
-  tool_id       String   @unique
+  id            String     @id @default(uuid())
+  tool_id       String     @unique
   label         String
-  chat_guidable Boolean  @default(true)
-  created_at    DateTime @default(now())
+  chat_guidable Boolean    @default(true)
+  created_at    DateTime   @default(now())
+  reminders     Reminder[]
 }
 
 /// OKUVU v2.0: canonical crisis-helpline source (master-handoff O7 —

@@ -258,11 +258,20 @@ export async function generateSessionSummary(
     .map((t: { role: string; content: string }) => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content}`)
     .join('\n');
 
+  // §D: the Homework schema now exists — query the client's most recent
+  // active assignment the same way agent-context.ts does, so the model
+  // actually knows what was assigned instead of always seeing null.
+  const activeHomework = await getPrisma().homework.findFirst({
+    where: { client_user_id: userId, status: 'active' },
+    orderBy: { assigned_at: 'desc' },
+    select: { description: true },
+  });
+
   const result = await generateContent({
-    // OKUVU v2.0: chat_summary_context/homework_assigned are additive,
-    // null-safe inputs — the checkpoint/homework schemas that would
-    // populate them are separate, not-yet-built workstreams.
-    systemInstruction: buildSummaryPrompt(null, null),
+    // OKUVU v2.0: chat_summary_context is still an additive, null-safe
+    // input — the checkpoint schema that would populate it is a separate,
+    // not-yet-built workstream.
+    systemInstruction: buildSummaryPrompt(null, activeHomework?.description ?? null),
     contents: [{ role: 'user', parts: [{ text: transcript }] }],
     generationConfig: {
       // Raised from 1000 — the v2.0 output schema is significantly larger
