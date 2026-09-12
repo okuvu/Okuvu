@@ -65,7 +65,7 @@ export function AdminContent() {
         <div className="mx-auto max-w-3xl">
           <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-12 text-center">
             <p role="alert" className="text-sm font-medium text-red-800">
-              This page is restricted to Evia admins.
+              This page is restricted to OKUVU admins.
             </p>
             <p className="mt-1 text-xs text-red-600">
               If you believe you should have access, ask an existing admin to add your email to ADMIN_EMAILS.

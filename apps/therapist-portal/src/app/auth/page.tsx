@@ -41,7 +41,7 @@ function AuthContent() {
     <main className="flex min-h-screen items-center justify-center bg-[#F4F6F8] p-4 md:p-8">
       <div className="w-full max-w-[480px]">
         <div className="mb-6 flex flex-col items-center">
-          <div className="mb-4 text-2xl font-bold text-[#1A6B5A]">Evia</div>
+          <div className="mb-4 text-2xl font-bold text-[#1A6B5A]">OKUVU</div>
           <span className="text-xs font-medium uppercase tracking-wider text-[#6f7975]">
             Therapist Portal
           </span>
@@ -50,10 +50,10 @@ function AuthContent() {
         <div className="rounded-xl border border-[#DDE2E8] bg-white p-8 shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
           <div className="mb-8 text-center">
             <h1 className="mb-2 text-2xl font-semibold tracking-tight text-[#191c1e]">
-              Sign in to Evia
+              Sign in to OKUVU
             </h1>
             <p className="text-base leading-relaxed text-[#3f4945]">
-              Use your Google account registered with Evia.
+              Use your Google account registered with OKUVU.
             </p>
           </div>
 
@@ -63,7 +63,7 @@ function AuthContent() {
               style={{ backgroundColor: '#FDF2F1', borderLeftColor: '#C0392B' }}
             >
               <p className="text-sm" style={{ color: '#C0392B' }}>
-                Your account is not yet set up on Evia. Please contact your administrator.
+                Your account is not yet set up on OKUVU. Please contact your administrator.
               </p>
             </div>
           )}
@@ -109,7 +109,7 @@ function AuthContent() {
 
           <div className="mt-8 border-t border-[#DDE2E8] pt-6">
             <p className="text-center text-xs text-[#6f7975]">
-              Access is restricted to registered Evia therapists.
+              Access is restricted to registered OKUVU therapists.
             </p>
           </div>
         </div>

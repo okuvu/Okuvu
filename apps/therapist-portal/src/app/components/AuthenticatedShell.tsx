@@ -15,7 +15,7 @@ export default function AuthenticatedShell({
         {/* F-03: Sidebar (the only sign-out control) is hidden below md;
             this mobile-only bar keeps sign-out reachable on the dashboard. */}
         <div className="md:hidden flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200">
-          <span className="text-sm font-semibold text-[#1A6B5A]">Evia</span>
+          <span className="text-sm font-semibold text-[#1A6B5A]">OKUVU</span>
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: '/auth' })}

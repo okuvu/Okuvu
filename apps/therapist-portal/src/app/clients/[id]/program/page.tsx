@@ -144,7 +144,7 @@ export default function ProgramPage() {
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
-            <span className="text-gray-900 font-medium">Program Evia</span>
+            <span className="text-gray-900 font-medium">Program OKUVU</span>
           </div>
 
           {/* Current care plan */}
@@ -254,7 +254,7 @@ export default function ProgramPage() {
           {/* Notice */}
           <div className="rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">
             <p className="text-sm text-gray-500 leading-relaxed">
-              Therapist notes you write in Session Notes are not used by Evia. To configure what Evia
+              Therapist notes you write in Session Notes are not used by OKUVU. To configure what OKUVU
               focuses on, use this care plan selector.
             </p>
           </div>

@@ -4,8 +4,8 @@ import { TRPCProvider } from '@/trpc/provider';
 import AuthProvider from '@/lib/auth-provider';
 
 export const metadata: Metadata = {
-  title: 'Evia — Therapist Portal',
-  description: 'Therapist dashboard for Evia',
+  title: 'OKUVU — Therapist Portal',
+  description: 'Therapist dashboard for OKUVU',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -66,7 +66,7 @@ export default function Sidebar() {
   return (
     <nav className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-200 z-50 py-5">
       <div className="px-6 pb-4 mb-3 border-b border-gray-100">
-        <h1 className="text-lg font-semibold text-[#1A6B5A]">Evia</h1>
+        <h1 className="text-lg font-semibold text-[#1A6B5A]">OKUVU</h1>
         <p className="text-xs text-gray-500 mt-0.5">Therapist Portal</p>
       </div>
 
