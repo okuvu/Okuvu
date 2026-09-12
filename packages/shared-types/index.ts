@@ -111,6 +111,8 @@ export interface AgentTurnFrame {
     turn_id: string | null
     tts_url: string | null
     tool_card?: ToolCardConfig
+    /** OKUVU v2.0 — chat→journal handoff (okuvu-remaining-changes.md §C.4). */
+    journal_prompt_suggested?: string | null
   }
 }
 
@@ -178,6 +180,18 @@ export type ServerFrame = SessionOpenConfirmedFrame | SessionOpenRejectedFrame |
 
 export type CarePlanId = 'CP1' | 'CP2' | 'CP3'
 export type AssignmentState = 'provisional' | 'confirmed'
+
+/**
+ * Generic labels for A2's ${care_plan_focus} (and now Worker 05's care-plan
+ * mismatch check) until a therapist writes real free text via
+ * ClinicalConfig.care_plan_focus. Shared between apps/api's agent-context.ts
+ * and apps/worker's summary.ts so there's one copy, not two that can drift.
+ */
+export const DEFAULT_CARE_PLAN_FOCUS: Record<CarePlanId, string> = {
+  CP1: 'anxiety and worry',
+  CP2: 'depression and low mood',
+  CP3: 'stress and burnout',
+}
 
 // ─── Consent Types ───────────────────────────────────────────────
 

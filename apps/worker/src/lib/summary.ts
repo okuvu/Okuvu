@@ -2,6 +2,7 @@ import { getPrisma } from './prisma.js';
 import { generateContent } from './vertex-ai.js';
 import { generateEmbedding } from './embedding.js';
 import { updateUserMemory } from './memory-extraction.js';
+import { DEFAULT_CARE_PLAN_FOCUS } from '@okuvu/shared-types';
 
 const MAX_SUMMARY_TURNS = 20;
 const MIN_SUBSTANTIVE_TURNS = 2;
@@ -29,6 +30,18 @@ interface SafetyFlags {
   quotes: string[];
 }
 
+/**
+ * okuvu-remaining-changes.md §C.3/C.5 — a first-pass LLM judgment call, not
+ * a validated clinical rule. Worker 05 is the audit's recommended owner for
+ * this (moved off A2's S-07, which dropped care_plan_fit entirely). Flagged
+ * conservatively: default to not-flagged when uncertain. `reasoning` is
+ * for a therapist reading Session Prep, not a diagnosis.
+ */
+interface CarePlanMismatch {
+  flagged: boolean;
+  reasoning: string | null;
+}
+
 interface ParsedSummary {
   narrative_summary: string;
   themes: string[];
@@ -41,16 +54,22 @@ interface ParsedSummary {
   referrals_made?: string | null;
   open_loops?: string[];
   language?: string;
+  care_plan_mismatch?: CarePlanMismatch;
 }
 
 /**
  * OKUVU v2.0 — supersedes the MVP v1.0 four-field summarizer. Source of
  * truth: docs/okuvu-v2.0/system-prompts/05-Worker-Session-Summarization-v2.0.md.
- * ${chat_summary_context} and ${homework_assigned} are additive, null-safe
- * inputs — the checkpoint/homework schemas that would populate them are
- * separate, not-yet-built workstreams (docs/okuvu-v2.0/02-master-handoff.md §4).
+ * ${chat_summary_context} is an additive, null-safe input — the checkpoint
+ * schema that would populate it is a separate, not-yet-built workstream
+ * (docs/okuvu-v2.0/02-master-handoff.md §4). ${homework_assigned} and
+ * ${care_plan_focus} are both real, queried in generateSessionSummary below.
  */
-function buildSummaryPrompt(chatSummaryContext: string | null, homeworkAssigned: string | null): string {
+function buildSummaryPrompt(
+  chatSummaryContext: string | null,
+  homeworkAssigned: string | null,
+  carePlanFocus: string | null,
+): string {
   return `You summarise a completed OKUVU chat thread into a structured record. The user is an Indian young adult using OKUVU between sessions with their human therapist. The chat may be English, Hinglish, or mixed — summaries are written in clear English (internal/clinical record), with verbatim quotes kept in the original language.
 
 Two audiences read your output, at different times: the memory/extraction worker (merges it into the user's persistent memory), and the therapist, only with explicit client permission (sees how the user is doing between sessions, including homework progress).
@@ -59,6 +78,7 @@ Write as a careful clinical recorder: faithful, specific, non-interpretive. You 
 
 Prior summary of this thread if this is a checkpoint (may be null): ${chatSummaryContext ?? 'null'}
 What the therapist had set as active homework (may be null): ${homeworkAssigned ?? 'null'}
+The client's assigned care-plan focus (may be null): ${carePlanFocus ?? 'null'}
 
 RULES:
 1. Faithful, not interpretive. "User said they felt numb and couldn't get out of bed" — not "user is depressed". Never add a clinical label the user didn't use.
@@ -71,6 +91,7 @@ RULES:
 8. Never fabricate a theme, quote, flag, or open loop. Empty arrays and null are honest.
 9. Do not include OKUVU's own filler (greetings, "ping me anytime") in key_points. Capture substance.
 10. Contradictions are data: if the user said they were fine but the thread shows distress, the narrative reflects both.
+11. Care-plan mismatch is a rough signal for a therapist to review, not a diagnosis. Only flag true if the thread's content clearly and repeatedly diverges from the care-plan focus above (e.g. the client is consistently discussing something the assigned focus doesn't cover at all) — a single tangential turn is not a mismatch. Default to false when uncertain or when care-plan focus is null.
 
 Respond with valid JSON only. No markdown, no explanation, no notes.
 {
@@ -92,7 +113,11 @@ Respond with valid JSON only. No markdown, no explanation, no notes.
   "referrals_made": "therapist_referral | crisis_flow | none | null",
   "key_points": ["specific point 1", "specific point 2"],
   "open_loops": ["anything left unfinished"],
-  "language": "english | hinglish | mixed"
+  "language": "english | hinglish | mixed",
+  "care_plan_mismatch": {
+    "flagged": true or false,
+    "reasoning": "brief note if flagged true, else null"
+  }
 }`;
 }
 
@@ -121,6 +146,15 @@ function parseSafetyFlags(value: unknown): SafetyFlags | undefined {
   };
 }
 
+function parseCarePlanMismatch(value: unknown): CarePlanMismatch | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const obj = value as Record<string, unknown>;
+  return {
+    flagged: obj.flagged === true,
+    reasoning: typeof obj.reasoning === 'string' ? obj.reasoning : null,
+  };
+}
+
 function parseSummaryOutput(text: string): ParsedSummary | null {
   try {
     const parsed: unknown = JSON.parse(text);
@@ -145,6 +179,7 @@ function parseSummaryOutput(text: string): ParsedSummary | null {
         ? obj.open_loops.filter((o): o is string => typeof o === 'string')
         : undefined,
       language: typeof obj.language === 'string' ? obj.language : undefined,
+      care_plan_mismatch: parseCarePlanMismatch(obj.care_plan_mismatch),
     };
   } catch {
     return null;
@@ -267,11 +302,22 @@ export async function generateSessionSummary(
     select: { description: true },
   });
 
+  // §C.3/C.5: same care-plan-focus fallback agent-context.ts already uses
+  // for A2, so Worker 05's mismatch check has the same notion of "the
+  // assigned focus" that the chat agent was actually working from.
+  const clinicalConfig = await getPrisma().clinicalConfig.findUnique({
+    where: { user_id: userId },
+    select: { care_plan_id: true, care_plan_focus: true },
+  });
+  const carePlanFocus = clinicalConfig
+    ? (clinicalConfig.care_plan_focus ?? DEFAULT_CARE_PLAN_FOCUS[clinicalConfig.care_plan_id])
+    : null;
+
   const result = await generateContent({
     // OKUVU v2.0: chat_summary_context is still an additive, null-safe
     // input — the checkpoint schema that would populate it is a separate,
     // not-yet-built workstream.
-    systemInstruction: buildSummaryPrompt(null, activeHomework?.description ?? null),
+    systemInstruction: buildSummaryPrompt(null, activeHomework?.description ?? null, carePlanFocus),
     contents: [{ role: 'user', parts: [{ text: transcript }] }],
     generationConfig: {
       // Raised from 1000 — the v2.0 output schema is significantly larger
@@ -322,6 +368,34 @@ export async function generateSessionSummary(
     session_id: sessionId,
     turn_count: turnCount,
   }, 'Session summary generated and persisted');
+
+  // §C.3/C.5: first write ever to ClinicalConfig from a worker (previously
+  // exclusively a therapist-portal write surface) — best-effort, since a
+  // failure here must never undo the SessionSummary write that already
+  // succeeded above. Overwrites every session (no accumulation logic),
+  // consistent with how safety_flags/homework_progress are also freshly
+  // computed each time, not merged with prior sessions. Skipped entirely
+  // (not an error) when no ClinicalConfig row exists yet — Prisma's update
+  // would throw on a missing row, and "no care plan assigned yet" is a
+  // normal state, not a failure.
+  if (clinicalConfig) {
+    try {
+      await getPrisma().clinicalConfig.update({
+        where: { user_id: userId },
+        data: { care_plan_review_flagged: parsed.care_plan_mismatch?.flagged ?? false },
+      });
+    } catch (err) {
+      logger.error(
+        {
+          event: 'care_plan_review_flag_update_failed',
+          session_id: sessionId,
+          user_id: userId,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'Failed to update ClinicalConfig.care_plan_review_flagged — summary itself already saved',
+      );
+    }
+  }
 
   generateAndStoreEmbedding(sessionId, summaryText, logger).catch((err) => {
     logger.error(

@@ -63,6 +63,7 @@ export type PipelineResult =
       failureReason?: 'timeout' | 'api_error'
       estimatedIntensity: number | null
       toolCard?: ToolCardConfig
+      journalPromptSuggested: string | null
       signals?: PipelineSignal[]
     }
   | {

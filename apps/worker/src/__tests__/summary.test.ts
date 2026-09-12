@@ -10,6 +10,8 @@ const mockUserMemoryUpsert = vi.fn();
 const mockExecuteRaw = vi.fn();
 const mockGenerateEmbedding = vi.fn();
 const mockHomeworkFindFirst = vi.fn();
+const mockClinicalConfigFindUnique = vi.fn();
+const mockClinicalConfigUpdate = vi.fn();
 
 vi.mock('../lib/prisma.js', () => ({
   getPrisma: () => ({
@@ -17,6 +19,7 @@ vi.mock('../lib/prisma.js', () => ({
     sessionSummary: { upsert: mockUpsert },
     userMemory: { findUnique: mockUserMemoryFind, upsert: mockUserMemoryUpsert },
     homework: { findFirst: mockHomeworkFindFirst },
+    clinicalConfig: { findUnique: mockClinicalConfigFindUnique, update: mockClinicalConfigUpdate },
     $executeRaw: mockExecuteRaw,
   }),
 }));
@@ -73,6 +76,8 @@ describe('generateSessionSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHomeworkFindFirst.mockResolvedValue(null);
+    mockClinicalConfigFindUnique.mockResolvedValue(null);
+    mockClinicalConfigUpdate.mockResolvedValue({});
   });
 
   describe('positive — normal session', () => {
@@ -158,6 +163,119 @@ describe('generateSessionSummary', () => {
 
       const callArgs = mockGenerateContent.mock.calls[0][0];
       expect(callArgs.systemInstruction).toContain('What the therapist had set as active homework (may be null): null');
+    });
+  });
+
+  describe('care-plan review flag (okuvu-remaining-changes.md §C.3/§C.5)', () => {
+    it('includes the real care_plan_focus (falling back to the CP default label) in the prompt', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockClinicalConfigFindUnique.mockResolvedValue({ care_plan_id: 'CP2', care_plan_focus: null });
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockClinicalConfigFindUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { user_id: 'user-1' } }),
+      );
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('depression and low mood');
+    });
+
+    it('prefers therapist-authored care_plan_focus over the generic CP default', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockClinicalConfigFindUnique.mockResolvedValue({ care_plan_id: 'CP1', care_plan_focus: 'exam stress and perfectionism' });
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      const callArgs = mockGenerateContent.mock.calls[0][0];
+      expect(callArgs.systemInstruction).toContain('exam stress and perfectionism');
+    });
+
+    it('writes ClinicalConfig.care_plan_review_flagged from the parsed care_plan_mismatch flag', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockClinicalConfigFindUnique.mockResolvedValue({ care_plan_id: 'CP1', care_plan_focus: null });
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({
+          narrative_summary: 'User spent the whole thread discussing work conflict, unrelated to their assigned focus.',
+          themes: ['work conflict'],
+          care_plan_mismatch: { flagged: true, reasoning: 'Thread is entirely about workplace conflict, not anxiety/worry.' },
+        }),
+        fallbackUsed: false,
+      });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockClinicalConfigUpdate).toHaveBeenCalledWith({
+        where: { user_id: 'user-1' },
+        data: { care_plan_review_flagged: true },
+      });
+    });
+
+    it('writes false when care_plan_mismatch is omitted (defaults conservatively)', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockClinicalConfigFindUnique.mockResolvedValue({ care_plan_id: 'CP1', care_plan_focus: null });
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(mockClinicalConfigUpdate).toHaveBeenCalledWith({
+        where: { user_id: 'user-1' },
+        data: { care_plan_review_flagged: false },
+      });
+    });
+
+    it('skips the ClinicalConfig write entirely when the client has no care-plan row yet (not an error)', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockClinicalConfigFindUnique.mockResolvedValue(null);
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      expect(mockClinicalConfigUpdate).not.toHaveBeenCalled();
+    });
+
+    it('leaves the summary COMPLETED even if the ClinicalConfig write fails (best-effort, never blocks the real save)', async () => {
+      const turns = makeTranscriptTurns(2);
+      mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 4 }));
+      mockClinicalConfigFindUnique.mockResolvedValue({ care_plan_id: 'CP1', care_plan_focus: null });
+      mockClinicalConfigUpdate.mockRejectedValue(new Error('connection lost'));
+      mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+      mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+      const { generateSessionSummary } = await import('../lib/summary.js');
+      const logger = mockLogger();
+      const result = await generateSessionSummary('sess-1', 'user-1', logger);
+
+      expect(result.status).toBe('completed');
+      expect(mockUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: expect.objectContaining({ status: 'COMPLETED' }) }),
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'care_plan_review_flag_update_failed' }),
+        expect.any(String),
+      );
     });
   });
 

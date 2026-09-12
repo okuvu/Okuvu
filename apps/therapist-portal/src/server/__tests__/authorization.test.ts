@@ -202,6 +202,50 @@ describe('authorization: an assigned therapist can read their own client', () =>
     });
   });
 
+  it('clients.detail surfaces careReviewFlagged only when chat_access_granted is true (okuvu-remaining-changes.md §C.3/§C.5)', async () => {
+    const prisma = buildPrisma({
+      therapistClient: { id: 'tc_1', chat_access_granted: true },
+      user: {
+        id: 'client_1',
+        phone_number: '+911234567890',
+        clinical_config: { care_plan_id: 'CP1', assignment_state: 'confirmed', reasoning_note: null, care_plan_review_flagged: true },
+        safety_state: null,
+        session_summaries: [],
+      },
+    });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.detail({ clientUserId: 'client_1' });
+
+    expect(result.careReviewFlagged).toBe(true);
+  });
+
+  it('clients.detail hides careReviewFlagged when chat_access_granted is false, even if the flag itself is true', async () => {
+    const prisma = buildPrisma({
+      therapistClient: { id: 'tc_1', chat_access_granted: false },
+      user: {
+        id: 'client_1',
+        phone_number: '+911234567890',
+        clinical_config: { care_plan_id: 'CP1', assignment_state: 'confirmed', reasoning_note: null, care_plan_review_flagged: true },
+        safety_state: null,
+        session_summaries: [],
+      },
+    });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.detail({ clientUserId: 'client_1' });
+
+    expect(result.careReviewFlagged).toBe(false);
+  });
+
   it('homework.listHomework succeeds and records a clinical access log entry', async () => {
     const prisma = buildPrisma({ therapistClient: { id: 'tc_1' } });
     const caller = appRouter.createCaller({

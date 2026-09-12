@@ -253,6 +253,7 @@ describe('processTurn — tool_launched -> tool card wiring (okuvu-remaining-cha
         therapist_referral: false,
         intensity: 5,
         mood_inference: { primary_emotion: 'anxiety', confidence: 'medium' },
+        journal_prompt_suggested: null,
       },
     });
 
@@ -285,6 +286,7 @@ describe('processTurn — tool_launched -> tool card wiring (okuvu-remaining-cha
         therapist_referral: false,
         intensity: 6,
         mood_inference: { primary_emotion: 'anxiety', confidence: 'medium' },
+        journal_prompt_suggested: null,
       },
     });
 
@@ -314,6 +316,7 @@ describe('processTurn — tool_launched -> tool card wiring (okuvu-remaining-cha
         therapist_referral: false,
         intensity: 4,
         mood_inference: { primary_emotion: 'shame', confidence: 'low' },
+        journal_prompt_suggested: null,
       },
     });
 
@@ -357,6 +360,7 @@ describe('processTurn — S-07 signal persistence (okuvu-remaining-changes.md §
         therapist_referral: true,
         intensity: 2,
         mood_inference: { primary_emotion: 'relief', confidence: 'medium' },
+        journal_prompt_suggested: null,
       },
     });
 
@@ -397,6 +401,59 @@ describe('processTurn — S-07 signal persistence (okuvu-remaining-changes.md §
         therapist_referral: false,
       }),
     });
+  });
+
+  it('returns journalPromptSuggested from processTurn but never persists it onto Turn (okuvu-remaining-changes.md §C.4 — transient handoff, not a state flag)', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      ...defaultA2Result,
+      signal: {
+        signal: 'S-07',
+        agent: 'A2',
+        technique_used: null,
+        tool_launched: null,
+        taper_state: 'solution_reached',
+        closure_offered: true,
+        frustration_event: false,
+        homework_referenced: false,
+        therapist_referral: false,
+        intensity: 3,
+        mood_inference: { primary_emotion: 'relief', confidence: 'medium' },
+        journal_prompt_suggested: 'The moment my shoulders finally dropped.',
+      },
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'that helped, thanks');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.journalPromptSuggested).toBe('The moment my shoulders finally dropped.');
+    }
+
+    const call = assistantTurnCreateCall();
+    const persistedData = (call?.[0] as { data: Record<string, unknown> })?.data;
+    expect(persistedData).not.toHaveProperty('journal_prompt_suggested');
+  });
+
+  it('defaults journalPromptSuggested to null when A2 has no signal', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue({
+      ...defaultA2Result,
+      signal: null,
+      fallbackUsed: true,
+      failureReason: 'timeout',
+    });
+
+    const result = await processTurn(UID, SESSION_ID, 'test');
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.journalPromptSuggested).toBeNull();
+    }
   });
 });
 
@@ -1079,6 +1136,7 @@ describe('processTurn — S-06 integration', () => {
         therapist_referral: false,
         intensity: 8,
         mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
+        journal_prompt_suggested: null,
       },
       fallbackUsed: false,
       modelVersion: 'gemini-2.5-flash',
@@ -1115,6 +1173,7 @@ describe('processTurn — S-06 integration', () => {
         therapist_referral: false,
         intensity: 8,
         mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
+        journal_prompt_suggested: null,
       },
       fallbackUsed: false,
       modelVersion: 'gemini-2.5-flash',
@@ -1151,6 +1210,7 @@ describe('processTurn — S-06 integration', () => {
         therapist_referral: false,
         intensity: 3,
         mood_inference: { primary_emotion: 'frustration', confidence: 'medium' },
+        journal_prompt_suggested: null,
       },
       fallbackUsed: false,
       modelVersion: 'gemini-2.5-flash',

@@ -401,13 +401,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-class _ChatBubble extends StatelessWidget {
+class _ChatBubble extends ConsumerWidget {
   final ChatMessage message;
 
   const _ChatBubble({required this.message});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isUser = message.sender == MessageSender.user;
     final theme = Theme.of(context);
     final borderRadius = BorderRadius.only(
@@ -489,6 +489,20 @@ class _ChatBubble extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4, left: 40),
               child: ToolCardWidget(config: message.toolCard!),
+            ),
+          if (!isUser && message.journalPromptSuggested != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 40),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  ref
+                      .read(journalEntryFormProvider.notifier)
+                      .setContent(message.journalPromptSuggested!);
+                  context.go('/journal');
+                },
+                icon: const Icon(Icons.edit_note, size: 18),
+                label: const Text('Save to journal'),
+              ),
             ),
         ],
       ),

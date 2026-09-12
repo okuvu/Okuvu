@@ -360,6 +360,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
       therapist_referral: false,
       intensity: 6,
       mood_inference: { primary_emotion: 'anxiety', confidence: 'high' },
+      journal_prompt_suggested: null,
     };
     const jsonStr = JSON.stringify(validSignal);
 

@@ -153,6 +153,7 @@ class ChatNotifier extends Notifier<ChatState> {
           content: frame.content,
           timestamp: DateTime.now(),
           toolCard: frame.toolCard,
+          journalPromptSuggested: frame.journalPromptSuggested,
         ),
       ],
       turnCount: frame.turnCount,

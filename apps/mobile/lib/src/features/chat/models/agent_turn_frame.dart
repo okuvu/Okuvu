@@ -6,6 +6,7 @@ class AgentTurnFrame {
   final String? timestamp;
   final int turnCount;
   final ToolCardConfig? toolCard;
+  final String? journalPromptSuggested;
 
   const AgentTurnFrame({
     required this.content,
@@ -13,6 +14,7 @@ class AgentTurnFrame {
     this.timestamp,
     this.turnCount = 0,
     this.toolCard,
+    this.journalPromptSuggested,
   });
 
   factory AgentTurnFrame.fromJson(Map<String, dynamic> json) {
@@ -31,6 +33,7 @@ class AgentTurnFrame {
       timestamp: (payload?['timestamp'] as String?) ?? (json['timestamp'] as String?),
       turnCount: (payload?['turn_count'] as int?) ?? (json['turn_count'] as int?) ?? 0,
       toolCard: toolCardJson != null ? ToolCardConfig.fromJson(toolCardJson) : null,
+      journalPromptSuggested: payload?['journal_prompt_suggested'] as String?,
     );
   }
 }

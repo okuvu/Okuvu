@@ -60,6 +60,7 @@ export const clientsRouter = router({
           reasoningNote: null,
           safetyState: null,
           summary: { status: "not_available_yet" as const, summary_text: null, session_id: null },
+          careReviewFlagged: false,
         };
       }
 
@@ -68,6 +69,21 @@ export const clientsRouter = router({
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
       await logClinicalAccess(db, therapistId, input.clientUserId, "VIEW_CLIENT_DETAIL");
+
+      // §C.3/C.5: care_plan_review_flagged is summary-derived (Worker 05
+      // judges it from the raw chat), so it's gated on chat_access_granted
+      // the same way report-card.ts's richer summary-derived data already
+      // is — unlike reasoningNote/summary above, which predate that gating
+      // and stay ungated for now (a known inconsistency, not introduced here).
+      const assignment = await db.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapistId,
+            client_user_id: input.clientUserId,
+          },
+        },
+        select: { chat_access_granted: true },
+      });
 
       const client = await db.user.findUnique({
         where: { id: input.clientUserId },
@@ -122,6 +138,9 @@ export const clientsRouter = router({
           summary_text: latestSummary?.summary_text ?? null,
           session_id: latestSummary?.session_id ?? null,
         },
+        careReviewFlagged: Boolean(
+          assignment?.chat_access_granted && client.clinical_config?.care_plan_review_flagged,
+        ),
       };
     }),
 

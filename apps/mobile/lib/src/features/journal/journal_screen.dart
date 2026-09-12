@@ -21,6 +21,15 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   void initState() {
     super.initState();
     _loadPrivacyNotice();
+    // okuvu-remaining-changes.md §C.4: chat->journal handoff. The form
+    // provider isn't autoDispose, so a prompt set via setContent() just
+    // before navigating here (see chat_screen.dart) survives into this
+    // screen — but the visible TextField is driven by its own controller,
+    // never initialized from provider state, so it must be seeded here.
+    final prefill = ref.read(journalEntryFormProvider).content;
+    if (prefill.isNotEmpty) {
+      _textController.text = prefill;
+    }
   }
 
   @override
@@ -75,6 +84,10 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     ref.listen<JournalEntryFormState>(journalEntryFormProvider, (prev, next) {
       if (next.saved && !(prev?.saved ?? false)) {
         ref.invalidate(journalListProvider);
+        // Clear the form (including any chat-handoff prefill) so a later,
+        // unrelated visit to Journal doesn't silently reopen with this
+        // entry's text still sitting in the (non-autoDispose) provider.
+        ref.read(journalEntryFormProvider.notifier).reset();
         context.go('/home');
       }
     });
@@ -82,13 +95,19 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go('/home');
+        if (!didPop) {
+          ref.read(journalEntryFormProvider.notifier).reset();
+          context.go('/home');
+        }
       },
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.go('/home'),
+            onPressed: () {
+              ref.read(journalEntryFormProvider.notifier).reset();
+              context.go('/home');
+            },
           ),
           title: const Text('Journal'),
         ),
@@ -269,7 +288,10 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => context.go('/home'),
+                      onPressed: () {
+                        ref.read(journalEntryFormProvider.notifier).reset();
+                        context.go('/home');
+                      },
                       child: const Text('Cancel'),
                     ),
                   ),

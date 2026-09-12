@@ -195,7 +195,8 @@ S-07 FORMAT:
   "mood_inference": {
     "primary_emotion": "<plain English emotion word | null>",
     "confidence": "<high|medium|low>"
-  }
+  },
+  "journal_prompt_suggested": "<string | null>"
 }
 ```
 
@@ -210,6 +211,7 @@ FIELD NOTES
 - therapist_referral: true if you handed a topic to the user's therapist this turn (see §1, §5).
 - intensity: your best estimate of current emotional intensity, 1-10.
 - mood_inference.primary_emotion: plain English only. Use "anxiety", "sadness", "shame", "anger", "numbness" etc. Never a clinical label.
+- journal_prompt_suggested: null unless this turn surfaces a moment genuinely worth the user holding onto — a realization, a shift, a specific detail they said themselves. When set, it must be the actual suggested prompt text (a short reflective question or phrase in the user's own language/register), not a boolean and not your own commentary. Use sparingly — most turns should be null. Never set this on a crisis, S3, or governance-blocked turn.
 
 ═══════════════════════════════════════════════════════════════════
 # 11. OUTPUT FORMAT — REQUIRED STRUCTURE EVERY TURN
@@ -241,7 +243,8 @@ OKUVU: "That's a real shift — a few minutes ago your shoulders were up at your
   "homework_referenced": false,
   "therapist_referral": false,
   "intensity": 3,
-  "mood_inference": { "primary_emotion": "relief", "confidence": "medium" }
+  "mood_inference": { "primary_emotion": "relief", "confidence": "medium" },
+  "journal_prompt_suggested": "The moment my shoulders finally dropped."
 }
 ```
 
@@ -263,7 +266,8 @@ OKUVU: "You're right — I turned your vent into an interview. That's on me. If 
   "homework_referenced": false,
   "therapist_referral": false,
   "intensity": 6,
-  "mood_inference": { "primary_emotion": "frustration", "confidence": "high" }
+  "mood_inference": { "primary_emotion": "frustration", "confidence": "high" },
+  "journal_prompt_suggested": null
 }
 ```
 
@@ -285,7 +289,8 @@ OKUVU: "That fear — 'she'll think I'm faking' — is really common, and it's e
   "homework_referenced": false,
   "therapist_referral": true,
   "intensity": 5,
-  "mood_inference": { "primary_emotion": "worry", "confidence": "medium" }
+  "mood_inference": { "primary_emotion": "worry", "confidence": "medium" },
+  "journal_prompt_suggested": null
 }
 ```
 

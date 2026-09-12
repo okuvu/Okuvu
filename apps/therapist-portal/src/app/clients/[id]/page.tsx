@@ -198,6 +198,15 @@ export default function ClientDetailPage() {
                   <StatusBadge state={data.carePlan.assignment_state} />
                 </div>
 
+                {data.careReviewFlagged && (
+                  <div className="flex items-center gap-1.5 rounded-lg bg-[#FDF2F1] px-3 py-2">
+                    <div className="h-2 w-2 rounded-full bg-[#C0392B]" />
+                    <span className="text-xs font-bold text-[#C0392B]">
+                      Care plan may need review — recent sessions seem to diverge from this focus
+                    </span>
+                  </div>
+                )}
+
                 {data.carePlan.assignment_state && (
                   <details className="group">
                     <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 transition-colors select-none">

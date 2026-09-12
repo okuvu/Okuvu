@@ -201,6 +201,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
               turn_id: result.turnId,
               tts_url: null,
               tool_card: result.toolCard,
+              journal_prompt_suggested: result.journalPromptSuggested,
             },
           });
           req.log.info({

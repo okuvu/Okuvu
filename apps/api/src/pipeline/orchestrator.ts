@@ -293,6 +293,11 @@ export async function processTurn(
   let frustrationEvent = false;
   let homeworkReferenced = false;
   let therapistReferral = false;
+  // okuvu-remaining-changes.md §C.4: chat→journal handoff. Transient only —
+  // forwarded to the client below, never persisted onto Turn (unlike the
+  // other S-07 fields above), since it's user-facing suggested content, not
+  // a state flag.
+  let journalPromptSuggested: string | null = null;
   // OKUVU v2.0: care_plan_fit is dropped from A2's signal (S-07) — the audit's
   // recommended owner is Worker 05 (session-summary), not yet built. No
   // replacement source exists yet, so care_plan_review_flagged is not set
@@ -397,6 +402,7 @@ export async function processTurn(
         frustrationEvent = a2Result.signal.frustration_event;
         homeworkReferenced = a2Result.signal.homework_referenced;
         therapistReferral = a2Result.signal.therapist_referral;
+        journalPromptSuggested = a2Result.signal.journal_prompt_suggested ?? null;
       }
 
       // OKUVU v2.0: tool_launched is now a free-form tool-id string (the
@@ -577,6 +583,7 @@ export async function processTurn(
     failureReason: a2FailureReason,
     estimatedIntensity,
     toolCard,
+    journalPromptSuggested,
     ...(testMode?.captureSignalBus ? { signals } : {}),
   };
 }

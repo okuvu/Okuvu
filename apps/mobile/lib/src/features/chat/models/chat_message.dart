@@ -8,6 +8,7 @@ class ChatMessage {
   final String content;
   final DateTime timestamp;
   final ToolCardConfig? toolCard;
+  final String? journalPromptSuggested;
 
   const ChatMessage({
     required this.id,
@@ -15,5 +16,6 @@ class ChatMessage {
     required this.content,
     required this.timestamp,
     this.toolCard,
+    this.journalPromptSuggested,
   });
 }

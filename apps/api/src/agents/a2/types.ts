@@ -74,6 +74,14 @@ export interface S07Signal {
   therapist_referral: boolean;
   intensity: number | null;
   mood_inference: S07MoodInference;
+  /**
+   * OKUVU v2.0 — chat→journal handoff (okuvu-remaining-changes.md §C.4).
+   * Null unless this turn surfaces something genuinely worth the user
+   * holding onto; when set, the actual suggested prompt text, not a
+   * boolean. Transient only — never persisted onto Turn, only forwarded
+   * to the client over the websocket (see orchestrator.ts).
+   */
+  journal_prompt_suggested: string | null;
 }
 
 export interface A2ParsedResponse {

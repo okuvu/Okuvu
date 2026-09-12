@@ -1,4 +1,5 @@
 import { prisma } from './prisma.js';
+import { DEFAULT_CARE_PLAN_FOCUS } from '@okuvu/shared-types';
 import type { AgentContextBundle, SessionSummaryView } from '@okuvu/shared-types';
 import type { ConversationTurn } from '../agents/a1/types.js';
 
@@ -12,16 +13,6 @@ export function summariesToConversationTurns(summaries: SessionSummaryView[]): C
 }
 
 const FALLBACK_TURN_LIMIT = 20;
-
-// OKUVU v2.0: generic labels for A2's ${care_plan_focus} until a therapist
-// writes real free text via ClinicalConfig.care_plan_focus (no portal write
-// path exists yet — out of scope). Matches the old v1 prompt's own CP1-3
-// descriptions, so the fallback reads the same as what shipped before.
-const DEFAULT_CARE_PLAN_FOCUS: Record<'CP1' | 'CP2' | 'CP3', string> = {
-  CP1: 'anxiety and worry',
-  CP2: 'depression and low mood',
-  CP3: 'stress and burnout',
-};
 
 export async function getAgentContextBundle(firebaseUid: string): Promise<AgentContextBundle> {
   const user = await prisma.user.findUnique({
