@@ -146,11 +146,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isOnline = ref.watch(isOnlineProvider);
     final isCrisisActive = ref.watch(crisisOverlayProvider);
 
-    ref.listen<bool>(crisisOverlayProvider, (_, show) {
-      if (show) {
-        context.push('/crisis');
-      }
-    });
+    // The crisis overlay renders app-wide via app.dart's Stack-based
+    // _CrisisOverlaySlot (watching crisisOverlayProvider directly) whenever
+    // it's shown — no navigation is needed or wanted here. A prior
+    // ref.listen that pushed to '/crisis' was dead code: that route was
+    // never registered in router.dart, so it would have thrown a
+    // NotFoundScreen had crisisOverlayProvider ever flipped true while this
+    // screen was mounted.
 
     ref.listen<ChatState>(chatMessagesProvider, (previous, next) {
       if (previous != null &&

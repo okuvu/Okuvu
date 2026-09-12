@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class CrisisOverlay extends StatelessWidget {
+import '../../core/providers.dart';
+
+class CrisisOverlay extends ConsumerWidget {
   const CrisisOverlay({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: PopScope(
@@ -63,7 +66,7 @@ class CrisisOverlay extends StatelessWidget {
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                         child: Text(
                           "Your next session with OKUVU will be here when you're ready.",
                           textAlign: TextAlign.center,
@@ -71,6 +74,29 @@ class CrisisOverlay extends StatelessWidget {
                             color: Colors.white.withValues(alpha: 0.7),
                             fontSize: 13,
                             fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                      // A deliberate, low-key way out — not a prominent CTA,
+                      // since dialing a helpline should read as the primary
+                      // action. hide() was previously dead code: nothing
+                      // called it, so once shown this screen could not be
+                      // dismissed short of logging out.
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: TextButton(
+                          key: const Key('crisisOverlayDismissButton'),
+                          onPressed: () =>
+                              ref.read(crisisOverlayProvider.notifier).hide(),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white.withValues(alpha: 0.6),
+                          ),
+                          child: const Text(
+                            "I'm safe for now",
+                            style: TextStyle(
+                              fontSize: 13,
+                              decoration: TextDecoration.underline,
+                            ),
                           ),
                         ),
                       ),

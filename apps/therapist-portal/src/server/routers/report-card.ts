@@ -34,18 +34,37 @@ function parseSummaryText(summaryText: string | null): ParsedSummary {
 export const reportCardRouter = router({
   // "Session Prep": a digest of recent chat-thread summaries, so a
   // therapist can review what happened since the last session before one
-  // starts. Sourced from Worker 05's SessionSummary output.
+  // starts. Sourced from Worker 05's SessionSummary output — the same
+  // chat-derived data Report Card gates below, so this gets the identical
+  // chat_access_granted gate (okuvu-remaining-changes.md: previously
+  // ungated, a real content leak — any assigned therapist could read full
+  // narrative/themes/open-loops regardless of consent).
   sessionPrep: therapistProcedure
     .input(z.object({ clientId: z.string().min(1), days: z.number().int().positive().max(365).default(30) }))
     .query(async ({ ctx, input }) => {
       if (isBypassEnabled()) {
-        return { entries: [] };
+        return { granted: true as const, entries: [] };
       }
 
       const db = ctx.db;
       const therapistId = ctx.therapistId;
 
       await assertClientAssigned(db, therapistId, input.clientId);
+
+      const assignment = await db.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapistId,
+            client_user_id: input.clientId,
+          },
+        },
+        select: { chat_access_granted: true },
+      });
+
+      if (!assignment?.chat_access_granted) {
+        return { granted: false as const };
+      }
+
       await logClinicalAccess(db, therapistId, input.clientId, 'VIEW_SESSION_PREP');
 
       const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
@@ -56,6 +75,7 @@ export const reportCardRouter = router({
       });
 
       return {
+        granted: true as const,
         entries: summaries.map((s) => {
           const parsed = parseSummaryText(s.summary_text);
           return {

@@ -55,6 +55,13 @@ export default function ClientReportPage() {
                 <div className="h-16 rounded-lg bg-gray-100" />
                 <div className="h-16 rounded-lg bg-gray-100" />
               </div>
+            ) : sessionPrepQuery.data && !sessionPrepQuery.data.granted ? (
+              <div className="rounded-lg bg-amber-50 p-4 text-center">
+                <p className="text-sm text-amber-800">Client hasn&rsquo;t granted chat access yet.</p>
+                <p className="mt-1 text-xs text-amber-700">
+                  Session Prep data becomes available once the client opts in.
+                </p>
+              </div>
             ) : sessionPrepQuery.data && sessionPrepQuery.data.entries.length > 0 ? (
               <div className="space-y-3">
                 {sessionPrepQuery.data.entries.map((entry) => (

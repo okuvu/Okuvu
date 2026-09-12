@@ -324,6 +324,48 @@ describe('§D reminders + report-card', () => {
     expect(prisma.clinicalAccessLog.create).not.toHaveBeenCalled();
   });
 
+  it('reportCard.sessionPrep returns granted:false without querying clinical data when consent is not granted', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: false } });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.reportCard.sessionPrep({ clientId: 'client_1' });
+
+    expect(result).toEqual({ granted: false });
+    expect(prisma.sessionSummary.findMany).not.toHaveBeenCalled();
+    expect(prisma.clinicalAccessLog.create).not.toHaveBeenCalled();
+  });
+
+  it('reportCard.sessionPrep fetches entries and logs access when consent is granted', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true } });
+    vi.mocked(prisma.sessionSummary.findMany).mockResolvedValue([
+      {
+        session_id: 'sess_1',
+        summary_text: JSON.stringify({ narrative_summary: 'Talked about work stress.', themes: ['work'], open_loops: [] }),
+        created_at: new Date('2026-09-01T00:00:00Z'),
+      },
+    ] as never);
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.reportCard.sessionPrep({ clientId: 'client_1' });
+
+    expect(result.granted).toBe(true);
+    if (result.granted) {
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].narrativeSummary).toBe('Talked about work stress.');
+    }
+    expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
+      data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'VIEW_SESSION_PREP' },
+    });
+  });
+
   it('reportCard.reportCard returns aggregated data and logs access when consent is granted', async () => {
     const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true } });
     vi.mocked(prisma.homework.groupBy).mockResolvedValue([

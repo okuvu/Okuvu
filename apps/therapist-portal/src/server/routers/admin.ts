@@ -89,11 +89,19 @@ export const adminRouter = router({
       return { id: therapist.id, email: therapist.email, name: therapist.name };
     }),
 
+  // okuvu-remaining-changes.md — Add-Client flow + consent capture. Captures
+  // chat_access_granted and an optional language-mode default at assignment
+  // time, since neither had any producer before this. `chatAccessGranted` is
+  // an admin/therapist attestation that consent was obtained (e.g. verbally
+  // or on an intake form) — there is still no client-facing UI for this, by
+  // design (see docs/okuvu-v2.0/05-therapist-portal-spec-v0.4-amendments.md).
   assignClient: adminMutation
     .input(
       z.object({
         therapistId: z.string().min(1),
         clientPhoneNumber: z.string().trim().min(1),
+        chatAccessGranted: z.boolean(),
+        languageMode: z.enum(['english', 'mirror']).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -113,6 +121,20 @@ export const adminRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Therapist not found' });
       }
 
+      const existing = await ctx.db.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapist.id,
+            client_user_id: client.id,
+          },
+        },
+        select: { id: true },
+      });
+
+      // `update: {}` is deliberate: re-running this form against an
+      // already-assigned client must never silently overwrite (or revoke)
+      // previously-recorded consent. Consent is only ever set on first
+      // assignment; changing it later needs its own dedicated action.
       await ctx.db.therapistClient.upsert({
         where: {
           therapist_id_client_user_id: {
@@ -121,9 +143,25 @@ export const adminRouter = router({
           },
         },
         update: {},
-        create: { therapist_id: therapist.id, client_user_id: client.id },
+        create: {
+          therapist_id: therapist.id,
+          client_user_id: client.id,
+          chat_access_granted: input.chatAccessGranted,
+        },
       });
 
-      return { success: true, therapistEmail: therapist.email, clientId: client.id };
+      if (input.languageMode) {
+        await ctx.db.user.update({
+          where: { id: client.id },
+          data: { language_mode: input.languageMode },
+        });
+      }
+
+      return {
+        success: true,
+        therapistEmail: therapist.email,
+        clientId: client.id,
+        wasAlreadyAssigned: Boolean(existing),
+      };
     }),
 });

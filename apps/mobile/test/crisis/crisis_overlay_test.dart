@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/features/crisis/crisis_overlay.dart';
 
 Widget _crisisApp() {
-  return const MaterialApp(
-    home: Scaffold(
-      body: CrisisOverlay(),
+  return const ProviderScope(
+    child: MaterialApp(
+      home: Scaffold(
+        body: CrisisOverlay(),
+      ),
     ),
   );
 }
@@ -51,8 +55,39 @@ void main() {
         expect(find.text('044-24640050'), findsOneWidget);
         expect(find.text('112'), findsOneWidget);
 
-        // Call buttons
-        expect(find.byType(InkWell), findsNWidgets(5));
+        // Call buttons (+1 InkWell from the "I'm safe for now" TextButton)
+        expect(find.byType(InkWell), findsNWidgets(6));
+      },
+    );
+
+    testWidgets(
+      'tapping "I\'m safe for now" calls crisisOverlayProvider.hide()',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+        container.read(crisisOverlayProvider.notifier).show();
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              home: Scaffold(body: CrisisOverlay()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(container.read(crisisOverlayProvider), true);
+
+        await tester.tap(find.byKey(const Key('crisisOverlayDismissButton')));
+        await tester.pumpAndSettle();
+
+        expect(container.read(crisisOverlayProvider), false);
       },
     );
   });

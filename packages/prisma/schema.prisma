@@ -201,9 +201,11 @@ model TherapistClient {
   client_user_id String
   created_at     DateTime  @default(now())
   /// OKUVU v2.0: client's consent for this therapist to view raw chat
-  /// content (vs. summaries only). Defaults false (opt-in). Not enforced
-  /// anywhere yet — that's the portal-side consent UI + API check, out of
-  /// scope this pass. Field name matches
+  /// content (vs. summaries only). Defaults false (opt-in). Enforced on
+  /// Report Card, Session Prep, and clients.detail's careReviewFlagged.
+  /// Settable via admin.assignClient's Add-Client flow (an admin/therapist
+  /// attestation that consent was obtained out-of-band — there is still no
+  /// client-facing consent UI). Field name matches
   /// docs/okuvu-v2.0/01-parity-audit-v1.md's own proposal.
   chat_access_granted Boolean @default(false)
   client         User      @relation(fields: [client_user_id], references: [id])
