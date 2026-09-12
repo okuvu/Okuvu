@@ -77,7 +77,14 @@ export const reportCardRouter = router({
     .input(z.object({ clientId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       if (isBypassEnabled()) {
-        return { granted: true as const, homeworkProgress: [], homeworkCounts: { active: 0, completed: 0 }, homeworkTrack: [], moodTrend: [] };
+        return {
+          granted: true as const,
+          homeworkProgress: [],
+          homeworkCounts: { active: 0, completed: 0 },
+          homeworkTrack: [],
+          moodTrend: [],
+          signals: { latestTaperState: 'none', closureOfferedRecently: false, frustrationEventCount: 0, therapistReferralRecently: false },
+        };
       }
 
       const db = ctx.db;
@@ -101,7 +108,9 @@ export const reportCardRouter = router({
 
       await logClinicalAccess(db, therapistId, input.clientId, 'VIEW_REPORT_CARD');
 
-      const [summaries, homeworkCounts, userMemory, moodLogs] = await Promise.all([
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const [summaries, homeworkCounts, userMemory, moodLogs, recentTurns] = await Promise.all([
         db.sessionSummary.findMany({
           where: { user_id: input.clientId, status: 'COMPLETED' },
           orderBy: { created_at: 'desc' },
@@ -118,11 +127,28 @@ export const reportCardRouter = router({
           select: { homework_track: true },
         }),
         db.moodLog.findMany({
-          where: { user_id: input.clientId, date_ist: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+          where: { user_id: input.clientId, date_ist: { gte: thirtyDaysAgo } },
           orderBy: { date_ist: 'asc' },
           select: { date_ist: true, mood_value: true },
         }),
+        // Raw S-07 signals (okuvu-remaining-changes.md §C.2) — persisted on
+        // every assistant turn since §B.2/§C.2, but had zero consumers until
+        // now. Surfaced here as a plain read-only snapshot, not a decision
+        // engine — no auto-close/notification logic is implied by reading
+        // them.
+        db.turn.findMany({
+          where: { user_id: input.clientId, role: 'assistant', created_at: { gte: thirtyDaysAgo } },
+          orderBy: { created_at: 'desc' },
+          select: { taper_state: true, closure_offered: true, frustration_event: true, therapist_referral: true, created_at: true },
+        }),
       ]);
+
+      const signals = {
+        latestTaperState: recentTurns[0]?.taper_state ?? 'none',
+        closureOfferedRecently: recentTurns.some((t) => t.closure_offered),
+        frustrationEventCount: recentTurns.filter((t) => t.frustration_event).length,
+        therapistReferralRecently: recentTurns.some((t) => t.therapist_referral),
+      };
 
       const homeworkProgress = summaries
         .map((s) => ({ date: s.created_at.toISOString(), progress: parseSummaryText(s.summary_text).homework_progress ?? null }))
@@ -140,6 +166,7 @@ export const reportCardRouter = router({
         homeworkCounts: counts,
         homeworkTrack: userMemory?.homework_track ?? [],
         moodTrend: moodLogs.map((m) => ({ date: m.date_ist.toISOString(), moodValue: m.mood_value })),
+        signals,
       };
     }),
 });

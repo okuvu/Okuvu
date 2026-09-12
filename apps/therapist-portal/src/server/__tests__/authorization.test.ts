@@ -43,6 +43,7 @@ function buildPrisma(overrides: CtxOverrides = {}) {
     },
     toolRegistryEntry: { findMany: vi.fn().mockResolvedValue([]) },
     sessionSummary: { findMany: vi.fn().mockResolvedValue([]) },
+    turn: { findMany: vi.fn().mockResolvedValue([]) },
     userMemory: { findUnique: vi.fn().mockResolvedValue(null) },
     moodLog: { findMany: vi.fn().mockResolvedValue([]) },
     clinicalAccessLog: { create: vi.fn().mockResolvedValue({}) },
@@ -296,10 +297,42 @@ describe('§D reminders + report-card', () => {
     expect(result.granted).toBe(true);
     if (result.granted) {
       expect(result.homeworkCounts).toEqual({ active: 2, completed: 3 });
+      expect(result.signals).toEqual({
+        latestTaperState: 'none',
+        closureOfferedRecently: false,
+        frustrationEventCount: 0,
+        therapistReferralRecently: false,
+      });
     }
     expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
       data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'VIEW_REPORT_CARD' },
     });
+  });
+
+  it('reportCard.reportCard computes S-07 signal flags from recent turns (okuvu-remaining-changes.md §C.2)', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true } });
+    vi.mocked(prisma.turn.findMany).mockResolvedValue([
+      { taper_state: 'tapering', closure_offered: true, frustration_event: false, therapist_referral: false, created_at: new Date('2026-09-12') },
+      { taper_state: 'none', closure_offered: false, frustration_event: true, therapist_referral: true, created_at: new Date('2026-09-10') },
+      { taper_state: 'none', closure_offered: false, frustration_event: true, therapist_referral: false, created_at: new Date('2026-09-08') },
+    ] as never);
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.reportCard.reportCard({ clientId: 'client_1' });
+
+    expect(result.granted).toBe(true);
+    if (result.granted) {
+      expect(result.signals).toEqual({
+        latestTaperState: 'tapering',
+        closureOfferedRecently: true,
+        frustrationEventCount: 2,
+        therapistReferralRecently: true,
+      });
+    }
   });
 });
 

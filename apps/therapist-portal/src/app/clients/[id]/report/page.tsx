@@ -102,6 +102,32 @@ export default function ClientReportPage() {
               </div>
             ) : reportCardQuery.data ? (
               <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">
+                    Signals (last 30 days &mdash; from the client&rsquo;s chat, not therapist-reported)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700">
+                      Taper state: {reportCardQuery.data.signals.latestTaperState}
+                    </span>
+                    {reportCardQuery.data.signals.closureOfferedRecently && (
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-[#E8F5EE] text-[#2D8A5E]">
+                        Closure offered
+                      </span>
+                    )}
+                    {reportCardQuery.data.signals.frustrationEventCount > 0 && (
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-[#FEF3E2] text-[#E8A020]">
+                        Frustration flagged &times;{reportCardQuery.data.signals.frustrationEventCount}
+                      </span>
+                    )}
+                    {reportCardQuery.data.signals.therapistReferralRecently && (
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-[#FDF2F1] text-[#C0392B]">
+                        Therapist referral suggested
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">Homework assigned / completed</span>
                   <span className="font-medium text-gray-900">
