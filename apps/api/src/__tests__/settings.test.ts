@@ -139,3 +139,102 @@ describe('GET/PATCH /settings/language', () => {
     });
   });
 });
+
+describe('GET/PATCH /settings/quote-of-day (okuvu-remaining-changes.md O6)', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    app = buildApp();
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  describe('GET /settings/quote-of-day', () => {
+    it("returns the user's current quote_of_day_enabled value", async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ quote_of_day_enabled: true } as never);
+
+      const response = await app.inject({ method: 'GET', url: '/settings/quote-of-day' });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ enabled: true });
+    });
+
+    it('returns 401 when the user does not exist', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+      const response = await app.inject({ method: 'GET', url: '/settings/quote-of-day' });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+
+  describe('PATCH /settings/quote-of-day', () => {
+    it('enables quote_of_day_enabled', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/quote-of-day',
+        payload: { enabled: true },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ success: true });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { quote_of_day_enabled: true },
+      });
+    });
+
+    it('disables quote_of_day_enabled', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/quote-of-day',
+        payload: { enabled: false },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { quote_of_day_enabled: false },
+      });
+    });
+
+    it('rejects a non-boolean enabled value', async () => {
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/quote-of-day',
+        payload: { enabled: 'yes' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_BODY');
+    });
+
+    it('returns 401 when the user does not exist', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/quote-of-day',
+        payload: { enabled: true },
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+});

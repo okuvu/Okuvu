@@ -16,6 +16,10 @@ model User {
   /// OKUVU v2.0: english (default) | mirror (adaptive Hinglish). Set via
   /// GET/PATCH /settings/language — apps/mobile's Settings > Language screen.
   language_mode       LanguageMode        @default(english)
+  /// okuvu-remaining-changes.md O6: quote-of-day, opt-in. Content today is
+  /// a small placeholder list per care plan (apps/api's quote-of-day.ts) —
+  /// swap for a real source once one is decided; the toggle/plumbing is real.
+  quote_of_day_enabled Boolean            @default(false)
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
   engagement_profile  EngagementProfile?
@@ -371,11 +375,12 @@ model ToolRegistryEntry {
 }
 
 /// OKUVU v2.0: canonical crisis-helpline source (master-handoff O7 —
-/// "iCall+Vandrevala minimum, decide rest"). Seeded with exactly the two
-/// numbers A1's prompt and A9-post's helpline-integrity check already treat
-/// as approved. Does NOT resolve the mobile app's separate 5-number
-/// crisis_overlay.dart — reconciling those is a real clinical/product
-/// decision, not made here. Nothing reads this table yet.
+/// "iCall+Vandrevala minimum, decide rest"). Now seeded with all 5 numbers
+/// the mobile app's crisis_overlay.dart already ships (iCall, Vandrevala,
+/// NIMHANS, Snehi, Emergency Services) — reconciled 12 Sep, migration
+/// 20260912170000. A9-post's prompt was updated to match. The mobile app's
+/// own rendering stays hardcoded/offline-safe on purpose; it is not wired
+/// to read from this table (crisis support must work with no network).
 model CrisisResource {
   id         String   @id @default(uuid())
   name       String

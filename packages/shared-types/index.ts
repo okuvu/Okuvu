@@ -292,6 +292,8 @@ export interface TodayCard {
   homeworkId: string | null
   homework: string | null
   reminders: TodayCardReminder[]
+  /** okuvu-remaining-changes.md O6 — placeholder content, opt-in, care-plan-aware. Null when disabled or no care plan yet. */
+  quote: string | null
 }
 
 export type ReminderFrequency = 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed'

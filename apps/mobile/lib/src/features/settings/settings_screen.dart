@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/voice_toggle.dart';
+import '../../widgets/quote_of_day_toggle.dart';
 
 const _kIconColor = Color(0xFF6B6B6B);
 const _kLabelColor = Color(0xFF1A1A1A);
@@ -57,6 +58,7 @@ class SettingsScreen extends ConsumerWidget {
                     onTap: () => context.go('/settings/about'),
                   ),
                   const VoiceToggle(),
+                  const QuoteOfDayToggle(),
                   const SizedBox(height: 8),
                   const Divider(height: 1),
                   _SettingsTile(

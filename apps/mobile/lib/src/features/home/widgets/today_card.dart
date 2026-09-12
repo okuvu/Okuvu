@@ -18,7 +18,7 @@ class TodayCard extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (data) {
-        if (data.homework == null && data.reminders.isEmpty) {
+        if (data.homework == null && data.reminders.isEmpty && data.quote == null) {
           return const SizedBox.shrink();
         }
 
@@ -33,6 +33,16 @@ class TodayCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Today', style: theme.textTheme.titleMedium),
+              if (data.quote != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  data.quote!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
               if (data.homework != null) ...[
                 const SizedBox(height: 12),
                 Row(

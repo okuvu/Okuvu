@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
+import { getQuoteOfDay } from '../lib/quote-of-day.js';
 import type { UserConsent, CarePlanId, AssignmentState, TodayCard } from '@okuvu/shared-types';
 
 interface CarePlanBody {
@@ -89,12 +90,14 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         where: { firebase_uid: uid },
         select: {
           id: true,
+          quote_of_day_enabled: true,
           homeworks: {
             where: { status: 'active' },
             take: 1,
             orderBy: { assigned_at: 'desc' },
             select: { id: true, description: true },
           },
+          clinical_config: { select: { care_plan_id: true } },
         },
       });
 
@@ -118,6 +121,11 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
           scheduleNote: r.schedule_note,
           toolLabel: r.tool?.label ?? null,
         })),
+        // okuvu-remaining-changes.md O6: placeholder content, care-plan-aware,
+        // opt-in — see apps/api/src/lib/quote-of-day.ts.
+        quote: user.quote_of_day_enabled && user.clinical_config
+          ? getQuoteOfDay(user.clinical_config.care_plan_id)
+          : null,
       };
 
       reply.send(body);

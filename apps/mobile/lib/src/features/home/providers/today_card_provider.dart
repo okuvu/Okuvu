@@ -26,11 +26,13 @@ class TodayCardData {
   final String? homeworkId;
   final String? homework;
   final List<TodayCardReminder> reminders;
+  final String? quote;
 
   const TodayCardData({
     required this.homeworkId,
     required this.homework,
     required this.reminders,
+    required this.quote,
   });
 
   factory TodayCardData.fromJson(Map<String, dynamic> json) {
@@ -41,6 +43,9 @@ class TodayCardData {
       reminders: rawReminders
           .map((r) => TodayCardReminder.fromJson(r as Map<String, dynamic>))
           .toList(),
+      // okuvu-remaining-changes.md O6: null unless the user opted in and has
+      // a care plan assigned — see apps/api/src/lib/quote-of-day.ts.
+      quote: json['quote'] as String?,
     );
   }
 }

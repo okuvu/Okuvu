@@ -334,4 +334,68 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       return reply.send({ success: true });
     },
   });
+
+  // okuvu-remaining-changes.md O6: quote-of-day, opt-in. Content is a
+  // placeholder list (apps/api/src/lib/quote-of-day.ts) — the mechanism is
+  // real, the source isn't decided yet.
+  interface QuoteOfDayBody {
+    enabled: boolean
+  }
+
+  app.get('/settings/quote-of-day', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { quote_of_day_enabled: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      return reply.send({ enabled: user.quote_of_day_enabled });
+    },
+  });
+
+  app.patch<{ Body: QuoteOfDayBody }>('/settings/quote-of-day', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body;
+
+      if (typeof body.enabled !== 'boolean') {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'enabled must be a boolean' },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { quote_of_day_enabled: body.enabled },
+      });
+
+      request.log.info(
+        { event: 'quote_of_day_settings_updated', user_id: user.id, enabled: body.enabled },
+        'Quote-of-day settings updated',
+      );
+
+      return reply.send({ success: true });
+    },
+  });
 }

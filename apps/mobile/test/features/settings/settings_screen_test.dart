@@ -127,7 +127,8 @@ void main() {
   group('SettingsScreen', () {
     testWidgets(
       'renders all entries: My Focus Area, Emergency Contact, '
-      'Privacy & Data, Language, About, Voice, Delete Account',
+      'Privacy & Data, Language, About, Voice, Quote of the Day, '
+      'Delete Account',
       (tester) async {
         await tester.pumpWidget(_settingsApp(_createMockDio()));
         await tester.pumpAndSettle();
@@ -138,6 +139,7 @@ void main() {
         expect(find.text('Language'), findsOneWidget);
         expect(find.text('About'), findsOneWidget);
         expect(find.text('Voice'), findsOneWidget);
+        expect(find.text('Quote of the Day'), findsOneWidget);
         expect(find.text('Delete Account'), findsOneWidget);
       },
     );

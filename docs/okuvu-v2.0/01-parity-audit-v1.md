@@ -90,6 +90,8 @@ Action: retire cap/slot/idle machinery; keep thread concept (chat thread = unit 
 
 - Stories: E-1 defers push/analytics.
 
+- **Resolved (12 Sep, O6):** quote-of-day mechanism now built end-to-end with placeholder content (no real source/owner decided yet — swappable): `User.quote_of_day_enabled` (opt-in, default false), `apps/api/src/lib/quote-of-day.ts` (5 placeholder lines per care plan, deterministic day-of-year selection), `GET/PATCH /settings/quote-of-day`, a `quote` field on `GET /users/me/today`, a Settings toggle, and Today-card rendering. Push/scheduler delivery remains out of scope (pull-based, same as the rest of the Today card).
+
 - Verdict: 🔴 conflict between "reminders core" lock and E-1 deferral + zero code. Who handles notifications? No LLM agent — correct answer: deterministic scheduler + push service (non-LLM); agents never push. Reminder text = therapist-authored + tool scripts (content repo). Re-scope E-1: pull reminders/push forward; keep analytics deferred. Quote-of-day: content source still undecided (open item) — needs owner.
 
 ## 8. Mood meter & streaks
@@ -121,6 +123,8 @@ Action: retire cap/slot/idle machinery; keep thread concept (chat thread = unit 
 - Prompts: A1 01 (S4 literal supremacy) ✅; A2 02 fail-safe = escalate, never generate numbers ✅; A9-pre 03: crisis NEVER Blocked, defer ✅.
 
 - Verdict: 🔴 code bugs (route, hide, persistence) — known P0s (1.3/1.4), in engineering delta. ⚠️ helpline set inconsistency: app hardcodes 5; approved content package (B-5) needs ONE canonical set — decide (iCall + Vandrevala minimum; others?) and single-source it (prompts reference "verified helplines", app/overlay/summary must read same source).
+
+- **Resolved (12 Sep, O7):** canonical set decided — all 5 numbers already shipped in `crisis_overlay.dart` are the approved set. `CrisisResource` reconciled from 2→5 rows (migration `20260912170000_expand_crisis_resource_to_five`), and A9-post's prompt (`apps/api/src/agents/a9-post/prompts.ts` + its mirrored doc) now names all 5 as approved. The app's own crisis-overlay rendering is deliberately left hardcoded/offline-safe, not rewired to read `CrisisResource` live — see `docs/verification/E6-S04-crisis-screen-offline.md`'s offline-must-work requirement.
 
 ## 11. Language mode (english | mirror)
 

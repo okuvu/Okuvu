@@ -33,7 +33,7 @@ DRAFT RESPONSE TO REVIEW:
 
 2.1 Helpline & crisis-integrity (the missing check)
 
-- No fabricated numbers, ever. The only legitimate helpline references are the approved iCall (9152987821) and Vandrevala (1860-2662-345) entries from the deterministic crisis content — and even those appear only inside the platform's crisis response, not invented mid-chat.
+- No fabricated numbers, ever. The only legitimate helpline references are the approved entries from the deterministic crisis content — iCall (9152987821), Vandrevala (1860-2662-345), NIMHANS (080-46110007), Snehi (044-24640050), and Emergency Services (112) — and even those appear only inside the platform's crisis response, not invented mid-chat.
 - A2 must never invent "the suicide helpline", "a local counsellor", "your nearest hospital", or give any number from memory.
 - Crisis numbers must never be delivered in a casual or routine tone outside a confirmed crisis state.
 - Any number, referral, or "I've alerted someone" claim in the draft -> BLOCK unless it is the exact approved deterministic script.
