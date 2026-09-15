@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -10,9 +11,40 @@ import 'package:okuvu/src/features/chat/chat_screen.dart';
 import 'package:okuvu/src/features/progress/progress_screen.dart';
 import 'package:okuvu/src/features/settings/settings_screen.dart';
 import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/core/auth_service.dart';
 import 'package:okuvu/src/features/chat/models/agent_turn_frame.dart';
 import 'package:okuvu/src/core/websocket_service.dart';
 import 'package:okuvu/src/features/chat/models/grounding_result.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+/// AuthService's constructor eagerly touches FirebaseAuth.instance, which
+/// throws in a test environment with no real Firebase app — ChatScreen
+/// reads authServiceProvider directly (for the WS auth token), so it needs
+/// a Firebase-free fake here, same as otp_login_screen_test.dart's.
+class FakeAuthService implements AuthService {
+  @override
+  User? get currentUser => null;
+
+  @override
+  Future<String?> getIdToken() async => 'fake-id-token';
+
+  @override
+  Future<void> verifyPhone({
+    required String phoneNumber,
+    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
+    required void Function(FirebaseAuthException) onError,
+    int? forceResendingToken,
+  }) async {}
+
+  @override
+  Future<void> verifyOtp({
+    required String verificationId,
+    required String smsCode,
+  }) async {}
+
+  @override
+  Future<void> signOut() async {}
+}
 
 class FakeWebSocketService implements WebSocketService {
   @override
@@ -88,6 +120,7 @@ Widget _buildHomeApp() {
   return ProviderScope(
     overrides: [
       webSocketServiceProvider.overrideWithValue(_fakeWs),
+      authServiceProvider.overrideWithValue(FakeAuthService()),
     ],
     child: MaterialApp.router(
       routerConfig: GoRouter(
@@ -123,45 +156,26 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Chat'), findsOneWidget);
-      expect(find.text('Progress'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
+      // Wireframe's 3-tab nav (Home/Chat/Journal) — Progress and Settings
+      // moved to AppBar icon buttons instead (checked separately below).
+      // "Journal" also appears as a Home quick-access tile label, so scope
+      // to the NavigationBar itself.
+      final navBar = find.byType(NavigationBar);
+      expect(find.descendant(of: navBar, matching: find.text('Home')), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.text('Chat')), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.text('Journal')), findsOneWidget);
     });
 
-    testWidgets('renders from okuvu label', (tester) async {
-      tester.view.physicalSize = const Size(1080, 1920);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(_buildHomeApp());
-      await tester.pumpAndSettle();
-
-      expect(find.text('FROM OKUVU'), findsOneWidget);
-    });
-
-    testWidgets('renders progress summary empty state', (tester) async {
-      await tester.pumpWidget(_buildHomeApp());
-      await tester.pumpAndSettle();
-
-      expect(find.text('How are you feeling today?'), findsOneWidget);
-      expect(find.text('No mood check-ins yet'), findsOneWidget);
-    });
-
-    testWidgets('renders Insight card message', (tester) async {
-      tester.view.physicalSize = const Size(1080, 1920);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
+    testWidgets('renders Progress and Settings as AppBar icons', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
       expect(
-        find.text(
-          'Your insights will appear here after your first check-in.',
-        ),
+        find.descendant(of: find.byType(AppBar), matching: find.byIcon(LucideIcons.barChart2)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.byIcon(LucideIcons.settings)),
         findsOneWidget,
       );
     });
@@ -182,15 +196,10 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
+      // Wireframe: no care plan, focus label, streaks, or counters ever
+      // displayed on Home — ProgressSummary/HomeInsightCard/AffirmationCard
+      // were removed, so this just checks the screen still renders cleanly.
       expect(find.text('How are you feeling today?'), findsOneWidget);
-      expect(
-        find.text(
-          'Your insights will appear here after your first check-in.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('No mood check-ins yet'), findsOneWidget);
-      expect(find.text('FROM OKUVU'), findsOneWidget);
       expect(find.text('Crisis Support'), findsOneWidget);
     });
 
@@ -216,24 +225,36 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('How are you feeling today?'), findsWidgets);
-      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(LucideIcons.messageCircle),
+        ),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('Progress tab navigates to /progress', (tester) async {
+    testWidgets('Progress icon navigates to /progress', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Progress'));
+      await tester.tap(find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byIcon(LucideIcons.barChart2),
+      ));
       await tester.pumpAndSettle();
 
       expect(find.text('Could not load your mood trend'), findsOneWidget);
     });
 
-    testWidgets('Settings tab navigates to /settings', (tester) async {
+    testWidgets('Settings icon navigates to /settings', (tester) async {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byIcon(LucideIcons.settings),
+      ));
       await tester.pumpAndSettle();
 
       expect(find.text('My Focus Area'), findsOneWidget);

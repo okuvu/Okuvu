@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
-import 'breathing_screen.dart';
-import 'widgets/affirmation_card.dart';
-import 'widgets/home_insight_card.dart';
+import 'breathing_picker_screen.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/mood_check_in.dart';
-import 'widgets/progress_summary.dart';
+import 'widgets/next_session_card.dart';
 import 'widgets/quick_access_tile.dart';
 import 'widgets/today_card.dart';
 import 'widgets/pending_chat_access_banner.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -59,11 +59,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    const String insightMessage =
-        'Your insights will appear here after your first check-in.';
-
     return Scaffold(
-      appBar: AppBar(title: const Text('OKUVU')),
+      appBar: AppBar(
+        title: const OkuvuAppBarTitle('OKUVU'),
+        // Wireframe's 3-tab nav (Home/Chat/Journal) has no Progress or
+        // Settings slot — both move here instead of occupying a tab.
+        actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.barChart2),
+            tooltip: 'Progress',
+            onPressed: () => context.go('/progress'),
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.settings),
+            tooltip: 'Settings',
+            onPressed: () => context.go('/settings'),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
@@ -79,6 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          const NextSessionCard(),
           const PendingChatAccessBanner(),
           const MoodCheckIn(),
           const SizedBox(height: 16),
@@ -97,7 +111,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       subtitle: '4 min',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const BreathingScreen(),
+                          builder: (_) => const BreathingPickerScreen(),
                         ),
                       ),
                     ),
@@ -116,12 +130,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
           const SizedBox(height: 16),
-          const ProgressSummary(showData: false),
-          const SizedBox(height: 16),
-          const HomeInsightCard(message: insightMessage),
-          const SizedBox(height: 16),
-          const AffirmationCard(),
-          const SizedBox(height: 16),
           Center(
             child: TextButton(
               onPressed: () => ref.read(crisisOverlayProvider.notifier).show(),
@@ -134,7 +142,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 16),
         ],
       ),
-      bottomNavigationBar: const HomeBottomNav(),
+      bottomNavigationBar: const HomeBottomNav(currentIndex: 0),
     );
   }
 }
