@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'src/app.dart';
 import 'src/config/app_config.dart';
 import 'src/core/logger.dart';
+import 'src/theme/app_colors.dart';
+import 'src/features/intake/onboarding_provider.dart';
 
 void main() {
   runZonedGuarded(() async {
@@ -52,7 +55,16 @@ void main() {
     Logger.debug('  Base URL:    ${AppConfig.apiBaseUrl}');
     Logger.debug('========================================');
 
-    runApp(const ProviderScope(child: App()));
+    final prefs = await SharedPreferences.getInstance();
+
+    runApp(ProviderScope(
+      overrides: [
+        hasCompletedOnboardingProvider.overrideWith(
+          () => OnboardingCompleteNotifier(prefs),
+        ),
+      ],
+      child: const App(),
+    ));
   }, (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     Logger.debug('========================================');
@@ -73,7 +85,7 @@ class _FatalErrorApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: const Color(0xFF1A6B5A),
+        backgroundColor: AppColors.royalNight,
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -82,12 +94,12 @@ class _FatalErrorApp extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Okuvu',
+                  'OKUVU',
                   style: TextStyle(
-                    fontSize: 40.0,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Inter',
-                    color: Colors.white,
+                    fontSize: 32.0,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 3.2,
+                    color: AppColors.lavenderTint,
                   ),
                 ),
                 const SizedBox(height: 16.0),
@@ -95,7 +107,7 @@ class _FatalErrorApp extends StatelessWidget {
                   'The app failed to start.',
                   style: TextStyle(
                     fontSize: 18.0,
-                    color: Colors.white,
+                    color: AppColors.lavenderTint,
                   ),
                 ),
                 const SizedBox(height: 16.0),
@@ -103,9 +115,9 @@ class _FatalErrorApp extends StatelessWidget {
                   child: SingleChildScrollView(
                     child: Text(
                       message,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.0,
-                        color: Colors.white70,
+                        color: AppColors.lavenderTint.withValues(alpha: 0.7),
                       ),
                     ),
                   ),
