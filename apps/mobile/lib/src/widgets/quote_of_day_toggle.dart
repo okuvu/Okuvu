@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/settings/quote_of_day_notifier.dart';
+import '../theme/app_colors.dart';
 
 /// okuvu-remaining-changes.md O6 — Settings toggle for the care-plan-aware
 /// quote of the day. Mirrors VoiceToggle's SwitchListTile shape.
@@ -13,7 +15,7 @@ class QuoteOfDayToggle extends ConsumerWidget {
 
     if (quoteSettings.isLoading) {
       return const ListTile(
-        leading: Icon(Icons.format_quote),
+        leading: Icon(LucideIcons.quote),
         title: Text('Quote of the Day'),
         trailing: SizedBox(
           width: 24,
@@ -24,13 +26,13 @@ class QuoteOfDayToggle extends ConsumerWidget {
     }
 
     return SwitchListTile(
-      secondary: const Icon(Icons.format_quote),
+      secondary: const Icon(LucideIcons.quote),
       title: const Text('Quote of the Day'),
       subtitle: const Text('A short supportive line on your Home screen'),
       value: quoteSettings.enabled,
       onChanged: (value) => ref.read(quoteOfDaySettingsProvider.notifier).setEnabled(value),
-      activeThumbColor: const Color(0xFF1A6B5A),
-      inactiveTrackColor: const Color(0xFFC4C0BC),
+      activeThumbColor: AppColors.violet,
+      inactiveTrackColor: AppColors.hairline,
     );
   }
 }

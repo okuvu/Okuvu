@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'emergency_contact_notifier.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 class EmergencyContactScreen extends ConsumerStatefulWidget {
   const EmergencyContactScreen({super.key});
@@ -97,10 +100,10 @@ class _EmergencyContactScreenState
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const Text('Emergency Contact'),
+          title: const OkuvuAppBarTitle('Emergency Contact'),
         ),
         body: state.isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -127,7 +130,7 @@ class _EmergencyContactScreenState
                 color: theme.colorScheme.surface,
                 border: Border(
                   left: const BorderSide(
-                    color: Color(0xFF1A6B5A),
+                    color: AppColors.violet,
                     width: 4,
                   ),
                   top: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -181,7 +184,7 @@ class _EmergencyContactScreenState
           Text(
             'Their number is encrypted and stored securely. We never contact them without your knowledge.',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF6B6B6B),
+              color: AppColors.inkSoft,
               fontSize: 12,
             ),
           ),
@@ -236,7 +239,7 @@ class _EmergencyContactScreenState
                 color: theme.colorScheme.surface,
                 border: Border(
                   left: const BorderSide(
-                    color: Color(0xFF1A6B5A),
+                    color: AppColors.violet,
                     width: 4,
                   ),
                   top: BorderSide(color: theme.colorScheme.outlineVariant),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers.dart';
+import '../theme/app_colors.dart';
 
 class VoiceToggle extends ConsumerStatefulWidget {
   const VoiceToggle({super.key});
@@ -45,7 +47,7 @@ class _VoiceToggleState extends ConsumerState<VoiceToggle> {
 
     if (voiceSettings.isLoading) {
       return const ListTile(
-        leading: Icon(Icons.volume_up),
+        leading: Icon(LucideIcons.volume2),
         title: Text('Voice'),
         trailing: SizedBox(
           width: 24,
@@ -56,13 +58,13 @@ class _VoiceToggleState extends ConsumerState<VoiceToggle> {
     }
 
     return SwitchListTile(
-      secondary: const Icon(Icons.volume_up),
+      secondary: const Icon(LucideIcons.volume2),
       title: const Text('Voice'),
       subtitle: const Text('Read messages aloud'),
       value: voiceSettings.voiceEnabled,
       onChanged: (value) => _toggleVoice(value),
-      activeThumbColor: const Color(0xFF1A6B5A),
-      inactiveTrackColor: const Color(0xFFC4C0BC),
+      activeThumbColor: AppColors.violet,
+      inactiveTrackColor: AppColors.hairline,
     );
   }
 

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'language_notifier.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 class LanguageScreen extends ConsumerWidget {
   const LanguageScreen({super.key});
@@ -20,10 +23,10 @@ class LanguageScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const Text('Language'),
+          title: const OkuvuAppBarTitle('Language'),
         ),
         body: languageState.isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -83,9 +86,9 @@ class _LanguageOptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: Icon(
-        selected ? Icons.check_circle : Icons.circle_outlined,
+        selected ? LucideIcons.checkCircle2 : LucideIcons.circle,
         color: selected
-            ? const Color(0xFF1A6B5A)
+            ? AppColors.violet
             : theme.colorScheme.onSurfaceVariant,
       ),
       title: Text(title, style: theme.textTheme.bodyLarge),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'guided_breathing_card.dart';
 import '../models/tool_card_config.dart';
@@ -42,7 +43,7 @@ class GroundingCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.landscape,
+                Icon(LucideIcons.mountain,
                     size: 20, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(
@@ -59,27 +60,27 @@ class GroundingCard extends StatelessWidget {
             _GroundingStep(
               number: '5',
               label: 'things you can see',
-              icon: Icons.visibility,
+              icon: LucideIcons.eye,
             ),
             _GroundingStep(
               number: '4',
               label: 'things you can touch',
-              icon: Icons.touch_app,
+              icon: LucideIcons.pointer,
             ),
             _GroundingStep(
               number: '3',
               label: 'things you can hear',
-              icon: Icons.hearing,
+              icon: LucideIcons.ear,
             ),
             _GroundingStep(
               number: '2',
               label: 'things you can smell',
-              icon: Icons.wb_twilight,
+              icon: LucideIcons.sunset,
             ),
             _GroundingStep(
               number: '1',
               label: 'thing you can taste',
-              icon: Icons.restaurant,
+              icon: LucideIcons.utensils,
             ),
           ],
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,7 +40,7 @@ void main() {
         );
 
         // Header icon
-        expect(find.byIcon(Icons.shield), findsOneWidget);
+        expect(find.byIcon(LucideIcons.shield), findsOneWidget);
 
         // Crisis resources
         expect(find.text('iCall (IIT Bombay)'), findsOneWidget);

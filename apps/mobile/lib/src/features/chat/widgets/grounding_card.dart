@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../models/grounding_result.dart';
@@ -12,11 +13,11 @@ class GroundingCard extends ConsumerStatefulWidget {
 
 class _GroundingCardState extends ConsumerState<GroundingCard> {
   static const _senseConfigs = [
-    _SenseConfig(5, Icons.visibility, 'things you can see'),
-    _SenseConfig(4, Icons.touch_app, 'things you can touch'),
-    _SenseConfig(3, Icons.hearing, 'things you can hear'),
-    _SenseConfig(2, Icons.wb_twilight, 'things you can smell'),
-    _SenseConfig(1, Icons.restaurant, 'thing you can taste'),
+    _SenseConfig(5, LucideIcons.eye, 'things you can see'),
+    _SenseConfig(4, LucideIcons.pointer, 'things you can touch'),
+    _SenseConfig(3, LucideIcons.ear, 'things you can hear'),
+    _SenseConfig(2, LucideIcons.sunset, 'things you can smell'),
+    _SenseConfig(1, LucideIcons.utensils, 'thing you can taste'),
   ];
 
   int _currentSenseIndex = 0;
@@ -102,7 +103,7 @@ class _GroundingCardState extends ConsumerState<GroundingCard> {
       child: Row(
         children: [
           Icon(
-            _wasSkipped ? Icons.remove_circle_outline : Icons.check_circle,
+            _wasSkipped ? LucideIcons.minusCircle : LucideIcons.checkCircle2,
             size: 18,
             color: _wasSkipped
                 ? theme.colorScheme.onSurfaceVariant
@@ -149,7 +150,7 @@ class _GroundingCardState extends ConsumerState<GroundingCard> {
   Widget _buildHeader(ThemeData theme) {
     return Row(
       children: [
-        Icon(Icons.landscape, size: 20, color: theme.colorScheme.primary),
+        Icon(LucideIcons.mountain, size: 20, color: theme.colorScheme.primary),
         const SizedBox(width: 8),
         Text(
           '5-4-3-2-1 Grounding',
@@ -313,8 +314,8 @@ class _GroundingCardState extends ConsumerState<GroundingCard> {
           onPressed: _addItem,
           icon: Icon(
             _items[_currentSenseIndex].length >= _currentConfig.requiredCount - 1
-                ? Icons.check
-                : Icons.add_circle_outline,
+                ? LucideIcons.check
+                : LucideIcons.plusCircle,
             size: 22,
           ),
           style: IconButton.styleFrom(

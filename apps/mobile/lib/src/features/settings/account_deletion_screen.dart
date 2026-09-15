@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import '../../core/logger.dart';
 import '../../core/providers.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
 
 const _ctaTextStyle = TextStyle(
   fontSize: 16,
@@ -133,7 +136,7 @@ class _AccountDeletionScreenState extends ConsumerState<AccountDeletionScreen> {
         appBar: AppBar(
           leading: showBackButton
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: const Icon(LucideIcons.arrowLeft),
                   onPressed: () {
                     if (_currentStep == _DeletionStep.sessionError) {
                       context.go('/settings');
@@ -143,14 +146,17 @@ class _AccountDeletionScreenState extends ConsumerState<AccountDeletionScreen> {
                   },
                 )
               : null,
-          title: Text(
+          title: OkuvuAppBarTitle(
             appBarTitle,
             style: theme.textTheme.titleMedium?.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: isWarning
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurface,
+              // AppBar background is dark (royal-purple, AppTheme) — this
+              // used to pick light-surface text colors (primary/onSurface),
+              // which read as near-invisible on a dark bar. honeyBright
+              // reads as "caution" on dark; lavenderTint is the default
+              // AppBar foreground otherwise.
+              color: isWarning ? AppColors.honeyBright : AppColors.lavenderTint,
             ),
           ),
           centerTitle: true,
@@ -309,7 +315,7 @@ class _WarningStep extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    Icons.delete,
+                    LucideIcons.trash2,
                     size: 40,
                     color: theme.colorScheme.error,
                   ),
@@ -459,7 +465,7 @@ class _DeletionRow extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(top: 2),
           child: Icon(
-            Icons.close,
+            LucideIcons.x,
             size: 20,
             color: theme.colorScheme.error,
           ),
@@ -523,7 +529,7 @@ class _ConfirmStep extends StatelessWidget {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.warning,
+                            LucideIcons.alertTriangle,
                             size: 40,
                             color: theme.colorScheme.error,
                           ),
@@ -581,7 +587,7 @@ class _ConfirmStep extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 2,
-                    shadowColor: const Color(0x33BA1A1A),
+                    shadowColor: AppColors.crisis.withValues(alpha: 0.2),
                   ),
                   child: isSubmitting
                       ? const SizedBox(
@@ -659,7 +665,7 @@ class _SessionErrorStep extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      Icons.access_time,
+                      LucideIcons.clock,
                       size: 40,
                       color: theme.colorScheme.tertiary,
                     ),

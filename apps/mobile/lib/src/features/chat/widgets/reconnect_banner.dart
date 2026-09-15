@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
@@ -54,7 +55,7 @@ class _BannerContent extends StatelessWidget {
         children: [
           if (isRetryMode)
             Icon(
-              Icons.wifi_off_rounded,
+              LucideIcons.wifiOff,
               size: 18,
               color: theme.colorScheme.onSecondaryContainer,
             )

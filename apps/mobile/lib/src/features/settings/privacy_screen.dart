@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_config.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
 
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
@@ -19,10 +21,10 @@ class PrivacyScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const Text('Privacy Policy'),
+          title: const OkuvuAppBarTitle('Privacy Policy'),
         ),
         body: Center(
           child: Padding(
@@ -31,7 +33,7 @@ class PrivacyScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.privacy_tip,
+                  LucideIcons.shieldAlert,
                   size: 64,
                   color: theme.colorScheme.primary,
                 ),
@@ -52,7 +54,7 @@ class PrivacyScreen extends StatelessWidget {
                 const SizedBox(height: 32),
                 FilledButton.icon(
                   onPressed: () => _openPolicy(context),
-                  icon: const Icon(Icons.open_in_new),
+                  icon: const Icon(LucideIcons.externalLink),
                   label: const Text('Read Privacy Policy'),
                 ),
               ],

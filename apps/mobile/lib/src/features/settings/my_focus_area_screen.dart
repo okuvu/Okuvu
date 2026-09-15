@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../intake/care_plan_provider.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 class MyFocusAreaScreen extends ConsumerWidget {
   const MyFocusAreaScreen({super.key});
@@ -19,10 +22,10 @@ class MyFocusAreaScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const Text('My Focus Area'),
+          title: const OkuvuAppBarTitle('My Focus Area'),
         ),
         body: carePlanAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -43,7 +46,7 @@ class MyFocusAreaScreen extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline,
+            Icon(LucideIcons.alertCircle,
                 size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(
@@ -63,7 +66,7 @@ class MyFocusAreaScreen extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.psychology_outlined,
+            Icon(LucideIcons.brain,
                 size: 48, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(height: 16),
             Text(
@@ -78,7 +81,7 @@ class MyFocusAreaScreen extends ConsumerWidget {
 
   Widget _buildContent(ThemeData theme, UserCarePlan plan) {
     final isProvisional = plan.assignmentState == 'provisional';
-    final badgeColor = isProvisional ? const Color(0xFFE8A020) : const Color(0xFF2D8A5E);
+    final badgeColor = isProvisional ? AppColors.honeyDeep : AppColors.sageDeep;
     final badgeLabel = isProvisional ? 'Provisional' : 'Confirmed';
 
     return SingleChildScrollView(
@@ -146,7 +149,7 @@ class MyFocusAreaScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  Icons.info_outline,
+                  LucideIcons.info,
                   size: 20,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

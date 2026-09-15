@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_config.dart';
@@ -16,6 +17,8 @@ import 'widgets/srs_modal.dart';
 import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
 import 'widgets/tool_card_widget.dart';
+import '../home/widgets/home_bottom_nav.dart';
+import '../../theme/app_colors.dart';
 
 const bool _useMockResponses = false;
 
@@ -205,33 +208,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: isCrisisActive
                 ? null
                 : chatState.isSessionClosed
                     ? () => context.go('/home')
                     : () => _confirmEndSession(context),
           ),
-          title: Column(
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text('OKUVU',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-              Text('Your session',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              Image.asset('assets/brand/okuvu-mark-dark.png', width: 22, height: 22),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('OKUVU',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold, color: AppColors.lavenderTint)),
+                  // AppBar background is dark (royal-purple) — this used to
+                  // read onSurfaceVariant, a light-surface color that was
+                  // near-invisible here.
+                  Text('Your session',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.lavenderTint.withValues(alpha: 0.75))),
+                ],
+              ),
             ],
           ),
           actions: [
             if (!isOnline)
               const Padding(
                 padding: EdgeInsets.only(left: 8),
-                child: Icon(Icons.cloud_off, size: 18),
+                child: Icon(LucideIcons.cloudOff, size: 18),
               ),
           ],
         ),
+        bottomNavigationBar: const HomeBottomNav(currentIndex: 1),
         body: Stack(
           children: [
             Column(
@@ -279,7 +295,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.chat_bubble_outline,
+            LucideIcons.messageCircle,
             size: 64,
             color: Theme.of(context).colorScheme.primary.withAlpha(100),
           ),
@@ -376,7 +392,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           IconButton(
             key: const ValueKey('chat_send'),
             onPressed: isInputDisabled ? null : _sendMessage,
-            icon: const Icon(Icons.send_rounded),
+            icon: const Icon(LucideIcons.send),
             style: IconButton.styleFrom(
               backgroundColor: isInputDisabled
                   ? Theme.of(context).colorScheme.surfaceContainerHighest
@@ -502,7 +518,7 @@ class _ChatBubble extends ConsumerWidget {
                       .setContent(message.journalPromptSuggested!);
                   context.go('/journal');
                 },
-                icon: const Icon(Icons.edit_note, size: 18),
+                icon: const Icon(LucideIcons.pencil, size: 18),
                 label: const Text('Save to journal'),
               ),
             ),

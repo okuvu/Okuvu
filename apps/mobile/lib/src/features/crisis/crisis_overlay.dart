@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/providers.dart';
+import '../../theme/app_colors.dart';
 
 class CrisisOverlay extends ConsumerWidget {
   const CrisisOverlay({super.key});
@@ -15,7 +17,7 @@ class CrisisOverlay extends ConsumerWidget {
       child: PopScope(
         canPop: false,
         child: Scaffold(
-          backgroundColor: const Color(0xFFBA1A1A),
+          backgroundColor: AppColors.crisis,
           body: SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -126,7 +128,7 @@ class _HeaderSection extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: const Icon(
-            Icons.shield,
+            LucideIcons.shield,
             key: Key('crisisOverlayShieldIcon'),
             size: 48,
             color: Colors.white,
@@ -211,7 +213,7 @@ class _ResourceCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF181C1B),
+                        color: AppColors.charcoalInk,
                         height: 20 / 15,
                       ),
                     ),
@@ -222,7 +224,7 @@ class _ResourceCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF3F4945),
+                        color: AppColors.charcoalInk,
                         height: 16 / 12,
                       ),
                     ),
@@ -232,7 +234,7 @@ class _ResourceCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF005243),
+                        color: AppColors.royalPurple,
                         height: 14 / 11,
                         letterSpacing: 0.2,
                       ),
@@ -245,13 +247,13 @@ class _ResourceCard extends StatelessWidget {
               width: 44,
               height: 44,
               child: Material(
-                color: const Color(0xFF005243),
+                color: AppColors.royalPurple,
                 borderRadius: BorderRadius.circular(22),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(22),
                   onTap: _call,
                   child: const Icon(
-                    Icons.call,
+                    LucideIcons.phoneCall,
                     color: Colors.white,
                     size: 22,
                   ),

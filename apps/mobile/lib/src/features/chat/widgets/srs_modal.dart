@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/logger.dart';
 import '../../../core/providers.dart';
@@ -124,7 +125,7 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
           children: [
             const _SrsHandle(),
             const SizedBox(height: 40),
-            Icon(Icons.check_circle, size: 48, color: colorScheme.primary),
+            Icon(LucideIcons.checkCircle2, size: 48, color: colorScheme.primary),
             const SizedBox(height: 12),
             Text(
               'Got it',
@@ -198,7 +199,7 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
               Expanded(
                 child: _SrsRatingOption(
                   label: 'Missed the mark',
-                  icon: Icons.sentiment_very_dissatisfied,
+                  icon: LucideIcons.frown,
                   isSelected: _selectedIndex == 0,
                   isDimmed: _selectedIndex != null && _selectedIndex != 0,
                   onTap: () => _onOptionTap(0),
@@ -208,7 +209,7 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
               Expanded(
                 child: _SrsRatingOption(
                   label: 'Not really',
-                  icon: Icons.sentiment_dissatisfied,
+                  icon: LucideIcons.frown,
                   isSelected: _selectedIndex == 1,
                   isDimmed: _selectedIndex != null && _selectedIndex != 1,
                   onTap: () => _onOptionTap(1),
@@ -218,7 +219,7 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
               Expanded(
                 child: _SrsRatingOption(
                   label: 'Okay',
-                  icon: Icons.sentiment_neutral,
+                  icon: LucideIcons.meh,
                   isSelected: _selectedIndex == 2,
                   isDimmed: _selectedIndex != null && _selectedIndex != 2,
                   onTap: () => _onOptionTap(2),
@@ -228,7 +229,7 @@ class _SrsModalContentState extends ConsumerState<_SrsModalContent> {
               Expanded(
                 child: _SrsRatingOption(
                   label: 'Helpful',
-                  icon: Icons.sentiment_satisfied,
+                  icon: LucideIcons.smile,
                   isSelected: _selectedIndex == 3,
                   isDimmed: _selectedIndex != null && _selectedIndex != 3,
                   onTap: () => _onOptionTap(3),

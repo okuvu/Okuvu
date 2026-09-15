@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -97,7 +98,7 @@ void main() {
         matching: find.byType(ListTile),
       ),
     );
-    expect((mirrorTile.leading as Icon).icon, Icons.check_circle);
+    expect((mirrorTile.leading as Icon).icon, LucideIcons.checkCircle2);
   });
 
   testWidgets('tapping Mirror sends PATCH /settings/language with mirror',
@@ -135,7 +136,7 @@ void main() {
     await tester.pumpWidget(_languageApp(recorder.build()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.tap(find.byIcon(LucideIcons.arrowLeft));
     await tester.pumpAndSettle();
 
     expect(find.text('Settings Screen'), findsOneWidget);

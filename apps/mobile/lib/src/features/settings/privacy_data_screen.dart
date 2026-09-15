@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'consent_provider.dart';
+import '../home/providers/today_card_provider.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 class PrivacyDataScreen extends ConsumerWidget {
   const PrivacyDataScreen({super.key});
@@ -20,10 +24,10 @@ class PrivacyDataScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const Text('Privacy & Data'),
+          title: const OkuvuAppBarTitle('Privacy & Data'),
         ),
         body: consentState.isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -31,7 +35,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   _ConsentSwitch(
-                    icon: Icons.shield,
+                    icon: LucideIcons.shield,
                     title: 'Safety monitoring',
                     subtitle:
                         'Required to ensure a safe space during sensitive conversations.',
@@ -40,7 +44,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                     theme: theme,
                   ),
                   _ConsentSwitch(
-                    icon: Icons.favorite,
+                    icon: LucideIcons.heart,
                     title: 'Mood understanding',
                     subtitle:
                         'Allows OKUVU to adapt its tone based on your emotional state.',
@@ -49,7 +53,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                     theme: theme,
                   ),
                   _ConsentSwitch(
-                    icon: Icons.bar_chart,
+                    icon: LucideIcons.barChart2,
                     title: 'Progress tracking',
                     subtitle:
                         'Collects insights to show your growth over time.',
@@ -58,7 +62,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                     theme: theme,
                   ),
                   _ConsentSwitch(
-                    icon: Icons.phone,
+                    icon: LucideIcons.phone,
                     title: 'Emergency contact',
                     subtitle:
                         'Provides a trusted contact option directly within the app.',
@@ -66,6 +70,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                     onChanged: (v) => notifier.setEmergencyContact(v),
                     theme: theme,
                   ),
+                  const _ChatAccessSwitch(),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -103,7 +108,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                     ),
                   const Divider(height: 32),
                   _DataRow(
-                    icon: Icons.download,
+                    icon: LucideIcons.download,
                     title: 'Download my data',
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,13 +121,13 @@ class PrivacyDataScreen extends ConsumerWidget {
                     theme: theme,
                   ),
                   _DataRow(
-                    icon: Icons.privacy_tip,
+                    icon: LucideIcons.shieldAlert,
                     title: 'Privacy Policy',
                     onTap: () => context.go('/settings/privacy-policy'),
                     theme: theme,
                   ),
                   _DataRow(
-                    icon: Icons.delete_forever,
+                    icon: LucideIcons.trash2,
                     title: 'Delete my account',
                     titleColor: theme.colorScheme.error,
                     iconColor: theme.colorScheme.error,
@@ -132,6 +137,53 @@ class PrivacyDataScreen extends ConsumerWidget {
                 ],
               ),
       ),
+    );
+  }
+}
+
+/// App wireframes T3 — "Shared with your therapist: Chat summaries." The
+/// only client-side control for chat_access_granted that supports revoking,
+/// not just granting (the Home banner, PendingChatAccessBanner, only ever
+/// grants). Hidden entirely when the client has no assigned therapist.
+class _ChatAccessSwitch extends ConsumerStatefulWidget {
+  const _ChatAccessSwitch();
+
+  @override
+  ConsumerState<_ChatAccessSwitch> createState() => _ChatAccessSwitchState();
+}
+
+class _ChatAccessSwitchState extends ConsumerState<_ChatAccessSwitch> {
+  bool _isUpdating = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final access = ref.watch(todayCardProvider).value?.therapistChatAccess;
+
+    if (access == null) return const SizedBox.shrink();
+
+    Future<void> respond(bool granted) async {
+      setState(() => _isUpdating = true);
+      final success = await ref
+          .read(chatAccessRequestProvider.notifier)
+          .respond(therapistId: access.therapistId, granted: granted);
+      if (!mounted) return;
+      setState(() => _isUpdating = false);
+      if (!success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't save that. Please try again.")),
+        );
+      }
+    }
+
+    return _ConsentSwitch(
+      icon: LucideIcons.messagesSquare,
+      title: 'Chat summaries',
+      subtitle:
+          '${access.therapistName ?? 'Your therapist'} can read summaries of your conversations with OKUVU. Off by default — change this anytime.',
+      value: access.granted,
+      onChanged: _isUpdating ? null : respond,
+      theme: theme,
     );
   }
 }
@@ -221,7 +273,7 @@ class _ConsentSwitch extends StatelessWidget {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeThumbColor: const Color(0xFF1A6B5A),
+              activeThumbColor: AppColors.violet,
             ),
           ],
         ),
@@ -255,7 +307,7 @@ class _DataRow extends StatelessWidget {
         title,
         style: TextStyle(color: titleColor),
       ),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: const Icon(LucideIcons.chevronRight),
       onTap: onTap,
     );
   }

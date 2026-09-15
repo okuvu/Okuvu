@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -16,10 +18,10 @@ class AboutScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const Text('About'),
+          title: const OkuvuAppBarTitle('About'),
         ),
         body: Center(
           child: Column(
@@ -36,7 +38,7 @@ class AboutScreen extends StatelessWidget {
                 width: 200,
                 child: OutlinedButton.icon(
                   onPressed: () => context.go('/settings/privacy-policy'),
-                  icon: const Icon(Icons.privacy_tip, size: 18),
+                  icon: const Icon(LucideIcons.shieldAlert, size: 18),
                   label: const Text('Privacy Policy'),
                 ),
               ),

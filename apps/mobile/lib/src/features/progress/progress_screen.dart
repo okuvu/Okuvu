@@ -1,11 +1,14 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import 'models/mood_data_point.dart';
 import 'providers/progress_provider.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 const _carePhaseLabels = [
   'Getting to know each other',
@@ -31,10 +34,10 @@ class ProgressScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/home'),
           ),
-          title: const Text('Your Progress'),
+          title: const OkuvuAppBarTitle('Your Progress'),
         ),
         body: moodProgress.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -257,13 +260,13 @@ class _MoodChart extends StatelessWidget {
           spots: List.of(currentSpots),
           isCurved: false,
           barWidth: 3,
-          color: const Color(0xFF1A6B5A),
+          color: AppColors.violet,
           dotData: FlDotData(
             show: true,
             getDotPainter: (spot, percent, barData, index) {
               return FlDotCirclePainter(
                 radius: 4,
-                color: const Color(0xFF1A6B5A),
+                color: AppColors.violet,
                 strokeWidth: 0,
               );
             },
@@ -299,7 +302,7 @@ class _ChartCaption extends StatelessWidget {
       style: TextStyle(
         fontSize: 13,
         fontStyle: FontStyle.italic,
-        color: Color(0xFF6B6B6B),
+        color: AppColors.inkSoft,
       ),
     );
   }
@@ -318,7 +321,7 @@ class _EmptyProgressState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.insights_outlined,
+              LucideIcons.lineChart,
               size: 64,
               color: theme.colorScheme.primary,
             ),
@@ -389,7 +392,7 @@ class _ProgressErrorState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.cloud_off_outlined,
+              LucideIcons.cloudOff,
               size: 64,
               color: Theme.of(context).colorScheme.error,
             ),

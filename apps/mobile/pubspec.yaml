@@ -22,7 +22,9 @@ dependencies:
   url_launcher: ^6.3.0
   fl_chart: ^0.69.0
   shared_preferences: ^2.2.3
-
+  lucide_icons_flutter: ^3.1.20
+  speech_to_text: ^7.5.0
+  permission_handler: ^13.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -34,14 +36,26 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: false
-  image_path: "assets/icon.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon.png"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/brand/okuvu-appicon-1024.png"
+  adaptive_icon_background: "#2A0F4E"
+  adaptive_icon_foreground: "assets/brand/okuvu-appicon-1024.png"
   min_sdk_android: 21
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/brand/
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Poppins-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
 
 patrol:
   app_name: Okuvu
