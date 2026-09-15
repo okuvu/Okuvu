@@ -17,8 +17,10 @@ const DEFAULTS: Record<ToolCardType, ToolCardConfig> = {
       inhale_seconds: 4,
       hold_seconds: 4,
       exhale_seconds: 4,
+      second_hold_seconds: 4,
       cycles: 3,
       label: 'Box Breathing',
+      is_box_visual: true,
     },
   },
   grounding_5431: {

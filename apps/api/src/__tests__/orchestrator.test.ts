@@ -234,7 +234,7 @@ describe('processTurn — A1 gap_before_ms/repetition_count (okuvu-remaining-cha
 describe('processTurn — tool_launched -> tool card wiring (okuvu-remaining-changes.md §C.1)', () => {
   it.each([
     ['guided_breathing', { inhale_seconds: 4, hold_seconds: 2, exhale_seconds: 6, cycles: 3, label: 'Guided Breathing' }],
-    ['box_breathing', { inhale_seconds: 4, hold_seconds: 4, exhale_seconds: 4, cycles: 3, label: 'Box Breathing' }],
+    ['box_breathing', { inhale_seconds: 4, hold_seconds: 4, exhale_seconds: 4, second_hold_seconds: 4, cycles: 3, label: 'Box Breathing', is_box_visual: true }],
   ] as const)('builds a %s tool card from A2\'s tool_launched signal', async (toolId, expectedBreathingConfig) => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });

@@ -124,8 +124,10 @@ export interface BreathingConfig {
   inhale_seconds: number
   hold_seconds: number
   exhale_seconds: number
+  second_hold_seconds?: number
   cycles: number
   label: string
+  is_box_visual?: boolean
 }
 
 export interface ToolCardConfig {
@@ -293,6 +295,35 @@ export interface PendingChatAccessRequest {
   therapistName: string | null
 }
 
+export interface TherapistChatAccess {
+  therapistId: string
+  therapistName: string | null
+  granted: boolean
+}
+
+// App wireframes A1-A4 — client-side appointments. Client is read-only:
+// no create/move/cancel from the mobile app (403 on writes, per the
+// wireframe's own I10 constraint) — the therapist portal owns writes.
+export interface AppointmentView {
+  id: string
+  scheduledAt: string
+  durationMinutes: number
+  mode: string
+  location: string | null
+  noteToClient: string | null
+  remind24h: boolean
+  remind1h: boolean
+  rescheduledFrom: string | null
+  cancelledAt: string | null
+  therapistId: string
+  therapistName: string | null
+}
+
+export interface AppointmentsResponse {
+  upcoming: AppointmentView[]
+  past: AppointmentView[]
+}
+
 export interface TodayCard {
   homeworkId: string | null
   homework: string | null
@@ -301,6 +332,10 @@ export interface TodayCard {
   quote: string | null
   /** Therapist-portal wireframes — set when a therapist has requested chat access and the client hasn't granted/denied yet. Null otherwise. */
   pendingChatAccessRequest: PendingChatAccessRequest | null
+  /** App wireframes T3 — current grant state regardless of pending-request status, so Settings can show a revoke toggle. Null only if the client has no assigned therapist. */
+  therapistChatAccess: TherapistChatAccess | null
+  /** App wireframes A1 — the single soonest upcoming, non-cancelled appointment. Null if none booked. */
+  nextAppointment: AppointmentView | null
 }
 
 export type ReminderFrequency = 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed'

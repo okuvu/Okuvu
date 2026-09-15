@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../../../core/providers.dart';
 import '../models/tool_card_config.dart';
+import '../../../theme/app_colors.dart';
+import 'box_breathing_visual.dart';
 
 class GuidedBreathingCard extends ConsumerStatefulWidget {
   final ToolCardConfig config;
@@ -24,9 +27,11 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
   int _currentCycle = 0;
   int _countDisplay = 0;
   bool _skipped = false;
+  int _boxPhase = 0;
+  double _boxProgress = 0;
 
-  static const _teal = Color(0xFF1A6B5A);
-  static const _lteal = Color(0xFFE8F5EE);
+  static const _teal = AppColors.violet;
+  static const _lteal = AppColors.sageTint;
 
   @override
   void initState() {
@@ -66,16 +71,21 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
       if (!mounted || _skipped) break;
       setState(() => _currentCycle = cycle);
 
-      await _speakAndCount('Breathe in', cfg.inhaleSeconds, expanding: true);
+      await _speakAndCount('Breathe in', cfg.inhaleSeconds, expanding: true, boxPhase: 0);
       if (!mounted || _skipped) break;
 
       if (cfg.holdSeconds > 0) {
-        await _speakAndCount('Hold', cfg.holdSeconds);
+        await _speakAndCount('Hold', cfg.holdSeconds, boxPhase: 1);
         if (!mounted || _skipped) break;
       }
 
-      await _speakAndCount('Breathe out', cfg.exhaleSeconds, contract: true);
+      await _speakAndCount('Breathe out', cfg.exhaleSeconds, contract: true, boxPhase: 2);
       if (!mounted || _skipped) break;
+
+      if ((cfg.secondHoldSeconds ?? 0) > 0) {
+        await _speakAndCount('Hold', cfg.secondHoldSeconds!, boxPhase: 3);
+        if (!mounted || _skipped) break;
+      }
     }
 
     if (!_skipped && mounted) {
@@ -89,7 +99,14 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
     int seconds, {
     bool expanding = false,
     bool contract = false,
+    int? boxPhase,
   }) async {
+    if (boxPhase != null) {
+      setState(() {
+        _boxPhase = boxPhase;
+        _boxProgress = 0;
+      });
+    }
     if (_voiceEnabled) await _tts.speak(instruction);
     if (!mounted) return;
 
@@ -103,7 +120,10 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
 
     for (int i = 1; i <= seconds; i++) {
       if (!mounted || _skipped) return;
-      setState(() => _countDisplay = i);
+      setState(() {
+        _countDisplay = i;
+        if (boxPhase != null) _boxProgress = i / seconds;
+      });
       if (_voiceEnabled) await _tts.speak('$i');
       await Future.delayed(const Duration(milliseconds: 900));
     }
@@ -132,7 +152,7 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
       child: Column(
         children: [
           Row(children: [
-            const Icon(Icons.air_rounded, color: _teal, size: 18),
+            const Icon(LucideIcons.wind, color: _teal, size: 18),
             const SizedBox(width: 8),
             Text(cfg.label,
               style: const TextStyle(
@@ -144,36 +164,57 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
           ]),
           const SizedBox(height: 20),
           if (_phase != BreathingPhase.complete) ...[
-            AnimatedBuilder(
-              animation: _circleSize,
-              builder: (context, _) => Container(
-                width: _circleSize.value,
-                height: _circleSize.value,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _teal.withValues(alpha: 0.15),
-                  border: Border.all(color: _teal, width: 2),
-                ),
-                child: Center(
-                  child: _countDisplay > 0
-                    ? Text('$_countDisplay',
-                        style: const TextStyle(
-                          color: _teal,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w300))
-                    : const SizedBox.shrink(),
-                ),
-              ),
-            ),
+            cfg.isBoxVisual
+                ? Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      BoxBreathingVisual(
+                        phase: _boxPhase,
+                        progress: _boxProgress,
+                        color: _teal,
+                        trackColor: _teal.withValues(alpha: 0.2),
+                      ),
+                      if (_countDisplay > 0)
+                        Text('$_countDisplay',
+                            style: const TextStyle(
+                              color: _teal,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w300)),
+                    ],
+                  )
+                : AnimatedBuilder(
+                    animation: _circleSize,
+                    builder: (context, _) => Container(
+                      width: _circleSize.value,
+                      height: _circleSize.value,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _teal.withValues(alpha: 0.15),
+                        border: Border.all(color: _teal, width: 2),
+                      ),
+                      child: Center(
+                        child: _countDisplay > 0
+                          ? Text('$_countDisplay',
+                              style: const TextStyle(
+                                color: _teal,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w300))
+                          : const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
             const SizedBox(height: 8),
             Text(
-              '${cfg.inhaleSeconds}${cfg.holdSeconds > 0 ? '-${cfg.holdSeconds}' : ''}-${cfg.exhaleSeconds}',
+              '${cfg.inhaleSeconds}'
+              '${cfg.holdSeconds > 0 ? '-${cfg.holdSeconds}' : ''}'
+              '-${cfg.exhaleSeconds}'
+              '${(cfg.secondHoldSeconds ?? 0) > 0 ? '-${cfg.secondHoldSeconds}' : ''}',
               style: TextStyle(color: _teal.withValues(alpha: 0.5), fontSize: 12),
             ),
           ],
           if (_phase == BreathingPhase.complete)
             const Column(children: [
-              Icon(Icons.check_circle_outline, color: _teal, size: 40),
+              Icon(LucideIcons.checkCircle, color: _teal, size: 40),
               SizedBox(height: 8),
               Text('Done. How do you feel now?',
                 style: TextStyle(color: _teal, fontWeight: FontWeight.w500)),

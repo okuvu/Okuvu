@@ -30,15 +30,19 @@ class BreathingConfig {
   final int inhaleSeconds;
   final int holdSeconds;
   final int exhaleSeconds;
+  final int? secondHoldSeconds;
   final int cycles;
   final String label;
+  final bool isBoxVisual;
 
   const BreathingConfig({
     required this.inhaleSeconds,
     required this.holdSeconds,
     required this.exhaleSeconds,
+    this.secondHoldSeconds,
     required this.cycles,
     required this.label,
+    this.isBoxVisual = false,
   });
 
   factory BreathingConfig.fromJson(Map<String, dynamic> json) {
@@ -46,8 +50,10 @@ class BreathingConfig {
       inhaleSeconds: (json['inhale_seconds'] as num?)?.toInt() ?? 4,
       holdSeconds: (json['hold_seconds'] as num?)?.toInt() ?? 2,
       exhaleSeconds: (json['exhale_seconds'] as num?)?.toInt() ?? 6,
+      secondHoldSeconds: (json['second_hold_seconds'] as num?)?.toInt(),
       cycles: (json['cycles'] as num?)?.toInt() ?? 3,
       label: (json['label'] as String?) ?? 'Breathing Exercise',
+      isBoxVisual: (json['is_box_visual'] as bool?) ?? false,
     );
   }
 }
