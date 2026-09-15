@@ -19,6 +19,10 @@ interface ChatAccessBody {
   granted: boolean;
 }
 
+interface WelcomeAbbreviationBody {
+  display_abbreviation: string;
+}
+
 const VALID_CARE_PLANS: CarePlanId[] = ['CP1', 'CP2', 'CP3'];
 const VALID_ASSIGNMENT_STATES: AssignmentState[] = ['provisional', 'confirmed'];
 
@@ -351,6 +355,73 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         care_plan_id: result.care_plan_id,
         assignment_state: result.assignment_state,
       });
+    },
+  });
+
+  // Therapist-portal wireframes C-04/C-06 — the mobile app's new welcome
+  // screen (first run, right after OTP verification for a wizard-invited
+  // client) reads the therapist's welcome note here, and the client's
+  // editable display_abbreviation. Both live on ClinicalConfig.
+  app.get('/users/me/welcome', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { clinical_config: { select: { welcome_note: true, display_abbreviation: true } } },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      reply.send({
+        welcomeNote: user.clinical_config?.welcome_note ?? null,
+        displayAbbreviation: user.clinical_config?.display_abbreviation ?? null,
+      });
+    },
+  });
+
+  // Client edits the abbreviation "at first run" per the wireframe — the
+  // one and only client-facing write to ClinicalConfig; every other field
+  // on it is therapist/portal/worker-authored.
+  app.patch<{ Body: WelcomeAbbreviationBody }>('/users/me/welcome', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body;
+
+      if (typeof body?.display_abbreviation !== 'string' || body.display_abbreviation.trim().length === 0) {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'display_abbreviation must be a non-empty string' },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true, clinical_config: { select: { id: true } } },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+      if (!user.clinical_config) {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'No care plan assigned yet' },
+        });
+      }
+
+      await prisma.clinicalConfig.update({
+        where: { user_id: user.id },
+        data: { display_abbreviation: body.display_abbreviation.trim() },
+      });
+
+      reply.send({ success: true });
     },
   });
 }

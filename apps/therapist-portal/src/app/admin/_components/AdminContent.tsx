@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
+import { AddClientWizard } from './AddClientWizard';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -15,6 +16,20 @@ export function AdminContent() {
   const amIAdmin = trpc.admin.amIAdmin.useQuery();
   const therapistsQuery = trpc.admin.listTherapists.useQuery(undefined, {
     enabled: amIAdmin.data?.isAdmin === true,
+  });
+  const pendingInvitesQuery = trpc.admin.listPendingInvites.useQuery(undefined, {
+    enabled: amIAdmin.data?.isAdmin === true,
+  });
+  const utils = trpc.useUtils();
+  const [resendMsg, setResendMsg] = useState<{ clientUserId: string; text: string } | null>(null);
+  const resendInvite = trpc.admin.resendInvite.useMutation({
+    onSuccess: (res, variables) => {
+      setResendMsg({
+        clientUserId: variables.clientUserId,
+        text: res.emailSent ? `Resent — new code ${res.inviteCode}` : `New code (email not sent): ${res.inviteCode}`,
+      });
+      utils.admin.listPendingInvites.invalidate();
+    },
   });
 
   const [therapistEmail, setTherapistEmail] = useState('');
@@ -74,11 +89,11 @@ export function AdminContent() {
     return (
       <main className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl">
-          <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-12 text-center">
-            <p role="alert" className="text-sm font-medium text-red-800">
+          <div className="rounded-xl border border-danger bg-danger-tint px-6 py-12 text-center">
+            <p role="alert" className="text-sm font-medium text-danger">
               This page is restricted to OKUVU admins.
             </p>
-            <p className="mt-1 text-xs text-red-600">
+            <p className="mt-1 text-xs text-danger">
               If you believe you should have access, ask an existing admin to add your email to ADMIN_EMAILS.
             </p>
           </div>
@@ -96,7 +111,7 @@ export function AdminContent() {
 
       <div className="mx-auto max-w-3xl space-y-4">
         {/* Add therapist */}
-        <section className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+        <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
             Add a therapist
           </h2>
@@ -123,7 +138,7 @@ export function AdminContent() {
                 onChange={(e) => setTherapistEmail(e.target.value)}
                 placeholder="therapist@example.com"
                 disabled={addTherapist.isPending}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
               />
             </div>
             <div className="flex-1">
@@ -137,13 +152,13 @@ export function AdminContent() {
                 onChange={(e) => setTherapistName(e.target.value)}
                 placeholder="Dr. Jane Doe"
                 disabled={addTherapist.isPending}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
               />
             </div>
             <button
               type="submit"
               disabled={addTherapist.isPending || !therapistEmail.trim()}
-              className="rounded-lg bg-[#1A6B5A] px-4 py-2 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               {addTherapist.isPending ? 'Adding...' : 'Add therapist'}
             </button>
@@ -153,7 +168,7 @@ export function AdminContent() {
               role={addTherapistMsg.kind === 'err' ? 'alert' : 'status'}
               aria-live={addTherapistMsg.kind === 'err' ? 'assertive' : 'polite'}
               className={`mt-3 rounded-lg p-3 text-sm ${
-                addTherapistMsg.kind === 'err' ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'
+                addTherapistMsg.kind === 'err' ? 'bg-danger-tint text-danger' : 'bg-sage-tint text-sage-deep'
               }`}
             >
               {addTherapistMsg.text}
@@ -161,8 +176,45 @@ export function AdminContent() {
           )}
         </section>
 
-        {/* Add client */}
-        <section className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+        {/* Invite a new client — wireframes C-01..C-06 */}
+        <AddClientWizard therapists={therapistsQuery.data ?? []} />
+
+        {/* Pending invites — wireframes C-07 "Resend" */}
+        {pendingInvitesQuery.data && pendingInvitesQuery.data.length > 0 && (
+          <section className="overflow-hidden rounded-xl border border-hairline bg-oat-elevated shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+            <div className="border-b border-gray-100 px-6 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Pending invites</h2>
+            </div>
+            <ul className="divide-y divide-gray-100">
+              {pendingInvitesQuery.data.map((p) => (
+                <li key={`${p.therapistId}-${p.clientUserId}`} className="flex items-center justify-between px-6 py-3.5">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{p.clientLabel}</p>
+                    <p className="text-xs text-gray-500">
+                      {p.clientEmail} &middot; assigned to {p.therapistLabel} &middot; invited {formatDate(p.invitedAt)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={resendInvite.isPending}
+                    onClick={() => resendInvite.mutate({ clientUserId: p.clientUserId, therapistId: p.therapistId })}
+                    className="text-sm font-medium text-violet hover:underline disabled:opacity-60"
+                  >
+                    Resend
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {resendMsg && (
+              <p role="status" className="px-6 py-3 text-xs text-sage-deep bg-sage-tint">
+                {resendMsg.text}
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Add client (existing self-signed-up client) */}
+        <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
             Add client
           </h2>
@@ -194,7 +246,7 @@ export function AdminContent() {
                   value={assignTherapistId}
                   onChange={(e) => setAssignTherapistId(e.target.value)}
                   disabled={assignClient.isPending}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
                 >
                   <option value="" disabled>
                     Select a therapist
@@ -218,7 +270,7 @@ export function AdminContent() {
                   onChange={(e) => setAssignPhone(e.target.value)}
                   placeholder="+91XXXXXXXXXX"
                   disabled={assignClient.isPending}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
                 />
               </div>
               <div className="flex-1">
@@ -230,7 +282,7 @@ export function AdminContent() {
                   value={assignLanguageMode}
                   onChange={(e) => setAssignLanguageMode(e.target.value)}
                   disabled={assignClient.isPending}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
                 >
                   <option value="">Not set (client decides)</option>
                   <option value="english">English</option>
@@ -246,7 +298,7 @@ export function AdminContent() {
                 checked={assignChatAccessGranted}
                 onChange={(e) => setAssignChatAccessGranted(e.target.checked)}
                 disabled={assignClient.isPending}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#1A6B5A] focus:ring-[#1A6B5A] disabled:opacity-60"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-violet focus:ring-violet disabled:opacity-60"
               />
               <label htmlFor="assign-consent" className="text-xs text-gray-600">
                 Client has given permission for their therapist to view raw chat content
@@ -257,7 +309,7 @@ export function AdminContent() {
               <button
                 type="submit"
                 disabled={assignClient.isPending || !assignTherapistId || !assignPhone.trim()}
-                className="rounded-lg bg-[#1A6B5A] px-4 py-2 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {assignClient.isPending ? 'Adding...' : 'Add client'}
               </button>
@@ -268,7 +320,7 @@ export function AdminContent() {
               role={assignMsg.kind === 'err' ? 'alert' : 'status'}
               aria-live={assignMsg.kind === 'err' ? 'assertive' : 'polite'}
               className={`mt-3 rounded-lg p-3 text-sm ${
-                assignMsg.kind === 'err' ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'
+                assignMsg.kind === 'err' ? 'bg-danger-tint text-danger' : 'bg-sage-tint text-sage-deep'
               }`}
             >
               {assignMsg.text}
@@ -277,7 +329,7 @@ export function AdminContent() {
         </section>
 
         {/* Therapist roster */}
-        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+        <section className="overflow-hidden rounded-xl border border-hairline bg-oat-elevated shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
           <div className="border-b border-gray-100 px-6 py-4">
             <h2 className="text-lg font-semibold text-gray-900">Therapists</h2>
           </div>
@@ -288,7 +340,7 @@ export function AdminContent() {
               ))}
             </div>
           ) : therapistsQuery.isError ? (
-            <p role="alert" className="px-6 py-8 text-sm text-red-600">
+            <p role="alert" className="px-6 py-8 text-sm text-danger">
               Could not load therapists. Please refresh and try again.
             </p>
           ) : therapistsQuery.data && therapistsQuery.data.length > 0 ? (

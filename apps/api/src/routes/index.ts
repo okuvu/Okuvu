@@ -8,6 +8,7 @@ import { sessionRoute } from './sessions.js';
 import { progressRoute } from './progress.js';
 import { settingsRoute } from './settings.js';
 import { journalRoute } from './journal.js';
+import { invitesRoute } from './invites.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(healthRoute);
@@ -19,4 +20,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(progressRoute);
   await app.register(settingsRoute);
   await app.register(journalRoute);
+  await app.register(invitesRoute);
 }

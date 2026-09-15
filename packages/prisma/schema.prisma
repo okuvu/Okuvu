@@ -8,8 +8,25 @@ datasource db {
 
 model User {
   id                  String              @id @default(uuid())
-  firebase_uid        String              @unique
+  /// Nullable: therapist-portal wireframes' Add-Client wizard creates a
+  /// placeholder User row (email/phone from intake) BEFORE the client has
+  /// ever opened the app — every prior User was mobile-signup-first, where
+  /// this was always known immediately. Populated by POST /invites/redeem
+  /// once the client completes Firebase phone-auth for the first time.
+  /// Still unique — Postgres treats multiple NULLs as distinct, so this
+  /// doesn't weaken the constraint for rows that do have one.
+  firebase_uid        String?             @unique
   phone_number        String
+  /// Therapist-portal wireframes C-01 — dual-channel OTP invite (phone +
+  /// email both required at wizard step 1). Null for pre-wizard users.
+  email               String?
+  /// Therapist-portal wireframes C-01 — the therapist's own record of the
+  /// client's legal name, for portal display only. Distinct from
+  /// ClinicalConfig.display_abbreviation, which is what the client sees
+  /// of themselves in the app.
+  full_name           String?
+  date_of_birth       DateTime?
+  gender              String?
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
   deleted_at          DateTime?
@@ -36,6 +53,7 @@ model User {
   homeworks           Homework[]          @relation("ClientToHomework")
   reminders           Reminder[]
   appointments        Appointment[]       @relation("ClientToAppointment")
+  invite_tokens       InviteToken[]
 }
 
 model Therapist {
@@ -50,6 +68,7 @@ model Therapist {
   access_logs        ClinicalAccessLog[]
   homeworks_assigned Homework[]          @relation("TherapistToHomework")
   appointments       Appointment[]       @relation("TherapistToAppointment")
+  invite_tokens      InviteToken[]
 }
 
 model ClinicalConfig {
@@ -68,6 +87,15 @@ model ClinicalConfig {
   /// this pass); agent-context.ts falls back to a generic label derived
   /// from care_plan_id until then.
   care_plan_focus          String?
+  /// Therapist-portal wireframes C-02 — step 2, "brief history," all
+  /// optional. Never shown to the client.
+  presenting_issues        String[]        @default([])
+  /// Therapist-portal wireframes C-04 — step 4's welcome note, rendered on
+  /// the mobile app's new onboarding welcome screen at first run.
+  welcome_note             String?
+  /// Therapist-portal wireframes C-04 — step 4's display abbreviation
+  /// (e.g. "S." from "Shubhangi"), editable by the client at first run.
+  display_abbreviation     String?
   user                     User            @relation(fields: [user_id], references: [id])
 }
 
@@ -322,6 +350,26 @@ model Appointment {
 
   @@index([therapist_id, scheduled_at])
   @@index([client_user_id, scheduled_at])
+}
+
+/// Therapist-portal wireframes C-06 — the Add-Client wizard's provisioning
+/// flow: therapist submits → placeholder User + ClinicalConfig +
+/// TherapistClient(pending) + this token → Brevo email (+ manual
+/// SMS/WhatsApp share of the same link) → client OTP-activates via
+/// POST /invites/redeem, which populates User.firebase_uid and sets
+/// redeemed_at.
+model InviteToken {
+  id             String    @id @default(uuid())
+  token          String    @unique
+  therapist_id   String
+  client_user_id String
+  created_at     DateTime  @default(now())
+  expires_at     DateTime
+  redeemed_at    DateTime?
+  therapist      Therapist @relation(fields: [therapist_id], references: [id])
+  client         User      @relation(fields: [client_user_id], references: [id])
+
+  @@index([client_user_id])
 }
 
 model EmergencyContact {

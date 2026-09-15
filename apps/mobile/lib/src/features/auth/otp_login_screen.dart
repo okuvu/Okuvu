@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +28,11 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
   String? _phoneError;
   bool _isSending = false;
 
+  // Therapist-portal wireframes C-06 — optional invite code, collected
+  // inline on the phone step, redeemed after OTP verification succeeds.
+  final _inviteCodeController = TextEditingController();
+  bool _showInviteCodeField = false;
+
   // OTP step state
   String? _verificationId;
   int? _forceResendingToken;
@@ -50,6 +56,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
   @override
   void dispose() {
     _phoneController.dispose();
+    _inviteCodeController.dispose();
     for (final c in _otpControllers) {
       c.dispose();
     }
@@ -186,6 +193,45 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
             smsCode: otp,
           );
 
+      final inviteCode = _inviteCodeController.text.trim();
+      if (inviteCode.isNotEmpty) {
+        try {
+          await dio.post('/invites/redeem', data: {'token': inviteCode});
+          // The invite's placeholder User already has phone_number/email
+          // from the Add-Client wizard — no need to also call
+          // /auth/verify-otp here; go straight to the welcome screen.
+          ref.read(routerProvider).go('/onboarding/welcome');
+          return;
+        } on DioException catch (e) {
+          if (!mounted) return;
+          String? code;
+          var responseData = e.response?.data;
+          if (responseData is String) {
+            try {
+              responseData = jsonDecode(responseData);
+            } catch (_) {
+              // Not JSON — leave code null, falls through to the generic message.
+            }
+          }
+          if (responseData is Map) {
+            final errorField = responseData['error'];
+            if (errorField is Map) {
+              code = errorField['code'] as String?;
+            }
+          }
+          setState(() {
+            _isVerifying = false;
+            _otpError = switch (code) {
+              'ALREADY_REDEEMED' => 'This invite code has already been used.',
+              'EXPIRED' => 'This invite code has expired. Ask your therapist to resend it.',
+              'NOT_FOUND' => 'That invite code wasn\'t recognized. Check it and try again.',
+              _ => 'Something went wrong. Please try again.',
+            };
+          });
+          return;
+        }
+      }
+
       try {
         final response = await dio.post('/auth/verify-otp', data: {
           'phone_number': _normalizePhone(_phoneController.text.trim()),
@@ -301,6 +347,23 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
                 : const Text('Continue with Phone'),
           ),
         ),
+        const SizedBox(height: 16),
+        if (_showInviteCodeField)
+          TextField(
+            key: const ValueKey('invite_code_input'),
+            controller: _inviteCodeController,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              labelText: 'Invite code',
+              hintText: 'e.g. AB12CD34',
+            ),
+            enabled: !_isSending,
+          )
+        else
+          TextButton(
+            onPressed: () => setState(() => _showInviteCodeField = true),
+            child: const Text('Have an invite code?'),
+          ),
       ],
     );
   }

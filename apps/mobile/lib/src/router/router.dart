@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/splash/splash_screen.dart';
 import '../features/auth/otp_login_screen.dart';
+import '../features/onboarding_welcome/welcome_screen.dart';
 import '../features/consent/consent_screen.dart';
 import '../features/intake/intake_screen.dart';
 import '../features/intake/cold_start_screen.dart';
@@ -106,6 +107,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth',
         builder: (context, state) => const OtpLoginScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding/welcome',
+        builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
         path: '/onboarding/consent',

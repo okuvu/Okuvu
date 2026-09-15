@@ -1,7 +1,17 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { randomInt } from 'node:crypto';
 import { protectedProcedure, router } from '../trpc';
 import { checkRateLimit } from '../rate-limit';
+import { sendInviteEmail } from '@/lib/email';
+
+const CARE_PLANS = ['CP1', 'CP2', 'CP3'] as const;
+const INVITE_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I — easy to read aloud/type
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function generateInviteCode(): string {
+  return Array.from({ length: 8 }, () => INVITE_CODE_CHARS[randomInt(INVITE_CODE_CHARS.length)]).join('');
+}
 
 /**
  * F-07: previously the only way to onboard a therapist or assign a client
@@ -71,6 +81,36 @@ export const adminRouter = router({
       createdAt: t.created_at.toISOString(),
       clientCount: t._count.client_assignments,
     }));
+  }),
+
+  // Therapist-portal wireframes C-07 — dashboard "Resend" for Pending
+  // clients. System-wide (across all therapists), lives on the admin
+  // page rather than the per-therapist dashboard: resendInvite below is
+  // admin-gated (matching the rest of the invite/assignment surface), so
+  // this is the one place that already has both clientId AND therapistId
+  // for every row without needing to derive "whose dashboard is this."
+  listPendingInvites: adminProcedure.query(async ({ ctx }) => {
+    const pending = await ctx.db.therapistClient.findMany({
+      where: { activated_at: null, ended_at: null },
+      orderBy: { created_at: 'desc' },
+      select: {
+        therapist_id: true,
+        client_user_id: true,
+        created_at: true,
+        therapist: { select: { name: true, email: true } },
+        client: { select: { full_name: true, email: true, phone_number: true } },
+      },
+    });
+    return pending
+      .filter((p) => p.client.email) // only wizard-created clients have an invite email to resend to
+      .map((p) => ({
+        therapistId: p.therapist_id,
+        clientUserId: p.client_user_id,
+        invitedAt: p.created_at.toISOString(),
+        therapistLabel: p.therapist.name ?? p.therapist.email,
+        clientLabel: p.client.full_name ?? p.client.phone_number,
+        clientEmail: p.client.email,
+      }));
   }),
 
   addTherapist: adminMutation
@@ -163,5 +203,150 @@ export const adminRouter = router({
         clientId: client.id,
         wasAlreadyAssigned: Boolean(existing),
       };
+    }),
+
+  // Therapist-portal wireframes C-01..C-06 — the Add-Client wizard. A
+  // second, additive provisioning path alongside assignClient above:
+  // this one creates a brand-new client (placeholder User, no
+  // firebase_uid yet) and invites them, rather than attaching an
+  // already-self-signed-up one. Steps 2 (history)/4 (welcome note +
+  // abbreviation)/5 (tools/reminders) are all optional per the wireframe
+  // ("fill it now, later, or never") — step 5's tool/reminder setup is
+  // deliberately NOT duplicated here; the therapist can add those via the
+  // client's own Tools tab once the client exists, using the reminders
+  // router's existing create path.
+  createClientWithInvite: adminMutation
+    .input(
+      z.object({
+        therapistId: z.string().min(1),
+        fullName: z.string().trim().min(1),
+        phoneNumber: z.string().trim().min(1),
+        email: z.string().trim().email(),
+        dateOfBirth: z.string().optional(),
+        gender: z.string().trim().optional(),
+        presentingIssues: z.array(z.string()).default([]),
+        carePlanId: z.enum(CARE_PLANS),
+        welcomeNote: z.string().trim().optional(),
+        displayAbbreviation: z.string().trim().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const therapist = await ctx.db.therapist.findUnique({
+        where: { id: input.therapistId },
+        select: { id: true, email: true, name: true },
+      });
+      if (!therapist) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Therapist not found' });
+      }
+
+      const existing = await ctx.db.user.findFirst({
+        where: { OR: [{ phone_number: input.phoneNumber }, { email: input.email }] },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'A client with this phone number or email already exists',
+        });
+      }
+
+      const inviteCode = generateInviteCode();
+
+      const { client, invite } = await ctx.db.$transaction(async (tx) => {
+        const client = await tx.user.create({
+          data: {
+            phone_number: input.phoneNumber,
+            email: input.email,
+            full_name: input.fullName,
+            date_of_birth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+            gender: input.gender || null,
+          },
+          select: { id: true },
+        });
+
+        await tx.clinicalConfig.create({
+          data: {
+            user_id: client.id,
+            care_plan_id: input.carePlanId,
+            assignment_state: 'confirmed',
+            presenting_issues: input.presentingIssues,
+            welcome_note: input.welcomeNote || null,
+            display_abbreviation: input.displayAbbreviation || null,
+          },
+        });
+
+        await tx.therapistClient.create({
+          data: { therapist_id: therapist.id, client_user_id: client.id },
+        });
+
+        const invite = await tx.inviteToken.create({
+          data: {
+            token: inviteCode,
+            therapist_id: therapist.id,
+            client_user_id: client.id,
+            expires_at: new Date(Date.now() + INVITE_TTL_MS),
+          },
+          select: { token: true },
+        });
+
+        return { client, invite };
+      });
+
+      const emailResult = await sendInviteEmail({
+        to: input.email,
+        therapistName: therapist.name ?? therapist.email,
+        clientName: input.fullName,
+        inviteCode: invite.token,
+      });
+
+      return {
+        success: true,
+        clientId: client.id,
+        inviteCode: invite.token,
+        emailSent: emailResult.sent,
+      };
+    }),
+
+  // Dashboard "Resend" for a still-Pending client (wireframes C-07) —
+  // regenerates a fresh code (the old one, if any, is simply superseded;
+  // InviteToken rows aren't deleted) and re-sends via Brevo.
+  resendInvite: adminMutation
+    .input(z.object({ clientUserId: z.string().min(1), therapistId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const [client, therapist] = await Promise.all([
+        ctx.db.user.findUnique({
+          where: { id: input.clientUserId },
+          select: { email: true, full_name: true },
+        }),
+        ctx.db.therapist.findUnique({
+          where: { id: input.therapistId },
+          select: { email: true, name: true },
+        }),
+      ]);
+      if (!client || !client.email) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Client not found or has no email on file' });
+      }
+      if (!therapist) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Therapist not found' });
+      }
+
+      const inviteCode = generateInviteCode();
+      await ctx.db.inviteToken.create({
+        data: {
+          token: inviteCode,
+          therapist_id: input.therapistId,
+          client_user_id: input.clientUserId,
+          expires_at: new Date(Date.now() + INVITE_TTL_MS),
+        },
+      });
+
+      const emailResult = await sendInviteEmail({
+        to: client.email,
+        therapistName: therapist.name ?? therapist.email,
+        clientName: client.full_name,
+        inviteCode,
+      });
+
+      return { success: true, inviteCode, emailSent: emailResult.sent };
     }),
 });
