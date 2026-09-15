@@ -1,1 +1,71 @@
 @import "tailwindcss";
+
+/* OKUVU brand kit (E99 rebrand) — adapted from
+   OKUVU-Brand-Kit-Simple/OKUVU-Brand-Kit/01-Palette/03-design-tokens.css.
+   Raw palette values prefixed --color-* so Tailwind v4's @theme picks
+   them up as real utilities (bg-royal-purple, text-violet, from-royal-night,
+   etc.). Semantic aliases (--brand-thread etc.) stay unprefixed — they're
+   consumed directly via style/var(), not as Tailwind utility names. */
+@theme {
+  /* purple family */
+  --color-royal-night: #2A0F4E;
+  --color-royal-purple: #5E2E91;
+  --color-indigo-violet: #6E62B4;
+  --color-violet: #7B6CD9;
+  --color-orchid: #A78BFA;
+  --color-orchid-soft: #C4B5FD;
+  --color-lavender-tint: #EDE9FE;
+
+  /* honey (first light) */
+  --color-honey: #E8A33D;
+  --color-honey-bright: #F0B25E;
+  --color-honey-deep: #D68F24;
+  --color-honey-tint: #FBF0DC;
+
+  /* pastels */
+  --color-lavender-wash: #EDE6FB;
+  --color-lilac: #E4DAFA;
+  --color-orchid-wash: #EFE9FC;
+
+  /* soft sage (complementary green — pastel only, never neon) */
+  --color-sage: #7C9E8F;
+  --color-sage-deep: #4E7564;
+  --color-sage-tint: #E4EFE9;
+  --color-pastel-mint: #D8EBE0;
+
+  /* neutrals */
+  --color-oat: #F7F3FD;
+  --color-oat-elevated: #FEFCFF;
+  --color-charcoal-ink: #26222E;
+  --color-ink-soft: #6E658A;
+  --color-hairline: #E7DEF6;
+
+  /* danger red — not part of the brand kit (crisis/safety colors are a
+     separate, clinically-owned decision); consolidated here from the
+     two inconsistent hex/Tailwind-class implementations that existed
+     before this pass, hue unchanged. */
+  --color-danger: #C0392B;
+  --color-danger-tint: #FDF2F1;
+
+  /* radii (brand kit 01-Palette/03-design-tokens.css) */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}
+
+/* --font-wordmark deliberately lives OUTSIDE @theme: it references
+   --font-poppins-semibold, a variable next/font/local only defines via
+   a runtime class on <html> (see layout.tsx), not a static value
+   available at Tailwind's build-time @theme analysis. Mixing the two
+   crashed Turbopack's dev-mode CSS pipeline (a real, dev-only bug —
+   `next build` didn't catch it, only `next dev` did). Consumed via
+   inline style (style={{ fontFamily: 'var(--font-wordmark)' }}), not
+   as a Tailwind utility class, for exactly this reason. */
+:root {
+  --font-wordmark: var(--font-poppins-semibold), system-ui, sans-serif;
+  --brand-thread: linear-gradient(135deg, var(--color-royal-night), var(--color-indigo-violet), var(--color-orchid));
+  --shadow-sm: 0 1px 2px rgba(42, 15, 78, 0.08);
+  --shadow-md: 0 4px 16px rgba(42, 15, 78, 0.10);
+  --shadow-lg: 0 12px 40px rgba(42, 15, 78, 0.16);
+}

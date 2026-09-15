@@ -14,7 +14,7 @@ interface ConsentChipProps {
 }
 
 function Dot({ on }: { on: boolean }) {
-  return <span className={`inline-block h-1.5 w-1.5 rounded-full ${on ? 'bg-[#2D8A5E]' : 'bg-gray-300'}`} />;
+  return <span className={`inline-block h-1.5 w-1.5 rounded-full ${on ? 'bg-sage-deep' : 'bg-gray-300'}`} />;
 }
 
 /**
@@ -39,7 +39,7 @@ export function ConsentChip({ clientUserId, consent }: ConsentChipProps) {
       : 'chat off';
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg bg-[#F4F6F8] px-3 py-2">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg bg-oat px-3 py-2">
       <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
         <Dot on={consent.safety} /> safety {consent.safety ? '✓' : '✗'}
       </span>
@@ -56,7 +56,7 @@ export function ConsentChip({ clientUserId, consent }: ConsentChipProps) {
           type="button"
           disabled={requestChatAccess.isPending || Boolean(consent.chatAccessRequestedAt) || justRequested}
           onClick={() => requestChatAccess.mutate({ clientUserId })}
-          className="ml-auto text-xs font-medium text-[#1A6B5A] hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+          className="ml-auto text-xs font-medium text-violet hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
         >
           {consent.chatAccessRequestedAt || justRequested ? 'Requested' : 'Request chat access'}
         </button>

@@ -10,7 +10,7 @@ export default function PageHeader({ phoneNumber, assignmentState }: PageHeaderP
     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
       <div className="flex items-center gap-3">
         {assignmentState && (
-          <span className={`w-3 h-3 rounded-full ${assignmentState === 'confirmed' ? 'bg-[#2D8A5E]' : 'bg-amber-500'} flex-shrink-0`} />
+          <span className={`w-3 h-3 rounded-full ${assignmentState === 'confirmed' ? 'bg-sage-deep' : 'bg-honey-tint0'} flex-shrink-0`} />
         )}
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 leading-tight">
@@ -22,7 +22,7 @@ export default function PageHeader({ phoneNumber, assignmentState }: PageHeaderP
         <button
           type="button"
           disabled
-          className="px-4 py-2 border border-gray-200 text-gray-400 rounded-lg text-xs font-medium cursor-not-allowed"
+          className="px-4 py-2 border border-hairline text-gray-400 rounded-lg text-xs font-medium cursor-not-allowed"
         >
           <span className="flex items-center gap-1.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -36,7 +36,7 @@ export default function PageHeader({ phoneNumber, assignmentState }: PageHeaderP
         <button
           type="button"
           disabled
-          className="px-4 py-2 bg-[#1A6B5A] text-white rounded-lg text-xs font-medium opacity-50 cursor-not-allowed"
+          className="px-4 py-2 bg-violet text-white rounded-lg text-xs font-medium opacity-50 cursor-not-allowed"
         >
           <span className="flex items-center gap-1.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

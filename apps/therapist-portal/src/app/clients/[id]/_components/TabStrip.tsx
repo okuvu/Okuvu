@@ -25,7 +25,7 @@ export type TabKey = (typeof TABS)[number]['key'];
 
 export function TabStrip({ clientId, active }: { clientId: string; active: TabKey }) {
   return (
-    <div className="border-b border-gray-200 bg-white rounded-t-xl -mb-px">
+    <div className="border-b border-hairline bg-oat-elevated rounded-t-xl -mb-px">
       <nav className="flex gap-1 px-4" aria-label="Client sections">
         {TABS.map((tab) => {
           const isActive = tab.key === active;
@@ -35,7 +35,7 @@ export function TabStrip({ clientId, active }: { clientId: string; active: TabKe
               href={tab.href(clientId)}
               className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors ${
                 isActive
-                  ? 'border-[#1A6B5A] text-[#1A6B5A]'
+                  ? 'border-violet text-violet'
                   : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
               }`}
             >

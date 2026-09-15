@@ -36,7 +36,13 @@ const disabledItems = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({
+  mobileOpen = false,
+  onClose,
+}: {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const therapistName = session?.user?.name ?? 'Therapist';
@@ -52,19 +58,27 @@ export default function Sidebar() {
   const { data: adminStatus } = trpc.admin.amIAdmin.useQuery();
 
   return (
-    <nav className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-200 z-50 py-5">
-      <div className="px-6 pb-4 mb-3 border-b border-gray-100">
-        <h1 className="text-lg font-semibold text-[#1A6B5A]">OKUVU</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Therapist Portal</p>
-      </div>
-
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 top-16 z-30 bg-charcoal-ink/40 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <nav
+        className={`flex flex-col fixed left-0 top-16 h-[calc(100vh-4rem)] w-[240px] bg-oat-elevated border-r border-hairline z-40 py-5 transition-transform duration-200 ease-in-out md:translate-x-0 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
       <div className="flex-1 flex flex-col gap-0.5 px-3 overflow-y-auto">
         <Link
           href="/dashboard"
+          onClick={() => onClose?.()}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
             pathname === '/dashboard'
-              ? 'bg-[#1A6B5A] text-white'
-              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              ? 'bg-violet text-white'
+              : 'text-gray-600 hover:bg-lavender-wash hover:text-gray-900'
           }`}
         >
           <span className={pathname === '/dashboard' ? 'text-white' : 'text-gray-400'}>
@@ -128,10 +142,11 @@ export default function Sidebar() {
                       <Link
                         key={client.id}
                         href={`/clients/${client.id}`}
+                        onClick={() => onClose?.()}
                         className={`flex items-center gap-3 pl-10 pr-3 py-1.5 rounded-lg text-sm transition-colors ${
                           isActive
-                            ? 'text-[#1A6B5A] font-medium bg-[#1A6B5A]/5'
-                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                            ? 'text-violet font-medium bg-violet/5'
+                            : 'text-gray-500 hover:text-gray-700 hover:bg-lavender-wash'
                         }`}
                       >
                         {maskPhone(client.phoneNumber)}
@@ -146,10 +161,11 @@ export default function Sidebar() {
 
         <Link
           href="/schedule"
+          onClick={() => onClose?.()}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
             pathname === '/schedule'
-              ? 'bg-[#1A6B5A] text-white'
-              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              ? 'bg-violet text-white'
+              : 'text-gray-600 hover:bg-lavender-wash hover:text-gray-900'
           }`}
         >
           <span className={pathname === '/schedule' ? 'text-white' : 'text-gray-400'}>
@@ -161,10 +177,11 @@ export default function Sidebar() {
         {adminStatus?.isAdmin && (
           <Link
             href="/admin"
+            onClick={() => onClose?.()}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
               pathname === '/admin'
-                ? 'bg-[#1A6B5A] text-white'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                ? 'bg-violet text-white'
+                : 'text-gray-600 hover:bg-lavender-wash hover:text-gray-900'
             }`}
           >
             <span className={pathname === '/admin' ? 'text-white' : 'text-gray-400'}>
@@ -200,9 +217,9 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <div className="mt-auto border-t border-gray-100 pt-3 px-3 flex flex-col gap-0.5">
+      <div className="mt-auto border-t border-hairline pt-3 px-3 flex flex-col gap-0.5">
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600">
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600 overflow-hidden">
+          <div className="w-7 h-7 rounded-full bg-lavender-wash flex items-center justify-center text-xs font-medium text-gray-600 overflow-hidden">
             {session?.user?.image ? (
               <img src={session.user.image} alt="" className="w-full h-full object-cover" />
             ) : (
@@ -224,6 +241,7 @@ export default function Sidebar() {
           Sign out
         </button>
       </div>
-    </nav>
+      </nav>
+    </>
   );
 }

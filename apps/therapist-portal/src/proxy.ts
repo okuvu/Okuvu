@@ -20,7 +20,9 @@ export async function proxy(request: NextRequest) {
   const isPublic =
     PUBLIC_ROUTES.has(pathname) ||
     pathname.startsWith('/_next') ||
-    pathname === '/favicon.ico';
+    pathname.startsWith('/brand/') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/icon.svg';
 
   if (!session?.user && !isPublic) {
     const url = new URL('/auth', request.url);

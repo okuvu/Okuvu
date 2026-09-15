@@ -60,7 +60,7 @@ export function AppointmentForm({
         e.preventDefault();
         onSubmit(values);
       }}
-      className="space-y-3 rounded-lg border border-gray-200 bg-[#F9FAFB] p-4"
+      className="space-y-3 rounded-lg border border-hairline bg-lavender-wash p-4"
     >
       <div className="flex flex-col gap-3 md:flex-row">
         <div className="flex-1">
@@ -71,7 +71,7 @@ export function AppointmentForm({
             value={values.date}
             onChange={(e) => update('date', e.target.value)}
             disabled={isSubmitting}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
           />
         </div>
         <div className="flex-1">
@@ -82,7 +82,7 @@ export function AppointmentForm({
             value={values.time}
             onChange={(e) => update('time', e.target.value)}
             disabled={isSubmitting}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
           />
         </div>
         <div className="w-28">
@@ -95,7 +95,7 @@ export function AppointmentForm({
             value={values.durationMinutes}
             onChange={(e) => update('durationMinutes', Number(e.target.value))}
             disabled={isSubmitting}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
           />
         </div>
       </div>
@@ -107,7 +107,7 @@ export function AppointmentForm({
             value={values.mode}
             onChange={(e) => update('mode', e.target.value as AppointmentFormValues['mode'])}
             disabled={isSubmitting}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
           >
             <option value="video">Video</option>
             <option value="phone">Phone</option>
@@ -122,7 +122,7 @@ export function AppointmentForm({
             onChange={(e) => update('location', e.target.value)}
             disabled={isSubmitting}
             placeholder="Meeting link or address"
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
           />
         </div>
       </div>
@@ -134,7 +134,7 @@ export function AppointmentForm({
           onChange={(e) => update('noteToClient', e.target.value)}
           disabled={isSubmitting}
           rows={2}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
         />
       </div>
 
@@ -149,7 +149,7 @@ export function AppointmentForm({
               value={values.repeatWeeklyCount}
               onChange={(e) => update('repeatWeeklyCount', Number(e.target.value))}
               disabled={isSubmitting}
-              className="w-16 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60"
+              className="w-16 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
             />
             <span>&times;</span>
           </label>
@@ -186,7 +186,7 @@ export function AppointmentForm({
         <button
           type="submit"
           disabled={isSubmitting || !values.date || !values.time}
-          className="rounded-lg bg-[#1A6B5A] px-4 py-2 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Saving...' : submitLabel}
         </button>

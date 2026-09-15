@@ -1,29 +1,14 @@
-'use client';
+import PortalNav from "@/app/components/PortalNav";
 
-import { useParams } from "next/navigation";
-import { trpc } from "@/trpc/client";
-import { formatClientLabel } from "@/lib/format";
-import Sidebar from "./_components/sidebar";
-import TopBar from "./_components/top-bar";
-
+// OKUVU brand kit (E99) — the old per-route top-bar.tsx (breadcrumb +
+// avatar) is retired: the breadcrumb duplicated what every client
+// sub-page already renders inline, and the avatar/sign-out role now
+// lives in the one shared, portal-wide TopBar.
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
-  const params = useParams<{ id: string }>();
-  const clientId = params.id;
-
-  const detailQuery = trpc.clients.detail.useQuery(
-    { clientUserId: clientId },
-    { enabled: Boolean(clientId) },
-  );
-
-  const clientLabel = detailQuery.data?.id
-    ? formatClientLabel(detailQuery.data.id)
-    : undefined;
-
   return (
     <>
-      <Sidebar />
-      <div className="md:ml-[240px] min-h-screen bg-[#F4F6F8]">
-        <TopBar clientLabel={clientLabel} />
+      <PortalNav />
+      <div className="md:ml-[240px] min-h-screen bg-oat">
         <main className="p-4 md:p-8">
           {children}
         </main>

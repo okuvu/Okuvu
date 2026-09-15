@@ -1,0 +1,109 @@
+/* OKUVU — 03 · Design Tokens (CSS) — one palette (matches current website)
+   Purple family + honey + pastels + oat neutrals. Green removed.
+   Light default; dark via [data-theme="dark"]. Fonts: Poppins 300/400/600. */
+
+:root {
+  /* ── purple family ───────────────────────────── */
+  --royal-night: #2A0F4E;
+  --royal-purple: #5E2E91;
+  --indigo-violet: #6E62B4;
+  --violet: #7B6CD9;
+  --orchid: #A78BFA;
+  --orchid-soft: #C4B5FD;
+  --lavender-tint: #EDE9FE;
+
+  /* ── honey (first light) ─────────────────────── */
+  --honey: #E8A33D;
+  --honey-bright: #F0B25E;
+  --honey-deep: #D68F24;
+  --honey-tint: #FBF0DC;
+
+  /* ── pastels ─────────────────────────────────── */
+  --lavender-wash: #EDE6FB;
+  --lilac: #E4DAFA;
+  --orchid-wash: #EFE9FC;
+
+  /* ── soft sage (complementary green — kept pastel/soft, never fluorescent) ── */
+  --sage: #7C9E8F;
+  --sage-deep: #4E7564;
+  --sage-tint: #E4EFE9;
+  --pastel-mint: #D8EBE0;
+
+  /* ── neutrals ────────────────────────────────── */
+  --oat: #F7F3FD;
+  --oat-elevated: #FEFCFF;
+  --white: #FFFFFF;
+  --charcoal-ink: #26222E;
+  --ink-soft: #6E658A;
+  --hairline: #E7DEF6;
+
+  /* ── semantic · light (default) ──────────────── */
+  --bg: var(--oat);
+  --bg-elevated: var(--oat-elevated);
+  --text: var(--charcoal-ink);
+  --text-secondary: var(--ink-soft);
+  --heading: var(--royal-night);
+  --accent: var(--violet);
+  --accent-soft: var(--orchid-wash);
+  --warm: var(--honey);
+  --warm-text: var(--honey-deep);
+  --success: var(--sage-deep);
+  --success-soft: var(--sage-tint);
+  --border: var(--hairline);
+  --on-accent: var(--white);
+  --brand-thread: linear-gradient(135deg, var(--royal-night), var(--indigo-violet), var(--orchid));
+  --brand-thread-dark: linear-gradient(135deg, var(--lavender-tint), var(--orchid));
+
+  /* ── typography ──────────────────────────────── */
+  --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs-display: clamp(2.5rem, 6vw, 3.5rem);
+  --fs-h1: 2.5rem; --fs-h2: 2rem; --fs-h3: 1.5rem;
+  --fs-body: 1rem; --fs-caption: 0.8125rem; --fs-micro: 0.6875rem;
+  --lh-body: 1.6;
+  --tracking-logo: 0.1em; --tracking-tagline: 0.2em;
+
+  /* ── spacing (4pt scale) ─────────────────────── */
+  --sp-1: 0.25rem; --sp-2: 0.5rem; --sp-3: 0.75rem; --sp-4: 1rem;
+  --sp-6: 1.5rem; --sp-8: 2rem; --sp-12: 3rem; --sp-16: 4rem; --sp-24: 6rem;
+
+  /* ── radii ───────────────────────────────────── */
+  --r-sm: 8px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px; --r-pill: 999px;
+
+  /* ── elevation ───────────────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(42, 15, 78, 0.08);
+  --shadow-md: 0 4px 16px rgba(42, 15, 78, 0.10);
+  --shadow-lg: 0 12px 40px rgba(42, 15, 78, 0.16);
+  --focus-ring: 0 0 0 3px rgba(110, 98, 180, 0.35);
+
+  /* ── motion ──────────────────────────────────── */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 150ms; --dur-base: 250ms; --dur-slow: 450ms;
+}
+
+/* ── dark mode ─────────────────────────────────── */
+[data-theme='dark'] {
+  --bg: var(--royal-night);
+  --bg-elevated: var(--royal-purple);
+  --text: var(--lavender-tint);
+  --text-secondary: var(--orchid);
+  --heading: var(--lavender-tint);
+  --accent: var(--honey-bright);
+  --accent-soft: rgba(196, 181, 253, 0.16);
+  --warm: var(--honey-bright);
+  --success: #A9CBBB;
+  --success-soft: rgba(217, 235, 224, 0.16);
+  --border: rgba(110, 98, 180, 0.45);
+  --on-accent: var(--royal-night);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* ── base ──────────────────────────────────────── */
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+}

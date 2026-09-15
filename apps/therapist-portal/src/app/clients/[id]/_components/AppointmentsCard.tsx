@@ -71,14 +71,14 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
   const nextSession = upcoming[0] ?? null;
 
   return (
-    <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+    <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">Appointments</h2>
         {mode.kind === 'closed' && (
           <button
             type="button"
             onClick={() => setMode({ kind: 'create' })}
-            className="text-sm font-medium text-[#1A6B5A] hover:underline"
+            className="text-sm font-medium text-violet hover:underline"
           >
             Schedule a session
           </button>
@@ -86,14 +86,14 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
       </div>
 
       {nextSession && (
-        <div className="mb-4 rounded-lg bg-[#E8F5EE] px-4 py-3">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#2D8A5E]">Next session</p>
+        <div className="mb-4 rounded-lg bg-sage-tint px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-sage-deep">Next session</p>
           <p className="mt-1 text-sm font-medium text-gray-900">
             {formatDateTime(nextSession.scheduledAt)} &middot; {MODE_LABELS[nextSession.mode] ?? nextSession.mode} &middot;{' '}
             {nextSession.durationMinutes} min
           </p>
           {(nextSession.remind24h || nextSession.remind1h) && (
-            <p className="mt-0.5 text-xs text-[#2D8A5E]">
+            <p className="mt-0.5 text-xs text-sage-deep">
               Reminds {[nextSession.remind24h && '24h', nextSession.remind1h && '1h'].filter(Boolean).join(' & ')} before
             </p>
           )}
@@ -164,7 +164,7 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
                         <button
                           type="button"
                           onClick={() => setMode({ kind: 'reschedule', appointmentId: a.id })}
-                          className="text-xs font-medium text-[#1A6B5A] hover:underline"
+                          className="text-xs font-medium text-violet hover:underline"
                         >
                           Edit
                         </button>
@@ -172,7 +172,7 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
                           type="button"
                           disabled={cancel.isPending}
                           onClick={() => cancel.mutate({ appointmentId: a.id, clientUserId })}
-                          className="text-xs font-medium text-[#C0392B] hover:underline disabled:opacity-60"
+                          className="text-xs font-medium text-danger hover:underline disabled:opacity-60"
                         >
                           Cancel
                         </button>

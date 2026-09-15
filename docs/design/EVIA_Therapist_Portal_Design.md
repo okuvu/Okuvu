@@ -38,27 +38,33 @@ The therapist portal is a configuration and oversight tool for the clinician who
 
 ## 2. Design Tokens
 
+**Rewritten 15 Sep 2026 (E99 rebrand)** — §2.1/§2.2 below now match `OKUVU-Brand-Kit-Simple/OKUVU-Brand-Kit/01-Palette/03-design-tokens.css` verbatim (the repo's actual, authoritative brand kit — CSS + JSON tokens, logo SVGs, and `02-Guidelines/02-brand-guidelines.md`), replacing the teal system below that this doc previously described as "the one deliberate visual thread connecting the portal to the mobile app." That thread is now the shared purple/honey/sage palette instead — mobile's own accent color (`#E8A33D`, "Marigold") is the identical hex as this kit's `honey` token, confirming it's still a deliberate cross-app link, just a different color family.
+
 ### 2.1 Color
 
-| Token | Hex | Usage |
+Full palette (`03-design-tokens.css`):
+
+| Token | Hex | Role |
 |---|---|---|
-| `color.portal.bg` | `#F4F6F8` | App background (portal grey — cooler and flatter than the mobile app's cream; signals "professional tool," not "companion app"). |
-| `color.portal.surface` | `#FFFFFF` | Cards, table rows, panels. |
-| `color.brand.primary` | `#1A6B5A` | Shared brand teal — primary buttons, active nav state, links. The one deliberate visual thread connecting the portal to the mobile app. |
-| `color.text.primary` | `#1D2521` | Body text. |
-| `color.text.secondary` | `#5C6560` | Metadata, timestamps, helper text. |
-| `color.border` | `#E1E6E4` | Table dividers, card borders. |
-| `color.badge.red` | `#B5382E` | B1 Safety Review Required. Highest severity. |
-| `color.badge.amber` | `#C97A1A` | B2 Care Plan Hold, B3 Alliance Rupture, B5 Peer Concern. |
-| `color.badge.blue` | `#2F5FA3` | B4 Stage Avoidance — informational only, not action-required. |
-| `color.action.disabled` | `#B7BEB9` | Disabled buttons/inputs pre-condition. |
+| `royal-night` | `#2A0F4E` | Darkest — chrome bar gradient start, deepest surface |
+| `royal-purple` | `#5E2E91` | Chrome bar gradient end, hover-darken of `violet` |
+| `indigo-violet` | `#6E62B4` | Chrome bar gradient mid-stop |
+| `violet` | `#7B6CD9` | Primary buttons, links, active nav — the portal's `--accent` |
+| `orchid` / `orchid-soft` | `#A78BFA` / `#C4B5FD` | Lighter accents |
+| `lavender-tint` | `#EDE9FE` | Text/wordmark on dark surfaces (e.g. the chrome bar) |
+| `honey` / `honey-bright` / `honey-deep` / `honey-tint` | `#E8A33D` / `#F0B25E` / `#D68F24` / `#FBF0DC` | Warm accent, "first light" — also this portal's practical stand-in for provisional/caution/in-progress states (no dedicated warning token exists in the kit; honey is the same color family as the teal system's old amber, so it's the more faithful swap than the sage/green family) |
+| `sage` / `sage-deep` / `sage-tint` / `pastel-mint` | `#7C9E8F` / `#4E7564` / `#E4EFE9` / `#D8EBE0` | Success/confirmed/safety-positive — the kit's `--success`/`--success-soft`. Soft/pastel only — never bright/neon green |
+| `oat` / `oat-elevated` | `#F7F3FD` / `#FEFCFF` | App background / card surface |
+| `charcoal-ink` / `ink-soft` | `#26222E` / `#6E658A` | Body text / secondary text |
+| `hairline` | `#E7DEF6` | Borders, dividers |
+
+**Not covered by the kit, kept from the old system (unchanged hue, just consolidated to one definition):** danger/crisis red — the kit has no red token at all; changing a safety-indicator color is a clinical decision, not a brand one.
 
 ### 2.2 Typography
 
-One family, two roles — a portal is read quickly and repeatedly, not lingered over, so restraint matters more here than in the mobile app:
-
-- **`font.ui` — Manrope** (shared with mobile app, reinforcing brand continuity). Used for everything: headers, body, labels, buttons.
-- **`font.mono` — IBM Plex Mono** for anything that benefits from fixed-width scanning: client IDs, timestamps, RCI registration numbers, session counts. This is a deliberate small signal that the tool is precise and auditable.
+- **Wordmark only** — Poppins SemiBold (600), +0.1em tracking, uppercase. Loaded via `next/font/local` (a bundled `.woff2`, not `next/font/google` — the latter needs network access at build time). This is the first real typographic brand element the portal has ever rendered; previously it was plain system-font text.
+- **Body/UI text** — unchanged, plain system stack. The brand kit's own type scale (`--fs-display` through `--fs-micro`, Poppins 300/400/600 throughout) exists for a future pass but wasn't required to ship the chrome-bar rebrand, so it hasn't been adopted yet — don't assume body text is Poppins until that's actually done.
+- Manrope / IBM Plex Mono (below) describe the *old* teal-era system and no longer reflect the implementation — left here only as history until a real typography pass happens:
 
 | Style | Face | Size | Weight |
 |---|---|---|---|
@@ -70,10 +76,16 @@ One family, two roles — a portal is read quickly and repeatedly, not lingered 
 | Button label | Manrope | 14sp | 600 |
 
 ### 2.3 Spacing & Radius
-Same 8pt grid as mobile (`4, 8, 12, 16, 24, 32, 48`). Radius is smaller and squarer than the mobile app throughout — `radius.sm = 4px`, `radius.md = 8px` — to reinforce "software tool" rather than "companion app." No `radius.full` pill shapes except status chips.
+Same 8pt grid as mobile (`4, 8, 12, 16, 24, 32, 48`). The brand kit also defines `r-sm 8px / r-md 14px / r-lg 20px / r-xl 28px / r-pill 999px` (close to the radii already in use) — adopted alongside the color tokens in `globals.css`, low-risk since they're near the previous values.
 
 ### 2.4 Elevation
-Flat design, one shadow level only for modals/overlays: `0px 2px 12px rgba(29,37,33,0.10)`. Table rows and cards on the grey background use a 1px border, not a shadow, for separation.
+The brand kit's shadow tokens are royal-night-tinted rather than neutral black: `shadow-sm 0 1px 2px rgba(42,15,78,.08)`, `shadow-md 0 4px 16px rgba(42,15,78,.10)`, `shadow-lg 0 12px 40px rgba(42,15,78,.16)`.
+
+### 2.5 Portal Chrome Bar
+
+New as of the E99 rebrand — the portal's first-ever portal-wide top chrome bar (`apps/therapist-portal/src/app/components/TopBar.tsx`), full-width, present on every page including the unauthenticated auth screen. Background is the kit's own `--brand-thread` gradient (`linear-gradient(135deg, royal-night, indigo-violet, orchid)`). Carries the real spiral-mark logo for the first time (`okuvu-mark-dark.svg` — the light-on-dark variant, per the kit's own "dark mark on royal night / dark surfaces" rule) next to the Poppins wordmark; previously the portal only ever showed plain text "OKUVU," never the actual mark. The left sidebar (`sidebar.tsx`) sits below this bar and no longer carries its own wordmark header — the chrome bar owns that now.
+
+**What this section does not cover:** §5's screen list (T-00–T-07) and the B1-B5 badge system below describe an older MVP conception that no longer matches what's actually built — no Appointments, no Add-Client wizard, no client-detail tab strip, no consent chip anywhere in that section. Reconciling §3-§7 with current reality is a separate, larger documentation task, out of scope for this rebrand pass.
 
 ---
 

@@ -31,14 +31,14 @@ function formatHomeworkDate(iso: string | Date): string {
 function StatusBadge({ status }: { status: HomeworkStatus }) {
   if (status === 'completed') {
     return (
-      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-[#E8F5EE] text-[#2D8A5E]">
+      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-sage-tint text-sage-deep">
         Completed
       </span>
     );
   }
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-[#FEF3E2] text-[#E8A020]">
+      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-honey-tint text-honey-deep">
         Active
       </span>
     );
@@ -114,16 +114,16 @@ export default function ClientHomeworkPage() {
   const clientLabel = formatClientLabel(clientId);
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8]">
+    <div className="min-h-screen bg-oat">
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-[#1A6B5A] transition-colors">
+            <Link href="/dashboard" className="hover:text-violet transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-[#1A6B5A] transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
@@ -133,7 +133,7 @@ export default function ClientHomeworkPage() {
           <TabStrip clientId={clientId} active="tools" />
 
           {/* Info notice */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
             <h1 className="text-lg font-semibold text-gray-900">Homework</h1>
             <p className="mt-2 text-xs text-gray-500 leading-relaxed">
               Homework you assign here appears in the client&rsquo;s chat context, so OKUVU can
@@ -142,7 +142,7 @@ export default function ClientHomeworkPage() {
           </div>
 
           {/* Homework list */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               HOMEWORK HISTORY
             </h2>
@@ -154,7 +154,7 @@ export default function ClientHomeworkPage() {
                 ))}
               </div>
             ) : homeworkQuery.isError ? (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-danger">
                 Could not load homework. Please refresh and try again.
               </p>
             ) : homeworkQuery.data && homeworkQuery.data.length > 0 ? (
@@ -181,7 +181,7 @@ export default function ClientHomeworkPage() {
                             markCompleted.mutate({ homeworkId: item.id, clientId })
                           }
                           disabled={markCompleted.isPending}
-                          className="text-xs font-medium text-[#1A6B5A] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                          className="text-xs font-medium text-violet hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           Mark completed
                         </button>
@@ -201,7 +201,7 @@ export default function ClientHomeworkPage() {
           </div>
 
           {/* Assign homework form */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               ASSIGN HOMEWORK
             </h2>
@@ -221,12 +221,12 @@ export default function ClientHomeworkPage() {
                 rows={4}
                 placeholder="e.g. Practice box breathing before bed each night this week."
                 disabled={assignHomework.isPending}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
                 disabled={assignHomework.isPending || !description.trim()}
-                className="mt-3 w-full rounded-lg bg-[#1A6B5A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-3 w-full rounded-lg bg-violet px-4 py-2.5 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {assignHomework.isPending ? 'Assigning...' : 'Assign homework'}
               </button>
@@ -236,7 +236,7 @@ export default function ClientHomeworkPage() {
               <p
                 role="alert"
                 aria-live="assertive"
-                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
+                className="mt-4 rounded-lg bg-danger-tint p-3 text-sm text-danger text-center"
               >
                 {validationError}
               </p>
@@ -245,7 +245,7 @@ export default function ClientHomeworkPage() {
               <p
                 role="status"
                 aria-live="polite"
-                className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800 text-center"
+                className="mt-4 rounded-lg bg-sage-tint p-3 text-sm text-sage-deep text-center"
               >
                 {successMessage}
               </p>
@@ -254,7 +254,7 @@ export default function ClientHomeworkPage() {
               <p
                 role="alert"
                 aria-live="assertive"
-                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
+                className="mt-4 rounded-lg bg-danger-tint p-3 text-sm text-danger text-center"
               >
                 {errorMessage}
               </p>

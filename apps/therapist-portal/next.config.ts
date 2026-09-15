@@ -8,6 +8,7 @@ import type { NextConfig } from 'next';
 // into the client-side JS bundle for every deploy. Do not re-add it.
 const nextConfig: NextConfig = {
   transpilePackages: ['@okuvu/prisma', '@okuvu/shared-types'],
+  devIndicators: false,
 };
 
 export default nextConfig;

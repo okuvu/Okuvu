@@ -1,0 +1,69 @@
+{
+  "//": "OKUVU \u2014 one palette (matches website): purple family + honey + pastels + SOFT SAGE complement + neutrals. Green kept as soft/pastel only.",
+  "colors": {
+    "purple": {
+      "royalNight": "#2A0F4E",
+      "royalPurple": "#5E2E91",
+      "indigoViolet": "#6E62B4",
+      "violet": "#7B6CD9",
+      "orchid": "#A78BFA",
+      "orchidSoft": "#C4B5FD",
+      "lavenderTint": "#EDE9FE"
+    },
+    "honey": {
+      "honey": "#E8A33D",
+      "honeyBright": "#F0B25E",
+      "honeyDeep": "#D68F24",
+      "honeyTint": "#FBF0DC"
+    },
+    "pastels": {
+      "lavenderWash": "#EDE6FB",
+      "lilac": "#E4DAFA",
+      "orchidWash": "#EFE9FC"
+    },
+    "neutrals": {
+      "oat": "#F7F3FD",
+      "oatElevated": "#FEFCFF",
+      "white": "#FFFFFF",
+      "charcoalInk": "#26222E",
+      "inkSoft": "#6E658A",
+      "hairline": "#E7DEF6"
+    },
+    "semantic": {
+      "light": {
+        "bg": "#F7F3FD",
+        "bgElevated": "#FEFCFF",
+        "text": "#26222E",
+        "textSecondary": "#6E658A",
+        "heading": "#2A0F4E",
+        "accent": "#7B6CD9",
+        "accentSoft": "#EFE9FC",
+        "warm": "#E8A33D",
+        "warmText": "#D68F24",
+        "border": "#E7DEF6",
+        "onAccent": "#FFFFFF",
+        "success": "#4E7564",
+        "successSoft": "#E4EFE9"
+      },
+      "dark": {
+        "bg": "#2A0F4E",
+        "bgElevated": "#5E2E91",
+        "text": "#EDE9FE",
+        "textSecondary": "#A78BFA",
+        "heading": "#EDE9FE",
+        "accent": "#F0B25E",
+        "accentSoft": "rgba(196,181,253,0.16)",
+        "warm": "#F0B25E",
+        "border": "rgba(110,98,180,0.45)",
+        "onAccent": "#2A0F4E",
+        "success": "#A9CBBB"
+      }
+    },
+    "green": {
+      "sage": "#7C9E8F",
+      "sageDeep": "#4E7564",
+      "sageTint": "#E4EFE9",
+      "pastelMint": "#D8EBE0"
+    }
+  }
+}

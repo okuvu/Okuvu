@@ -42,14 +42,14 @@ function formatDateTime(iso: string | null | undefined): string {
 function StatusBadge({ state }: { state: AssignmentState | null }) {
   if (state === 'confirmed') {
     return (
-      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-[#E8F5EE] text-[#2D8A5E]">
+      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-sage-tint text-sage-deep">
         Confirmed
       </span>
     );
   }
   if (state === 'provisional') {
     return (
-      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-[#FEF3E2] text-[#E8A020]">
+      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-honey-tint text-honey-deep">
         Provisional
       </span>
     );
@@ -61,7 +61,7 @@ function SafetyIndicator({ state }: { state: SafetyState | null }) {
   if (state === 'S0') {
     return (
       <div className="inline-flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-[#2D8A5E]" />
+        <div className="h-2 w-2 rounded-full bg-sage-deep" />
         <span className="text-sm text-gray-700">{SAFETY_LABELS.S0} (S0)</span>
       </div>
     );
@@ -69,7 +69,7 @@ function SafetyIndicator({ state }: { state: SafetyState | null }) {
   if (state === 'S1') {
     return (
       <div className="inline-flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-[#2D8A5E]" />
+        <div className="h-2 w-2 rounded-full bg-sage-deep" />
         <span className="text-sm text-gray-700">{SAFETY_LABELS.S1} (S1)</span>
       </div>
     );
@@ -77,7 +77,7 @@ function SafetyIndicator({ state }: { state: SafetyState | null }) {
   if (state === 'S2') {
     return (
       <div className="inline-flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-[#E8A020]" />
+        <div className="h-2 w-2 rounded-full bg-honey-deep" />
         <span className="text-sm text-gray-700">{SAFETY_LABELS.S2} (S2)</span>
       </div>
     );
@@ -85,16 +85,16 @@ function SafetyIndicator({ state }: { state: SafetyState | null }) {
   if (state === 'S3') {
     return (
       <div className="inline-flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-[#C0392B]" />
-        <span className="text-sm font-medium text-[#C0392B]">{SAFETY_LABELS.S3} (S3)</span>
+        <div className="h-2 w-2 rounded-full bg-danger" />
+        <span className="text-sm font-medium text-danger">{SAFETY_LABELS.S3} (S3)</span>
       </div>
     );
   }
   if (state === 'S4') {
     return (
       <div className="inline-flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-[#C0392B]" />
-        <span className="text-sm font-medium text-[#C0392B]">{SAFETY_LABELS.S4} (S4)</span>
+        <div className="h-2 w-2 rounded-full bg-danger" />
+        <span className="text-sm font-medium text-danger">{SAFETY_LABELS.S4} (S4)</span>
       </div>
     );
   }
@@ -126,11 +126,11 @@ export default function ClientDetailPage() {
     return (
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl">
-          <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-12 text-center">
-            <p role="alert" className="text-sm font-medium text-red-800">
+          <div className="rounded-xl border border-danger bg-danger-tint px-6 py-12 text-center">
+            <p role="alert" className="text-sm font-medium text-danger">
               Could not load client details.
             </p>
-            <p className="mt-1 text-xs text-red-600">Please refresh and try again.</p>
+            <p className="mt-1 text-xs text-danger">Please refresh and try again.</p>
           </div>
         </div>
       </div>
@@ -143,12 +143,12 @@ export default function ClientDetailPage() {
   const clientLabel = formatClientLabel(clientId);
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8]">
+    <div className="min-h-screen bg-oat">
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Header breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-[#1A6B5A] transition-colors">
+            <Link href="/dashboard" className="hover:text-violet transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
@@ -164,7 +164,7 @@ export default function ClientDetailPage() {
           <AppointmentsCard clientUserId={clientId} />
 
           {/* Client overview card */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               CLIENT OVERVIEW
             </h2>
@@ -183,14 +183,14 @@ export default function ClientDetailPage() {
           </div>
 
           {/* Care plan card */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
                 CARE PLAN
               </h2>
               <Link
                 href={`/clients/${clientId}/program`}
-                className="text-sm font-medium text-[#1A6B5A] hover:underline"
+                className="text-sm font-medium text-violet hover:underline"
               >
                 Manage &rarr;
               </Link>
@@ -210,9 +210,9 @@ export default function ClientDetailPage() {
                 </div>
 
                 {data.careReviewFlagged && (
-                  <div className="flex items-center gap-1.5 rounded-lg bg-[#FDF2F1] px-3 py-2">
-                    <div className="h-2 w-2 rounded-full bg-[#C0392B]" />
-                    <span className="text-xs font-bold text-[#C0392B]">
+                  <div className="flex items-center gap-1.5 rounded-lg bg-danger-tint px-3 py-2">
+                    <div className="h-2 w-2 rounded-full bg-danger" />
+                    <span className="text-xs font-bold text-danger">
                       Care plan may need review — recent sessions seem to diverge from this focus
                     </span>
                   </div>
@@ -224,14 +224,14 @@ export default function ClientDetailPage() {
                       What does {data.carePlan.assignment_state} mean?
                     </summary>
                     {isProvisional && (
-                      <p className="mt-2 text-xs text-gray-500 leading-relaxed bg-amber-50 rounded-lg p-3">
+                      <p className="mt-2 text-xs text-gray-500 leading-relaxed bg-honey-tint rounded-lg p-3">
                         A provisional assignment means the system has suggested this care plan based on
                         initial interactions, but it has not yet been reviewed and confirmed by a
                         therapist. You should review the care plan and confirm it once you are satisfied.
                       </p>
                     )}
                     {isConfirmed && (
-                      <p className="mt-2 text-xs text-gray-500 leading-relaxed bg-green-50 rounded-lg p-3">
+                      <p className="mt-2 text-xs text-gray-500 leading-relaxed bg-sage-tint rounded-lg p-3">
                         A confirmed assignment means this care plan has been reviewed and set by a
                         therapist. The system will not change it automatically.
                       </p>
@@ -245,7 +245,7 @@ export default function ClientDetailPage() {
           </div>
 
           {/* Reasoning note card */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
               Clinical reasoning
             </h2>
@@ -264,7 +264,7 @@ export default function ClientDetailPage() {
           </div>
 
           {/* Session summary card */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               LATEST SESSION SUMMARY
             </h2>
@@ -280,14 +280,14 @@ export default function ClientDetailPage() {
                 )}
                 <Link
                   href={`/clients/${clientId}/report`}
-                  className="mt-3 inline-block text-xs font-medium text-[#1A6B5A] hover:underline"
+                  className="mt-3 inline-block text-xs font-medium text-violet hover:underline"
                 >
                   View full Session Prep &rarr;
                 </Link>
               </div>
             ) : summaryStatus === 'generating' ? (
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-[#E8A020] animate-pulse" />
+                <div className="h-2 w-2 rounded-full bg-honey-deep animate-pulse" />
                 <p className="text-sm text-gray-500">Summary is being generated...</p>
               </div>
             ) : (

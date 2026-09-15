@@ -26,15 +26,15 @@ export default function ClientReportPage() {
   const clientLabel = formatClientLabel(clientId);
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8]">
+    <div className="min-h-screen bg-oat">
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-4">
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-[#1A6B5A] transition-colors">
+            <Link href="/dashboard" className="hover:text-violet transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-[#1A6B5A] transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
@@ -44,7 +44,7 @@ export default function ClientReportPage() {
           <TabStrip clientId={clientId} active="report" />
 
           {/* Session Prep */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
               SESSION PREP
             </h2>
@@ -59,9 +59,9 @@ export default function ClientReportPage() {
                 <div className="h-16 rounded-lg bg-gray-100" />
               </div>
             ) : sessionPrepQuery.data && !sessionPrepQuery.data.granted ? (
-              <div className="rounded-lg bg-amber-50 p-4 text-center">
-                <p className="text-sm text-amber-800">Client hasn&rsquo;t granted chat access yet.</p>
-                <p className="mt-1 text-xs text-amber-700">
+              <div className="rounded-lg bg-honey-tint p-4 text-center">
+                <p className="text-sm text-honey-deep">Client hasn&rsquo;t granted chat access yet.</p>
+                <p className="mt-1 text-xs text-honey-deep">
                   Session Prep data becomes available once the client opts in.
                 </p>
               </div>
@@ -92,7 +92,7 @@ export default function ClientReportPage() {
           </div>
 
           {/* Report Card */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
               REPORT CARD
             </h2>
@@ -104,9 +104,9 @@ export default function ClientReportPage() {
             {reportCardQuery.isLoading ? (
               <div className="h-24 rounded-lg bg-gray-100 animate-pulse" />
             ) : reportCardQuery.data && !reportCardQuery.data.granted ? (
-              <div className="rounded-lg bg-amber-50 p-4 text-center">
-                <p className="text-sm text-amber-800">Client hasn&rsquo;t granted chat access yet.</p>
-                <p className="mt-1 text-xs text-amber-700">
+              <div className="rounded-lg bg-honey-tint p-4 text-center">
+                <p className="text-sm text-honey-deep">Client hasn&rsquo;t granted chat access yet.</p>
+                <p className="mt-1 text-xs text-honey-deep">
                   Report Card data becomes available once the client opts in.
                 </p>
               </div>
@@ -121,17 +121,17 @@ export default function ClientReportPage() {
                       Taper state: {reportCardQuery.data.signals.latestTaperState}
                     </span>
                     {reportCardQuery.data.signals.closureOfferedRecently && (
-                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-[#E8F5EE] text-[#2D8A5E]">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-sage-tint text-sage-deep">
                         Closure offered
                       </span>
                     )}
                     {reportCardQuery.data.signals.frustrationEventCount > 0 && (
-                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-[#FEF3E2] text-[#E8A020]">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-honey-tint text-honey-deep">
                         Frustration flagged &times;{reportCardQuery.data.signals.frustrationEventCount}
                       </span>
                     )}
                     {reportCardQuery.data.signals.therapistReferralRecently && (
-                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-[#FDF2F1] text-[#C0392B]">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-danger-tint text-danger">
                         Therapist referral suggested
                       </span>
                     )}
@@ -168,7 +168,7 @@ export default function ClientReportPage() {
                         <span
                           key={point.date}
                           title={`${formatDate(point.date)}: ${point.moodValue}`}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded bg-[#E8F5EE] text-[10px] font-medium text-[#2D8A5E]"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded bg-sage-tint text-[10px] font-medium text-sage-deep"
                         >
                           {point.moodValue}
                         </span>

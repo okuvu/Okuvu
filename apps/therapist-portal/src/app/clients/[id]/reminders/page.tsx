@@ -85,15 +85,15 @@ export default function ClientRemindersPage() {
   const clientLabel = formatClientLabel(clientId);
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8]">
+    <div className="min-h-screen bg-oat">
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-4">
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-[#1A6B5A] transition-colors">
+            <Link href="/dashboard" className="hover:text-violet transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-[#1A6B5A] transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
@@ -102,7 +102,7 @@ export default function ClientRemindersPage() {
 
           <TabStrip clientId={clientId} active="tools" />
 
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
             <h1 className="text-lg font-semibold text-gray-900">Reminders</h1>
             <p className="mt-2 text-xs text-gray-500 leading-relaxed">
               Reminders appear on the client&rsquo;s Today card in the app. Push delivery isn&rsquo;t
@@ -110,7 +110,7 @@ export default function ClientRemindersPage() {
             </p>
           </div>
 
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               ACTIVE &amp; PAST REMINDERS
             </h2>
@@ -130,7 +130,7 @@ export default function ClientRemindersPage() {
                       </p>
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                          item.active ? 'bg-[#E8F5EE] text-[#2D8A5E]' : 'bg-gray-100 text-gray-500'
+                          item.active ? 'bg-sage-tint text-sage-deep' : 'bg-gray-100 text-gray-500'
                         }`}
                       >
                         {item.active ? 'Active' : 'Paused'}
@@ -148,7 +148,7 @@ export default function ClientRemindersPage() {
                           setActive.mutate({ id: item.id, clientUserId: clientId, active: !item.active })
                         }
                         disabled={setActive.isPending}
-                        className="font-medium text-[#1A6B5A] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                        className="font-medium text-violet hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {item.active ? 'Pause' : 'Resume'}
                       </button>
@@ -161,7 +161,7 @@ export default function ClientRemindersPage() {
             )}
           </div>
 
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               NEW REMINDER
             </h2>
@@ -171,7 +171,7 @@ export default function ClientRemindersPage() {
                 onChange={(e) => setScheduleNote(e.target.value)}
                 rows={3}
                 placeholder="e.g. Try box breathing before bed."
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A]"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
               />
 
               <div className="flex flex-wrap gap-3">
@@ -228,18 +228,18 @@ export default function ClientRemindersPage() {
               <button
                 type="submit"
                 disabled={createReminder.isPending || !scheduleNote.trim()}
-                className="w-full rounded-lg bg-[#1A6B5A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg bg-violet px-4 py-2.5 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {createReminder.isPending ? 'Creating...' : 'Create reminder'}
               </button>
 
               {errorMessage && (
-                <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center">
+                <p role="alert" className="rounded-lg bg-danger-tint p-3 text-sm text-danger text-center">
                   {errorMessage}
                 </p>
               )}
               {successMessage && (
-                <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800 text-center">
+                <p role="status" className="rounded-lg bg-sage-tint p-3 text-sm text-sage-deep text-center">
                   {successMessage}
                 </p>
               )}

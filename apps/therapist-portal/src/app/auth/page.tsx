@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession, signIn } from 'next-auth/react';
+import TopBar from '@/app/components/TopBar';
 
 function AuthContent() {
   const router = useRouter();
@@ -27,8 +28,11 @@ function AuthContent() {
 
   if (status === 'loading') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F4F6F8] p-4 md:p-8">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+      <main className="flex min-h-screen flex-col bg-oat">
+        <TopBar showAvatar={false} />
+        <div className="flex flex-1 items-center justify-center p-4 md:p-8">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+        </div>
       </main>
     );
   }
@@ -38,54 +42,46 @@ function AuthContent() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F4F6F8] p-4 md:p-8">
-      <div className="w-full max-w-[480px]">
-        <div className="mb-6 flex flex-col items-center">
-          <div className="mb-4 text-2xl font-bold text-[#1A6B5A]">OKUVU</div>
-          <span className="text-xs font-medium uppercase tracking-wider text-[#6f7975]">
-            Therapist Portal
-          </span>
-        </div>
-        <hr className="mb-4 border-t border-[#DDE2E8]" />
-        <div className="rounded-xl border border-[#DDE2E8] bg-white p-8 shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
-          <div className="mb-8 text-center">
-            <h1 className="mb-2 text-2xl font-semibold tracking-tight text-[#191c1e]">
-              Sign in to OKUVU
-            </h1>
-            <p className="text-base leading-relaxed text-[#3f4945]">
-              Use your Google account registered with OKUVU.
-            </p>
+    <main className="flex min-h-screen flex-col bg-oat">
+      <TopBar showAvatar={false} />
+      <div className="flex flex-1 items-center justify-center p-4 md:p-8">
+        <div className="w-full max-w-[480px]">
+          <div className="mb-6 flex flex-col items-center">
+            <span className="text-xs font-medium uppercase tracking-wider text-ink-soft">
+              Therapist Portal
+            </span>
           </div>
-
-          {isUnauthorized && (
-            <div
-              className="mb-4 rounded-lg border-l-4 p-3 px-4"
-              style={{ backgroundColor: '#FDF2F1', borderLeftColor: '#C0392B' }}
-            >
-              <p className="text-sm" style={{ color: '#C0392B' }}>
-                Your account is not yet set up on OKUVU. Please contact your administrator.
+          <hr className="mb-4 border-t border-hairline" />
+          <div className="rounded-xl border border-hairline bg-oat-elevated p-8" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <div className="mb-8 text-center">
+              <h1 className="mb-2 text-2xl font-semibold tracking-tight text-charcoal-ink">
+                Sign in to OKUVU
+              </h1>
+              <p className="text-base leading-relaxed text-ink-soft">
+                Use your Google account registered with OKUVU.
               </p>
             </div>
-          )}
 
-          {errorMessage && (
-            <div
-              className="mb-4 rounded-lg border-l-4 p-3 px-4"
-              style={{
-                backgroundColor: '#FDF2F1',
-                borderLeftColor: '#C0392B',
-              }}
+            {isUnauthorized && (
+              <div className="mb-4 rounded-lg border-l-4 border-danger bg-danger-tint p-3 px-4">
+                <p className="text-sm text-danger">
+                  Your account is not yet set up on OKUVU. Please contact your administrator.
+                </p>
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="mb-4 rounded-lg border-l-4 border-danger bg-danger-tint p-3 px-4">
+                <p className="text-sm text-danger">
+                  {errorMessage}
+                </p>
+              </div>
+            )}
+
+            <button
+              onClick={() => signIn('google')}
+              className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#bec9c4] bg-white px-4 py-3 transition-colors hover:bg-[#f2f4f6]"
             >
-              <p className="text-sm" style={{ color: '#C0392B' }}>
-                {errorMessage}
-              </p>
-            </div>
-          )}
-
-          <button
-            onClick={() => signIn('google')}
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#bec9c4] bg-white px-4 py-3 transition-colors hover:bg-[#f2f4f6]"
-          >
             <svg viewBox="0 0 24 24" width="20" height="20">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -104,13 +100,14 @@ function AuthContent() {
                 fill="#EA4335"
               />
             </svg>
-            <span className="text-sm font-medium text-[#191c1e]">Continue with Google</span>
+            <span className="text-sm font-medium text-charcoal-ink">Continue with Google</span>
           </button>
 
-          <div className="mt-8 border-t border-[#DDE2E8] pt-6">
-            <p className="text-center text-xs text-[#6f7975]">
-              Access is restricted to registered OKUVU therapists.
-            </p>
+            <div className="mt-8 border-t border-hairline pt-6">
+              <p className="text-center text-xs text-ink-soft">
+                Access is restricted to registered OKUVU therapists.
+              </p>
+            </div>
           </div>
         </div>
       </div>

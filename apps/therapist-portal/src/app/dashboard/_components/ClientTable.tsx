@@ -21,7 +21,7 @@ function formatLastSession(iso: string | null): string {
 }
 
 const CARE_PLAN_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  CP1: { label: 'Anxiety & Worry', bg: 'bg-[#E8F5EE]', text: 'text-[#2D8A5E]' },
+  CP1: { label: 'Anxiety & Worry', bg: 'bg-sage-tint', text: 'text-sage-deep' },
   CP2: { label: 'Low Mood', bg: 'bg-[#EEF2FF]', text: 'text-[#4B6BFF]' },
   CP3: { label: 'Stress & Burnout', bg: 'bg-[#FEF9E7]', text: 'text-[#B7950B]' },
 };
@@ -37,8 +37,8 @@ function CarePlanBadge({ carePlanId }: { carePlanId: string }) {
 }
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  provisional: { label: 'Provisional', bg: 'bg-[#FEF3E2]', text: 'text-[#E8A020]' },
-  confirmed: { label: 'Confirmed', bg: 'bg-[#E8F5EE]', text: 'text-[#2D8A5E]' },
+  provisional: { label: 'Provisional', bg: 'bg-honey-tint', text: 'text-honey-deep' },
+  confirmed: { label: 'Confirmed', bg: 'bg-sage-tint', text: 'text-sage-deep' },
 };
 
 function StatusBadge({ state }: { state: string }) {
@@ -54,9 +54,9 @@ function StatusBadge({ state }: { state: string }) {
 // wireframes C-07 — invite/relationship lifecycle. Kept visually distinct
 // from StatusBadge (care-plan assignment_state) above; different concept.
 const LIFECYCLE_STYLES: Record<ClientLifecycleStatus, { label: string; bg: string; text: string }> = {
-  pending: { label: 'Pending', bg: 'bg-[#FEF3E2]', text: 'text-[#E8A020]' },
-  active: { label: 'Active', bg: 'bg-[#E8F5EE]', text: 'text-[#2D8A5E]' },
-  ended: { label: 'Ended', bg: 'bg-[#F4F6F8]', text: 'text-[#6f7975]' },
+  pending: { label: 'Pending', bg: 'bg-honey-tint', text: 'text-honey-deep' },
+  active: { label: 'Active', bg: 'bg-sage-tint', text: 'text-sage-deep' },
+  ended: { label: 'Ended', bg: 'bg-oat', text: 'text-ink-soft' },
 };
 
 function LifecycleStatusBadge({ status }: { status: ClientLifecycleStatus }) {
@@ -78,21 +78,21 @@ function SafetyIndicator({
   if (isReviewRequired) {
     return (
       <div className="inline-flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-[#C0392B]" />
-        <span className="text-[11px] font-bold text-[#C0392B]">Review required</span>
+        <div className="h-2 w-2 rounded-full bg-danger" />
+        <span className="text-[11px] font-bold text-danger">Review required</span>
       </div>
     );
   }
 
   if (state === 'S2') {
-    return <div className="mx-auto h-2 w-2 rounded-full bg-[#E8A020]" />;
+    return <div className="mx-auto h-2 w-2 rounded-full bg-honey-deep" />;
   }
 
   if (state === 'S3' || state === 'S4') {
     return (
       <div className="inline-flex items-center gap-1.5">
-        <div className="h-2 w-2 rounded-full bg-[#C0392B]" />
-        <span className="text-[11px] font-bold text-[#C0392B]">Review</span>
+        <div className="h-2 w-2 rounded-full bg-danger" />
+        <span className="text-[11px] font-bold text-danger">Review</span>
       </div>
     );
   }
@@ -108,7 +108,7 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
 
   if (clients.length === 0) {
     return (
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <section className="overflow-hidden rounded-xl border border-hairline bg-oat-elevated shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="border-b border-gray-100 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Active clients</h2>
         </div>
@@ -121,7 +121,7 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+    <section className="overflow-hidden rounded-xl border border-hairline bg-oat-elevated shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
       <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
         <h2 className="text-lg font-semibold text-gray-900">Active clients</h2>
       </div>
@@ -160,10 +160,10 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                   key={client.id}
                   className={`border-b border-gray-100 transition-colors last:border-b-0 ${
                     isSafetyReview
-                      ? 'border-l-[3px] border-l-[#C0392B] bg-[#FDF2F1] hover:bg-[#FDF2F1]'
+                      ? 'border-l-[3px] border-l-danger bg-danger-tint hover:bg-danger-tint'
                       : index % 2 === 0
-                        ? 'bg-white hover:bg-[#F0F7F4]'
-                        : 'bg-[#F9FAFB] hover:bg-[#F0F7F4]'
+                        ? 'bg-white hover:bg-lavender-wash'
+                        : 'bg-lavender-wash hover:bg-lavender-wash'
                   }`}
                 >
                   <td className="px-6 py-3.5 text-sm font-medium text-gray-900">
@@ -208,14 +208,14 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                               endClient.mutate({ clientUserId: client.id });
                             }
                           }}
-                          className="text-sm font-medium text-[#C0392B] hover:underline disabled:opacity-60"
+                          className="text-sm font-medium text-danger hover:underline disabled:opacity-60"
                         >
                           End
                         </button>
                       )}
                       <Link
                         href={`/clients/${client.id}`}
-                        className="text-sm font-medium text-[#1A6B5A] hover:underline"
+                        className="text-sm font-medium text-violet hover:underline"
                       >
                         View &rarr;
                       </Link>

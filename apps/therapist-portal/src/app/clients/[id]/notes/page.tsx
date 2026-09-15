@@ -82,16 +82,16 @@ export default function ClientNotesPage() {
   const clientLabel = formatClientLabel(clientId);
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8]">
+    <div className="min-h-screen bg-oat">
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-[#1A6B5A] transition-colors">
+            <Link href="/dashboard" className="hover:text-violet transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-[#1A6B5A] transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
@@ -101,7 +101,7 @@ export default function ClientNotesPage() {
           <TabStrip clientId={clientId} active="notes" />
 
           {/* Privacy notice */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
             <h1 className="text-lg font-semibold text-gray-900">Session Notes</h1>
             <div className="mt-3 rounded-lg bg-blue-50 p-3 text-xs text-blue-800 leading-relaxed">
               <strong>Privacy notice:</strong> Session notes are for your reference only. They
@@ -113,7 +113,7 @@ export default function ClientNotesPage() {
           </div>
 
           {/* Notes list */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               NOTE HISTORY
             </h2>
@@ -125,7 +125,7 @@ export default function ClientNotesPage() {
                 ))}
               </div>
             ) : notesQuery.isError ? (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-danger">
                 Could not load notes. Please refresh and try again.
               </p>
             ) : notesQuery.data && notesQuery.data.length > 0 ? (
@@ -163,7 +163,7 @@ export default function ClientNotesPage() {
           </div>
 
           {/* Add note form */}
-          <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               ADD A NOTE
             </h2>
@@ -183,12 +183,12 @@ export default function ClientNotesPage() {
                 rows={5}
                 placeholder="Enter your session notes here..."
                 disabled={addNote.isPending}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#1A6B5A] focus:ring-1 focus:ring-[#1A6B5A] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
                 disabled={addNote.isPending || !noteText.trim()}
-                className="mt-3 w-full rounded-lg bg-[#1A6B5A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#005243] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-3 w-full rounded-lg bg-violet px-4 py-2.5 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {addNote.isPending ? 'Saving...' : 'Save note'}
               </button>
@@ -198,7 +198,7 @@ export default function ClientNotesPage() {
               <p
                 role="alert"
                 aria-live="assertive"
-                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
+                className="mt-4 rounded-lg bg-danger-tint p-3 text-sm text-danger text-center"
               >
                 {validationError}
               </p>
@@ -207,7 +207,7 @@ export default function ClientNotesPage() {
               <p
                 role="status"
                 aria-live="polite"
-                className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800 text-center"
+                className="mt-4 rounded-lg bg-sage-tint p-3 text-sm text-sage-deep text-center"
               >
                 {successMessage}
               </p>
@@ -216,7 +216,7 @@ export default function ClientNotesPage() {
               <p
                 role="alert"
                 aria-live="assertive"
-                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 text-center"
+                className="mt-4 rounded-lg bg-danger-tint p-3 text-sm text-danger text-center"
               >
                 {errorMessage}
               </p>

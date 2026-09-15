@@ -51,14 +51,14 @@ export function ScheduleContent() {
       </header>
 
       <div className="mx-auto max-w-3xl space-y-4">
-        <section className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+        <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
             {formatDayHeading(from)}
           </h2>
           {isLoading ? (
             <div className="h-16 rounded-lg bg-gray-100 animate-pulse" />
           ) : isError ? (
-            <p role="alert" className="text-sm text-red-600">Could not load today&rsquo;s sessions.</p>
+            <p role="alert" className="text-sm text-danger">Could not load today&rsquo;s sessions.</p>
           ) : todayAppointments.length === 0 ? (
             <p className="text-sm text-gray-400 italic">No sessions scheduled today.</p>
           ) : (
@@ -67,7 +67,7 @@ export function ScheduleContent() {
                 <Link
                   key={a.id}
                   href={`/clients/${a.clientUserId}`}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 hover:bg-[#F0F7F4] transition-colors"
+                  className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 hover:bg-lavender-wash transition-colors"
                 >
                   <div>
                     <p className="text-sm font-medium text-gray-900">{maskPhone(a.clientPhoneNumber)}</p>
@@ -75,14 +75,14 @@ export function ScheduleContent() {
                       {formatTime(a.scheduledAt)} &middot; {MODE_LABELS[a.mode] ?? a.mode} &middot; {a.durationMinutes} min
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-[#1A6B5A]">View &rarr;</span>
+                  <span className="text-xs font-medium text-violet">View &rarr;</span>
                 </Link>
               ))}
             </div>
           )}
         </section>
 
-        <section className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
+        <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">Upcoming</h2>
           {isLoading ? (
             <div className="h-16 rounded-lg bg-gray-100 animate-pulse" />
@@ -94,7 +94,7 @@ export function ScheduleContent() {
                 <Link
                   key={a.id}
                   href={`/clients/${a.clientUserId}`}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 hover:bg-[#F0F7F4] transition-colors"
+                  className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 hover:bg-lavender-wash transition-colors"
                 >
                   <div>
                     <p className="text-sm font-medium text-gray-900">{maskPhone(a.clientPhoneNumber)}</p>
@@ -103,7 +103,7 @@ export function ScheduleContent() {
                       {MODE_LABELS[a.mode] ?? a.mode}
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-[#1A6B5A]">View &rarr;</span>
+                  <span className="text-xs font-medium text-violet">View &rarr;</span>
                 </Link>
               ))}
             </div>
