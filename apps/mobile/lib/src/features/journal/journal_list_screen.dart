@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'journal_entry.dart';
 import 'journal_provider.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 class JournalListScreen extends ConsumerWidget {
   const JournalListScreen({super.key});
@@ -20,10 +23,10 @@ class JournalListScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/home'),
           ),
-          title: const Text('Journal'),
+          title: const OkuvuAppBarTitle('Journal'),
         ),
         body: entriesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -33,7 +36,7 @@ class JournalListScreen extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, size: 48),
+                  const Icon(LucideIcons.alertCircle, size: 48),
                   const SizedBox(height: 12),
                   Text(
                     'Failed to load entries.',
@@ -57,7 +60,7 @@ class JournalListScreen extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.book_outlined,
+                        LucideIcons.book,
                         size: 48,
                         color: theme.colorScheme.onSurfaceVariant.withAlpha(128),
                       ),
@@ -150,7 +153,7 @@ class _JournalEntryCardState extends State<_JournalEntryCard> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: emotionColors[entry.emotion] ?? const Color(0xFFF4F6F8),
+                    color: emotionColors[entry.emotion] ?? AppColors.lavenderWash,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -163,14 +166,22 @@ class _JournalEntryCardState extends State<_JournalEntryCard> {
                 const SizedBox(width: 10),
                 Row(
                   children: List.generate(5, (index) {
+                    final isFilled = index < entry.intensity;
                     return Padding(
                       padding: const EdgeInsets.only(right: 3),
-                      child: Icon(
-                        index < entry.intensity
-                            ? Icons.circle
-                            : Icons.circle_outlined,
-                        size: 10,
-                        color: theme.colorScheme.primary,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isFilled ? theme.colorScheme.primary : null,
+                          border: isFilled
+                              ? null
+                              : Border.all(
+                                  color: theme.colorScheme.primary.withAlpha(128),
+                                  width: 1.5,
+                                ),
+                        ),
                       ),
                     );
                   }),

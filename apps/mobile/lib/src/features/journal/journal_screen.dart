@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 import 'journal_entry.dart';
 import 'journal_provider.dart';
+import '../home/widgets/home_bottom_nav.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
+import '../../core/providers.dart';
 
 class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
@@ -16,6 +23,13 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   final _textController = TextEditingController();
   bool _privacyNoticeDismissed = false;
   final _textFocusNode = FocusNode();
+
+  final _speech = stt.SpeechToText();
+  bool _isListening = false;
+  String _voiceBaseText = '';
+
+  String? _suggestedPrompt;
+  bool _isFetchingPrompt = false;
 
   @override
   void initState() {
@@ -34,9 +48,108 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
   @override
   void dispose() {
+    _speech.stop();
     _textController.dispose();
     _textFocusNode.dispose();
     super.dispose();
+  }
+
+  // J1 — talk-to-journal voice input. Transcribed text is appended to
+  // whatever was already in the field, updating both the controller (what's
+  // visibly rendered) and the form provider (what actually gets saved) —
+  // the same dual-state update the chat-handoff prefill above requires,
+  // since the TextField's controller is never provider-driven.
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+
+    final micStatus = await Permission.microphone.request();
+    if (!micStatus.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Microphone access is needed to talk instead of type.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if ((status == 'done' || status == 'notListening') && mounted) {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (_) {
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
+
+    if (!available) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Voice input isn't available on this device.")),
+        );
+      }
+      return;
+    }
+
+    _voiceBaseText = _textController.text;
+    if (mounted) setState(() => _isListening = true);
+
+    await _speech.listen(
+      onResult: (result) {
+        final transcript = result.recognizedWords;
+        final combined = _voiceBaseText.isEmpty || transcript.isEmpty
+            ? '$_voiceBaseText$transcript'
+            : '$_voiceBaseText $transcript';
+        _textController.value = TextEditingValue(
+          text: combined,
+          selection: TextSelection.collapsed(offset: combined.length),
+        );
+        ref.read(journalEntryFormProvider.notifier).setContent(combined);
+      },
+    );
+  }
+
+  // J2 — AI-generated writing prompt. Shown as a dismissible suggestion,
+  // never auto-filled into the field, so it can't silently overwrite
+  // something the user already typed.
+  Future<void> _fetchPrompt() async {
+    setState(() {
+      _isFetchingPrompt = true;
+      _suggestedPrompt = null;
+    });
+    try {
+      final response = await ref.read(dioClientProvider).post('/journal/prompt');
+      final prompt = response.data is Map ? response.data['prompt'] as String? : null;
+      if (mounted) {
+        setState(() {
+          _isFetchingPrompt = false;
+          _suggestedPrompt = prompt;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isFetchingPrompt = false);
+    }
+  }
+
+  void _usePrompt() {
+    final prompt = _suggestedPrompt;
+    if (prompt == null) return;
+    final combined = _textController.text.isEmpty
+        ? prompt
+        : '${_textController.text}\n\n$prompt ';
+    _textController.value = TextEditingValue(
+      text: combined,
+      selection: TextSelection.collapsed(offset: combined.length),
+    );
+    ref.read(journalEntryFormProvider.notifier).setContent(combined);
+    setState(() => _suggestedPrompt = null);
   }
 
   Future<void> _loadPrivacyNotice() async {
@@ -103,14 +216,15 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () {
               ref.read(journalEntryFormProvider.notifier).reset();
               context.go('/home');
             },
           ),
-          title: const Text('Journal'),
+          title: const OkuvuAppBarTitle('Journal'),
         ),
+        bottomNavigationBar: const HomeBottomNav(currentIndex: 2),
         body: GestureDetector(
           onTap: () => _textFocusNode.unfocus(),
           child: ListView(
@@ -125,7 +239,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.lock_outline, size: 16),
+                      const Icon(LucideIcons.lock, size: 16),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -134,7 +248,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close, size: 16),
+                        icon: const Icon(LucideIcons.x, size: 16),
                         onPressed: _dismissPrivacyNotice,
                       ),
                     ],
@@ -159,7 +273,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 runSpacing: 8,
                 children: journalEmotions.map((emotion) {
                   final isSelected = formState.emotion == emotion;
-                  final bgColor = emotionColors[emotion] ?? const Color(0xFFF4F6F8);
+                  final bgColor = emotionColors[emotion] ?? AppColors.lavenderWash;
 
                   return GestureDetector(
                     onTap: () => ref
@@ -205,27 +319,84 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                   final isFilled = dotIndex <= formState.intensity;
 
                   return GestureDetector(
+                    key: Key('intensityDot_$dotIndex'),
                     onTap: () => ref
                         .read(journalEntryFormProvider.notifier)
                         .setIntensity(dotIndex),
                     child: Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: Icon(
-                        isFilled ? Icons.circle : Icons.circle_outlined,
-                        size: 28,
-                        color: isFilled
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.outline.withAlpha(128),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isFilled ? theme.colorScheme.primary : null,
+                          border: isFilled
+                              ? null
+                              : Border.all(
+                                  color: theme.colorScheme.outline.withAlpha(128),
+                                  width: 2,
+                                ),
+                        ),
                       ),
                     ),
                   );
                 }),
               ),
               const SizedBox(height: 24),
-              Text(
-                "What's on your mind?",
-                style: theme.textTheme.titleMedium,
+              Row(
+                children: [
+                  Text(
+                    "What's on your mind?",
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: _isFetchingPrompt ? null : _fetchPrompt,
+                    icon: _isFetchingPrompt
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(LucideIcons.sparkles, size: 16),
+                    label: const Text('Get a prompt'),
+                  ),
+                ],
               ),
+              if (_suggestedPrompt != null) ...[
+                const SizedBox(height: 4),
+                Container(
+                  key: const ValueKey('journal_suggested_prompt'),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.lavenderTint,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _usePrompt,
+                          child: Text(
+                            _suggestedPrompt!,
+                            style: const TextStyle(
+                              color: AppColors.royalPurple,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(LucideIcons.x, size: 16),
+                        onPressed: () => setState(() => _suggestedPrompt = null),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _textController,
@@ -242,6 +413,15 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
+                  ),
+                  suffixIcon: IconButton(
+                    key: const ValueKey('journal_voice_input_button'),
+                    icon: Icon(
+                      _isListening ? LucideIcons.circleDot : LucideIcons.mic,
+                      color: _isListening ? theme.colorScheme.error : null,
+                    ),
+                    tooltip: _isListening ? 'Stop' : 'Talk instead of type',
+                    onPressed: _toggleListening,
                   ),
                 ),
               ),

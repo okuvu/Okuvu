@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OKUVU uses your microphone so you can talk instead of type when writing a journal entry.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>OKUVU converts your speech to text so you can talk instead of type when writing a journal entry.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

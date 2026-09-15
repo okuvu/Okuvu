@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import type { CreateJournalEntryBody } from '@okuvu/shared-types';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { generateJournalPrompt } from '../agents/journal-prompt/agent.js';
 
 const VALID_EMOTIONS = ['anxious', 'sad', 'angry', 'overwhelmed', 'numb', 'calm', 'hopeful', 'other'] as const;
 const INTENSITY_MIN = 1;
@@ -118,6 +119,31 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
           created_at: e.created_at.toISOString(),
         })),
       });
+    },
+  });
+
+  // J2 — AI-generated journal prompt, personalized from chat-derived
+  // UserMemory themes when available. See agents/journal-prompt/agent.ts
+  // for the fail-closed fallback behavior.
+  app.post('/journal/prompt', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true, user_memory: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      const prompt = await generateJournalPrompt(user.user_memory);
+
+      reply.send({ prompt });
     },
   });
 }

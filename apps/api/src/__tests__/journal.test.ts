@@ -15,6 +15,12 @@ vi.mock('../lib/prisma.js', () => ({
   },
 }));
 
+const mockGenerateJournalPrompt = vi.hoisted(() => vi.fn());
+
+vi.mock('../agents/journal-prompt/agent.js', () => ({
+  generateJournalPrompt: mockGenerateJournalPrompt,
+}));
+
 const MOCK_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
 
 async function importMocks() {
@@ -320,6 +326,77 @@ describe('POST /journal', () => {
         headers: { authorization: 'Bearer invalid-token' },
         payload: { emotion: 'calm', intensity: 1, content: 'Test' },
       });
+
+      expect(response.statusCode).toBe(401);
+      expect(response.json().error.code).toBe('UNAUTHORIZED');
+    });
+  });
+});
+
+describe('POST /journal/prompt', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  it('returns the generated prompt for a known user', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: MOCK_USER_ID,
+      user_memory: null,
+    } as any);
+    mockGenerateJournalPrompt.mockResolvedValue('What made today different?');
+    app = buildApp();
+
+    const response = await app.inject({ method: 'POST', url: '/journal/prompt' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ prompt: 'What made today different?' });
+    expect(mockGenerateJournalPrompt).toHaveBeenCalledWith(null);
+  });
+
+  it('passes the user_memory relation through to the agent', async () => {
+    const prisma = await importMocks();
+    const memory = { recurring_themes: ['work stress'], session_count: 2 };
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: MOCK_USER_ID,
+      user_memory: memory,
+    } as any);
+    mockGenerateJournalPrompt.mockResolvedValue('Reflect on your week.');
+    app = buildApp();
+
+    await app.inject({ method: 'POST', url: '/journal/prompt' });
+
+    expect(mockGenerateJournalPrompt).toHaveBeenCalledWith(memory);
+  });
+
+  it('returns 401 when firebase_uid has no User row', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    app = buildApp();
+
+    const response = await app.inject({ method: 'POST', url: '/journal/prompt' });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.code).toBe('UNAUTHORIZED');
+    expect(mockGenerateJournalPrompt).not.toHaveBeenCalled();
+  });
+
+  describe('auth — bypass disabled', () => {
+    beforeEach(() => {
+      delete process.env.LOCAL_DEV_BYPASS_AUTH;
+      app = buildApp();
+    });
+
+    it('returns 401 when no Authorization header', async () => {
+      const response = await app.inject({ method: 'POST', url: '/journal/prompt' });
 
       expect(response.statusCode).toBe(401);
       expect(response.json().error.code).toBe('UNAUTHORIZED');

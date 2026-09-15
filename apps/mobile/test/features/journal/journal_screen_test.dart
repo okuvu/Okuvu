@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -51,6 +52,17 @@ Widget _buildJournalApp({Dio? dio}) {
   );
 }
 
+bool _isDotFilled(WidgetTester tester, int dotIndex) {
+  final container = tester.widget<Container>(
+    find.descendant(
+      of: find.byKey(Key('intensityDot_$dotIndex')),
+      matching: find.byType(Container),
+    ),
+  );
+  final decoration = container.decoration! as BoxDecoration;
+  return decoration.color != null;
+}
+
 void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -61,7 +73,13 @@ void main() {
       await tester.pumpWidget(_buildJournalApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Journal'), findsOneWidget);
+      // "Journal" now also appears as the bottom-nav tab label (the
+      // persistent Home/Chat/Journal nav added to this screen) — scope to
+      // the AppBar specifically rather than matching either.
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Journal')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders How are you feeling? prompt', (tester) async {
@@ -91,9 +109,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('How strong is it?'), findsOneWidget);
-      // 5 circle icons (initially 1 filled + 4 outlined = 5 total)
-      expect(find.byIcon(Icons.circle), findsOneWidget);
-      expect(find.byIcon(Icons.circle_outlined), findsNWidgets(4));
+      // 5 intensity dots, initially intensity 1: dot 1 filled, dots 2-5 outlined
+      for (var i = 1; i <= 5; i++) {
+        expect(find.byKey(Key('intensityDot_$i')), findsOneWidget);
+      }
+      expect(_isDotFilled(tester, 1), isTrue);
+      expect(_isDotFilled(tester, 2), isFalse);
     });
 
     testWidgets('renders text area with placeholder', (tester) async {
@@ -107,8 +128,59 @@ void main() {
       );
     });
 
+    testWidgets('renders a mic button to talk instead of type (J1)', (tester) async {
+      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('journal_voice_input_button')),
+        findsOneWidget,
+      );
+      expect(find.byIcon(LucideIcons.mic), findsOneWidget);
+    });
+
+    testWidgets('Get a prompt fetches and shows a suggestion (J2)', (tester) async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            final data = options.path.contains('/journal/prompt')
+                ? {'prompt': 'What made today different?'}
+                : {'success': true, 'id': 'entry-1'};
+            handler.resolve(
+              Response(requestOptions: options, statusCode: 200, data: data),
+            );
+          },
+        ),
+      );
+
+      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Get a prompt'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('What made today different?'), findsOneWidget);
+
+      await tester.tap(find.text('What made today different?'));
+      await tester.pumpAndSettle();
+
+      final textField = tester.widget<TextField>(find.byType(TextField).last);
+      expect(textField.controller!.text, contains('What made today different?'));
+      expect(
+        find.byKey(const ValueKey('journal_suggested_prompt')),
+        findsNothing,
+      );
+    });
+
     testWidgets('renders Save and Cancel buttons', (tester) async {
       await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpAndSettle();
+
+      // The persistent bottom nav now added to this screen shrinks the
+      // ListView's viewport, so Save/Cancel (near the bottom of the form)
+      // are no longer within the initially-built extent — scroll to them.
+      await tester.scrollUntilVisible(find.text('Save'), 200, scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
 
       expect(find.text('Save'), findsOneWidget);
@@ -135,14 +207,13 @@ void main() {
       await tester.pumpWidget(_buildJournalApp());
       await tester.pumpAndSettle();
 
-      // Tap the first outlined dot (intensity goes from 1 to 2)
-      final circles = find.byIcon(Icons.circle_outlined);
-      await tester.tap(circles.first);
+      // Tap dot 4 (intensity goes from 1 to 4)
+      await tester.tap(find.byKey(const Key('intensityDot_4')));
       await tester.pump();
 
-      // After tapping, the number of filled circles should increase
-      // Initial: 1 filled, 4 outlined. After tapping dot 2 (0-indexed), should be 2 filled, 3 outlined
-      expect(find.byIcon(Icons.circle_outlined), findsNWidgets(3));
+      expect(_isDotFilled(tester, 1), isTrue);
+      expect(_isDotFilled(tester, 4), isTrue);
+      expect(_isDotFilled(tester, 5), isFalse);
     });
   });
 
@@ -164,7 +235,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Dismiss the notice
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byIcon(LucideIcons.x));
       await tester.pumpAndSettle();
 
       expect(
@@ -181,7 +252,7 @@ void main() {
       await tester.pumpWidget(_buildJournalApp());
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Cancel'));
+      await tester.scrollUntilVisible(find.text('Cancel'), 200, scrollable: find.byType(Scrollable).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'), warnIfMissed: false);
       await tester.pumpAndSettle();
