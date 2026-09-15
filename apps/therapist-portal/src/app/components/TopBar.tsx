@@ -32,8 +32,11 @@ export default function TopBar({
         {onMenuClick && (
           <button
             type="button"
+            id="mobile-nav-toggle"
             onClick={onMenuClick}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-nav-drawer"
             className="md:hidden -ml-1 p-1.5 rounded-lg text-lavender-tint hover:bg-white/10 transition-colors"
           >
             {menuOpen ? (

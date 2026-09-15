@@ -56,7 +56,7 @@ export function ConsentChip({ clientUserId, consent }: ConsentChipProps) {
           type="button"
           disabled={requestChatAccess.isPending || Boolean(consent.chatAccessRequestedAt) || justRequested}
           onClick={() => requestChatAccess.mutate({ clientUserId })}
-          className="ml-auto text-xs font-medium text-violet hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+          className="ml-auto text-xs font-medium text-royal-purple hover:underline disabled:cursor-not-allowed disabled:text-gray-500 disabled:no-underline"
         >
           {consent.chatAccessRequestedAt || justRequested ? 'Requested' : 'Request chat access'}
         </button>

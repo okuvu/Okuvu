@@ -63,7 +63,11 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
   const cancel = trpc.appointments.cancel.useMutation({ onSuccess: invalidate });
 
   if (isLoading) {
-    return <div className="h-24 rounded-xl bg-gray-100 animate-pulse" />;
+    return (
+      <div className="h-24 rounded-xl bg-gray-100 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">Loading appointments…</span>
+      </div>
+    );
   }
 
   const upcoming = data?.upcoming ?? [];
@@ -78,7 +82,7 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
           <button
             type="button"
             onClick={() => setMode({ kind: 'create' })}
-            className="text-sm font-medium text-violet hover:underline"
+            className="text-sm font-medium text-royal-purple hover:underline"
           >
             Schedule a session
           </button>
@@ -124,82 +128,87 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
       )}
 
       {upcoming.length === 0 && past.length === 0 && mode.kind !== 'create' ? (
-        <p className="text-sm text-gray-400 italic">No appointments scheduled yet.</p>
+        <p className="text-sm text-gray-500 italic">No appointments scheduled yet.</p>
       ) : (
-        <div className="space-y-4">
-          {upcoming.length > 0 && (
-            <div>
-              <p className="mb-1 text-xs font-medium text-gray-500">Upcoming</p>
-              <ul className="space-y-2">
-                {upcoming.map((a) =>
-                  mode.kind === 'reschedule' && mode.appointmentId === a.id ? (
-                    <li key={a.id}>
-                      <AppointmentForm
-                        initialValues={toFormPrefill(a)}
-                        submitLabel="Save & send to client"
-                        isSubmitting={reschedule.isPending}
-                        allowRepeat={false}
-                        onCancel={() => setMode({ kind: 'closed' })}
-                        onSubmit={(values) =>
-                          reschedule.mutate({
-                            appointmentId: a.id,
-                            clientUserId,
-                            scheduledAt: toIsoDateTime(values.date, values.time),
-                            durationMinutes: values.durationMinutes,
-                            mode: values.mode,
-                            location: values.location || undefined,
-                            noteToClient: values.noteToClient || undefined,
-                            remind24h: values.remind24h,
-                            remind1h: values.remind1h,
-                          })
-                        }
-                      />
-                    </li>
-                  ) : (
-                    <li key={a.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2">
-                      <span className="text-sm text-gray-700">
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors select-none">
+            {upcoming.length + past.length} appointment{upcoming.length + past.length === 1 ? '' : 's'} on file
+          </summary>
+          <div className="mt-3 space-y-4">
+            {upcoming.length > 0 && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-gray-500">Upcoming</p>
+                <ul className="space-y-2">
+                  {upcoming.map((a) =>
+                    mode.kind === 'reschedule' && mode.appointmentId === a.id ? (
+                      <li key={a.id}>
+                        <AppointmentForm
+                          initialValues={toFormPrefill(a)}
+                          submitLabel="Save & send to client"
+                          isSubmitting={reschedule.isPending}
+                          allowRepeat={false}
+                          onCancel={() => setMode({ kind: 'closed' })}
+                          onSubmit={(values) =>
+                            reschedule.mutate({
+                              appointmentId: a.id,
+                              clientUserId,
+                              scheduledAt: toIsoDateTime(values.date, values.time),
+                              durationMinutes: values.durationMinutes,
+                              mode: values.mode,
+                              location: values.location || undefined,
+                              noteToClient: values.noteToClient || undefined,
+                              remind24h: values.remind24h,
+                              remind1h: values.remind1h,
+                            })
+                          }
+                        />
+                      </li>
+                    ) : (
+                      <li key={a.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2">
+                        <span className="text-sm text-gray-700">
+                          {formatDateTime(a.scheduledAt)} &middot; {MODE_LABELS[a.mode] ?? a.mode}
+                        </span>
+                        <span className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setMode({ kind: 'reschedule', appointmentId: a.id })}
+                            className="text-xs font-medium text-royal-purple hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={cancel.isPending}
+                            onClick={() => cancel.mutate({ appointmentId: a.id, clientUserId })}
+                            className="text-xs font-medium text-danger hover:underline disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {past.length > 0 && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-gray-500">Earlier</p>
+                <ul className="space-y-1">
+                  {past.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm text-gray-500">
+                      <span>
                         {formatDateTime(a.scheduledAt)} &middot; {MODE_LABELS[a.mode] ?? a.mode}
                       </span>
-                      <span className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setMode({ kind: 'reschedule', appointmentId: a.id })}
-                          className="text-xs font-medium text-violet hover:underline"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          disabled={cancel.isPending}
-                          onClick={() => cancel.mutate({ appointmentId: a.id, clientUserId })}
-                          className="text-xs font-medium text-danger hover:underline disabled:opacity-60"
-                        >
-                          Cancel
-                        </button>
-                      </span>
+                      <span className="text-xs italic">{a.cancelledAt ? 'cancelled' : 'completed'}</span>
                     </li>
-                  ),
-                )}
-              </ul>
-            </div>
-          )}
-
-          {past.length > 0 && (
-            <div>
-              <p className="mb-1 text-xs font-medium text-gray-500">Earlier</p>
-              <ul className="space-y-1">
-                {past.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm text-gray-500">
-                    <span>
-                      {formatDateTime(a.scheduledAt)} &middot; {MODE_LABELS[a.mode] ?? a.mode}
-                    </span>
-                    <span className="text-xs italic">{a.cancelledAt ? 'cancelled' : 'completed'}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </details>
       )}
     </div>
   );

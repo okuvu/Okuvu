@@ -30,8 +30,9 @@ function AuthContent() {
     return (
       <main className="flex min-h-screen flex-col bg-oat">
         <TopBar showAvatar={false} />
-        <div className="flex flex-1 items-center justify-center p-4 md:p-8">
+        <div className="flex flex-1 items-center justify-center p-4 md:p-8" role="status" aria-live="polite" aria-busy="true">
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+          <span className="sr-only">Checking sign-in status…</span>
         </div>
       </main>
     );

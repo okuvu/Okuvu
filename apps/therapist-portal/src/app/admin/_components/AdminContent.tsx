@@ -13,6 +13,7 @@ function formatDate(iso: string): string {
 }
 
 export function AdminContent() {
+  const [section, setSection] = useState<'clients' | 'therapists'>('clients');
   const amIAdmin = trpc.admin.amIAdmin.useQuery();
   const therapistsQuery = trpc.admin.listTherapists.useQuery(undefined, {
     enabled: amIAdmin.data?.isAdmin === true,
@@ -76,7 +77,8 @@ export function AdminContent() {
 
   if (amIAdmin.isLoading) {
     return (
-      <main className="p-4 md:p-8">
+      <main className="p-4 md:p-8" role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">Loading…</span>
         <div className="mx-auto max-w-3xl animate-pulse space-y-4">
           <div className="h-8 w-56 rounded bg-gray-200" />
           <div className="h-40 rounded-xl bg-gray-200" />
@@ -109,6 +111,30 @@ export function AdminContent() {
         <p className="mt-1 text-gray-500">Onboard therapists and assign clients to their caseload.</p>
       </header>
 
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-4 inline-flex rounded-lg border border-hairline bg-oat-elevated p-1">
+          <button
+            type="button"
+            onClick={() => setSection('clients')}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              section === 'clients' ? 'bg-violet text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Clients
+          </button>
+          <button
+            type="button"
+            onClick={() => setSection('therapists')}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              section === 'therapists' ? 'bg-violet text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Therapists
+          </button>
+        </div>
+      </div>
+
+      {section === 'therapists' && (
       <div className="mx-auto max-w-3xl space-y-4">
         {/* Add therapist */}
         <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
@@ -175,9 +201,18 @@ export function AdminContent() {
             </p>
           )}
         </section>
+      </div>
+      )}
 
+      {section === 'clients' && (
+      <div className="mx-auto max-w-3xl space-y-4">
         {/* Invite a new client — wireframes C-01..C-06 */}
-        <AddClientWizard therapists={therapistsQuery.data ?? []} />
+        <div>
+          <p className="mb-2 text-xs font-medium text-gray-500">
+            New client &mdash; hasn&rsquo;t used the OKUVU app yet
+          </p>
+          <AddClientWizard therapists={therapistsQuery.data ?? []} />
+        </div>
 
         {/* Pending invites — wireframes C-07 "Resend" */}
         {pendingInvitesQuery.data && pendingInvitesQuery.data.length > 0 && (
@@ -198,7 +233,7 @@ export function AdminContent() {
                     type="button"
                     disabled={resendInvite.isPending}
                     onClick={() => resendInvite.mutate({ clientUserId: p.clientUserId, therapistId: p.therapistId })}
-                    className="text-sm font-medium text-violet hover:underline disabled:opacity-60"
+                    className="text-sm font-medium text-royal-purple hover:underline disabled:opacity-60"
                   >
                     Resend
                   </button>
@@ -218,9 +253,9 @@ export function AdminContent() {
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
             Add client
           </h2>
-          <p className="text-xs text-gray-400 mb-4">
-            Assigns an existing client (signed up via the app) to a therapist, and optionally
-            records consent + language preference at the same time.
+          <p className="text-xs text-gray-500 mb-4">
+            Client already has the app &mdash; assigns an existing client (signed up via the app)
+            to a therapist, and optionally records consent + language preference at the same time.
           </p>
           <form
             onSubmit={(e) => {
@@ -298,7 +333,7 @@ export function AdminContent() {
                 checked={assignChatAccessGranted}
                 onChange={(e) => setAssignChatAccessGranted(e.target.checked)}
                 disabled={assignClient.isPending}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-violet focus:ring-violet disabled:opacity-60"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-royal-purple focus:ring-violet disabled:opacity-60"
               />
               <label htmlFor="assign-consent" className="text-xs text-gray-600">
                 Client has given permission for their therapist to view raw chat content
@@ -327,14 +362,19 @@ export function AdminContent() {
             </p>
           )}
         </section>
+      </div>
+      )}
 
+      {section === 'therapists' && (
+      <div className="mx-auto max-w-3xl space-y-4">
         {/* Therapist roster */}
         <section className="overflow-hidden rounded-xl border border-hairline bg-oat-elevated shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
           <div className="border-b border-gray-100 px-6 py-4">
             <h2 className="text-lg font-semibold text-gray-900">Therapists</h2>
           </div>
           {therapistsQuery.isLoading ? (
-            <div className="space-y-0">
+            <div className="space-y-0" role="status" aria-live="polite" aria-busy="true">
+              <span className="sr-only">Loading therapists…</span>
               {[0, 1, 2].map((i) => (
                 <div key={i} className="h-14 animate-pulse border-b border-gray-100 bg-gray-50 px-6" />
               ))}
@@ -346,11 +386,12 @@ export function AdminContent() {
           ) : therapistsQuery.data && therapistsQuery.data.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
+                <caption className="sr-only">Therapists, their client count, and the date each was added.</caption>
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Therapist</th>
-                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Clients</th>
-                    <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Added</th>
+                    <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Therapist</th>
+                    <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Clients</th>
+                    <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">Added</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -370,11 +411,12 @@ export function AdminContent() {
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <p className="text-base italic text-gray-500">No therapists yet.</p>
-              <p className="mt-1 text-sm text-gray-400">Add one above to get started.</p>
+              <p className="mt-1 text-sm text-gray-500">Add one above to get started.</p>
             </div>
           )}
         </section>
       </div>
+      )}
     </main>
   );
 }

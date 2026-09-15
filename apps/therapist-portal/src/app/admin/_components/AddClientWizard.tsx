@@ -105,7 +105,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
               Invite a new client
             </h2>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500">
               Creates a brand-new client and sends them an invite code (email, and a code to share manually).
             </p>
           </div>
@@ -132,7 +132,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
               : "Email wasn't sent (no email provider configured) — share the code below manually."}
           </p>
           <div className="flex items-center gap-2">
-            <code className="rounded bg-oat-elevated px-3 py-1.5 text-lg font-bold tracking-widest text-violet border border-hairline">
+            <code className="rounded bg-oat-elevated px-3 py-1.5 text-lg font-bold tracking-widest text-royal-purple border border-hairline">
               {result.inviteCode}
             </code>
             <button
@@ -142,7 +142,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="text-xs font-medium text-violet hover:underline"
+              className="text-xs font-medium text-royal-purple hover:underline"
             >
               {copied ? 'Copied!' : 'Copy'}
             </button>
@@ -166,7 +166,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
     <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">Invite a new client</h2>
-        <span className="text-xs text-gray-400">Step {step} of 6</span>
+        <span className="text-xs text-gray-500">Step {step} of 6</span>
       </div>
 
       {error && (
@@ -177,10 +177,11 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
 
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400">Client OTPs on either phone or email. Both must exist.</p>
+          <p className="text-xs text-gray-500">Client OTPs on either phone or email. Both must exist.</p>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Assign to therapist</label>
+            <label htmlFor="wiz-therapist" className="mb-1 block text-xs font-medium text-gray-500">Assign to therapist</label>
             <select
+              id="wiz-therapist"
               value={state.therapistId}
               onChange={(e) => update('therapistId', e.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
@@ -192,8 +193,9 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Full name</label>
+            <label htmlFor="wiz-fullname" className="mb-1 block text-xs font-medium text-gray-500">Full name</label>
             <input
+              id="wiz-fullname"
               type="text"
               value={state.fullName}
               onChange={(e) => {
@@ -206,8 +208,9 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Phone</label>
+            <label htmlFor="wiz-phone" className="mb-1 block text-xs font-medium text-gray-500">Phone</label>
             <input
+              id="wiz-phone"
               type="tel"
               value={state.phoneNumber}
               onChange={(e) => update('phoneNumber', e.target.value)}
@@ -216,8 +219,9 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Email</label>
+            <label htmlFor="wiz-email" className="mb-1 block text-xs font-medium text-gray-500">Email</label>
             <input
+              id="wiz-email"
               type="email"
               value={state.email}
               onChange={(e) => update('email', e.target.value)}
@@ -229,11 +233,12 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
 
       {step === 2 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400">All optional — fill it now, later, or never.</p>
+          <p className="text-xs text-gray-500">All optional — fill it now, later, or never.</p>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-gray-500">Date of birth</label>
+              <label htmlFor="wiz-dob" className="mb-1 block text-xs font-medium text-gray-500">Date of birth</label>
               <input
+                id="wiz-dob"
                 type="date"
                 value={state.dateOfBirth}
                 onChange={(e) => update('dateOfBirth', e.target.value)}
@@ -241,8 +246,9 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
               />
             </div>
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-gray-500">Gender</label>
+              <label htmlFor="wiz-gender" className="mb-1 block text-xs font-medium text-gray-500">Gender</label>
               <input
+                id="wiz-gender"
                 type="text"
                 value={state.gender}
                 onChange={(e) => update('gender', e.target.value)}
@@ -251,13 +257,14 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             </div>
           </div>
           <div>
-            <p className="mb-1 text-xs font-medium text-gray-500">Presenting issues</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="mb-1 text-xs font-medium text-gray-500" id="wiz-issues-label">Presenting issues</p>
+            <div className="flex flex-wrap gap-2" role="group" aria-labelledby="wiz-issues-label">
               {ISSUE_OPTIONS.map((issue) => (
                 <button
                   key={issue}
                   type="button"
                   onClick={() => toggleIssue(issue)}
+                  aria-pressed={state.issues.includes(issue)}
                   className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                     state.issues.includes(issue)
                       ? 'bg-violet text-white border-violet'
@@ -274,7 +281,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
 
       {step === 3 && (
         <div className="space-y-2">
-          <p className="text-xs text-gray-400">This steers the AI in chat &mdash; the client never sees it.</p>
+          <p className="text-xs text-gray-500">This steers the AI in chat &mdash; the client never sees it.</p>
           {CARE_PLANS.map((plan) => (
             <label
               key={plan.id}
@@ -299,12 +306,13 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
 
       {step === 4 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400">This is the emotional core &mdash; renders on the client&rsquo;s welcome screen.</p>
+          <p className="text-xs text-gray-500">This is the emotional core &mdash; renders on the client&rsquo;s welcome screen.</p>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">
+            <label htmlFor="wiz-abbreviation" className="mb-1 block text-xs font-medium text-gray-500">
               What should we call them? (editable by the client later)
             </label>
             <input
+              id="wiz-abbreviation"
               type="text"
               value={state.displayAbbreviation}
               onChange={(e) => {
@@ -315,8 +323,9 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Welcome note (optional)</label>
+            <label htmlFor="wiz-welcome-note" className="mb-1 block text-xs font-medium text-gray-500">Welcome note (optional)</label>
             <textarea
+              id="wiz-welcome-note"
               value={state.welcomeNote}
               onChange={(e) => update('welcomeNote', e.target.value)}
               rows={3}
@@ -329,7 +338,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
 
       {step === 5 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             Set up later, from the client&rsquo;s Tools tab once they&rsquo;ve activated — recommended, so you can
             tailor it to how the first sessions go.
           </p>

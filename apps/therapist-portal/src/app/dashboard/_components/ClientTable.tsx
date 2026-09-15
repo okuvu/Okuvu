@@ -28,7 +28,7 @@ const CARE_PLAN_STYLES: Record<string, { label: string; bg: string; text: string
 
 function CarePlanBadge({ carePlanId }: { carePlanId: string }) {
   const plan = CARE_PLAN_STYLES[carePlanId];
-  if (!plan) return <span className="text-sm text-gray-400">\u2014</span>;
+  if (!plan) return <span className="text-sm text-gray-500">\u2014</span>;
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${plan.bg} ${plan.text}`}>
       {plan.label}
@@ -36,16 +36,23 @@ function CarePlanBadge({ carePlanId }: { carePlanId: string }) {
   );
 }
 
-const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  provisional: { label: 'Provisional', bg: 'bg-honey-tint', text: 'text-honey-deep' },
-  confirmed: { label: 'Confirmed', bg: 'bg-sage-tint', text: 'text-sage-deep' },
+const STATUS_STYLES: Record<string, { label: string; dot: string }> = {
+  provisional: { label: 'Provisional', dot: 'bg-honey-deep' },
+  confirmed: { label: 'Confirmed', dot: 'bg-sage-deep' },
 };
 
+// Deliberately lighter-weight than LifecycleStatusBadge below (a dot + text,
+// not a filled pill) — both used identical pill styling and overlapping
+// honey/sage colors in adjacent columns, which made "Care Plan Status" and
+// "Client Status" read as the same signal at a glance. Client Status is the
+// operationally important one (drives the End action + caseload triage), so
+// it keeps the pill; this one steps back.
 function StatusBadge({ state }: { state: string }) {
   const style = STATUS_STYLES[state];
   if (!style) return null;
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${style.bg} ${style.text}`}>
+    <span className="inline-flex items-center gap-1.5 text-sm text-gray-600">
+      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
       {style.label}
     </span>
   );
@@ -114,7 +121,7 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
         </div>
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <p className="text-base italic text-gray-500">No clients assigned yet.</p>
-          <p className="mt-1 text-sm text-gray-400">Clients assigned to you will appear here.</p>
+          <p className="mt-1 text-sm text-gray-500">Clients assigned to you will appear here.</p>
         </div>
       </section>
     );
@@ -127,27 +134,30 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
+          <caption className="sr-only">
+            Active clients: care plan, status, last session, and safety state for each client on your caseload.
+          </caption>
           <thead>
             <tr className="border-b border-gray-100">
-              <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Client
               </th>
-              <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Care Plan
               </th>
-              <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Care Plan Status
               </th>
-              <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Client Status
               </th>
-              <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <th scope="col" className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Last Session
               </th>
-              <th className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <th scope="col" className="px-6 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Safety
               </th>
-              <th className="px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              <th scope="col" className="px-6 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Actions
               </th>
             </tr>
@@ -175,14 +185,14 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                     {client.carePlan ? (
                       <CarePlanBadge carePlanId={client.carePlan.care_plan_id} />
                     ) : (
-                      <span className="text-sm text-gray-400">\u2014</span>
+                      <span className="text-sm text-gray-500">\u2014</span>
                     )}
                   </td>
                   <td className="px-6 py-3.5">
                     {client.carePlan ? (
                       <StatusBadge state={client.carePlan.assignment_state} />
                     ) : (
-                      <span className="text-sm text-gray-400">\u2014</span>
+                      <span className="text-sm text-gray-500">\u2014</span>
                     )}
                   </td>
                   <td className="px-6 py-3.5">
@@ -215,7 +225,7 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                       )}
                       <Link
                         href={`/clients/${client.id}`}
-                        className="text-sm font-medium text-violet hover:underline"
+                        className="text-sm font-medium text-royal-purple hover:underline"
                       >
                         View &rarr;
                       </Link>

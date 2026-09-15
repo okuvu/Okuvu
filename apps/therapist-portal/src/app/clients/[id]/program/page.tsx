@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { formatClientLabel } from '@/lib/format';
+import { TabStrip } from '../_components/TabStrip';
 
 const CARE_PLANS = [
   { id: 'CP1' as const, label: 'Anxiety & Worry (CP1)' },
@@ -105,7 +106,8 @@ export default function ProgramPage() {
 
   if (carePlanQuery.isLoading) {
     return (
-      <div className="p-4 md:p-8">
+      <div className="p-4 md:p-8" role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">Loading care plan…</span>
         <div className="mx-auto max-w-3xl animate-pulse space-y-4">
           <div className="h-6 w-48 rounded bg-gray-200" />
           <div className="h-40 rounded-xl bg-gray-200" />
@@ -136,16 +138,20 @@ export default function ProgramPage() {
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-violet transition-colors">
+            <Link href="/dashboard" className="hover:text-royal-purple transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-royal-purple transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
             <span className="text-gray-900 font-medium">Program OKUVU</span>
           </div>
+
+          <h1 className="sr-only">{clientLabel} — Care Plan</h1>
+
+          <TabStrip clientId={clientId} active="program" />
 
           {/* Current care plan */}
           <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">

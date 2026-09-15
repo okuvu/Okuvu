@@ -15,7 +15,8 @@ export function DashboardContent({ therapistName }: { therapistName: string }) {
 
   if (query.isLoading) {
     return (
-      <main className="p-4 md:p-8">
+      <main className="p-4 md:p-8" role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">Loading your caseload…</span>
         <div className="mb-8">
           <div className="h-8 w-80 animate-pulse rounded bg-gray-200" />
           <div className="mt-2 h-5 w-56 animate-pulse rounded bg-gray-200" />

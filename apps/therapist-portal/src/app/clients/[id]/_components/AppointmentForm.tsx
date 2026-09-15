@@ -64,8 +64,9 @@ export function AppointmentForm({
     >
       <div className="flex flex-col gap-3 md:flex-row">
         <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-gray-500">Date</label>
+          <label htmlFor="appt-date" className="mb-1 block text-xs font-medium text-gray-500">Date</label>
           <input
+            id="appt-date"
             type="date"
             required
             value={values.date}
@@ -75,8 +76,9 @@ export function AppointmentForm({
           />
         </div>
         <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-gray-500">Time</label>
+          <label htmlFor="appt-time" className="mb-1 block text-xs font-medium text-gray-500">Time</label>
           <input
+            id="appt-time"
             type="time"
             required
             value={values.time}
@@ -86,8 +88,9 @@ export function AppointmentForm({
           />
         </div>
         <div className="w-28">
-          <label className="mb-1 block text-xs font-medium text-gray-500">Duration (min)</label>
+          <label htmlFor="appt-duration" className="mb-1 block text-xs font-medium text-gray-500">Duration (min)</label>
           <input
+            id="appt-duration"
             type="number"
             min={5}
             step={5}
@@ -102,8 +105,9 @@ export function AppointmentForm({
 
       <div className="flex flex-col gap-3 md:flex-row">
         <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-gray-500">Mode</label>
+          <label htmlFor="appt-mode" className="mb-1 block text-xs font-medium text-gray-500">Mode</label>
           <select
+            id="appt-mode"
             value={values.mode}
             onChange={(e) => update('mode', e.target.value as AppointmentFormValues['mode'])}
             disabled={isSubmitting}
@@ -115,8 +119,9 @@ export function AppointmentForm({
           </select>
         </div>
         <div className="flex-1">
-          <label className="mb-1 block text-xs font-medium text-gray-500">Location / link (optional)</label>
+          <label htmlFor="appt-location" className="mb-1 block text-xs font-medium text-gray-500">Location / link (optional)</label>
           <input
+            id="appt-location"
             type="text"
             value={values.location}
             onChange={(e) => update('location', e.target.value)}
@@ -128,8 +133,9 @@ export function AppointmentForm({
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-500">Note to client (optional)</label>
+        <label htmlFor="appt-note" className="mb-1 block text-xs font-medium text-gray-500">Note to client (optional)</label>
         <textarea
+          id="appt-note"
           value={values.noteToClient}
           onChange={(e) => update('noteToClient', e.target.value)}
           disabled={isSubmitting}

@@ -89,11 +89,11 @@ export default function ClientRemindersPage() {
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-4">
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-violet transition-colors">
+            <Link href="/dashboard" className="hover:text-royal-purple transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-royal-purple transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
@@ -115,7 +115,8 @@ export default function ClientRemindersPage() {
               ACTIVE &amp; PAST REMINDERS
             </h2>
             {remindersQuery.isLoading ? (
-              <div className="space-y-3 animate-pulse">
+              <div className="space-y-3 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+                <span className="sr-only">Loading reminders…</span>
                 {[0, 1].map((i) => (
                   <div key={i} className="h-16 rounded-lg bg-gray-100" />
                 ))}
@@ -136,7 +137,7 @@ export default function ClientRemindersPage() {
                         {item.active ? 'Active' : 'Paused'}
                       </span>
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-gray-400">
+                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500">
                       <span>
                         {FREQUENCY_LABELS[item.frequency] ?? item.frequency}
                         {item.times.length > 0 ? ` · ${item.times.join(', ')}` : ''}
@@ -148,7 +149,7 @@ export default function ClientRemindersPage() {
                           setActive.mutate({ id: item.id, clientUserId: clientId, active: !item.active })
                         }
                         disabled={setActive.isPending}
-                        className="font-medium text-violet hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                        className="font-medium text-royal-purple hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {item.active ? 'Pause' : 'Resume'}
                       </button>
@@ -157,7 +158,7 @@ export default function ClientRemindersPage() {
                 ))}
               </div>
             ) : (
-              <p className="py-8 text-center text-sm text-gray-400 italic">No reminders yet.</p>
+              <p className="py-8 text-center text-sm text-gray-500 italic">No reminders yet.</p>
             )}
           </div>
 
@@ -166,7 +167,11 @@ export default function ClientRemindersPage() {
               NEW REMINDER
             </h2>
             <form onSubmit={handleSubmit} className="space-y-3">
+              <label htmlFor="reminder-note" className="sr-only">
+                Reminder note
+              </label>
               <textarea
+                id="reminder-note"
                 value={scheduleNote}
                 onChange={(e) => setScheduleNote(e.target.value)}
                 rows={3}
@@ -180,7 +185,7 @@ export default function ClientRemindersPage() {
                   <select
                     value={frequency}
                     onChange={(e) => handleFrequencyChange(e.target.value)}
-                    className="mt-1 block rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                    className="mt-1 block rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
                   >
                     {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -195,7 +200,7 @@ export default function ClientRemindersPage() {
                   <select
                     value={toolId}
                     onChange={(e) => setToolId(e.target.value)}
-                    className="mt-1 block rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                    className="mt-1 block rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
                   >
                     <option value="">None</option>
                     {toolsQuery.data?.map((tool) => (
@@ -210,17 +215,22 @@ export default function ClientRemindersPage() {
               {DAILY_FREQUENCIES.has(frequency) && (
                 <div className="flex flex-wrap gap-2">
                   {times.map((t, i) => (
-                    <input
-                      key={i}
-                      type="time"
-                      value={t}
-                      onChange={(e) => {
-                        const next = [...times];
-                        next[i] = e.target.value;
-                        setTimes(next);
-                      }}
-                      className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900"
-                    />
+                    <div key={i}>
+                      <label htmlFor={`reminder-time-${i}`} className="sr-only">
+                        Reminder time {i + 1}
+                      </label>
+                      <input
+                        id={`reminder-time-${i}`}
+                        type="time"
+                        value={t}
+                        onChange={(e) => {
+                          const next = [...times];
+                          next[i] = e.target.value;
+                          setTimes(next);
+                        }}
+                        className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
+                      />
+                    </div>
                   ))}
                 </div>
               )}

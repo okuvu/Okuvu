@@ -56,11 +56,13 @@ export function ScheduleContent() {
             {formatDayHeading(from)}
           </h2>
           {isLoading ? (
-            <div className="h-16 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-16 rounded-lg bg-gray-100 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+              <span className="sr-only">Loading today&rsquo;s sessions…</span>
+            </div>
           ) : isError ? (
             <p role="alert" className="text-sm text-danger">Could not load today&rsquo;s sessions.</p>
           ) : todayAppointments.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No sessions scheduled today.</p>
+            <p className="text-sm text-gray-500 italic">No sessions scheduled today.</p>
           ) : (
             <div className="space-y-2">
               {todayAppointments.map((a) => (
@@ -75,7 +77,7 @@ export function ScheduleContent() {
                       {formatTime(a.scheduledAt)} &middot; {MODE_LABELS[a.mode] ?? a.mode} &middot; {a.durationMinutes} min
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-violet">View &rarr;</span>
+                  <span className="text-xs font-medium text-royal-purple">View &rarr;</span>
                 </Link>
               ))}
             </div>
@@ -85,9 +87,11 @@ export function ScheduleContent() {
         <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">Upcoming</h2>
           {isLoading ? (
-            <div className="h-16 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-16 rounded-lg bg-gray-100 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+              <span className="sr-only">Loading upcoming sessions…</span>
+            </div>
           ) : upcomingAppointments.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">Nothing else scheduled in the next 14 days.</p>
+            <p className="text-sm text-gray-500 italic">Nothing else scheduled in the next 14 days.</p>
           ) : (
             <div className="space-y-2">
               {upcomingAppointments.map((a) => (
@@ -103,7 +107,7 @@ export function ScheduleContent() {
                       {MODE_LABELS[a.mode] ?? a.mode}
                     </p>
                   </div>
-                  <span className="text-xs font-medium text-violet">View &rarr;</span>
+                  <span className="text-xs font-medium text-royal-purple">View &rarr;</span>
                 </Link>
               ))}
             </div>

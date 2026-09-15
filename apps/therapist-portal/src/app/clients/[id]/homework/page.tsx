@@ -119,11 +119,11 @@ export default function ClientHomeworkPage() {
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-violet transition-colors">
+            <Link href="/dashboard" className="hover:text-royal-purple transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-royal-purple transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
@@ -148,7 +148,8 @@ export default function ClientHomeworkPage() {
             </h2>
 
             {homeworkQuery.isLoading ? (
-              <div className="space-y-3 animate-pulse">
+              <div className="space-y-3 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+                <span className="sr-only">Loading homework history…</span>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="h-20 rounded-lg bg-gray-100" />
                 ))}
@@ -171,7 +172,7 @@ export default function ClientHomeworkPage() {
                       <StatusBadge status={item.status as HomeworkStatus} />
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-500">
                         Assigned {formatHomeworkDate(item.assigned_at)}
                       </span>
                       {item.status === 'active' && (
@@ -181,7 +182,7 @@ export default function ClientHomeworkPage() {
                             markCompleted.mutate({ homeworkId: item.id, clientId })
                           }
                           disabled={markCompleted.isPending}
-                          className="text-xs font-medium text-violet hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                          className="text-xs font-medium text-royal-purple hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           Mark completed
                         </button>
@@ -192,8 +193,8 @@ export default function ClientHomeworkPage() {
               </div>
             ) : (
               <div className="py-8 text-center">
-                <p className="text-sm text-gray-400 italic">No homework assigned yet.</p>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="text-sm text-gray-500 italic">No homework assigned yet.</p>
+                <p className="mt-1 text-xs text-gray-500">
                   Homework you assign below will appear here.
                 </p>
               </div>

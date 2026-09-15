@@ -30,16 +30,18 @@ export default function ClientReportPage() {
       <div className="p-4 md:p-8">
         <div className="mx-auto max-w-3xl space-y-4">
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-violet transition-colors">
+            <Link href="/dashboard" className="hover:text-royal-purple transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-royal-purple transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
             <span className="text-gray-900 font-medium">Report</span>
           </div>
+
+          <h1 className="sr-only">{clientLabel} — Session Prep &amp; Report Card</h1>
 
           <TabStrip clientId={clientId} active="report" />
 
@@ -48,13 +50,14 @@ export default function ClientReportPage() {
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
               SESSION PREP
             </h2>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-500 mb-4">
               Digest of chat-thread summaries from the last 30 days — review before your next
               session.
             </p>
 
             {sessionPrepQuery.isLoading ? (
-              <div className="space-y-3 animate-pulse">
+              <div className="space-y-3 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+                <span className="sr-only">Loading session prep…</span>
                 <div className="h-16 rounded-lg bg-gray-100" />
                 <div className="h-16 rounded-lg bg-gray-100" />
               </div>
@@ -69,7 +72,7 @@ export default function ClientReportPage() {
               <div className="space-y-3">
                 {sessionPrepQuery.data.entries.map((entry) => (
                   <div key={entry.sessionId} className="rounded-lg bg-gray-50 p-4 border border-gray-100">
-                    <p className="text-xs text-gray-400 mb-1">{formatDate(entry.date)}</p>
+                    <p className="text-xs text-gray-500 mb-1">{formatDate(entry.date)}</p>
                     <p className="text-sm text-gray-700 leading-relaxed">
                       {entry.narrativeSummary ?? 'No narrative available.'}
                     </p>
@@ -85,7 +88,7 @@ export default function ClientReportPage() {
                 ))}
               </div>
             ) : (
-              <p className="py-6 text-center text-sm text-gray-400 italic">
+              <p className="py-6 text-center text-sm text-gray-500 italic">
                 No session summaries in the last 30 days.
               </p>
             )}
@@ -96,13 +99,15 @@ export default function ClientReportPage() {
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
               REPORT CARD
             </h2>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-500 mb-4">
               Homework progress and mood trend, permission-gated on the client&rsquo;s chat-access
               consent.
             </p>
 
             {reportCardQuery.isLoading ? (
-              <div className="h-24 rounded-lg bg-gray-100 animate-pulse" />
+              <div className="h-24 rounded-lg bg-gray-100 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+                <span className="sr-only">Loading report card…</span>
+              </div>
             ) : reportCardQuery.data && !reportCardQuery.data.granted ? (
               <div className="rounded-lg bg-honey-tint p-4 text-center">
                 <p className="text-sm text-honey-deep">Client hasn&rsquo;t granted chat access yet.</p>
@@ -176,7 +181,7 @@ export default function ClientReportPage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">No mood check-ins in the last 30 days.</p>
+                  <p className="text-sm text-gray-500 italic">No mood check-ins in the last 30 days.</p>
                 )}
               </div>
             ) : null}

@@ -17,6 +17,7 @@ import Link from 'next/link';
 const TABS = [
   { key: 'profile', label: 'Profile', href: (id: string) => `/clients/${id}` },
   { key: 'report', label: 'Session Prep & Report Card', href: (id: string) => `/clients/${id}/report` },
+  { key: 'program', label: 'Care Plan', href: (id: string) => `/clients/${id}/program` },
   { key: 'tools', label: 'Tools', href: (id: string) => `/clients/${id}/tools` },
   { key: 'notes', label: 'Notes', href: (id: string) => `/clients/${id}/notes` },
 ] as const;
@@ -35,7 +36,7 @@ export function TabStrip({ clientId, active }: { clientId: string; active: TabKe
               href={tab.href(clientId)}
               className={`px-3 py-3 text-sm font-medium border-b-2 transition-colors ${
                 isActive
-                  ? 'border-violet text-violet'
+                  ? 'border-violet text-royal-purple'
                   : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
               }`}
             >

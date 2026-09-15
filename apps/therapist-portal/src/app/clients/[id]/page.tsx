@@ -98,7 +98,7 @@ function SafetyIndicator({ state }: { state: SafetyState | null }) {
       </div>
     );
   }
-  return <span className="text-sm text-gray-400">None</span>;
+  return <span className="text-sm text-gray-500">None</span>;
 }
 
 export default function ClientDetailPage() {
@@ -112,7 +112,8 @@ export default function ClientDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 md:p-8">
+      <div className="p-4 md:p-8" role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">Loading client profile…</span>
         <div className="mx-auto max-w-3xl animate-pulse space-y-4">
           <div className="h-6 w-48 rounded bg-gray-200" />
           <div className="h-40 rounded-xl bg-gray-200" />
@@ -137,8 +138,6 @@ export default function ClientDetailPage() {
     );
   }
 
-  const isProvisional = data.carePlan?.assignment_state === 'provisional';
-  const isConfirmed = data.carePlan?.assignment_state === 'confirmed';
   const summaryStatus = data.summary?.status;
   const clientLabel = formatClientLabel(clientId);
 
@@ -148,12 +147,14 @@ export default function ClientDetailPage() {
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Header breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-violet transition-colors">
+            <Link href="/dashboard" className="hover:text-royal-purple transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
             <span className="text-gray-900 font-medium">{clientLabel}</span>
           </div>
+
+          <h1 className="sr-only">{clientLabel} — Profile</h1>
 
           <TabStrip clientId={clientId} active="profile" />
 
@@ -190,9 +191,9 @@ export default function ClientDetailPage() {
               </h2>
               <Link
                 href={`/clients/${clientId}/program`}
-                className="text-sm font-medium text-violet hover:underline"
+                className="text-sm font-medium text-royal-purple hover:underline"
               >
-                Manage &rarr;
+                View care plan &rarr;
               </Link>
             </div>
 
@@ -217,27 +218,6 @@ export default function ClientDetailPage() {
                     </span>
                   </div>
                 )}
-
-                {data.carePlan.assignment_state && (
-                  <details className="group">
-                    <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 transition-colors select-none">
-                      What does {data.carePlan.assignment_state} mean?
-                    </summary>
-                    {isProvisional && (
-                      <p className="mt-2 text-xs text-gray-500 leading-relaxed bg-honey-tint rounded-lg p-3">
-                        A provisional assignment means the system has suggested this care plan based on
-                        initial interactions, but it has not yet been reviewed and confirmed by a
-                        therapist. You should review the care plan and confirm it once you are satisfied.
-                      </p>
-                    )}
-                    {isConfirmed && (
-                      <p className="mt-2 text-xs text-gray-500 leading-relaxed bg-sage-tint rounded-lg p-3">
-                        A confirmed assignment means this care plan has been reviewed and set by a
-                        therapist. The system will not change it automatically.
-                      </p>
-                    )}
-                  </details>
-                )}
               </div>
             ) : (
               <p className="text-sm text-gray-500">No care plan assigned yet.</p>
@@ -245,11 +225,13 @@ export default function ClientDetailPage() {
           </div>
 
           {/* Reasoning note card */}
-          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
-              Clinical reasoning
-            </h2>
-            <p className="text-xs text-gray-400 italic mb-3">
+          <details className="group rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
+            <summary className="cursor-pointer select-none">
+              <h2 className="inline text-xs font-bold uppercase tracking-wider text-gray-500">
+                Clinical reasoning
+              </h2>
+            </summary>
+            <p className="text-xs text-gray-500 italic mb-3 mt-1">
               Therapist only &mdash; never shown to the client. This is the system&rsquo;s
               onboarding inference.
             </p>
@@ -261,7 +243,7 @@ export default function ClientDetailPage() {
                 onboarding if the system has enough data for an inference.
               </p>
             )}
-          </div>
+          </details>
 
           {/* Session summary card */}
           <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
@@ -274,13 +256,13 @@ export default function ClientDetailPage() {
                   {summaryNarrative(data.summary.summary_text)}
                 </p>
                 {data.summary.session_id && (
-                  <p className="mt-3 text-xs text-gray-400">
+                  <p className="mt-3 text-xs text-gray-500">
                     Session ID: {data.summary.session_id}
                   </p>
                 )}
                 <Link
                   href={`/clients/${clientId}/report`}
-                  className="mt-3 inline-block text-xs font-medium text-violet hover:underline"
+                  className="mt-3 inline-block text-xs font-medium text-royal-purple hover:underline"
                 >
                   View full Session Prep &rarr;
                 </Link>
@@ -296,7 +278,7 @@ export default function ClientDetailPage() {
                   No session summary available yet. Summaries are generated after each session.
                 </p>
                 {data.summary?.session_id && (
-                  <p className="mt-2 text-xs text-gray-400">
+                  <p className="mt-2 text-xs text-gray-500">
                     Last session: {formatDateTime(data.summary?.session_id)}
                   </p>
                 )}

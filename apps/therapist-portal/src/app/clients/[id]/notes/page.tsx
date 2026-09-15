@@ -87,11 +87,11 @@ export default function ClientNotesPage() {
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/dashboard" className="hover:text-violet transition-colors">
+            <Link href="/dashboard" className="hover:text-royal-purple transition-colors">
               Dashboard
             </Link>
             <span className="text-gray-300">/</span>
-            <Link href={`/clients/${clientId}`} className="hover:text-violet transition-colors">
+            <Link href={`/clients/${clientId}`} className="hover:text-royal-purple transition-colors">
               {clientLabel}
             </Link>
             <span className="text-gray-300">/</span>
@@ -119,7 +119,8 @@ export default function ClientNotesPage() {
             </h2>
 
             {notesQuery.isLoading ? (
-              <div className="space-y-3 animate-pulse">
+              <div className="space-y-3 animate-pulse" role="status" aria-live="polite" aria-busy="true">
+                <span className="sr-only">Loading note history…</span>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="h-20 rounded-lg bg-gray-100" />
                 ))}
@@ -140,7 +141,7 @@ export default function ClientNotesPage() {
                         {note.note_text}
                       </p>
                     </div>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+                    <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
                       <span>{formatNoteDate(note.created_at)}</span>
                       {note.therapist?.name && (
                         <>
@@ -154,8 +155,8 @@ export default function ClientNotesPage() {
               </div>
             ) : (
               <div className="py-8 text-center">
-                <p className="text-sm text-gray-400 italic">No notes yet.</p>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="text-sm text-gray-500 italic">No notes yet.</p>
+                <p className="mt-1 text-xs text-gray-500">
                   Notes you add below will appear here.
                 </p>
               </div>
