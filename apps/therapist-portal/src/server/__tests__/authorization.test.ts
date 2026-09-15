@@ -48,6 +48,13 @@ function buildPrisma(overrides: CtxOverrides = {}) {
     userMemory: { findUnique: vi.fn().mockResolvedValue(null) },
     moodLog: { findMany: vi.fn().mockResolvedValue([]) },
     clinicalAccessLog: { create: vi.fn().mockResolvedValue({}) },
+    appointment: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   } as unknown as PrismaClient;
 }
 

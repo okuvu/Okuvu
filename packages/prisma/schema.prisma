@@ -35,6 +35,7 @@ model User {
   access_logs         ClinicalAccessLog[] @relation("ClientToAccessLog")
   homeworks           Homework[]          @relation("ClientToHomework")
   reminders           Reminder[]
+  appointments        Appointment[]       @relation("ClientToAppointment")
 }
 
 model Therapist {
@@ -48,6 +49,7 @@ model Therapist {
   notes              TherapistNote[]     @relation("TherapistToNote")
   access_logs        ClinicalAccessLog[]
   homeworks_assigned Homework[]          @relation("TherapistToHomework")
+  appointments       Appointment[]       @relation("TherapistToAppointment")
 }
 
 model ClinicalConfig {
@@ -288,6 +290,38 @@ model ClinicalAccessLog {
 
   @@index([client_user_id, created_at(sort: Desc)])
   @@index([therapist_id, created_at(sort: Desc)])
+}
+
+/// Therapist-portal wireframes P-01..P-04. Distinct from SessionLog (a
+/// chat conversation) — this is a calendar appointment between a
+/// therapist and client. Repeat-weekly materializes N independent rows at
+/// creation time, not a recurrence-rule field. Reschedule creates a NEW
+/// row with rescheduled_from pointing back and sets the old row's
+/// cancelled_at (superseded, never deleted). Not gated on
+/// chat_access_granted — appointment logistics aren't raw chat content.
+/// remind_24h/remind_1h are stored but not acted on yet (no push/SMS
+/// infra exists anywhere — see okuvu-remaining-changes.md), matching the
+/// wireframe's own "infra incomplete" annotation.
+model Appointment {
+  id               String    @id @default(uuid())
+  therapist_id     String
+  client_user_id   String
+  scheduled_at     DateTime
+  duration_minutes Int       @default(50)
+  mode             String    // 'video' | 'phone' | 'in_person'
+  location         String?
+  note_to_client   String?
+  remind_24h       Boolean   @default(false)
+  remind_1h        Boolean   @default(false)
+  rescheduled_from String?
+  cancelled_at     DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  therapist        Therapist @relation("TherapistToAppointment", fields: [therapist_id], references: [id])
+  client           User      @relation("ClientToAppointment", fields: [client_user_id], references: [id])
+
+  @@index([therapist_id, scheduled_at])
+  @@index([client_user_id, scheduled_at])
 }
 
 model EmergencyContact {

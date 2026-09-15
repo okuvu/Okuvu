@@ -7,6 +7,7 @@ import { maskPhone, formatClientLabel } from '@/lib/format';
 import { SAFETY_LABELS, type AssignmentState, type SafetyState } from '@okuvu/shared-types';
 import { TabStrip } from './_components/TabStrip';
 import { ConsentChip } from './_components/ConsentChip';
+import { AppointmentsCard } from './_components/AppointmentsCard';
 
 const CARE_PLAN_NAMES: Record<string, string> = {
   CP1: 'Anxiety & Worry',
@@ -158,6 +159,9 @@ export default function ClientDetailPage() {
 
           {/* Consent chip — wireframes C-08 */}
           <ConsentChip clientUserId={clientId} consent={data.consent} />
+
+          {/* Appointments — wireframes P-02/P-03/P-04 */}
+          <AppointmentsCard clientUserId={clientId} />
 
           {/* Client overview card */}
           <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
