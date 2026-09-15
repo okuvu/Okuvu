@@ -208,6 +208,19 @@ model TherapistClient {
   /// client-facing consent UI). Field name matches
   /// docs/okuvu-v2.0/01-parity-audit-v1.md's own proposal.
   chat_access_granted Boolean @default(false)
+  /// Therapist-portal wireframes: set when the therapist clicks "Request
+  /// chat access" (clients.requestChatAccess). Cleared by the client's own
+  /// grant/deny via PATCH /users/me/chat-access. Null = never requested.
+  chat_access_requested_at DateTime?
+  /// Status lifecycle (wireframes C-07/C-08) is DERIVED, not stored, from
+  /// created_at/activated_at/ended_at — see clients.ts's deriveStatus() —
+  /// to avoid a redundant field that can drift from the timestamps.
+  /// Set the first time this client pulls GET /users/me/today or
+  /// /users/me/context after redeeming their invite (markClientActivatedIfNeeded).
+  activated_at   DateTime?
+  /// Set by clients.end — the therapist removing a client from their
+  /// roster. Never deletes the row; keeps full history.
+  ended_at       DateTime?
   client         User      @relation(fields: [client_user_id], references: [id])
   therapist      Therapist @relation(fields: [therapist_id], references: [id])
 

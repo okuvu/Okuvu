@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { formatClientLabel } from '@/lib/format';
+import { TabStrip } from '../_components/TabStrip';
 
 function formatNoteDate(iso: string | Date): string {
   const date = new Date(iso);
@@ -96,6 +97,8 @@ export default function ClientNotesPage() {
             <span className="text-gray-300">/</span>
             <span className="text-gray-900 font-medium">Session Notes</span>
           </div>
+
+          <TabStrip clientId={clientId} active="notes" />
 
           {/* Privacy notice */}
           <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 border-l-4 border-l-[#1A6B5A]">

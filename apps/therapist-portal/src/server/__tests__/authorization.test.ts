@@ -24,6 +24,7 @@ function buildPrisma(overrides: CtxOverrides = {}) {
     therapistClient: {
       findUnique: vi.fn().mockResolvedValue(therapistClient),
       findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockResolvedValue({}),
     },
     user: { findUnique: vi.fn().mockResolvedValue(user) },
     clinicalConfig: { findUnique: vi.fn(), upsert: vi.fn() },
@@ -244,6 +245,110 @@ describe('authorization: an assigned therapist can read their own client', () =>
     const result = await caller.clients.detail({ clientUserId: 'client_1' });
 
     expect(result.careReviewFlagged).toBe(false);
+  });
+
+  it('clients.detail surfaces the consent chip fields (therapist-portal wireframes C-08)', async () => {
+    const prisma = buildPrisma({
+      therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_requested_at: null },
+      user: {
+        id: 'client_1',
+        phone_number: '+911234567890',
+        clinical_config: null,
+        safety_state: null,
+        engagement_profile: { consent_1: true, consent_2: false },
+        session_summaries: [],
+      },
+    });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.detail({ clientUserId: 'client_1' });
+
+    expect(result.consent).toEqual({
+      safety: true,
+      mood: false,
+      chatAccess: true,
+      chatAccessRequestedAt: null,
+    });
+  });
+
+  it('clients.detail derives status from activated_at/ended_at (therapist-portal wireframes C-07)', async () => {
+    const prisma = buildPrisma({
+      therapistClient: { id: 'tc_1', activated_at: new Date('2026-09-01T00:00:00Z'), ended_at: null },
+      user: {
+        id: 'client_1',
+        phone_number: '+911234567890',
+        clinical_config: null,
+        safety_state: null,
+        session_summaries: [],
+      },
+    });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.detail({ clientUserId: 'client_1' });
+
+    expect(result.status).toBe('active');
+  });
+
+  it('clients.end throws FORBIDDEN for an unassigned client', async () => {
+    const caller = buildCaller();
+    await expect(
+      caller.clients.end({ clientUserId: UNASSIGNED_CLIENT_ID }),
+    ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('clients.end sets ended_at and logs END_CLIENT', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1' } });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.end({ clientUserId: 'client_1' });
+
+    expect(result).toEqual({ success: true });
+    expect(prisma.therapistClient.update).toHaveBeenCalledWith({
+      where: { therapist_id_client_user_id: { therapist_id: THERAPIST.id, client_user_id: 'client_1' } },
+      data: { ended_at: expect.any(Date) },
+    });
+    expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
+      data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'END_CLIENT' },
+    });
+  });
+
+  it('clients.requestChatAccess throws FORBIDDEN for an unassigned client', async () => {
+    const caller = buildCaller();
+    await expect(
+      caller.clients.requestChatAccess({ clientUserId: UNASSIGNED_CLIENT_ID }),
+    ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('clients.requestChatAccess sets chat_access_requested_at and logs REQUEST_CHAT_ACCESS', async () => {
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1' } });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.requestChatAccess({ clientUserId: 'client_1' });
+
+    expect(result).toEqual({ success: true });
+    expect(prisma.therapistClient.update).toHaveBeenCalledWith({
+      where: { therapist_id_client_user_id: { therapist_id: THERAPIST.id, client_user_id: 'client_1' } },
+      data: { chat_access_requested_at: expect.any(Date) },
+    });
+    expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
+      data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'REQUEST_CHAT_ACCESS' },
+    });
   });
 
   it('homework.listHomework succeeds and records a clinical access log entry', async () => {

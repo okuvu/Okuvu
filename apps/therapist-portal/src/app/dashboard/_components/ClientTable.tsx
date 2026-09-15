@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import type { ClientListItem, SafetyState } from '@okuvu/shared-types';
+import type { ClientListItem, ClientLifecycleStatus, SafetyState } from '@okuvu/shared-types';
 import { maskPhone } from '@/lib/format';
+import { trpc } from '@/trpc/client';
 
 function formatLastSession(iso: string | null): string {
   if (!iso) return '\u2014';
@@ -50,6 +51,23 @@ function StatusBadge({ state }: { state: string }) {
   );
 }
 
+// wireframes C-07 — invite/relationship lifecycle. Kept visually distinct
+// from StatusBadge (care-plan assignment_state) above; different concept.
+const LIFECYCLE_STYLES: Record<ClientLifecycleStatus, { label: string; bg: string; text: string }> = {
+  pending: { label: 'Pending', bg: 'bg-[#FEF3E2]', text: 'text-[#E8A020]' },
+  active: { label: 'Active', bg: 'bg-[#E8F5EE]', text: 'text-[#2D8A5E]' },
+  ended: { label: 'Ended', bg: 'bg-[#F4F6F8]', text: 'text-[#6f7975]' },
+};
+
+function LifecycleStatusBadge({ status }: { status: ClientLifecycleStatus }) {
+  const style = LIFECYCLE_STYLES[status];
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${style.bg} ${style.text}`}>
+      {style.label}
+    </span>
+  );
+}
+
 function SafetyIndicator({
   state,
   isReviewRequired,
@@ -83,6 +101,11 @@ function SafetyIndicator({
 }
 
 export function ClientTable({ clients }: { clients: ClientListItem[] }) {
+  const utils = trpc.useUtils();
+  const endClient = trpc.clients.end.useMutation({
+    onSuccess: () => utils.clients.list.invalidate(),
+  });
+
   if (clients.length === 0) {
     return (
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
@@ -113,7 +136,10 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                 Care Plan
               </th>
               <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
-                Status
+                Care Plan Status
+              </th>
+              <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                Client Status
               </th>
               <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Last Session
@@ -159,6 +185,9 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                       <span className="text-sm text-gray-400">\u2014</span>
                     )}
                   </td>
+                  <td className="px-6 py-3.5">
+                    <LifecycleStatusBadge status={client.status} />
+                  </td>
                   <td className="px-6 py-3.5 text-sm text-gray-500">
                     {formatLastSession(client.lastSessionDate)}
                   </td>
@@ -169,12 +198,28 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                     />
                   </td>
                   <td className="px-6 py-3.5 text-right">
-                    <Link
-                      href={`/clients/${client.id}`}
-                      className="text-sm font-medium text-[#1A6B5A] hover:underline"
-                    >
-                      View &rarr;
-                    </Link>
+                    <div className="flex items-center justify-end gap-3">
+                      {client.status === 'active' && (
+                        <button
+                          type="button"
+                          disabled={endClient.isPending}
+                          onClick={() => {
+                            if (window.confirm('End this client relationship? This cannot be undone from here.')) {
+                              endClient.mutate({ clientUserId: client.id });
+                            }
+                          }}
+                          className="text-sm font-medium text-[#C0392B] hover:underline disabled:opacity-60"
+                        >
+                          End
+                        </button>
+                      )}
+                      <Link
+                        href={`/clients/${client.id}`}
+                        className="text-sm font-medium text-[#1A6B5A] hover:underline"
+                      >
+                        View &rarr;
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               );

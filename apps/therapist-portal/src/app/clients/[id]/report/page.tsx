@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/trpc/client';
 import { formatClientLabel } from '@/lib/format';
+import { TabStrip } from '../_components/TabStrip';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -39,6 +40,8 @@ export default function ClientReportPage() {
             <span className="text-gray-300">/</span>
             <span className="text-gray-900 font-medium">Report</span>
           </div>
+
+          <TabStrip clientId={clientId} active="report" />
 
           {/* Session Prep */}
           <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">

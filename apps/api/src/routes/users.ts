@@ -3,6 +3,7 @@ import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { getQuoteOfDay } from '../lib/quote-of-day.js';
+import { markClientActivatedIfNeeded } from '../lib/client-activation.js';
 import type { UserConsent, CarePlanId, AssignmentState, TodayCard } from '@okuvu/shared-types';
 
 interface CarePlanBody {
@@ -11,6 +12,11 @@ interface CarePlanBody {
   confidence_at_last_eval: number;
   turns_evaluated: number;
   reasoning_note: string;
+}
+
+interface ChatAccessBody {
+  therapist_id: string;
+  granted: boolean;
 }
 
 const VALID_CARE_PLANS: CarePlanId[] = ['CP1', 'CP2', 'CP3'];
@@ -107,10 +113,26 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
+      await markClientActivatedIfNeeded(user.id);
+
       const reminders = await prisma.reminder.findMany({
         where: { user_id: user.id, active: true },
         include: { tool: { select: { label: true } } },
         orderBy: { created_at: 'desc' },
+      });
+
+      // Therapist-portal wireframes — "Request chat access": surface the
+      // most recent unanswered request, if any, so the mobile Home screen
+      // can show a Grant/Not-now banner. Cleared client-side via
+      // PATCH /users/me/chat-access.
+      const pendingRequest = await prisma.therapistClient.findFirst({
+        where: {
+          client_user_id: user.id,
+          chat_access_granted: false,
+          chat_access_requested_at: { not: null },
+        },
+        orderBy: { chat_access_requested_at: 'desc' },
+        select: { therapist_id: true, therapist: { select: { name: true } } },
       });
 
       const body: TodayCard = {
@@ -126,9 +148,70 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         quote: user.quote_of_day_enabled && user.clinical_config
           ? getQuoteOfDay(user.clinical_config.care_plan_id)
           : null,
+        pendingChatAccessRequest: pendingRequest
+          ? { therapistId: pendingRequest.therapist_id, therapistName: pendingRequest.therapist.name }
+          : null,
       };
 
       reply.send(body);
+    },
+  });
+
+  // Therapist-portal wireframes — the first-ever CLIENT-facing write path
+  // for chat_access_granted. Previously this field was portal-attestation-
+  // only (set once at Add-Client time by the therapist/admin). This lets
+  // the client actually grant or deny a therapist's "Request chat access"
+  // themselves, closing the consent-model gap flagged earlier this session.
+  app.patch<{ Body: ChatAccessBody }>('/users/me/chat-access', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body;
+
+      if (typeof body?.therapist_id !== 'string' || typeof body?.granted !== 'boolean') {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'therapist_id (string) and granted (boolean) are required' },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      const assignment = await prisma.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: body.therapist_id,
+            client_user_id: user.id,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (!assignment) {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'No such therapist relationship' },
+        });
+      }
+
+      await prisma.therapistClient.update({
+        where: { id: assignment.id },
+        data: { chat_access_granted: body.granted, chat_access_requested_at: null },
+      });
+
+      request.log.info(
+        { event: 'chat_access_updated', user_id: user.id, therapist_id: body.therapist_id, granted: body.granted },
+        'Client updated chat_access_granted',
+      );
+
+      reply.send({ success: true });
     },
   });
 

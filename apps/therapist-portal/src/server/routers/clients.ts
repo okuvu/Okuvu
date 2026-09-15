@@ -11,6 +11,20 @@ import {
 
 const CARE_PLANS = ["CP1", "CP2", "CP3"] as const;
 
+export type ClientStatus = "pending" | "active" | "ended";
+
+/**
+ * Therapist-portal wireframes (C-07/C-08): status is DERIVED from
+ * TherapistClient's timestamps, never stored as its own field, so it can
+ * never drift from them. ended_at wins over activated_at if somehow both
+ * are set (an ended client stays ended even if activation raced it).
+ */
+export function deriveClientStatus(row: { activated_at: Date | null; ended_at: Date | null }): ClientStatus {
+  if (row.ended_at) return "ended";
+  if (row.activated_at) return "active";
+  return "pending";
+}
+
 export const clientsRouter = router({
   list: therapistProcedure.query(async ({ ctx }) => {
     const db = ctx.db;
@@ -46,6 +60,10 @@ export const clientsRouter = router({
         null,
       safetyState:
         assignment.client.safety_state?.safety_state_current ?? null,
+      // wireframes C-07 — kept alongside carePlan.assignment_state, not
+      // conflated with it: this is the invite/relationship lifecycle,
+      // that's the care-plan-confidence state.
+      status: deriveClientStatus(assignment),
     }));
   }),
 
@@ -61,6 +79,8 @@ export const clientsRouter = router({
           safetyState: null,
           summary: { status: "not_available_yet" as const, summary_text: null, session_id: null },
           careReviewFlagged: false,
+          status: "pending" as const,
+          consent: { safety: false, mood: false, chatAccess: false, chatAccessRequestedAt: null as string | null },
         };
       }
 
@@ -82,7 +102,12 @@ export const clientsRouter = router({
             client_user_id: input.clientUserId,
           },
         },
-        select: { chat_access_granted: true },
+        select: {
+          chat_access_granted: true,
+          chat_access_requested_at: true,
+          activated_at: true,
+          ended_at: true,
+        },
       });
 
       const client = await db.user.findUnique({
@@ -90,6 +115,7 @@ export const clientsRouter = router({
         include: {
           clinical_config: true,
           safety_state: true,
+          engagement_profile: { select: { consent_1: true, consent_2: true } },
           session_summaries: {
             orderBy: { last_updated_at: "desc" },
             take: 1,
@@ -141,6 +167,17 @@ export const clientsRouter = router({
         careReviewFlagged: Boolean(
           assignment?.chat_access_granted && client.clinical_config?.care_plan_review_flagged,
         ),
+        status: assignment ? deriveClientStatus(assignment) : "pending",
+        // wireframes C-08 — the consent chip. safety/mood come from
+        // EngagementProfile (consent_1/consent_2 — see apps/api/src/routes
+        // /users.ts's POST /users/me/consent for the field mapping);
+        // chatAccess/chatAccessRequestedAt come from TherapistClient.
+        consent: {
+          safety: client.engagement_profile?.consent_1 ?? false,
+          mood: client.engagement_profile?.consent_2 ?? false,
+          chatAccess: assignment?.chat_access_granted ?? false,
+          chatAccessRequestedAt: assignment?.chat_access_requested_at?.toISOString() ?? null,
+        },
       };
     }),
 
@@ -202,5 +239,57 @@ export const clientsRouter = router({
         assignmentState: result.assignment_state,
         created_at: result.created_at.toISOString(),
       };
+    }),
+
+  // wireframes C-07 — therapist removes a client from their roster. Never
+  // deletes the TherapistClient row; sets ended_at so status derives to
+  // "ended" and the row (with full history) stays visible in the list.
+  end: therapistMutation
+    .input(z.object({ clientUserId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = ctx.db;
+      const therapistId = ctx.therapistId;
+
+      await assertClientAssigned(db, therapistId, input.clientUserId);
+      await logClinicalAccess(db, therapistId, input.clientUserId, "END_CLIENT");
+
+      await db.therapistClient.update({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapistId,
+            client_user_id: input.clientUserId,
+          },
+        },
+        data: { ended_at: new Date() },
+      });
+
+      return { success: true };
+    }),
+
+  // wireframes C-08 — "Request chat access." Only ever sets a timestamp
+  // the client can see; the actual grant/deny is the client's own action
+  // via PATCH /users/me/chat-access (apps/api/src/routes/users.ts) — the
+  // portal can indicate and request, never write chat_access_granted
+  // directly through this path.
+  requestChatAccess: therapistMutation
+    .input(z.object({ clientUserId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = ctx.db;
+      const therapistId = ctx.therapistId;
+
+      await assertClientAssigned(db, therapistId, input.clientUserId);
+      await logClinicalAccess(db, therapistId, input.clientUserId, "REQUEST_CHAT_ACCESS");
+
+      await db.therapistClient.update({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapistId,
+            client_user_id: input.clientUserId,
+          },
+        },
+        data: { chat_access_requested_at: new Date() },
+      });
+
+      return { success: true };
     }),
 });

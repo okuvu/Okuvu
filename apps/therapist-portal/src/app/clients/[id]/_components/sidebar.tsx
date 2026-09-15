@@ -3,17 +3,9 @@
 import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { usePathname, useParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { trpc } from '@/trpc/client';
 import { maskPhone } from '@/lib/format';
-
-const reportsIcon = (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="10" />
-    <line x1="12" y1="20" x2="12" y2="4" />
-    <line x1="6" y1="20" x2="6" y2="14" />
-  </svg>
-);
 
 const patientsIcon = (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -48,11 +40,9 @@ const disabledItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const params = useParams<{ id?: string }>();
   const { data: session } = useSession();
   const therapistName = session?.user?.name ?? 'Therapist';
   const isOnClientPage = pathname.startsWith('/clients/');
-  const currentClientId = isOnClientPage ? params?.id : undefined;
   const [isPatientsOpen, setIsPatientsOpen] = useState(true);
 
   const clientsQuery = trpc.clients.list.useQuery(undefined, {
@@ -175,32 +165,10 @@ export default function Sidebar() {
           </Link>
         )}
 
-        {currentClientId ? (
-          <Link
-            href={`/clients/${currentClientId}/report`}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              pathname === `/clients/${currentClientId}/report`
-                ? 'bg-[#1A6B5A] text-white'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-          >
-            <span className={pathname === `/clients/${currentClientId}/report` ? 'text-white' : 'text-gray-400'}>
-              {reportsIcon}
-            </span>
-            Reports
-          </Link>
-        ) : (
-          <div
-            role="link"
-            aria-disabled="true"
-            title="Open a client to view their report"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 cursor-not-allowed"
-          >
-            <span className="text-gray-300">{reportsIcon}</span>
-            Reports
-          </div>
-        )}
-
+        {/* wireframes: per-client navigation (Profile/Session Prep &
+            Report Card/Tools/Notes) now lives in TabStrip, rendered inside
+            each client page — this sidebar stays the cross-client picker +
+            global links only, per the plan. */}
         <div className="mt-0">
           {disabledItems.map((item) => (
             <div

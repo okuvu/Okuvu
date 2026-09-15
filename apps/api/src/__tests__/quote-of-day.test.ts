@@ -8,6 +8,12 @@ vi.mock('../lib/prisma.js', () => ({
   prisma: {
     user: { findUnique: vi.fn() },
     reminder: { findMany: vi.fn() },
+    therapistClient: {
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      findFirst: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
   },
 }));
 
@@ -103,5 +109,152 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     const response = await app.inject({ method: 'GET', url: '/users/me/today' });
 
     expect(response.json().quote).toBeNull();
+  });
+
+  it('marks activation for the calling client (Phase 1 status lifecycle)', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      quote_of_day_enabled: false,
+      homeworks: [],
+      clinical_config: null,
+    } as never);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+
+    await app.inject({ method: 'GET', url: '/users/me/today' });
+
+    expect(prisma.therapistClient.updateMany).toHaveBeenCalledWith({
+      where: { client_user_id: 'user-1', activated_at: null },
+      data: { activated_at: expect.any(Date) },
+    });
+  });
+
+  it('includes pendingChatAccessRequest when a therapist has an unanswered request', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      quote_of_day_enabled: false,
+      homeworks: [],
+      clinical_config: null,
+    } as never);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue({
+      therapist_id: 'th_1',
+      therapist: { name: 'Dr. Jane Doe' },
+    } as never);
+
+    const response = await app.inject({ method: 'GET', url: '/users/me/today' });
+
+    expect(response.json().pendingChatAccessRequest).toEqual({
+      therapistId: 'th_1',
+      therapistName: 'Dr. Jane Doe',
+    });
+  });
+
+  it('returns null pendingChatAccessRequest when there is none', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      quote_of_day_enabled: false,
+      homeworks: [],
+      clinical_config: null,
+    } as never);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue(null);
+
+    const response = await app.inject({ method: 'GET', url: '/users/me/today' });
+
+    expect(response.json().pendingChatAccessRequest).toBeNull();
+  });
+});
+
+describe('PATCH /users/me/chat-access (therapist-portal wireframes — client grants/denies)', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    app = buildApp();
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  it('grants access and clears the request timestamp', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(prisma.therapistClient.findUnique).mockResolvedValue({ id: 'tc_1' } as never);
+    vi.mocked(prisma.therapistClient.update).mockResolvedValue({} as never);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/users/me/chat-access',
+      payload: { therapist_id: 'th_1', granted: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(prisma.therapistClient.update).toHaveBeenCalledWith({
+      where: { id: 'tc_1' },
+      data: { chat_access_granted: true, chat_access_requested_at: null },
+    });
+  });
+
+  it('denies access when granted is false', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(prisma.therapistClient.findUnique).mockResolvedValue({ id: 'tc_1' } as never);
+    vi.mocked(prisma.therapistClient.update).mockResolvedValue({} as never);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/users/me/chat-access',
+      payload: { therapist_id: 'th_1', granted: false },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(prisma.therapistClient.update).toHaveBeenCalledWith({
+      where: { id: 'tc_1' },
+      data: { chat_access_granted: false, chat_access_requested_at: null },
+    });
+  });
+
+  it('rejects a missing/invalid body', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/users/me/chat-access',
+      payload: { therapist_id: 'th_1' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('INVALID_BODY');
+  });
+
+  it('returns 401 when the user does not exist', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/users/me/chat-access',
+      payload: { therapist_id: 'th_1', granted: true },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('returns 404 when the therapist relationship does not exist', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(prisma.therapistClient.findUnique).mockResolvedValue(null);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/users/me/chat-access',
+      payload: { therapist_id: 'th_stranger', granted: true },
+    });
+
+    expect(response.statusCode).toBe(404);
   });
 });

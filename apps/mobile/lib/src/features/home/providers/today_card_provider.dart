@@ -22,21 +22,38 @@ class TodayCardReminder {
   }
 }
 
+class PendingChatAccessRequest {
+  final String therapistId;
+  final String? therapistName;
+
+  const PendingChatAccessRequest({required this.therapistId, this.therapistName});
+
+  factory PendingChatAccessRequest.fromJson(Map<String, dynamic> json) {
+    return PendingChatAccessRequest(
+      therapistId: json['therapistId'] as String,
+      therapistName: json['therapistName'] as String?,
+    );
+  }
+}
+
 class TodayCardData {
   final String? homeworkId;
   final String? homework;
   final List<TodayCardReminder> reminders;
   final String? quote;
+  final PendingChatAccessRequest? pendingChatAccessRequest;
 
   const TodayCardData({
     required this.homeworkId,
     required this.homework,
     required this.reminders,
     required this.quote,
+    required this.pendingChatAccessRequest,
   });
 
   factory TodayCardData.fromJson(Map<String, dynamic> json) {
     final rawReminders = json['reminders'] as List<dynamic>? ?? [];
+    final rawPending = json['pendingChatAccessRequest'] as Map<String, dynamic>?;
     return TodayCardData(
       homeworkId: json['homeworkId'] as String?,
       homework: json['homework'] as String?,
@@ -46,6 +63,10 @@ class TodayCardData {
       // okuvu-remaining-changes.md O6: null unless the user opted in and has
       // a care plan assigned — see apps/api/src/lib/quote-of-day.ts.
       quote: json['quote'] as String?,
+      // therapist-portal wireframes C-08 — null unless a therapist has
+      // requested chat access and the client hasn't answered yet.
+      pendingChatAccessRequest:
+          rawPending != null ? PendingChatAccessRequest.fromJson(rawPending) : null,
     );
   }
 }
@@ -81,4 +102,30 @@ class HomeworkCompleteNotifier extends Notifier<void> {
 
 final homeworkCompleteProvider = NotifierProvider<HomeworkCompleteNotifier, void>(
   HomeworkCompleteNotifier.new,
+);
+
+/// PATCH /users/me/chat-access — therapist-portal wireframes C-08. The
+/// first-ever client-facing write path for chat_access_granted; previously
+/// only settable via the portal's own admin attestation.
+class ChatAccessRequestNotifier extends Notifier<void> {
+  @override
+  void build() {}
+
+  Future<bool> respond({required String therapistId, required bool granted}) async {
+    final dio = ref.read(dioClientProvider);
+    try {
+      await dio.patch(
+        '/users/me/chat-access',
+        data: {'therapist_id': therapistId, 'granted': granted},
+      );
+      ref.invalidate(todayCardProvider);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+final chatAccessRequestProvider = NotifierProvider<ChatAccessRequestNotifier, void>(
+  ChatAccessRequestNotifier.new,
 );

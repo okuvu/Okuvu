@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { trpc } from '@/trpc/client';
 import { maskPhone, formatClientLabel } from '@/lib/format';
 import { SAFETY_LABELS, type AssignmentState, type SafetyState } from '@okuvu/shared-types';
+import { TabStrip } from './_components/TabStrip';
+import { ConsentChip } from './_components/ConsentChip';
 
 const CARE_PLAN_NAMES: Record<string, string> = {
   CP1: 'Anxiety & Worry',
@@ -152,6 +154,11 @@ export default function ClientDetailPage() {
             <span className="text-gray-900 font-medium">{clientLabel}</span>
           </div>
 
+          <TabStrip clientId={clientId} active="profile" />
+
+          {/* Consent chip — wireframes C-08 */}
+          <ConsentChip clientUserId={clientId} consent={data.consent} />
+
           {/* Client overview card */}
           <div className="rounded-xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
@@ -293,57 +300,6 @@ export default function ClientDetailPage() {
             )}
           </div>
 
-          {/* Homework link */}
-          <Link
-            href={`/clients/${clientId}/homework`}
-            className="block rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 hover:shadow-md transition text-center"
-          >
-            <span className="text-sm font-medium text-[#1A6B5A]">
-              View and assign homework &rarr;
-            </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Assigned homework appears in the client&rsquo;s chat context.
-            </p>
-          </Link>
-
-          {/* Reminders link */}
-          <Link
-            href={`/clients/${clientId}/reminders`}
-            className="block rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 hover:shadow-md transition text-center"
-          >
-            <span className="text-sm font-medium text-[#1A6B5A]">
-              View and schedule reminders &rarr;
-            </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Reminders appear on the client&rsquo;s Today card in the app.
-            </p>
-          </Link>
-
-          {/* Session notes link */}
-          <Link
-            href={`/clients/${clientId}/notes`}
-            className="block rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 hover:shadow-md transition text-center"
-          >
-            <span className="text-sm font-medium text-[#1A6B5A]">
-              View and add session notes &rarr;
-            </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Notes are private and never read by the AI.
-            </p>
-          </Link>
-
-          {/* Report card link */}
-          <Link
-            href={`/clients/${clientId}/report`}
-            className="block rounded-xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-gray-200 hover:shadow-md transition text-center"
-          >
-            <span className="text-sm font-medium text-[#1A6B5A]">
-              Session Prep &amp; Report Card &rarr;
-            </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Digest of recent sessions plus homework/mood progress, permission-gated.
-            </p>
-          </Link>
         </div>
       </div>
     </div>

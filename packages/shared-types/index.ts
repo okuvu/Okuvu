@@ -288,12 +288,19 @@ export interface TodayCardReminder {
   toolLabel: string | null
 }
 
+export interface PendingChatAccessRequest {
+  therapistId: string
+  therapistName: string | null
+}
+
 export interface TodayCard {
   homeworkId: string | null
   homework: string | null
   reminders: TodayCardReminder[]
   /** okuvu-remaining-changes.md O6 — placeholder content, opt-in, care-plan-aware. Null when disabled or no care plan yet. */
   quote: string | null
+  /** Therapist-portal wireframes — set when a therapist has requested chat access and the client hasn't granted/denied yet. Null otherwise. */
+  pendingChatAccessRequest: PendingChatAccessRequest | null
 }
 
 export type ReminderFrequency = 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed'
@@ -322,12 +329,16 @@ export type ClientCarePlan = {
   assignment_state: AssignmentState
 }
 
+export type ClientLifecycleStatus = 'pending' | 'active' | 'ended'
+
 export interface ClientListItem {
   id: string
   phoneNumber: string
   carePlan: ClientCarePlan | null
   lastSessionDate: string | null
   safetyState: SafetyState | null
+  /** wireframes C-07 — invite/relationship lifecycle, distinct from carePlan.assignment_state. */
+  status: ClientLifecycleStatus
 }
 
 // ─── Journal Types ──────────────────────────────────────────────

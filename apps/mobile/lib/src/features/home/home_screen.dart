@@ -10,6 +10,7 @@ import 'widgets/mood_check_in.dart';
 import 'widgets/progress_summary.dart';
 import 'widgets/quick_access_tile.dart';
 import 'widgets/today_card.dart';
+import 'widgets/pending_chat_access_banner.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -78,6 +79,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          const PendingChatAccessBanner(),
           const MoodCheckIn(),
           const SizedBox(height: 16),
           const TodayCard(),
