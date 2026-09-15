@@ -5,8 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/auth/otp_login_screen.dart';
 import '../features/onboarding_welcome/welcome_screen.dart';
+import '../features/onboarding_welcome/age_blocked_screen.dart';
+import '../features/auth/waitlist_screen.dart';
 import '../features/consent/consent_screen.dart';
-import '../features/intake/intake_screen.dart';
 import '../features/intake/cold_start_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/chat/chat_screen.dart';
@@ -23,6 +24,8 @@ import '../features/settings/privacy_data_screen.dart';
 import '../features/settings/language_screen.dart';
 import '../features/journal/journal_screen.dart';
 import '../features/journal/journal_list_screen.dart';
+import '../features/appointments/appointments_screen.dart';
+import '../features/appointments/appointment_detail_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
@@ -113,12 +116,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
+        path: '/onboarding/age-blocked',
+        builder: (context, state) => const AgeBlockedScreen(),
+      ),
+      GoRoute(
         path: '/onboarding/consent',
         builder: (context, state) => const ConsentScreen(),
       ),
       GoRoute(
-        path: '/intake',
-        builder: (context, state) => const IntakeScreen(),
+        path: '/waitlist',
+        builder: (context, state) =>
+            WaitlistScreen(phoneNumber: state.extra as String?),
       ),
       GoRoute(
         path: '/onboarding/coldstart',
@@ -143,6 +151,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/progress',
         builder: (context, state) => const ProgressScreen(),
+      ),
+      GoRoute(
+        path: '/appointments',
+        builder: (context, state) => const AppointmentsScreen(),
+      ),
+      GoRoute(
+        path: '/appointments/:id',
+        builder: (context, state) =>
+            AppointmentDetailScreen(appointmentId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/settings',

@@ -2,13 +2,13 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 
 import 'package:okuvu/src/config/app_config.dart';
 import 'package:okuvu/src/features/consent/consent_screen.dart';
 import 'package:okuvu/src/features/consent/consent_request.dart';
-import 'package:okuvu/src/features/intake/intake_screen.dart';
 import 'package:okuvu/src/features/intake/cold_start_screen.dart';
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/core/auth_service.dart';
@@ -81,7 +81,10 @@ Widget createTestApp(Dio dio) {
             path: '/onboarding/consent',
             builder: (_, __) => const ConsentScreen(),
           ),
-          GoRoute(path: '/intake', builder: (_, __) => const IntakeScreen()),
+          GoRoute(
+            path: '/home',
+            builder: (_, __) => const Scaffold(body: Center(child: Text('Home'))),
+          ),
           GoRoute(
             path: '/onboarding/coldstart',
             builder: (_, __) => const ColdStartScreen(),
@@ -100,8 +103,6 @@ void main() {
       const request = ConsentRequest(
         safetyMonitoring: true,
         moodInference: false,
-        assessment: true,
-        emergencyContact: false,
       );
 
       final json = request.toJson();
@@ -109,8 +110,6 @@ void main() {
       expect(json, {
         'safety_monitoring': true,
         'mood_inference': false,
-        'assessment': true,
-        'emergency_contact': false,
       });
     });
   });
@@ -131,7 +130,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('renders heading, subtitle, progress pill, and all four cards',
+    testWidgets('renders heading, subtitle, and both cards',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
@@ -141,11 +140,11 @@ void main() {
         find.text('A few things to know about how OKUVU works.'),
         findsOneWidget,
       );
-      expect(find.text('Step 1 of 8'), findsOneWidget);
       expect(find.text('Safety monitoring'), findsOneWidget);
-      expect(find.text('Mood understanding'), findsOneWidget);
-      expect(find.text('Progress tracking'), findsOneWidget);
-      expect(find.text('Emergency contact'), findsOneWidget);
+      expect(
+        find.text('Share chat insights with your therapist'),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
@@ -162,46 +161,22 @@ void main() {
       expect(checkboxWidget.onChanged, isNull);
     });
 
-    testWidgets('optional items show correct defaults and toggle independently',
+    testWidgets('chat-share item defaults on and toggles independently',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
       final checkboxes = find.byType(Checkbox);
-
       Checkbox checkbox(int i) => tester.widget<Checkbox>(checkboxes.at(i));
 
       expect(checkbox(0).value, true);
       expect(checkbox(1).value, true);
-      expect(checkbox(2).value, true);
-      expect(checkbox(3).value, false);
 
-      // Toggle mood understanding off
       await tester.tap(find.byType(Checkbox).at(1));
       await tester.pumpAndSettle();
 
       expect(checkbox(0).value, true);
       expect(checkbox(1).value, false);
-      expect(checkbox(2).value, true);
-      expect(checkbox(3).value, false);
-
-      // Toggle progress tracking off
-      await tester.tap(find.byType(Checkbox).at(2));
-      await tester.pumpAndSettle();
-
-      expect(checkbox(0).value, true);
-      expect(checkbox(1).value, false);
-      expect(checkbox(2).value, false);
-      expect(checkbox(3).value, false);
-
-      // Toggle emergency contact on
-      await tester.tap(find.byType(Checkbox).at(3));
-      await tester.pumpAndSettle();
-
-      expect(checkbox(0).value, true);
-      expect(checkbox(1).value, false);
-      expect(checkbox(2).value, false);
-      expect(checkbox(3).value, true);
     });
 
     testWidgets(
@@ -210,9 +185,8 @@ void main() {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      // Uncheck mood, toggle emergency on
+      // Uncheck chat-share
       await tester.tap(find.byType(Checkbox).at(1));
-      await tester.tap(find.byType(Checkbox).at(3));
       await tester.pumpAndSettle();
 
       await scrollToBottom(tester);
@@ -230,11 +204,11 @@ void main() {
       final body = adapter.lastRequest!.data as Map<String, dynamic>;
       expect(body['safety_monitoring'], true);
       expect(body['mood_inference'], false);
-      expect(body['assessment'], true);
-      expect(body['emergency_contact'], true);
+      expect(body.containsKey('assessment'), isFalse);
+      expect(body.containsKey('emergency_contact'), isFalse);
     });
 
-    testWidgets('on success navigates to /intake', (WidgetTester tester) async {
+    testWidgets('on success navigates to /home', (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
@@ -246,10 +220,7 @@ void main() {
       });
       await tester.pumpAndSettle();
 
-      expect(
-        find.text("What's been weighing on your mind lately?"),
-        findsOneWidget,
-      );
+      expect(find.text('Home'), findsOneWidget);
     });
 
     testWidgets('on failure shows error message and preserves state',
@@ -271,14 +242,11 @@ void main() {
         find.text('Something went wrong. Please try again.'),
         findsOneWidget,
       );
-      expect(
-        find.textContaining("What's been weighing"),
-        findsNothing,
-      );
+      expect(find.text('Home'), findsNothing);
 
       final checkboxes = find.byType(Checkbox);
-      final moodCheckbox = tester.widget<Checkbox>(checkboxes.at(1));
-      expect(moodCheckbox.value, true);
+      final chatShareCheckbox = tester.widget<Checkbox>(checkboxes.at(1));
+      expect(chatShareCheckbox.value, true);
     });
 
     testWidgets('button is enabled after scrolling to bottom',
@@ -317,14 +285,12 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('renders all four icons', (WidgetTester tester) async {
+    testWidgets('renders both icons', (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.shield), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.byIcon(Icons.bar_chart), findsOneWidget);
-      expect(find.byIcon(Icons.phone), findsOneWidget);
+      expect(find.byIcon(LucideIcons.shield), findsOneWidget);
+      expect(find.byIcon(LucideIcons.messageCircle), findsOneWidget);
     });
 
     testWidgets('renders footer text', (WidgetTester tester) async {
@@ -350,10 +316,6 @@ void main() {
             path: '/onboarding/consent',
             builder: (_, __) => const ConsentScreen(),
           ),
-          GoRoute(
-            path: '/intake',
-            builder: (_, __) => const IntakeScreen(),
-          ),
         ],
       );
 
@@ -374,7 +336,7 @@ void main() {
 
       expect(find.byType(ConsentScreen), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.tap(find.byIcon(LucideIcons.arrowLeft));
       await tester.pumpAndSettle();
 
       expect(find.byType(ConsentScreen), findsNothing);

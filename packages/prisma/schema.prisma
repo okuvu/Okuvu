@@ -37,6 +37,11 @@ model User {
   /// a small placeholder list per care plan (apps/api's quote-of-day.ts) —
   /// swap for a real source once one is decided; the toggle/plumbing is real.
   quote_of_day_enabled Boolean            @default(false)
+  /// Settings > Notifications toggles. Inert booleans, same shape as
+  /// quote_of_day_enabled/voice_mode_enabled — no push/FCM delivery exists
+  /// yet (see okuvu-remaining-changes.md), this is preference-capture only.
+  appointment_reminders_enabled Boolean   @default(true)
+  chat_nudges_enabled Boolean             @default(true)
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
   engagement_profile  EngagementProfile?
@@ -379,6 +384,16 @@ model EmergencyContact {
   encrypted_phone String
   created_at      DateTime @default(now())
   user            User     @relation(fields: [user_id], references: [id])
+}
+
+// S6 (waitlist) — captured when a phone number with no invite/account hits
+// /auth/verify-otp's NO_ACCOUNT path. Follow-up (sending an invite) is a
+// manual therapist/ops action against this table, not automated.
+model WaitlistEntry {
+  id           String   @id @default(uuid())
+  email        String
+  phone_number String?
+  created_at   DateTime @default(now())
 }
 
 model MoodLog {

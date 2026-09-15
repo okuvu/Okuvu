@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router/router.dart';
 import 'core/providers.dart';
 import 'features/crisis/crisis_overlay.dart';
-import 'features/intake/intake_notifier.dart';
+import 'theme/app_theme.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -17,7 +17,6 @@ class App extends ConsumerWidget {
         ref.invalidate(chatMessagesProvider);
         ref.invalidate(emergencyContactProvider);
         ref.invalidate(voiceSettingsProvider);
-        ref.invalidate(intakeProvider);
         ref.invalidate(crisisOverlayProvider);
         ref.invalidate(consentProvider);
         ref.invalidate(hasCompletedOnboardingProvider);
@@ -30,10 +29,7 @@ class App extends ConsumerWidget {
     return MaterialApp.router(
       title: 'OKUVU',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.teal,
-        useMaterial3: true,
-      ),
+      theme: AppTheme.theme,
       routerConfig: router,
       builder: (context, child) {
         return Stack(

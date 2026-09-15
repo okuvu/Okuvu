@@ -72,3 +72,61 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<{ 
     return { sent: false };
   }
 }
+
+/**
+ * S6 (waitlist) — confirmation sent after a phone number with no
+ * invite/account joins the waitlist. Same fail-open shape as
+ * sendInviteEmail: a missing key or send failure never blocks the
+ * capture itself, since the row in WaitlistEntry is already saved.
+ */
+export interface SendWaitlistConfirmationEmailParams {
+  to: string;
+}
+
+export async function sendWaitlistConfirmationEmail(
+  params: SendWaitlistConfirmationEmailParams,
+): Promise<{ sent: boolean }> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
+  const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
+
+  const htmlContent = `
+    <p>Hi,</p>
+    <p>Thanks for your interest in OKUVU. We don't have an account for your phone number yet — we'll be in touch as soon as one is ready.</p>
+  `;
+
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — skipping waitlist confirmation send', {
+      to: params.to,
+    });
+    return { sent: false };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email: params.to }],
+        subject: "You're on the OKUVU waitlist",
+        htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('[email] Brevo waitlist confirmation send failed', { status: response.status, body });
+      return { sent: false };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Brevo waitlist confirmation send threw', err);
+    return { sent: false };
+  }
+}

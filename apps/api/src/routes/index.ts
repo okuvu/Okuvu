@@ -9,6 +9,8 @@ import { progressRoute } from './progress.js';
 import { settingsRoute } from './settings.js';
 import { journalRoute } from './journal.js';
 import { invitesRoute } from './invites.js';
+import { appointmentsRoute } from './appointments.js';
+import { waitlistRoute } from './waitlist.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(healthRoute);
@@ -21,4 +23,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(settingsRoute);
   await app.register(journalRoute);
   await app.register(invitesRoute);
+  await app.register(appointmentsRoute);
+  await app.register(waitlistRoute);
 }

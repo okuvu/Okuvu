@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dio/dio.dart';
 import '../../core/providers.dart';
 import '../../router/router.dart';
+import '../../widgets/okuvu_app_bar_title.dart';
 
 enum _AuthStep { phone, otp }
 
@@ -241,8 +243,34 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         if (shouldOnboard) {
           ref.read(routerProvider).go('/onboarding/coldstart');
         }
-      } on DioException {
+      } on DioException catch (e) {
         if (!mounted) return;
+        String? code;
+        var responseData = e.response?.data;
+        if (responseData is String) {
+          try {
+            responseData = jsonDecode(responseData);
+          } catch (_) {
+            // Not JSON — leave code null, falls through to the generic message.
+          }
+        }
+        if (responseData is Map) {
+          final errorField = responseData['error'];
+          if (errorField is Map) {
+            code = errorField['code'] as String?;
+          }
+        }
+        // Verify-otp no longer auto-provisions an account (see
+        // apps/api/src/routes/auth.ts) — a phone number with no invite
+        // goes to the waitlist (S6) rather than a dead-end error.
+        if (code == 'NO_ACCOUNT') {
+          setState(() => _isVerifying = false);
+          ref.read(routerProvider).go(
+                '/waitlist',
+                extra: _normalizePhone(_phoneController.text.trim()),
+              );
+          return;
+        }
         setState(() {
           _isVerifying = false;
           _otpError = 'Something went wrong. Please try again.';
@@ -274,10 +302,10 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_step == _AuthStep.phone ? 'Sign In' : 'Verify OTP'),
+        title: OkuvuAppBarTitle(_step == _AuthStep.phone ? 'Sign In' : 'Verify OTP'),
         leading: _step == _AuthStep.otp
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(LucideIcons.arrowLeft),
                 onPressed: _goBackToPhone,
               )
             : null,
@@ -297,7 +325,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.phone_android, size: 80, color: theme.colorScheme.primary),
+        Icon(LucideIcons.smartphone, size: 80, color: theme.colorScheme.primary),
         const SizedBox(height: 24),
         Text('Welcome to OKUVU', style: theme.textTheme.headlineMedium),
         const SizedBox(height: 8),
@@ -313,7 +341,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
           decoration: InputDecoration(
             labelText: 'Phone Number',
             hintText: '99999 99999',
-            prefixIcon: const Icon(Icons.phone),
+            prefixIcon: const Icon(LucideIcons.phone),
             prefix: Padding(
               padding: const EdgeInsets.only(left: 12, right: 4),
               child: Text(
@@ -372,7 +400,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.smartphone, size: 64, color: theme.colorScheme.primary),
+        Icon(LucideIcons.smartphone, size: 64, color: theme.colorScheme.primary),
         const SizedBox(height: 24),
         Text('OTP Verification', style: theme.textTheme.headlineMedium),
         const SizedBox(height: 8),

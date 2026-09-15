@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
@@ -6,6 +7,7 @@ import '../../config/app_config.dart';
 import '../../core/logger.dart';
 import '../../core/providers.dart';
 import 'consent_request.dart';
+import '../../theme/app_colors.dart';
 
 class ConsentScreen extends ConsumerStatefulWidget {
   const ConsentScreen({super.key});
@@ -18,9 +20,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
   static const double _scrollTolerance = 10.0;
 
   final bool _safetyMonitoring = true;
-  bool _moodUnderstanding = true;
-  bool _progressTracking = true;
-  bool _emergencyContact = false;
+  bool _chatShare = true;
   bool _isSubmitting = false;
   bool _hasScrolledToBottom = false;
   String? _errorMessage;
@@ -71,9 +71,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
 
     final request = ConsentRequest(
       safetyMonitoring: _safetyMonitoring,
-      moodInference: _moodUnderstanding,
-      assessment: _progressTracking,
-      emergencyContact: _emergencyContact,
+      moodInference: _chatShare,
     );
 
     try {
@@ -81,7 +79,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
             '/users/me/consent',
             data: request.toJson(),
           );
-      if (mounted) context.go('/intake');
+      if (mounted) await _completeAndGoHome();
     } on DioException catch (e) {
       Logger.debug('[ConsentScreen] POST /users/me/consent failed: '
           'status=${e.response?.statusCode} body=${e.response?.data}');
@@ -91,7 +89,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
           '[ConsentScreen] Backend unavailable, proceeding with '
           'local-only consent (dev mode)',
         );
-        if (mounted) context.go('/intake');
+        if (mounted) await _completeAndGoHome();
         return;
       }
 
@@ -115,15 +113,26 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
     }
   }
 
+  // The wireframe's onboarding is "4 taps, no questions" — the guided-chat
+  // intake step no longer sits between consent and Home, so consent itself
+  // is what marks onboarding complete now.
+  Future<void> _completeAndGoHome() async {
+    await ref.read(hasCompletedOnboardingProvider.notifier).complete();
+    if (mounted) context.go('/home');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    const Color activeBg = Color(0xFF1A6B5A);
+    const Color activeBg = AppColors.violet;
     const Color activeFg = Colors.white;
-    const Color inactiveBg = Color(0xFFE8E4DF);
-    const Color inactiveFg = Color(0xFFC4C0BC);
+    const Color inactiveBg = AppColors.hairline;
+    // Was a second, slightly-darker grey pre-rebrand — inkSoft keeps that
+    // "visible but muted" relationship instead of matching inactiveBg
+    // exactly, which would make the disabled label unreadable.
+    const Color inactiveFg = AppColors.inkSoft;
 
     final bool showActiveColors = _hasScrolledToBottom;
     final Color buttonBg = showActiveColors ? activeBg : inactiveBg;
@@ -144,7 +153,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: [
                       _ConsentCard(
-                        icon: Icons.shield,
+                        icon: LucideIcons.shield,
                         title: 'Safety monitoring',
                         description:
                             'Required to ensure a safe space during sensitive conversations.',
@@ -156,40 +165,14 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
                       ),
                       const SizedBox(height: 12),
                       _ConsentCard(
-                        icon: Icons.favorite,
-                        title: 'Mood understanding',
+                        icon: LucideIcons.messageCircle,
+                        title: 'Share chat insights with your therapist',
                         description:
-                            'Allows OKUVU to adapt its tone based on your emotional state.',
-                        value: _moodUnderstanding,
+                            'Lets your therapist see a summary of what you talk about with OKUVU.',
+                        value: _chatShare,
                         onChanged: _isSubmitting
                             ? null
-                            : (v) => setState(() => _moodUnderstanding = v!),
-                        theme: theme,
-                        colorScheme: colorScheme,
-                      ),
-                      const SizedBox(height: 12),
-                      _ConsentCard(
-                        icon: Icons.bar_chart,
-                        title: 'Progress tracking',
-                        description:
-                            'Collects insights to show your growth over time.',
-                        value: _progressTracking,
-                        onChanged: _isSubmitting
-                            ? null
-                            : (v) => setState(() => _progressTracking = v!),
-                        theme: theme,
-                        colorScheme: colorScheme,
-                      ),
-                      const SizedBox(height: 12),
-                      _ConsentCard(
-                        icon: Icons.phone,
-                        title: 'Emergency contact',
-                        description:
-                            'Provides a trusted contact option directly within the app.',
-                        value: _emergencyContact,
-                        onChanged: _isSubmitting
-                            ? null
-                            : (v) => setState(() => _emergencyContact = v!),
+                            : (v) => setState(() => _chatShare = v!),
                         theme: theme,
                         colorScheme: colorScheme,
                       ),
@@ -289,7 +272,6 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: Row(
@@ -297,29 +279,10 @@ class _TopBar extends StatelessWidget {
           SizedBox(
             width: 48,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(LucideIcons.arrowLeft),
               onPressed: onBack,
             ),
           ),
-          Expanded(
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Step 1 of 8',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 48),
         ],
       ),
     );
