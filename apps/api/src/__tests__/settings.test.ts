@@ -238,3 +238,251 @@ describe('GET/PATCH /settings/quote-of-day (okuvu-remaining-changes.md O6)', () 
     });
   });
 });
+
+describe('GET/PATCH /settings/profile', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    app = buildApp();
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  describe('GET /settings/profile', () => {
+    it("returns the user's profile fields", async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        full_name: 'Jordan Lee',
+        email: 'jordan@example.com',
+        date_of_birth: new Date('2000-01-15T00:00:00.000Z'),
+        gender: 'nonbinary',
+      } as never);
+
+      const response = await app.inject({ method: 'GET', url: '/settings/profile' });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        full_name: 'Jordan Lee',
+        email: 'jordan@example.com',
+        date_of_birth: '2000-01-15T00:00:00.000Z',
+        gender: 'nonbinary',
+      });
+    });
+
+    it('returns null date_of_birth when unset', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        full_name: null,
+        email: null,
+        date_of_birth: null,
+        gender: null,
+      } as never);
+
+      const response = await app.inject({ method: 'GET', url: '/settings/profile' });
+
+      expect(response.json()).toEqual({
+        full_name: null,
+        email: null,
+        date_of_birth: null,
+        gender: null,
+      });
+    });
+
+    it('returns 401 when the user does not exist', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+      const response = await app.inject({ method: 'GET', url: '/settings/profile' });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+
+  describe('PATCH /settings/profile', () => {
+    it('updates full_name, date_of_birth, and gender', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { full_name: 'Jordan Lee', date_of_birth: '2000-01-15', gender: 'nonbinary' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ success: true });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          full_name: 'Jordan Lee',
+          date_of_birth: new Date('2000-01-15'),
+          gender: 'nonbinary',
+        },
+      });
+    });
+
+    it('updates only the fields provided', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+
+      await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { full_name: 'New Name' },
+      });
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { full_name: 'New Name' },
+      });
+    });
+
+    it('rejects an unparseable date_of_birth', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { date_of_birth: 'not-a-date' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_DATE');
+    });
+
+    it('returns 401 when the user does not exist', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { full_name: 'Jordan Lee' },
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+});
+
+describe('GET/PATCH /settings/notifications', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    app = buildApp();
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  describe('GET /settings/notifications', () => {
+    it('returns both preference flags', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        appointment_reminders_enabled: true,
+        chat_nudges_enabled: false,
+      } as never);
+
+      const response = await app.inject({ method: 'GET', url: '/settings/notifications' });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        appointment_reminders_enabled: true,
+        chat_nudges_enabled: false,
+      });
+    });
+
+    it('returns 401 when the user does not exist', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+      const response = await app.inject({ method: 'GET', url: '/settings/notifications' });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+
+  describe('PATCH /settings/notifications', () => {
+    it('updates one preference at a time', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/notifications',
+        payload: { chat_nudges_enabled: false },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { chat_nudges_enabled: false },
+      });
+    });
+
+    it('updates both preferences together', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+
+      await app.inject({
+        method: 'PATCH',
+        url: '/settings/notifications',
+        payload: { appointment_reminders_enabled: false, chat_nudges_enabled: true },
+      });
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { appointment_reminders_enabled: false, chat_nudges_enabled: true },
+      });
+    });
+
+    it('rejects an empty body', async () => {
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/notifications',
+        payload: {},
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_BODY');
+    });
+
+    it('rejects a non-boolean value', async () => {
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/notifications',
+        payload: { chat_nudges_enabled: 'yes' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_BODY');
+    });
+
+    it('returns 401 when the user does not exist', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/notifications',
+        payload: { chat_nudges_enabled: false },
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+});

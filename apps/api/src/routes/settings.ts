@@ -398,4 +398,176 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       return reply.send({ success: true });
     },
   });
+
+  // Settings > Profile — full_name/date_of_birth/gender only; email is
+  // display-only (tied to the invite/auth flow, not client-editable here).
+  interface ProfileBody {
+    full_name?: string | null
+    date_of_birth?: string | null
+    gender?: string | null
+  }
+
+  app.get('/settings/profile', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { full_name: true, email: true, date_of_birth: true, gender: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      return reply.send({
+        full_name: user.full_name,
+        email: user.email,
+        date_of_birth: user.date_of_birth ? user.date_of_birth.toISOString() : null,
+        gender: user.gender,
+      });
+    },
+  });
+
+  app.patch<{ Body: ProfileBody }>('/settings/profile', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body ?? {};
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      let parsedDob: Date | null | undefined;
+      if (body.date_of_birth !== undefined) {
+        if (body.date_of_birth === null) {
+          parsedDob = null;
+        } else {
+          const parsed = new Date(body.date_of_birth);
+          if (Number.isNaN(parsed.getTime())) {
+            return reply.status(400).send({
+              error: { code: 'INVALID_DATE', message: 'date_of_birth must be a valid date' },
+            });
+          }
+          parsedDob = parsed;
+        }
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(body.full_name !== undefined ? { full_name: body.full_name } : {}),
+          ...(parsedDob !== undefined ? { date_of_birth: parsedDob } : {}),
+          ...(body.gender !== undefined ? { gender: body.gender } : {}),
+        },
+      });
+
+      request.log.info(
+        { event: 'profile_settings_updated', user_id: user.id },
+        'Profile settings updated',
+      );
+
+      return reply.send({ success: true });
+    },
+  });
+
+  // Settings > Notifications — inert preference toggles, no push/FCM
+  // delivery exists yet (see okuvu-remaining-changes.md).
+  interface NotificationPreferencesBody {
+    appointment_reminders_enabled?: boolean
+    chat_nudges_enabled?: boolean
+  }
+
+  app.get('/settings/notifications', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { appointment_reminders_enabled: true, chat_nudges_enabled: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      return reply.send({
+        appointment_reminders_enabled: user.appointment_reminders_enabled,
+        chat_nudges_enabled: user.chat_nudges_enabled,
+      });
+    },
+  });
+
+  app.patch<{ Body: NotificationPreferencesBody }>('/settings/notifications', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body ?? {};
+
+      if (
+        body.appointment_reminders_enabled === undefined &&
+        body.chat_nudges_enabled === undefined
+      ) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_BODY',
+            message: 'At least one of appointment_reminders_enabled/chat_nudges_enabled is required',
+          },
+        });
+      }
+
+      if (
+        (body.appointment_reminders_enabled !== undefined && typeof body.appointment_reminders_enabled !== 'boolean') ||
+        (body.chat_nudges_enabled !== undefined && typeof body.chat_nudges_enabled !== 'boolean')
+      ) {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'Preference values must be booleans' },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(body.appointment_reminders_enabled !== undefined
+            ? { appointment_reminders_enabled: body.appointment_reminders_enabled }
+            : {}),
+          ...(body.chat_nudges_enabled !== undefined
+            ? { chat_nudges_enabled: body.chat_nudges_enabled }
+            : {}),
+        },
+      });
+
+      request.log.info(
+        { event: 'notification_settings_updated', user_id: user.id },
+        'Notification settings updated',
+      );
+
+      return reply.send({ success: true });
+    },
+  });
 }

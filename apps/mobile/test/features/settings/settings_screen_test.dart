@@ -133,6 +133,8 @@ void main() {
         await tester.pumpWidget(_settingsApp(_createMockDio()));
         await tester.pumpAndSettle();
 
+        expect(find.text('Profile'), findsOneWidget);
+        expect(find.text('Notifications'), findsOneWidget);
         expect(find.text('My Focus Area'), findsOneWidget);
         expect(find.text('Emergency Contact'), findsOneWidget);
         expect(find.text('Privacy & Data'), findsOneWidget);
@@ -140,6 +142,15 @@ void main() {
         expect(find.text('About'), findsOneWidget);
         expect(find.text('Voice'), findsOneWidget);
         expect(find.text('Quote of the Day'), findsOneWidget);
+
+        // Profile/Notifications tiles above push Delete Account below the
+        // initially-built extent — scroll it into view like the other
+        // near-the-bottom assertions in this codebase already do.
+        await tester.scrollUntilVisible(
+          find.text('Delete Account'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
         expect(find.text('Delete Account'), findsOneWidget);
       },
     );
