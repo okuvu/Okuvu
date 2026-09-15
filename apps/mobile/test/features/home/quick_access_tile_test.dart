@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:okuvu/src/features/home/widgets/quick_access_tile.dart';
+import 'package:okuvu/src/theme/app_colors.dart';
 
 void main() {
   group('QuickAccessTile', () {
@@ -61,7 +62,7 @@ void main() {
       expect(find.text('4 min'), findsNothing);
     });
 
-    testWidgets('has white background and DDE2E8 border', (tester) async {
+    testWidgets('has white background and brand-kit hairline border', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -81,7 +82,7 @@ void main() {
       expect(decoration.color, equals(Colors.white));
       expect(
         (decoration.border as Border).top.color,
-        equals(const Color(0xFFDDE2E8)),
+        equals(AppColors.hairline),
       );
     });
   });

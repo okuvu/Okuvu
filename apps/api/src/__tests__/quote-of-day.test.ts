@@ -14,6 +14,10 @@ vi.mock('../lib/prisma.js', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    appointment: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -140,6 +144,8 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
     vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue({
       therapist_id: 'th_1',
+      chat_access_granted: false,
+      chat_access_requested_at: new Date('2026-09-15T00:00:00Z'),
       therapist: { name: 'Dr. Jane Doe' },
     } as never);
 
@@ -151,7 +157,7 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     });
   });
 
-  it('returns null pendingChatAccessRequest when there is none', async () => {
+  it('returns null pendingChatAccessRequest when there is no assigned therapist', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
@@ -165,6 +171,91 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     const response = await app.inject({ method: 'GET', url: '/users/me/today' });
 
     expect(response.json().pendingChatAccessRequest).toBeNull();
+    expect(response.json().therapistChatAccess).toBeNull();
+  });
+
+  it('includes therapistChatAccess reflecting current grant state, even with no pending request', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      quote_of_day_enabled: false,
+      homeworks: [],
+      clinical_config: null,
+    } as never);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue({
+      therapist_id: 'th_1',
+      chat_access_granted: true,
+      chat_access_requested_at: null,
+      therapist: { name: 'Dr. Jane Doe' },
+    } as never);
+
+    const response = await app.inject({ method: 'GET', url: '/users/me/today' });
+
+    expect(response.json().pendingChatAccessRequest).toBeNull();
+    expect(response.json().therapistChatAccess).toEqual({
+      therapistId: 'th_1',
+      therapistName: 'Dr. Jane Doe',
+      granted: true,
+    });
+  });
+
+  it('returns null nextAppointment when nothing is booked', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      quote_of_day_enabled: false,
+      homeworks: [],
+      clinical_config: null,
+    } as never);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
+
+    const response = await app.inject({ method: 'GET', url: '/users/me/today' });
+
+    expect(response.json().nextAppointment).toBeNull();
+  });
+
+  it('includes nextAppointment when a session is booked', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      quote_of_day_enabled: false,
+      homeworks: [],
+      clinical_config: null,
+    } as never);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue({
+      id: 'appt-1',
+      therapist_id: 'th_1',
+      scheduled_at: new Date('2026-09-18T12:30:00Z'),
+      duration_minutes: 50,
+      mode: 'video',
+      location: null,
+      note_to_client: null,
+      remind_24h: false,
+      remind_1h: false,
+      rescheduled_from: null,
+      cancelled_at: null,
+      therapist: { name: 'Dr. Rao' },
+    } as never);
+
+    const response = await app.inject({ method: 'GET', url: '/users/me/today' });
+
+    expect(response.json().nextAppointment).toEqual({
+      id: 'appt-1',
+      scheduledAt: '2026-09-18T12:30:00.000Z',
+      durationMinutes: 50,
+      mode: 'video',
+      location: null,
+      noteToClient: null,
+      remind24h: false,
+      remind1h: false,
+      rescheduledFrom: null,
+      cancelledAt: null,
+      therapistId: 'th_1',
+      therapistName: 'Dr. Rao',
+    });
   });
 });
 

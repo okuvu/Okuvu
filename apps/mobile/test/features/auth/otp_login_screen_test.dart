@@ -83,6 +83,12 @@ Widget createTestApp(Dio dio) {
         path: '/onboarding/coldstart',
         builder: (_, __) => const Scaffold(body: Text('COLDSTART_MARKER')),
       ),
+      GoRoute(
+        path: '/waitlist',
+        builder: (_, state) => Scaffold(
+          body: Text('WAITLIST_MARKER:${state.extra}'),
+        ),
+      ),
     ],
   );
 
@@ -180,6 +186,21 @@ void main() {
 
       expect(adapter.lastRequest?.path, contains('/auth/verify-otp'));
       expect(find.text('COLDSTART_MARKER'), findsOneWidget);
+    });
+
+    testWidgets('without a code and no matching account, navigates to the waitlist (S6)', (tester) async {
+      adapter.statusByPathSuffix['/auth/verify-otp'] = 404;
+      adapter.bodyByPathSuffix['/auth/verify-otp'] =
+          '{"error": {"code": "NO_ACCOUNT", "message": "no account"}}';
+
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+
+      await enterPhoneAndSendOtp(tester);
+      await enterOtp(tester);
+
+      expect(find.text('WAITLIST_MARKER:+919876543210'), findsOneWidget);
+      expect(find.text('COLDSTART_MARKER'), findsNothing);
     });
   });
 }

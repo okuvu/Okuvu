@@ -52,51 +52,41 @@ describe('POST /auth/verify-otp', () => {
     vi.clearAllMocks();
   });
 
-  describe('bypass mode — new user', () => {
+  describe('bypass mode — no matching account', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
-      vi.mocked(prisma.user.create).mockResolvedValue(mockUser() as any);
       app = buildApp();
     });
 
-    it('creates a new User row with provided phone_number', async () => {
+    it('returns 404 NO_ACCOUNT instead of creating a User, when phone_number is provided', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/auth/verify-otp',
         payload: { phone_number: '+15550000001' },
       });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(404);
       const body = response.json();
-      expect(body.user_id).toBe(mockUuid);
-      expect(body.is_new_user).toBe(true);
+      expect(body.error.code).toBe('NO_ACCOUNT');
 
       const prisma = await importMocks();
-      expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ phone_number: '+15550000001' }),
-        }),
-      );
+      expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
-    it('creates a new User row with placeholder phone_number when omitted', async () => {
+    it('returns 404 NO_ACCOUNT instead of creating a User, when phone_number is omitted', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/auth/verify-otp',
         payload: {},
       });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(404);
       const body = response.json();
-      expect(body.is_new_user).toBe(true);
+      expect(body.error.code).toBe('NO_ACCOUNT');
 
       const prisma = await importMocks();
-      expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ phone_number: '+0000000000' }),
-        }),
-      );
+      expect(prisma.user.create).not.toHaveBeenCalled();
     });
   });
 
@@ -176,56 +166,6 @@ describe('POST /auth/verify-otp', () => {
       expect(response.statusCode).toBe(401);
       const body = response.json();
       expect(body.error.code).toBe('UNAUTHORIZED');
-    });
-  });
-
-  describe('bypass mode — concurrent requests', () => {
-    it('handles concurrent requests for the same new firebase_uid', async () => {
-      const prisma = await importMocks();
-
-      const store = new Map<string, MockUser>();
-
-      vi.mocked(prisma.user.findUnique).mockImplementation((async (args: { where: { firebase_uid: string } }) => {
-        return store.get(args.where.firebase_uid) ?? null;
-      }) as any);
-
-      let createCount = 0;
-      vi.mocked(prisma.user.create).mockImplementation((async (args: {
-        data: { firebase_uid: string; phone_number: string };
-      }) => {
-        const uid = args.data.firebase_uid;
-        const existing = store.get(uid);
-        if (existing) {
-          return existing;
-        }
-        const newUser = mockUser({
-          firebase_uid: uid,
-          phone_number: args.data.phone_number,
-        });
-        store.set(uid, newUser);
-        createCount++;
-        return newUser;
-      }) as any);
-
-      app = buildApp();
-
-      const [res1, res2] = await Promise.all([
-        app.inject({
-          method: 'POST',
-          url: '/auth/verify-otp',
-          payload: { phone_number: '+15550000001' },
-        }),
-        app.inject({
-          method: 'POST',
-          url: '/auth/verify-otp',
-          payload: { phone_number: '+15550000001' },
-        }),
-      ]);
-
-      expect(res1.statusCode).toBe(200);
-      expect(res2.statusCode).toBe(200);
-
-      expect(createCount).toBeLessThanOrEqual(1);
     });
   });
 });

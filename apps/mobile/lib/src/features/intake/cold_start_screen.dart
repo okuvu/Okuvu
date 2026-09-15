@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'care_plan_provider.dart';
 import 'onboarding_provider.dart';
+import '../../theme/app_colors.dart';
 
 class ColdStartScreen extends ConsumerStatefulWidget {
   const ColdStartScreen({super.key});
@@ -19,12 +20,18 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
     if (_navigated) return;
     _navigated = true;
 
-    if (ref.read(hasCompletedOnboardingProvider)) {
-      context.go('/home');
-      return;
-    }
+    final goToHome = ref.read(hasCompletedOnboardingProvider);
 
-    context.go('/onboarding/consent');
+    // This can be triggered from within build() (via carePlanAsync.when's
+    // data/error branches below) — calling context.go() synchronously there
+    // throws ("Router ... cannot be marked as needing to build because the
+    // framework is already in the process of building widgets"). Defer to
+    // the next frame, which is safe whether the trigger was build-time or
+    // the ref.listen callback above.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.go(goToHome ? '/home' : '/onboarding/consent');
+    });
   }
 
   @override
@@ -55,7 +62,13 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
             return const SizedBox.shrink();
           },
           data: (plan) {
-            if (plan == null) {
+            if (plan == null || ref.read(hasCompletedOnboardingProvider)) {
+              // Either no care plan yet (handled by _resolveNextScreen's own
+              // fallback to consent), or this is a returning user — the
+              // wireframe is explicit that repeat visits get no welcome,
+              // consent, or questions ever again, straight to Home. Without
+              // this check, every fresh sign-in re-showed "Your space is
+              // ready" and routed through /chat instead of /home.
               _resolveNextScreen();
               return const SizedBox.shrink();
             }
@@ -128,7 +141,7 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
                           'Your focus area',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF6B6B6B),
+                            color: AppColors.inkSoft,
                             letterSpacing: 1.2,
                             fontWeight: FontWeight.w600,
                           ),
@@ -139,7 +152,7 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF1A6B5A),
+                            color: AppColors.violet,
                           ),
                         ),
                       ],
@@ -168,7 +181,7 @@ class _ConnectedPeoplePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF1A6B5A)
+      ..color = AppColors.violet
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
@@ -198,7 +211,7 @@ class _ConnectedPeoplePainter extends CustomPainter {
     drawPerson(r * 0.5, 0);
 
     final heartPaint = Paint()
-      ..color = const Color(0xFF1A6B5A)
+      ..color = AppColors.violet
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../theme/app_colors.dart';
 
 class QuickAccessTile extends StatelessWidget {
   const QuickAccessTile({
@@ -23,7 +24,7 @@ class QuickAccessTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFDDE2E8)),
+          border: Border.all(color: AppColors.hairline),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -42,7 +43,7 @@ class QuickAccessTile extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1A1A),
+                color: AppColors.charcoalInk,
               ),
             ),
             if (subtitle != null)
@@ -52,7 +53,7 @@ class QuickAccessTile extends StatelessWidget {
                   subtitle!,
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF5A6472),
+                    color: AppColors.inkSoft,
                   ),
                 ),
               ),

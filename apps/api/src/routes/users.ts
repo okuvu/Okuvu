@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { getQuoteOfDay } from '../lib/quote-of-day.js';
 import { markClientActivatedIfNeeded } from '../lib/client-activation.js';
+import { toView as toAppointmentView } from './appointments.js';
 import type { UserConsent, CarePlanId, AssignmentState, TodayCard } from '@okuvu/shared-types';
 
 interface CarePlanBody {
@@ -125,18 +126,37 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         orderBy: { created_at: 'desc' },
       });
 
-      // Therapist-portal wireframes — "Request chat access": surface the
-      // most recent unanswered request, if any, so the mobile Home screen
-      // can show a Grant/Not-now banner. Cleared client-side via
-      // PATCH /users/me/chat-access.
-      const pendingRequest = await prisma.therapistClient.findFirst({
-        where: {
-          client_user_id: user.id,
-          chat_access_granted: false,
-          chat_access_requested_at: { not: null },
+      // Therapist-portal wireframes — the client's current (non-ended)
+      // therapist relationship, if any. Powers both the "Request chat
+      // access" Grant/Not-now banner (pendingChatAccessRequest, only when
+      // there's an unanswered request) and the app wireframes' T3 Settings
+      // revoke toggle (therapistChatAccess, always present when assigned) —
+      // one query serving both, rather than a second lookup for the latter.
+      const therapistRelationship = await prisma.therapistClient.findFirst({
+        where: { client_user_id: user.id, ended_at: null },
+        orderBy: { created_at: 'desc' },
+        select: {
+          therapist_id: true,
+          chat_access_granted: true,
+          chat_access_requested_at: true,
+          therapist: { select: { name: true } },
         },
-        orderBy: { chat_access_requested_at: 'desc' },
-        select: { therapist_id: true, therapist: { select: { name: true } } },
+      });
+
+      const pendingRequest =
+        therapistRelationship &&
+        !therapistRelationship.chat_access_granted &&
+        therapistRelationship.chat_access_requested_at
+          ? therapistRelationship
+          : null;
+
+      // App wireframes A1 — Home's "next session" card. Same split logic as
+      // GET /users/me/appointments' upcoming list (appointments.ts), just
+      // limited to the single soonest row.
+      const nextAppointment = await prisma.appointment.findFirst({
+        where: { client_user_id: user.id, scheduled_at: { gte: new Date() }, cancelled_at: null },
+        orderBy: { scheduled_at: 'asc' },
+        include: { therapist: { select: { name: true } } },
       });
 
       const body: TodayCard = {
@@ -155,6 +175,14 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         pendingChatAccessRequest: pendingRequest
           ? { therapistId: pendingRequest.therapist_id, therapistName: pendingRequest.therapist.name }
           : null,
+        therapistChatAccess: therapistRelationship
+          ? {
+              therapistId: therapistRelationship.therapist_id,
+              therapistName: therapistRelationship.therapist.name,
+              granted: therapistRelationship.chat_access_granted,
+            }
+          : null,
+        nextAppointment: nextAppointment ? toAppointmentView(nextAppointment) : null,
       };
 
       reply.send(body);

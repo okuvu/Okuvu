@@ -5,13 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../progress/providers/progress_provider.dart';
+import '../../../theme/app_colors.dart';
 
 const Map<int, Color> kMoodColors = {
-  1: Color(0xFFE8A020),
-  2: Color(0xFFD4956A),
-  3: Color(0xFF6B6B6B),
-  4: Color(0xFF2D8A5E),
-  5: Color(0xFF1A6B5A),
+  1: AppColors.honeyDeep,
+  2: AppColors.honey,
+  3: AppColors.inkSoft,
+  4: AppColors.sageDeep,
+  5: AppColors.violet,
 };
 
 const Map<int, String> kMoodLabels = {
@@ -151,7 +152,7 @@ class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
               FilledButton(
                 onPressed: () => context.go('/chat'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A6B5A),
+                  backgroundColor: AppColors.violet,
                 ),
                 child: const Text('Check in'),
               ),
@@ -165,7 +166,7 @@ class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
               Text(
                 'Glad to hear that. Have a good one.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF6B6B6B),
+                  color: AppColors.inkSoft,
                 ),
               ),
             ],

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
+import '../../theme/app_colors.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -71,22 +72,36 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFF1A6B5A),
+        // Dark surface — OKUVU brand kit §1.3: dark mark (lavender→orchid)
+        // pairs with royal-night/dark backgrounds, light mark with
+        // light/paper surfaces. Same pairing as the therapist portal's
+        // chrome bar.
+        backgroundColor: AppColors.royalNight,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               FadeTransition(
                 opacity: _wordmarkFade,
-                child: const Text(
-                  'OKUVU',
-                  // TODO: Replace with official logo asset when available
-                  style: TextStyle(
-                    fontSize: 40.0,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Inter',
-                    color: Colors.white,
-                  ),
+                child: Column(
+                  children: [
+                    Image.asset(
+                      'assets/brand/okuvu-mark-dark.png',
+                      width: 96,
+                      height: 96,
+                    ),
+                    const SizedBox(height: 20.0),
+                    const Text(
+                      'OKUVU',
+                      style: TextStyle(
+                        fontSize: 32.0,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Poppins',
+                        letterSpacing: 3.2, // brand kit §1.4: +0.1em tracking
+                        color: AppColors.lavenderTint,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12.0),
@@ -96,9 +111,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   'A space that listens.',
                   style: TextStyle(
                     fontSize: 16.0,
-                    fontWeight: FontWeight.w400,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.white.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w300,
+                    fontFamily: 'Poppins',
+                    color: AppColors.lavenderTint.withValues(alpha: 0.85),
                   ),
                 ),
               ),

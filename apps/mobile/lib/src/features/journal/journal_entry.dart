@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_colors.dart';
 
 class JournalEntry {
   final String id;
@@ -49,12 +50,12 @@ const Map<String, String> journalEmotionLabels = {
 };
 
 const Map<String, Color> emotionColors = {
-  'anxious': Color(0xFFFEF3E2),
-  'sad': Color(0xFFEEF2FF),
-  'angry': Color(0xFFFDF2F1),
-  'overwhelmed': Color(0xFFFDF2F1),
-  'numb': Color(0xFFF4F6F8),
-  'calm': Color(0xFFE8F5EE),
-  'hopeful': Color(0xFFE8F5EE),
-  'other': Color(0xFFF4F6F8),
+  'anxious': AppColors.honeyTint,
+  'sad': AppColors.lavenderTint,
+  'angry': AppColors.crisisTint,
+  'overwhelmed': AppColors.crisisTint,
+  'numb': AppColors.lavenderWash,
+  'calm': AppColors.sageTint,
+  'hopeful': AppColors.sageTint,
+  'other': AppColors.lavenderWash,
 };

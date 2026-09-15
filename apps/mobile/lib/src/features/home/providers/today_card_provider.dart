@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
+import '../../appointments/appointments_provider.dart';
 
 class TodayCardReminder {
   final String id;
@@ -36,12 +37,34 @@ class PendingChatAccessRequest {
   }
 }
 
+class TherapistChatAccess {
+  final String therapistId;
+  final String? therapistName;
+  final bool granted;
+
+  const TherapistChatAccess({
+    required this.therapistId,
+    this.therapistName,
+    required this.granted,
+  });
+
+  factory TherapistChatAccess.fromJson(Map<String, dynamic> json) {
+    return TherapistChatAccess(
+      therapistId: json['therapistId'] as String,
+      therapistName: json['therapistName'] as String?,
+      granted: json['granted'] as bool,
+    );
+  }
+}
+
 class TodayCardData {
   final String? homeworkId;
   final String? homework;
   final List<TodayCardReminder> reminders;
   final String? quote;
   final PendingChatAccessRequest? pendingChatAccessRequest;
+  final TherapistChatAccess? therapistChatAccess;
+  final AppointmentView? nextAppointment;
 
   const TodayCardData({
     required this.homeworkId,
@@ -49,11 +72,15 @@ class TodayCardData {
     required this.reminders,
     required this.quote,
     required this.pendingChatAccessRequest,
+    required this.therapistChatAccess,
+    required this.nextAppointment,
   });
 
   factory TodayCardData.fromJson(Map<String, dynamic> json) {
     final rawReminders = json['reminders'] as List<dynamic>? ?? [];
     final rawPending = json['pendingChatAccessRequest'] as Map<String, dynamic>?;
+    final rawChatAccess = json['therapistChatAccess'] as Map<String, dynamic>?;
+    final rawNextAppointment = json['nextAppointment'] as Map<String, dynamic>?;
     return TodayCardData(
       homeworkId: json['homeworkId'] as String?,
       homework: json['homework'] as String?,
@@ -67,6 +94,15 @@ class TodayCardData {
       // requested chat access and the client hasn't answered yet.
       pendingChatAccessRequest:
           rawPending != null ? PendingChatAccessRequest.fromJson(rawPending) : null,
+      // App wireframes T3 — current grant state regardless of pending
+      // status, so Settings can offer a revoke toggle. Null only if the
+      // client has no assigned therapist.
+      therapistChatAccess:
+          rawChatAccess != null ? TherapistChatAccess.fromJson(rawChatAccess) : null,
+      // App wireframes A1 — the single soonest upcoming, non-cancelled
+      // appointment. Null if nothing's booked.
+      nextAppointment:
+          rawNextAppointment != null ? AppointmentView.fromJson(rawNextAppointment) : null,
     );
   }
 }

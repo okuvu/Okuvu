@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/today_card_provider.dart';
@@ -85,7 +86,7 @@ class TodayCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          Icons.notifications_outlined,
+                          LucideIcons.bell,
                           size: 16,
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

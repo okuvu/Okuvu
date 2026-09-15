@@ -31,16 +31,18 @@ export async function authRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const user = await prisma.user.create({
-        data: {
-          firebase_uid: uid,
-          phone_number: phone_number ?? '+0000000000',
+      // No matching User for this firebase_uid — do NOT auto-provision.
+      // Every real User is created by the therapist-portal's Add-Client
+      // wizard (admin.createClientWithInvite) as a placeholder, then linked
+      // to a firebase_uid by POST /invites/redeem once the client completes
+      // Firebase phone-auth with a valid invite token. Verifying a phone
+      // number alone was never sufficient authorization to create an
+      // account — that bypassed the whole therapist-assignment model.
+      return reply.status(404).send({
+        error: {
+          code: 'NO_ACCOUNT',
+          message: 'No OKUVU account found for this phone number. Use your invite code to activate your account.',
         },
-      });
-
-      reply.send({
-        user_id: user.id,
-        is_new_user: true,
       });
     },
   });
