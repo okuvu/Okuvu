@@ -10,6 +10,23 @@ import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+export const MAX_MESSAGE_LENGTH = 4000;
+export const MAX_GROUNDING_ITEMS = 10;
+export const MAX_GROUNDING_ITEM_LENGTH = 200;
+
+export function isValidGroundingResult(value: unknown): value is import('@okuvu/shared-types').GroundingResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const r = value as Record<string, unknown>;
+  const fields = ['see', 'touch', 'hear', 'smell', 'taste'] as const;
+  return fields.every((f) => {
+    const arr = r[f];
+    return (
+      Array.isArray(arr) &&
+      arr.length <= MAX_GROUNDING_ITEMS &&
+      arr.every((item) => typeof item === 'string' && item.length <= MAX_GROUNDING_ITEM_LENGTH)
+    );
+  });
+}
 
 interface IdleEntry {
   timer: ReturnType<typeof setTimeout>;
@@ -134,9 +151,25 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
 
       if (parsed.type === 'USER_TURN') {
         const frame = parsed as UserTurnFrame;
-        const { session_id, message } = frame.payload;
+        const { message } = frame.payload;
 
-        if (!session_id || !message || typeof message !== 'string' || message.trim().length === 0) {
+        // The session_id is never taken from the client payload for
+        // authorization — currentSessionId is only ever set by
+        // handleSessionOpen after it has verified the session belongs to
+        // this uid (fresh session, or a { id, user_id } scoped reconnect
+        // lookup). Trusting a client-supplied session_id here would let any
+        // signed-in user inject turns into, and read context from, a
+        // session they don't own simply by knowing/guessing its UUID.
+        if (!currentSessionId) {
+          send({
+            type: 'ERROR',
+            payload: { reason: 'INVALID_PAYLOAD' },
+          });
+          req.log.warn({ event: 'user_turn', request_id: requestId, user_id: uid, outcome: 'no_active_session' }, 'USER_TURN with no active session');
+          return;
+        }
+
+        if (!message || typeof message !== 'string' || message.trim().length === 0) {
           send({
             type: 'ERROR',
             payload: { reason: 'INVALID_PAYLOAD' },
@@ -144,6 +177,17 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           req.log.warn({ event: 'user_turn', request_id: requestId, user_id: uid, outcome: 'invalid_payload' }, 'Invalid USER_TURN payload');
           return;
         }
+
+        if (message.length > MAX_MESSAGE_LENGTH) {
+          send({
+            type: 'ERROR',
+            payload: { reason: 'INVALID_PAYLOAD' },
+          });
+          req.log.warn({ event: 'user_turn', request_id: requestId, user_id: uid, outcome: 'message_too_long', msg_len: message.length }, 'USER_TURN message exceeds max length');
+          return;
+        }
+
+        const session_id = currentSessionId;
 
         req.log.info({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, msg_len: message.length }, 'Processing USER_TURN');
 
@@ -264,11 +308,20 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
       if (parsed.type === 'TOOL_RESULT') {
         const pld = (parsed.payload ?? {}) as Record<string, unknown>;
 
+        // Same IDOR concern as USER_TURN — session_id is never taken from
+        // the client payload for authorization, only the server-tracked,
+        // ownership-verified currentSessionId.
+        if (!currentSessionId) {
+          send({
+            type: 'ERROR',
+            payload: { reason: 'INVALID_PAYLOAD' },
+          });
+          return;
+        }
+
         if (
-          typeof pld.session_id !== 'string' ||
           pld.tool_type !== 'grounding_5431' ||
-          typeof pld.result !== 'object' ||
-          pld.result === null
+          !isValidGroundingResult(pld.result)
         ) {
           send({
             type: 'ERROR',
@@ -277,7 +330,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           return;
         }
 
-        const sessionId = pld.session_id;
+        const sessionId = currentSessionId;
         const activeSession = activeSessions.get(sessionId);
         const turnNumber = activeSession?.turnNumber;
 

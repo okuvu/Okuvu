@@ -281,6 +281,30 @@ describe('POST /journal', () => {
       expect(response.statusCode).toBe(400);
       expect(response.json().error.code).toBe('EMPTY_CONTENT');
     });
+
+    it('returns 400 for content exceeding the max length', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/journal',
+        payload: { emotion: 'calm', intensity: 1, content: 'x'.repeat(10001) },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('CONTENT_TOO_LONG');
+    });
+
+    it('accepts content at exactly the max length', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.journalEntry.create).mockResolvedValue({ id: 'entry-max' } as any);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/journal',
+        payload: { emotion: 'calm', intensity: 1, content: 'x'.repeat(10000) },
+      });
+
+      expect(response.statusCode).toBe(201);
+    });
   });
 
   describe('negative — user not found', () => {

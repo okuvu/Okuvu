@@ -8,6 +8,7 @@ const VALID_EMOTIONS = ['anxious', 'sad', 'angry', 'overwhelmed', 'numb', 'calm'
 const INTENSITY_MIN = 1;
 const INTENSITY_MAX = 5;
 const MAX_ENTRIES = 30;
+const MAX_CONTENT_LENGTH = 10000;
 
 export async function journalRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateJournalEntryBody }>('/journal', {
@@ -39,6 +40,15 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
           error: {
             code: 'EMPTY_CONTENT',
             message: 'content must be a non-empty string',
+          },
+        });
+      }
+
+      if (content.length > MAX_CONTENT_LENGTH) {
+        return reply.status(400).send({
+          error: {
+            code: 'CONTENT_TOO_LONG',
+            message: `content must be at most ${MAX_CONTENT_LENGTH} characters`,
           },
         });
       }
