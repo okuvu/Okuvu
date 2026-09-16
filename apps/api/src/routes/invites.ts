@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { hashInviteToken } from '../crypto/invite-token-hash.js';
 
 interface RedeemInviteBody {
   token?: string;
@@ -27,7 +28,7 @@ export async function invitesRoute(app: FastifyInstance): Promise<void> {
       }
 
       const invite = await prisma.inviteToken.findUnique({
-        where: { token },
+        where: { token_hash: hashInviteToken(token) },
         select: { id: true, client_user_id: true, expires_at: true, redeemed_at: true },
       });
 

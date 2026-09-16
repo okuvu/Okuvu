@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { buildApp } from '../app.js';
+import { hashInviteToken } from '../crypto/invite-token-hash.js';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -105,6 +106,25 @@ describe('POST /invites/redeem (therapist-portal wireframes C-06)', () => {
 
     expect(response.statusCode).toBe(409);
     expect(response.json().error.code).toBe('ACCOUNT_ALREADY_LINKED');
+  });
+
+  it('looks up by the hash of the submitted token, never the plaintext', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.inviteToken.findUnique).mockResolvedValue(null);
+
+    await app.inject({
+      method: 'POST',
+      url: '/invites/redeem',
+      payload: { token: 'AB12CD34' },
+    });
+
+    expect(prisma.inviteToken.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { token_hash: hashInviteToken('AB12CD34') } }),
+    );
+    // Security-audit round, 16 Sep 2026 — the whole point of this change:
+    // the plaintext token must never appear as a lookup value.
+    const callArgs = vi.mocked(prisma.inviteToken.findUnique).mock.calls[0][0];
+    expect(JSON.stringify(callArgs)).not.toContain('AB12CD34');
   });
 
   it('links firebase_uid and marks redeemed_at on success', async () => {

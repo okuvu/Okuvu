@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto';
 import { protectedProcedure, router } from '../trpc';
 import { checkRateLimit } from '../rate-limit';
 import { sendInviteEmail } from '@/lib/email';
+import { hashInviteToken } from '@/lib/invite-token-hash';
 
 const CARE_PLANS = ['CP1', 'CP2', 'CP3'] as const;
 const INVITE_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I — easy to read aloud/type
@@ -262,7 +263,7 @@ export const adminRouter = router({
 
       const inviteCode = generateInviteCode();
 
-      const { client, invite } = await ctx.db.$transaction(async (tx) => {
+      const { client } = await ctx.db.$transaction(async (tx) => {
         const client = await tx.user.create({
           data: {
             phone_number: input.phoneNumber,
@@ -289,30 +290,29 @@ export const adminRouter = router({
           data: { therapist_id: therapist.id, client_user_id: client.id },
         });
 
-        const invite = await tx.inviteToken.create({
+        await tx.inviteToken.create({
           data: {
-            token: inviteCode,
+            token_hash: hashInviteToken(inviteCode),
             therapist_id: therapist.id,
             client_user_id: client.id,
             expires_at: new Date(Date.now() + INVITE_TTL_MS),
           },
-          select: { token: true },
         });
 
-        return { client, invite };
+        return { client };
       });
 
       const emailResult = await sendInviteEmail({
         to: input.email,
         therapistName: therapist.name ?? therapist.email,
         clientName: input.fullName,
-        inviteCode: invite.token,
+        inviteCode,
       });
 
       return {
         success: true,
         clientId: client.id,
-        inviteCode: invite.token,
+        inviteCode,
         emailSent: emailResult.sent,
       };
     }),
@@ -343,7 +343,7 @@ export const adminRouter = router({
       const inviteCode = generateInviteCode();
       await ctx.db.inviteToken.create({
         data: {
-          token: inviteCode,
+          token_hash: hashInviteToken(inviteCode),
           therapist_id: input.therapistId,
           client_user_id: input.clientUserId,
           expires_at: new Date(Date.now() + INVITE_TTL_MS),

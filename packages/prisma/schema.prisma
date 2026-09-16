@@ -370,9 +370,15 @@ model Appointment {
 /// SMS/WhatsApp share of the same link) → client OTP-activates via
 /// POST /invites/redeem, which populates User.firebase_uid and sets
 /// redeemed_at.
+/// token_hash, not the plaintext code — the invite code is randomly
+/// generated (8 chars, 33-char alphabet), one-directionally hashed
+/// (SHA-256) before it's ever written here, and only the plaintext is
+/// emailed to the client. Redemption re-hashes the client-submitted code
+/// and looks up by that hash, so the DB never holds anything that alone
+/// lets a reader redeem an invite.
 model InviteToken {
   id             String    @id @default(uuid())
-  token          String    @unique
+  token_hash     String    @unique
   therapist_id   String
   client_user_id String
   created_at     DateTime  @default(now())

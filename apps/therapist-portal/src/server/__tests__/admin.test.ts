@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient } from '@okuvu/prisma';
 import { appRouter } from '../routers/_app';
+import { hashInviteToken } from '@/lib/invite-token-hash';
 
 vi.mock('@/lib/email', () => ({
   sendInviteEmail: vi.fn().mockResolvedValue({ sent: true }),
@@ -275,7 +276,10 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
 
     expect(result.success).toBe(true);
     expect(result.clientId).toBe('new_client_1');
-    expect(result.inviteCode).toBe('GENERATED1');
+    // Security-audit round, 16 Sep 2026 — inviteCode is now the real
+    // randomly-generated code returned directly, never read back from a
+    // stored value (the DB only ever holds its hash, never the plaintext).
+    expect(result.inviteCode).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
     expect(result.emailSent).toBe(true);
 
     const tx = (prisma as unknown as { __txClient: ReturnType<typeof buildTxClient> }).__txClient;
@@ -304,8 +308,25 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
       data: { therapist_id: THERAPIST.id, client_user_id: 'new_client_1' },
     });
     expect(sendInviteEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: BASE_INPUT.email, clientName: BASE_INPUT.fullName }),
+      expect.objectContaining({
+        to: BASE_INPUT.email,
+        clientName: BASE_INPUT.fullName,
+        inviteCode: result.inviteCode,
+      }),
     );
+
+    // Security-audit round, 16 Sep 2026 — the DB write must never contain
+    // the plaintext code, only its hash, and the email is the one and only
+    // place the plaintext is meant to end up.
+    expect(tx.inviteToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          token_hash: hashInviteToken(result.inviteCode),
+        }),
+      }),
+    );
+    const inviteTokenCallArgs = vi.mocked(tx.inviteToken.create).mock.calls[0][0];
+    expect(JSON.stringify(inviteTokenCallArgs)).not.toContain(result.inviteCode);
   });
 });
 
@@ -345,13 +366,18 @@ describe('admin.resendInvite (therapist-portal wireframes C-07 dashboard "Resend
 
     expect(result.success).toBe(true);
     expect(result.emailSent).toBe(true);
+    expect(result.inviteCode).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
     expect(prisma.inviteToken.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ therapist_id: THERAPIST.id, client_user_id: 'client_1' }),
+        data: expect.objectContaining({
+          therapist_id: THERAPIST.id,
+          client_user_id: 'client_1',
+          token_hash: hashInviteToken(result.inviteCode),
+        }),
       }),
     );
     expect(sendInviteEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'client@example.com', clientName: 'Shubhangi' }),
+      expect.objectContaining({ to: 'client@example.com', clientName: 'Shubhangi', inviteCode: result.inviteCode }),
     );
   });
 });
