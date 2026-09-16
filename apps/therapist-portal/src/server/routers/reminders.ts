@@ -11,6 +11,7 @@ import {
 
 const FREQUENCIES = ['off', 'once_daily', 'twice_daily', 'thrice_daily', 'as_needed'] as const;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const MAX_SCHEDULE_NOTE_LENGTH = 2000;
 
 export const remindersRouter = router({
   listReminders: therapistProcedure
@@ -56,11 +57,11 @@ export const remindersRouter = router({
     .input(
       z.object({
         clientUserId: z.string().min(1),
-        scheduleNote: z.string().trim().min(1, 'Reminder text must not be empty'),
+        scheduleNote: z.string().trim().min(1, 'Reminder text must not be empty').max(MAX_SCHEDULE_NOTE_LENGTH),
         frequency: z.enum(FREQUENCIES),
         times: z.array(z.string().regex(TIME_PATTERN, 'times must be "HH:mm"')).max(3),
-        homeworkId: z.string().optional(),
-        toolId: z.string().optional(),
+        homeworkId: z.string().min(1).optional(),
+        toolId: z.string().min(1).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -68,6 +69,27 @@ export const remindersRouter = router({
       const therapistId = ctx.therapistId;
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
+
+      if (input.homeworkId) {
+        const homework = await db.homework.findUnique({
+          where: { id: input.homeworkId },
+          select: { client_user_id: true },
+        });
+        if (!homework || homework.client_user_id !== input.clientUserId) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Homework not found for this client' });
+        }
+      }
+
+      if (input.toolId) {
+        const tool = await db.toolRegistryEntry.findUnique({
+          where: { tool_id: input.toolId },
+          select: { tool_id: true },
+        });
+        if (!tool) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Tool not found' });
+        }
+      }
+
       await logClinicalAccess(db, therapistId, input.clientUserId, 'CREATE_REMINDER');
 
       const reminder = await db.reminder.create({
@@ -88,7 +110,7 @@ export const remindersRouter = router({
   setActive: therapistMutation
     .input(
       z.object({
-        id: z.string(),
+        id: z.string().min(1),
         clientUserId: z.string().min(1),
         active: z.boolean(),
       }),

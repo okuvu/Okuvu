@@ -170,6 +170,19 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
       }),
     ).rejects.toThrow(/no client found/i);
   });
+
+  it('rejects a clientPhoneNumber not in E.164 format', async () => {
+    const prisma = buildPrisma();
+    const caller = callerWith(prisma);
+
+    await expect(
+      caller.admin.assignClient({
+        therapistId: THERAPIST.id,
+        clientPhoneNumber: '9876543210',
+        chatAccessGranted: false,
+      }),
+    ).rejects.toThrow();
+  });
 });
 
 describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)', () => {
@@ -202,6 +215,42 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
     await expect(caller.admin.createClientWithInvite(BASE_INPUT)).rejects.toThrow(/already exists/i);
   });
 
+  it('rejects an unparseable dateOfBirth', async () => {
+    const prisma = buildPrisma();
+    const caller = callerWith(prisma);
+
+    await expect(
+      caller.admin.createClientWithInvite({ ...BASE_INPUT, dateOfBirth: 'not-a-date' }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects a presentingIssues value outside the fixed option set', async () => {
+    const prisma = buildPrisma();
+    const caller = callerWith(prisma);
+
+    await expect(
+      caller.admin.createClientWithInvite({ ...BASE_INPUT, presentingIssues: ['Not A Real Issue'] as never }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects a phoneNumber not in E.164 format', async () => {
+    const prisma = buildPrisma();
+    const caller = callerWith(prisma);
+
+    await expect(
+      caller.admin.createClientWithInvite({ ...BASE_INPUT, phoneNumber: '9876500000' }),
+    ).rejects.toThrow();
+  });
+
+  it('rejects a welcomeNote exceeding the max length', async () => {
+    const prisma = buildPrisma();
+    const caller = callerWith(prisma);
+
+    await expect(
+      caller.admin.createClientWithInvite({ ...BASE_INPUT, welcomeNote: 'x'.repeat(2001) }),
+    ).rejects.toThrow();
+  });
+
   it('throws NOT_FOUND for an unknown therapist', async () => {
     const prisma = buildPrisma();
     vi.mocked(prisma.therapist.findUnique).mockResolvedValue(null);
@@ -219,7 +268,7 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
       ...BASE_INPUT,
       dateOfBirth: '1995-04-12',
       gender: 'female',
-      presentingIssues: ['anxiety', 'sleep'],
+      presentingIssues: ['Anxiety', 'Sleep'],
       welcomeNote: 'Looking forward to working with you.',
       displayAbbreviation: 'S.',
     });
@@ -245,7 +294,7 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
           user_id: 'new_client_1',
           care_plan_id: 'CP2',
           assignment_state: 'confirmed',
-          presenting_issues: ['anxiety', 'sleep'],
+          presenting_issues: ['Anxiety', 'Sleep'],
           welcome_note: 'Looking forward to working with you.',
           display_abbreviation: 'S.',
         }),

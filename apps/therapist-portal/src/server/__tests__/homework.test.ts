@@ -4,7 +4,7 @@ import { appRouter } from '../routers/_app';
 
 const ORIGINAL_BYPASS = process.env.LOCAL_DEV_BYPASS_AUTH;
 
-function buildPrisma(overrides: { homeworkRows?: unknown[] } = {}) {
+function buildPrisma(overrides: { homeworkRows?: unknown[]; toolExists?: boolean } = {}) {
   return {
     // therapistProcedure always looks this up first; returning null falls
     // through to the LOCAL_DEV_BYPASS_AUTH path (trpc.ts lines 53-59).
@@ -21,6 +21,11 @@ function buildPrisma(overrides: { homeworkRows?: unknown[] } = {}) {
         assigned_at: new Date('2026-09-16T00:00:00.000Z'),
       }),
       findMany: vi.fn().mockResolvedValue(overrides.homeworkRows ?? []),
+    },
+    toolRegistryEntry: {
+      findUnique: vi.fn().mockResolvedValue(
+        overrides.toolExists === false ? null : { tool_id: 'box_breathing' },
+      ),
     },
   } as unknown as PrismaClient;
 }
@@ -86,6 +91,21 @@ describe('homework.assign — tool_id linking', () => {
     await expect(
       caller.homework.assign({ clientUserId: 'client_1', description: '  ' }),
     ).rejects.toThrow();
+  });
+
+  it('rejects a toolId that does not exist in the tool registry', async () => {
+    const prisma = buildPrisma({ toolExists: false });
+    const caller = callerWith(prisma);
+
+    await expect(
+      caller.homework.assign({
+        clientUserId: 'client_1',
+        description: 'Practice a made-up exercise.',
+        toolId: 'not_a_real_tool',
+      }),
+    ).rejects.toThrow(/tool not found/i);
+
+    expect(prisma.homework.create).not.toHaveBeenCalled();
   });
 });
 

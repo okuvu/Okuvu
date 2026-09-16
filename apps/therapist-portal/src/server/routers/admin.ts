@@ -8,6 +8,14 @@ import { sendInviteEmail } from '@/lib/email';
 const CARE_PLANS = ['CP1', 'CP2', 'CP3'] as const;
 const INVITE_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I — easy to read aloud/type
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Mirrors AddClientWizard.tsx's ISSUE_OPTIONS — the only values the wizard
+// can actually send, but the backend shouldn't take that on faith.
+const PRESENTING_ISSUES = ['Anxiety', 'Low mood', 'Stress', 'Sleep', 'Grief'] as const;
+const MAX_NAME_LENGTH = 200;
+const MAX_GENDER_LENGTH = 100;
+const MAX_WELCOME_NOTE_LENGTH = 2000;
+const MAX_DISPLAY_ABBREVIATION_LENGTH = 50;
+const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 
 function generateInviteCode(): string {
   return Array.from({ length: 8 }, () => INVITE_CODE_CHARS[randomInt(INVITE_CODE_CHARS.length)]).join('');
@@ -139,7 +147,7 @@ export const adminRouter = router({
     .input(
       z.object({
         therapistId: z.string().min(1),
-        clientPhoneNumber: z.string().trim().min(1),
+        clientPhoneNumber: z.string().trim().regex(PHONE_REGEX, 'clientPhoneNumber must be in E.164 format (e.g. +1234567890)'),
         chatAccessGranted: z.boolean(),
         languageMode: z.enum(['english', 'mirror']).optional(),
       }),
@@ -219,15 +227,17 @@ export const adminRouter = router({
     .input(
       z.object({
         therapistId: z.string().min(1),
-        fullName: z.string().trim().min(1),
-        phoneNumber: z.string().trim().min(1),
+        fullName: z.string().trim().min(1).max(MAX_NAME_LENGTH),
+        phoneNumber: z.string().trim().regex(PHONE_REGEX, 'phoneNumber must be in E.164 format (e.g. +1234567890)'),
         email: z.string().trim().email(),
-        dateOfBirth: z.string().optional(),
-        gender: z.string().trim().optional(),
-        presentingIssues: z.array(z.string()).default([]),
+        dateOfBirth: z.string().refine((v) => !Number.isNaN(new Date(v).getTime()), {
+          message: 'dateOfBirth must be a valid date',
+        }).optional(),
+        gender: z.string().trim().max(MAX_GENDER_LENGTH).optional(),
+        presentingIssues: z.array(z.enum(PRESENTING_ISSUES)).default([]),
         carePlanId: z.enum(CARE_PLANS),
-        welcomeNote: z.string().trim().optional(),
-        displayAbbreviation: z.string().trim().optional(),
+        welcomeNote: z.string().trim().max(MAX_WELCOME_NOTE_LENGTH).optional(),
+        displayAbbreviation: z.string().trim().max(MAX_DISPLAY_ABBREVIATION_LENGTH).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 
-const ISSUE_OPTIONS = ['Anxiety', 'Low mood', 'Stress', 'Sleep', 'Grief'];
+// Mirrors the backend's PRESENTING_ISSUES enum in admin.ts — these are
+// the only values createClientWithInvite will accept.
+const ISSUE_OPTIONS = ['Anxiety', 'Low mood', 'Stress', 'Sleep', 'Grief'] as const;
+type IssueOption = (typeof ISSUE_OPTIONS)[number];
 const CARE_PLANS = [
   { id: 'CP1' as const, label: 'Anxiety & Worry' },
   { id: 'CP2' as const, label: 'Depression & Low Mood', suggested: true },
@@ -23,7 +26,7 @@ interface WizardState {
   email: string;
   dateOfBirth: string;
   gender: string;
-  issues: string[];
+  issues: IssueOption[];
   carePlanId: 'CP1' | 'CP2' | 'CP3' | '';
   welcomeNote: string;
   displayAbbreviation: string;
@@ -86,7 +89,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
     setIsOpen(false);
   }
 
-  function toggleIssue(issue: string) {
+  function toggleIssue(issue: IssueOption) {
     setState((s) => ({
       ...s,
       issues: s.issues.includes(issue) ? s.issues.filter((i) => i !== issue) : [...s.issues, issue],

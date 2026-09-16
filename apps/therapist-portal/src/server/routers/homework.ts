@@ -8,17 +8,19 @@ import {
   therapistProcedure,
 } from '../trpc';
 
+const MAX_DESCRIPTION_LENGTH = 2000;
+
 export const homeworkRouter = router({
   assign: therapistMutation
     .input(
       z.object({
-        clientUserId: z.string(),
-        description: z.string().trim().min(1, 'Homework description must not be empty'),
+        clientUserId: z.string().min(1),
+        description: z.string().trim().min(1, 'Homework description must not be empty').max(MAX_DESCRIPTION_LENGTH),
         // Decisions doc round, 15 Sep 2026 §4/§5 — optional link to one of
         // the 5 approved exercises, so the client app can render this as a
         // real, playable exercise rather than just prose. Additive: existing
         // pure-text assignments (toolId omitted) keep working unchanged.
-        toolId: z.string().optional(),
+        toolId: z.string().min(1).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -26,6 +28,16 @@ export const homeworkRouter = router({
       const therapistId = ctx.therapistId;
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
+
+      if (input.toolId) {
+        const tool = await db.toolRegistryEntry.findUnique({
+          where: { tool_id: input.toolId },
+          select: { tool_id: true },
+        });
+        if (!tool) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Tool not found' });
+        }
+      }
 
       const homework = await db.homework.create({
         data: {
@@ -84,7 +96,7 @@ export const homeworkRouter = router({
   markCompleted: therapistMutation
     .input(
       z.object({
-        homeworkId: z.string(),
+        homeworkId: z.string().min(1),
         clientId: z.string().min(1),
       }),
     )

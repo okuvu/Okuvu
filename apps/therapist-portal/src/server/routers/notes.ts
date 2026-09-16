@@ -7,12 +7,14 @@ import {
   therapistProcedure,
 } from '../trpc';
 
+const MAX_NOTE_TEXT_LENGTH = 10000;
+
 export const notesRouter = router({
   addNote: therapistMutation
     .input(
       z.object({
-        clientUserId: z.string(),
-        noteText: z.string().trim().min(1, 'Note text must not be empty'),
+        clientUserId: z.string().min(1),
+        noteText: z.string().trim().min(1, 'Note text must not be empty').max(MAX_NOTE_TEXT_LENGTH),
       }),
     )
     .mutation(async ({ ctx, input }) => {

@@ -68,7 +68,7 @@ export const clientsRouter = router({
   }),
 
   detail: therapistProcedure
-    .input(z.object({ clientUserId: z.string() }))
+    .input(z.object({ clientUserId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       if (isBypassEnabled()) {
         return {
