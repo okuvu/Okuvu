@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,6 +22,14 @@ import '../home/providers/today_card_provider.dart';
 import '../../theme/app_colors.dart';
 
 const bool _useMockResponses = false;
+// Mirrors apps/api/src/routes/websocket.ts's MAX_MESSAGE_LENGTH — keep the
+// two in sync if either changes.
+const int _maxMessageLength = 4000;
+// How long a turn is given to come back before we give up on it — used
+// both for the "no response received" snackbar and to bound how long
+// _confirmEndSession waits before tearing down the socket on a pending
+// turn (see its own comment for why that matters).
+const Duration _turnResponseTimeout = Duration(seconds: 20);
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -75,7 +84,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _startTypingTimeout() {
     _typingTimer?.cancel();
-    _typingTimer = Timer(const Duration(seconds: 20), () {
+    _typingTimer = Timer(_turnResponseTimeout, () {
       if (mounted) {
         setState(() => _isAgentTyping = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,7 +113,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
     );
     if (confirmed == true) {
-      ref.read(webSocketServiceProvider).disconnect();
+      // Safety-critical: if a turn is still awaiting a response (e.g. the
+      // backend is still classifying the user's last message), the reply
+      // could be CRISIS_SIGNAL. disconnect() sends SESSION_CLOSE then tears
+      // down the socket in the same call with no gap — closing the socket
+      // before that classification lands means the app would never receive
+      // it, with no fallback: the backend computes a crisis_bypass flag on
+      // the next SESSION_OPEN, but the client never reads it. Navigate away
+      // immediately (the app-wide crisis overlay works from any screen), but
+      // hold the actual disconnect open long enough for a pending response.
+      // The service instance is captured now, not read from `ref` inside
+      // the delayed callback — this State will be disposed by then.
+      final ws = ref.read(webSocketServiceProvider);
+      if (_isAgentTyping) {
+        Future.delayed(_turnResponseTimeout, ws.disconnect);
+      } else {
+        ws.disconnect();
+      }
       if (context.mounted) context.go('/home');
     }
   }
@@ -390,26 +415,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               textInputAction: TextInputAction.send,
               onSubmitted: isInputDisabled ? null : (_) => _sendMessage(),
               enabled: !isInputDisabled,
+              maxLength: _maxMessageLength,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              minLines: 1,
+              maxLines: 5,
               decoration: const InputDecoration(
                 hintText: 'Type a message...',
                 border: InputBorder.none,
+                counterText: '',
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
           ),
-          IconButton(
-            key: const ValueKey('chat_send'),
-            onPressed: isInputDisabled ? null : _sendMessage,
-            icon: const Icon(LucideIcons.send),
-            style: IconButton.styleFrom(
-              backgroundColor: isInputDisabled
-                  ? Theme.of(context).colorScheme.surfaceContainerHighest
-                  : Theme.of(context).colorScheme.primary,
-              foregroundColor: isInputDisabled
-                  ? Theme.of(context).colorScheme.onSurfaceVariant
-                  : Theme.of(context).colorScheme.onPrimary,
-            ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _textController,
+            builder: (context, value, _) {
+              final sendDisabled = isInputDisabled || value.text.trim().isEmpty;
+              return IconButton(
+                key: const ValueKey('chat_send'),
+                onPressed: sendDisabled ? null : _sendMessage,
+                icon: const Icon(LucideIcons.send),
+                style: IconButton.styleFrom(
+                  backgroundColor: sendDisabled
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                      : Theme.of(context).colorScheme.primary,
+                  foregroundColor: sendDisabled
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : Theme.of(context).colorScheme.onPrimary,
+                ),
+              );
+            },
           ),
         ],
       ),

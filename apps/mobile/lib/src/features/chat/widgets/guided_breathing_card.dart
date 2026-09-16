@@ -152,7 +152,15 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
   }
 
   void _skip() {
-    setState(() => _skipped = true);
+    // _phase must move to .complete here too, not just _skipped — the loop
+    // in _startSession only advances it inside its own
+    // `if (!_skipped && mounted)` tail, which this deliberately bypasses.
+    // Without this, _phase stayed stuck at .active forever: the card kept
+    // rendering the frozen "in progress" UI with no way to dismiss it.
+    setState(() {
+      _skipped = true;
+      _phase = BreathingPhase.complete;
+    });
     _tts.stop();
     _circleController.stop();
   }

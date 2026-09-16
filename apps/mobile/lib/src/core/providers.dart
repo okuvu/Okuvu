@@ -115,6 +115,8 @@ class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<String?>? _sessionSub;
   StreamSubscription<String?>? _crisisSub;
 
+  StreamSubscription<WsConnectionState>? _connectionSub;
+
   @override
   ChatState build() {
     final ws = ref.watch(webSocketServiceProvider);
@@ -131,10 +133,22 @@ class ChatNotifier extends Notifier<ChatState> {
     _crisisSub = ws.crisisSignalStream.listen((_) {
       ref.read(crisisOverlayProvider.notifier).show();
     });
+    // A prior session closing is only ever recorded (isSessionClosed: true)
+    // above, never cleared — nothing else in this notifier resets it, so a
+    // brand-new session opening after one closed left the chat UI locked on
+    // "This session has ended" for the rest of the app's lifetime. Reconnects
+    // to a still-open session also emit sessionActive, so only reset when the
+    // previous state genuinely was closed, not on every reconnect blip.
+    _connectionSub = ws.stateStream.listen((wsState) {
+      if (wsState == WsConnectionState.sessionActive && state.isSessionClosed) {
+        state = const ChatState(messages: []);
+      }
+    });
     ref.onDispose(() {
       _turnSub?.cancel();
       _sessionSub?.cancel();
       _crisisSub?.cancel();
+      _connectionSub?.cancel();
     });
     return const ChatState(messages: []);
   }
