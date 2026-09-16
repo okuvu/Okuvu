@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import 'breathing_screen.dart';
+import 'providers/today_card_provider.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/mood_check_in.dart';
 import 'widgets/next_session_card.dart';
@@ -20,11 +21,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  String _greeting() {
+  String _greeting(String? displayAbbreviation) {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    final base = hour < 12
+        ? 'Good morning'
+        : hour < 17
+            ? 'Good afternoon'
+            : 'Good evening';
+    final name = displayAbbreviation?.trim();
+    return name != null && name.isNotEmpty ? '$base, $name' : base;
   }
 
   String _formattedDate() {
@@ -58,6 +63,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final displayAbbreviation =
+        ref.watch(todayCardProvider).asData?.value.displayAbbreviation;
 
     return Scaffold(
       appBar: AppBar(
@@ -81,7 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
           Text(
-            _greeting(),
+            _greeting(displayAbbreviation),
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 4),

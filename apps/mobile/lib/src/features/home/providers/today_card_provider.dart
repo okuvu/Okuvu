@@ -92,6 +92,7 @@ class TodayCardData {
   final String defaultBoxBreathingPacePreset;
   final bool careEnded;
   final String? careEndedByTherapistName;
+  final String? displayAbbreviation;
 
   const TodayCardData({
     required this.homeworkId,
@@ -105,6 +106,7 @@ class TodayCardData {
     required this.defaultBoxBreathingPacePreset,
     required this.careEnded,
     required this.careEndedByTherapistName,
+    required this.displayAbbreviation,
   });
 
   factory TodayCardData.fromJson(Map<String, dynamic> json) {
@@ -148,6 +150,10 @@ class TodayCardData {
       // screen. Only ever true when there's no active relationship.
       careEnded: json['careEnded'] as bool? ?? false,
       careEndedByTherapistName: json['careEndedByTherapistName'] as String?,
+      // The short name/abbreviation chosen on the welcome screen (or set
+      // by a therapist) — powers the Home greeting's personalization.
+      // Null until set; Home falls back to the plain time-of-day greeting.
+      displayAbbreviation: json['displayAbbreviation'] as String?,
     );
   }
 }

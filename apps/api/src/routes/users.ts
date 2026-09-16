@@ -122,7 +122,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
             orderBy: { assigned_at: 'desc' },
             select: { id: true, description: true },
           },
-          clinical_config: { select: { care_plan_id: true } },
+          clinical_config: { select: { care_plan_id: true, display_abbreviation: true } },
         },
       });
 
@@ -239,6 +239,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         defaultBoxBreathingPacePreset: pacePresetByToolId.get('box_breathing') ?? 'standard',
         careEnded: endedRelationship !== null,
         careEndedByTherapistName: endedRelationship?.therapist.name ?? null,
+        displayAbbreviation: user.clinical_config?.display_abbreviation ?? null,
       };
 
       reply.send(body);

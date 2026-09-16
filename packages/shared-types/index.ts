@@ -359,6 +359,8 @@ export interface TodayCard {
   careEnded: boolean
   /** The therapist who ended care, for the close screen's copy. Null if careEnded is false. */
   careEndedByTherapistName: string | null
+  /** ClinicalConfig.display_abbreviation — the short name/abbreviation the client chose on the welcome screen (or a therapist set for them). Null until set. Used to personalize the Home greeting instead of a bare "Good morning". */
+  displayAbbreviation: string | null
 }
 
 export type ReminderFrequency = 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed'

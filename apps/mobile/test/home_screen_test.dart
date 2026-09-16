@@ -214,6 +214,60 @@ void main() {
 
       expect(find.text('Crisis Support'), findsOneWidget);
     });
+
+    testWidgets('greeting includes the display abbreviation once /users/me/today returns one', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
+      dio.interceptors.add(InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.path.endsWith('/users/me/today')) {
+            handler.resolve(Response(
+              requestOptions: options,
+              statusCode: 200,
+              data: {'displayAbbreviation': 'Zee'},
+            ));
+            return;
+          }
+          handler.resolve(Response(requestOptions: options, statusCode: 200, data: {'success': true}));
+        },
+      ));
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            webSocketServiceProvider.overrideWithValue(_fakeWs),
+            authServiceProvider.overrideWithValue(FakeAuthService()),
+            dioClientProvider.overrideWithValue(dio),
+          ],
+          child: const MaterialApp(home: HomeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining(', Zee'), findsOneWidget);
+    });
+
+    testWidgets('greeting falls back to the plain time-of-day text with no display abbreviation', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pumpAndSettle();
+
+      final hour = DateTime.now().hour;
+      final expected = hour < 12
+          ? 'Good morning'
+          : hour < 17
+              ? 'Good afternoon'
+              : 'Good evening';
+      expect(find.text(expected), findsOneWidget);
+    });
   });
 
   group('HomeScreen navigation', () {
