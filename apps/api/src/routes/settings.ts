@@ -4,6 +4,9 @@ import { prisma } from '../lib/prisma.js';
 import { encrypt, decrypt, getEncryptionKey } from '../crypto/emergency-contact-encryption.js';
 
 const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
+const MAX_NAME_LENGTH = 200;
+const MAX_FULL_NAME_LENGTH = 200;
+const MAX_GENDER_LENGTH = 100;
 
 interface SaveEmergencyContactBody {
   name: string
@@ -127,6 +130,15 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
               code: 'INVALID_PHONE_FORMAT',
               message:
                 'Phone must be in E.164 format (e.g. +1234567890)',
+            },
+          });
+        }
+
+        if (body.name.length > MAX_NAME_LENGTH) {
+          return reply.status(400).send({
+            error: {
+              code: 'NAME_TOO_LONG',
+              message: `name must be at most ${MAX_NAME_LENGTH} characters`,
             },
           });
         }
@@ -447,6 +459,32 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
         return reply.status(401).send({
           error: { code: 'UNAUTHORIZED', message: 'User not found' },
         });
+      }
+
+      if (body.full_name !== undefined && body.full_name !== null) {
+        if (typeof body.full_name !== 'string') {
+          return reply.status(400).send({
+            error: { code: 'INVALID_FULL_NAME', message: 'full_name must be a string' },
+          });
+        }
+        if (body.full_name.length > MAX_FULL_NAME_LENGTH) {
+          return reply.status(400).send({
+            error: { code: 'FULL_NAME_TOO_LONG', message: `full_name must be at most ${MAX_FULL_NAME_LENGTH} characters` },
+          });
+        }
+      }
+
+      if (body.gender !== undefined && body.gender !== null) {
+        if (typeof body.gender !== 'string') {
+          return reply.status(400).send({
+            error: { code: 'INVALID_GENDER', message: 'gender must be a string' },
+          });
+        }
+        if (body.gender.length > MAX_GENDER_LENGTH) {
+          return reply.status(400).send({
+            error: { code: 'GENDER_TOO_LONG', message: `gender must be at most ${MAX_GENDER_LENGTH} characters` },
+          });
+        }
       }
 
       let parsedDob: Date | null | undefined;

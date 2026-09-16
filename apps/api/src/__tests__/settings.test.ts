@@ -370,6 +370,69 @@ describe('GET/PATCH /settings/profile', () => {
 
       expect(response.statusCode).toBe(401);
     });
+
+    it('rejects a non-string full_name', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { full_name: 12345 },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_FULL_NAME');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a full_name exceeding the max length', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { full_name: 'x'.repeat(201) },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('FULL_NAME_TOO_LONG');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a gender exceeding the max length', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { gender: 'x'.repeat(101) },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('GENDER_TOO_LONG');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('allows null full_name/gender to clear the field', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/profile',
+        payload: { full_name: null, gender: null },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { full_name: null, gender: null },
+      });
+    });
   });
 });
 

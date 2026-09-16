@@ -311,6 +311,30 @@ describe('PATCH /settings/emergency-contact', () => {
     });
   });
 
+  describe('negative — name too long', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        id: MOCK_USER_ID,
+      } as any);
+      app = buildApp();
+    });
+
+    it('returns 400 for a name exceeding the max length', async () => {
+      const prisma = await importMocks();
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/emergency-contact',
+        payload: { name: 'x'.repeat(201), phone: '+1234567890' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('NAME_TOO_LONG');
+      expect(prisma.emergencyContact.upsert).not.toHaveBeenCalled();
+    });
+  });
+
   describe('negative — user not found', () => {
     beforeEach(async () => {
       const prisma = await importMocks();

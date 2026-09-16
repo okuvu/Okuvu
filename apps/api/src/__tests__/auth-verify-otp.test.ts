@@ -134,6 +134,20 @@ describe('POST /auth/verify-otp', () => {
         }),
       );
     });
+
+    it('returns 400 and does not update for a malformed phone_number', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/auth/verify-otp',
+        payload: { phone_number: 'not-a-phone-number' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_PHONE_FORMAT');
+
+      const prisma = await importMocks();
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('bypass disabled — auth errors', () => {

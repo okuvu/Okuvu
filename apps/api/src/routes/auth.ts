@@ -6,6 +6,8 @@ interface VerifyOtpBody {
   phone_number?: string;
 }
 
+const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
+
 export async function authRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: VerifyOtpBody }>('/auth/verify-otp', {
     preHandler: [verifyFirebaseJWT],
@@ -20,6 +22,14 @@ export async function authRoute(app: FastifyInstance): Promise<void> {
 
       if (existingUser) {
         if (phone_number) {
+          if (!PHONE_REGEX.test(phone_number.trim())) {
+            return reply.status(400).send({
+              error: {
+                code: 'INVALID_PHONE_FORMAT',
+                message: 'phone_number must be in E.164 format (e.g. +1234567890)',
+              },
+            });
+          }
           await prisma.user.update({
             where: { firebase_uid: uid },
             data: { phone_number },

@@ -182,6 +182,71 @@ describe('PATCH /users/:id/care-plan', () => {
 
       expect(prisma.clinicalConfig.upsert).not.toHaveBeenCalled();
     });
+
+    it.each([-0.01, 1.01, Number.NaN, 'high'])(
+      'returns 400 for out-of-range confidence_at_last_eval: %s',
+      async (confidence) => {
+        const prisma = await importMocks();
+
+        const response = await app.inject({
+          method: 'PATCH',
+          url: `/users/${MOCK_USER_ID}/care-plan`,
+          payload: validPayload({ confidence_at_last_eval: confidence }),
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe('INVALID_CONFIDENCE');
+        expect(prisma.clinicalConfig.upsert).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([-1, 2.5, 'three'])(
+      'returns 400 for a non-negative-integer turns_evaluated: %s',
+      async (turns) => {
+        const prisma = await importMocks();
+
+        const response = await app.inject({
+          method: 'PATCH',
+          url: `/users/${MOCK_USER_ID}/care-plan`,
+          payload: validPayload({ turns_evaluated: turns }),
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe('INVALID_TURNS_EVALUATED');
+        expect(prisma.clinicalConfig.upsert).not.toHaveBeenCalled();
+      },
+    );
+
+    it('returns 400 for a reasoning_note exceeding the max length', async () => {
+      const prisma = await importMocks();
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/users/${MOCK_USER_ID}/care-plan`,
+        payload: validPayload({ reasoning_note: 'x'.repeat(5001) }),
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_REASONING_NOTE');
+      expect(prisma.clinicalConfig.upsert).not.toHaveBeenCalled();
+    });
+
+    it('accepts a payload with reasoning_note omitted entirely', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.clinicalConfig.upsert).mockResolvedValue({
+        care_plan_id: 'CP1',
+        assignment_state: 'provisional',
+      } as any);
+      const { reasoning_note, ...payloadWithoutNote } = validPayload();
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/users/${MOCK_USER_ID}/care-plan`,
+        payload: payloadWithoutNote,
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
   });
 
   describe('edge — out-of-order turns_evaluated', () => {

@@ -115,4 +115,20 @@ describe('POST /waitlist', () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  it('rejects a malformed phone_number with 400 and never calls create', async () => {
+    const { prisma, sendWaitlistConfirmationEmail } = await importMocks();
+    app = buildApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/waitlist',
+      payload: { email: 'someone@example.com', phone_number: 'not-a-phone' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('INVALID_PHONE_FORMAT');
+    expect(prisma.waitlistEntry.create).not.toHaveBeenCalled();
+    expect(sendWaitlistConfirmationEmail).not.toHaveBeenCalled();
+  });
 });

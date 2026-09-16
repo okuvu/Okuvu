@@ -26,6 +26,7 @@ interface WelcomeAbbreviationBody {
 
 const VALID_CARE_PLANS: CarePlanId[] = ['CP1', 'CP2', 'CP3'];
 const VALID_ASSIGNMENT_STATES: AssignmentState[] = ['provisional', 'confirmed'];
+const MAX_REASONING_NOTE_LENGTH = 5000;
 
 export async function userRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: UserConsent }>('/users/me/consent', {
@@ -39,6 +40,19 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
           error: {
             code: 'INVALID_CONSENT',
             message: 'safety_monitoring must be true',
+          },
+        });
+      }
+
+      if (
+        typeof body.mood_inference !== 'boolean' ||
+        typeof body.assessment !== 'boolean' ||
+        typeof body.emergency_contact !== 'boolean'
+      ) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_CONSENT',
+            message: 'mood_inference, assessment, and emergency_contact must all be booleans',
           },
         });
       }
@@ -400,6 +414,45 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
           error: {
             code: 'INVALID_ASSIGNMENT_STATE',
             message: 'assignment_state must be one of provisional, confirmed',
+          },
+        });
+      }
+
+      if (
+        typeof body.confidence_at_last_eval !== 'number' ||
+        Number.isNaN(body.confidence_at_last_eval) ||
+        body.confidence_at_last_eval < 0 ||
+        body.confidence_at_last_eval > 1
+      ) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_CONFIDENCE',
+            message: 'confidence_at_last_eval must be a number between 0 and 1',
+          },
+        });
+      }
+
+      if (
+        typeof body.turns_evaluated !== 'number' ||
+        !Number.isInteger(body.turns_evaluated) ||
+        body.turns_evaluated < 0
+      ) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_TURNS_EVALUATED',
+            message: 'turns_evaluated must be a non-negative integer',
+          },
+        });
+      }
+
+      if (
+        body.reasoning_note !== undefined &&
+        (typeof body.reasoning_note !== 'string' || body.reasoning_note.length > MAX_REASONING_NOTE_LENGTH)
+      ) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_REASONING_NOTE',
+            message: `reasoning_note must be a string of at most ${MAX_REASONING_NOTE_LENGTH} characters`,
           },
         });
       }

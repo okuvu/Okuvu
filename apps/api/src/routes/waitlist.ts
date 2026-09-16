@@ -9,6 +9,7 @@ interface WaitlistBody {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 
 // S6 (waitlist) — reached when /auth/verify-otp returns NO_ACCOUNT (a
 // verified Firebase phone number with no matching OKUVU User/invite).
@@ -23,6 +24,15 @@ export async function waitlistRoute(app: FastifyInstance): Promise<void> {
       if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
         return reply.status(400).send({
           error: { code: 'INVALID_EMAIL', message: 'A valid email is required' },
+        });
+      }
+
+      if (typeof phone_number === 'string' && phone_number.trim().length > 0 && !PHONE_REGEX.test(phone_number.trim())) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_PHONE_FORMAT',
+            message: 'phone_number must be in E.164 format (e.g. +1234567890)',
+          },
         });
       }
 

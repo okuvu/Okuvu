@@ -160,6 +160,32 @@ describe('POST /users/me/consent', () => {
     });
   });
 
+  describe('negative — non-boolean consent fields', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+      app = buildApp();
+    });
+
+    it.each(['mood_inference', 'assessment', 'emergency_contact'])(
+      'returns 400 when %s is not a boolean',
+      async (field) => {
+        const prisma = await importMocks();
+        const payload = { ...validPayload(), [field]: 'true' };
+
+        const response = await app.inject({
+          method: 'POST',
+          url: '/users/me/consent',
+          payload,
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe('INVALID_CONSENT');
+        expect(prisma.engagementProfile.upsert).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   describe('edge — idempotent double-call', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
