@@ -24,10 +24,24 @@ function toIsoDateTime(date: string, time: string): string {
   return new Date(`${date}T${time}:00`).toISOString();
 }
 
+// `${date}T${time}:00` above is parsed as local time (no offset in the
+// string), so the prefilled date must come from the same local basis as
+// the prefilled time — not toISOString()'s UTC date, which disagrees with
+// toTimeString()'s local time for any appointment whose local time falls
+// on a different calendar day than its UTC equivalent (e.g. anything
+// before ~05:30 local in IST). Mixing the two bases silently shifted the
+// reschedule form's pre-filled date by a day for those appointments.
+function toLocalDateString(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function toFormPrefill(a: { scheduledAt: string; durationMinutes: number; mode: string; location: string | null; noteToClient: string | null; remind24h: boolean; remind1h: boolean }): Partial<AppointmentFormValues> {
   const d = new Date(a.scheduledAt);
   return {
-    date: d.toISOString().slice(0, 10),
+    date: toLocalDateString(d),
     time: d.toTimeString().slice(0, 5),
     durationMinutes: a.durationMinutes,
     mode: a.mode as AppointmentFormValues['mode'],
@@ -179,7 +193,21 @@ export function AppointmentsCard({ clientUserId }: { clientUserId: string }) {
                           <button
                             type="button"
                             disabled={cancel.isPending}
-                            onClick={() => cancel.mutate({ appointmentId: a.id, clientUserId })}
+                            onClick={() => {
+                              // Unlike every other destructive action here
+                              // (End care, and implicitly reschedule going
+                              // through its own form), this fired immediately
+                              // with no way back — a stray click cancelled a
+                              // real session and notified the client, with
+                              // no undo.
+                              if (
+                                window.confirm(
+                                  `Cancel this appointment (${formatDateTime(a.scheduledAt)})? The client will be notified.`,
+                                )
+                              ) {
+                                cancel.mutate({ appointmentId: a.id, clientUserId });
+                              }
+                            }}
                             className="text-xs font-medium text-danger hover:underline disabled:opacity-60"
                           >
                             Cancel
