@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -126,6 +127,24 @@ void main() {
         find.text('Write anything \u2014 this is just for you.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('content field enforces a 10000-character max length', (tester) async {
+      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpAndSettle();
+
+      final textField = tester.widget<TextField>(find.byType(TextField).last);
+      expect(textField.maxLength, 10000);
+      expect(textField.maxLengthEnforcement, MaxLengthEnforcement.enforced);
+
+      await tester.ensureVisible(find.byType(TextField).last);
+      await tester.enterText(find.byType(TextField).last, 'x' * 10005);
+      await tester.pump();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(TextField).last),
+      );
+      expect(container.read(journalEntryFormProvider).content.length, 10000);
     });
 
     testWidgets('renders a mic button to talk instead of type (J1)', (tester) async {

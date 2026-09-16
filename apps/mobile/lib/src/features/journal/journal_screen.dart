@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,10 @@ import '../home/widgets/home_bottom_nav.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
 import '../../core/providers.dart';
+
+// Mirrors apps/api/src/routes/journal.ts's MAX_CONTENT_LENGTH — keep the
+// two in sync if either changes.
+const int _maxJournalContentLength = 10000;
 
 class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
@@ -403,6 +408,8 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 focusNode: _textFocusNode,
                 maxLines: null,
                 minLines: 4,
+                maxLength: _maxJournalContentLength,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
                 onChanged: (value) => ref
                     .read(journalEntryFormProvider.notifier)
                     .setContent(value),
@@ -411,6 +418,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                   hintStyle: TextStyle(
                     color: theme.colorScheme.onSurfaceVariant.withAlpha(128),
                   ),
+                  counterText: '',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

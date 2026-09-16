@@ -21,6 +21,9 @@ class _EmergencyContactScreenState
   final _phoneController = TextEditingController();
   bool _initialized = false;
   bool _isEditing = false;
+  String? _phoneError;
+
+  static const int _maxNameLength = 200;
 
   @override
   void dispose() {
@@ -46,6 +49,8 @@ class _EmergencyContactScreenState
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
 
+    setState(() => _phoneError = null);
+
     if (name.isEmpty && phone.isEmpty) {
       await ref.read(emergencyContactProvider.notifier).clearEmergencyContact();
       if (mounted) {
@@ -55,13 +60,9 @@ class _EmergencyContactScreenState
     }
 
     if (phone.isNotEmpty && !_isValidPhone(phone)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Phone must be in international format (e.g. +1234567890)',
-          ),
-        ),
-      );
+      setState(() {
+        _phoneError = 'Phone must be in international format (e.g. +1234567890)';
+      });
       return;
     }
 
@@ -163,22 +164,28 @@ class _EmergencyContactScreenState
           const SizedBox(height: 24),
           TextField(
             controller: _nameController,
+            maxLength: _maxNameLength,
             decoration: const InputDecoration(
               labelText: 'Name',
               hintText: 'Full name',
               border: OutlineInputBorder(),
+              counterText: '',
             ),
             textCapitalization: TextCapitalization.words,
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _phoneController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Phone',
               hintText: '+1234567890',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              errorText: _phoneError,
             ),
             keyboardType: TextInputType.phone,
+            onChanged: (_) {
+              if (_phoneError != null) setState(() => _phoneError = null);
+            },
           ),
           const SizedBox(height: 8),
           Text(
@@ -198,24 +205,34 @@ class _EmergencyContactScreenState
             ),
           ],
           const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed:
-                  state.isSaving || (!_hasChanges && !state.hasContact)
-                      ? null
-                      : _save,
-              child: state.isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Save'),
-            ),
+          // Listens to both controllers so the button reacts live as the
+          // user types — _hasChanges is a getter re-evaluated on every
+          // build, but nothing else here triggers a rebuild on text input,
+          // which previously left a brand-new (no existing contact) Save
+          // button permanently disabled no matter what was typed.
+          ListenableBuilder(
+            listenable: Listenable.merge([_nameController, _phoneController]),
+            builder: (context, _) {
+              return SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed:
+                      state.isSaving || (!_hasChanges && !state.hasContact)
+                          ? null
+                          : _save,
+                  child: state.isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Save'),
+                ),
+              );
+            },
           ),
         ],
       ),

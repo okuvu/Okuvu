@@ -157,6 +157,32 @@ void main() {
       expect(find.text('COLDSTART_MARKER'), findsNothing);
     });
 
+    testWidgets('normalizes a lowercase/mixed-case code to uppercase before redeeming', (tester) async {
+      adapter.statusByPathSuffix['/invites/redeem'] = 200;
+
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Have an invite code?'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('invite_code_input')), 'ab12cd34');
+
+      await enterPhoneAndSendOtp(tester);
+      await enterOtp(tester);
+
+      expect(adapter.lastRequest?.path, contains('/invites/redeem'));
+      expect(adapter.lastRequest?.data, containsPair('token', 'AB12CD34'));
+    });
+
+    testWidgets('invite code field enforces an 8-character max length', (tester) async {
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Have an invite code?'));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(find.byKey(const ValueKey('invite_code_input')));
+      expect(field.maxLength, 8);
+    });
+
     testWidgets('shows a friendly message when the code was already redeemed', (tester) async {
       adapter.statusByPathSuffix['/invites/redeem'] = 409;
       adapter.bodyByPathSuffix['/invites/redeem'] =
@@ -201,6 +227,41 @@ void main() {
 
       expect(find.text('WAITLIST_MARKER:+919876543210'), findsOneWidget);
       expect(find.text('COLDSTART_MARKER'), findsNothing);
+    });
+  });
+
+  group('OtpLoginScreen — OTP digit boxes', () {
+    late Dio dio;
+    late RoutedMockAdapter adapter;
+
+    setUp(() {
+      adapter = RoutedMockAdapter();
+      dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+      dio.httpClientAdapter = adapter;
+    });
+
+    testWidgets('rejects a non-digit character typed into a box', (tester) async {
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+      await enterPhoneAndSendOtp(tester);
+
+      await tester.enterText(find.byKey(const ValueKey('otp_0')), 'a');
+      await tester.pump();
+
+      final box = tester.widget<TextField>(find.byKey(const ValueKey('otp_0')));
+      expect(box.controller?.text, isEmpty);
+    });
+
+    testWidgets('accepts a digit typed into a box', (tester) async {
+      await tester.pumpWidget(createTestApp(dio));
+      await tester.pumpAndSettle();
+      await enterPhoneAndSendOtp(tester);
+
+      await tester.enterText(find.byKey(const ValueKey('otp_0')), '7');
+      await tester.pump();
+
+      final box = tester.widget<TextField>(find.byKey(const ValueKey('otp_0')));
+      expect(box.controller?.text, '7');
     });
   });
 }

@@ -195,7 +195,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
             smsCode: otp,
           );
 
-      final inviteCode = _inviteCodeController.text.trim();
+      final inviteCode = _inviteCodeController.text.trim().toUpperCase();
       if (inviteCode.isNotEmpty) {
         try {
           await dio.post('/invites/redeem', data: {'token': inviteCode});
@@ -381,9 +381,12 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
             key: const ValueKey('invite_code_input'),
             controller: _inviteCodeController,
             textCapitalization: TextCapitalization.characters,
+            maxLength: 8,
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]'))],
             decoration: const InputDecoration(
               labelText: 'Invite code',
               hintText: 'e.g. AB12CD34',
+              counterText: '',
             ),
             enabled: !_isSending,
           )
@@ -434,6 +437,7 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
                     focusNode: _otpFocusNodes[i],
                     textAlign: TextAlign.center,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     maxLength: 1,
                     buildCounter: (_,
                             {required int currentLength,
