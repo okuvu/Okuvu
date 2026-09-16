@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/today_card_provider.dart';
+import '../../../core/providers.dart';
 
-/// Therapist-portal wireframes C-08 — "Request chat access." Shown when a
-/// therapist has requested access to raw chat content and the client
-/// hasn't answered yet. Grant/deny is the client's own action, via
-/// PATCH /users/me/chat-access (chatAccessRequestProvider) — the portal
-/// can only indicate + request, never set this directly.
+/// Decisions doc round, 15 Sep 2026 §9 — "the ask + Grant / Not now." Shown
+/// when a therapist has requested to see summaries of the client's chats
+/// and the client hasn't answered yet. Grant/deny is the client's own
+/// action, via PATCH /users/me/chat-access (chatAccessRequestProvider) —
+/// the portal can only indicate + request, never set this directly.
+/// "Not now" is silent — the therapist only ever sees "Not shared", never
+/// that a request was declined (§9 rules).
 class PendingChatAccessBanner extends ConsumerStatefulWidget {
   const PendingChatAccessBanner({super.key});
 
@@ -24,8 +27,12 @@ class _PendingChatAccessBannerState extends ConsumerState<PendingChatAccessBanne
     final theme = Theme.of(context);
     final todayAsync = ref.watch(todayCardProvider);
     final pending = todayAsync.value?.pendingChatAccessRequest;
+    // Never surface this mid-crisis (§9 rules) — the crisis overlay already
+    // takes over the whole screen when active, but this guards against any
+    // stale build racing in before that intercept.
+    final crisisActive = ref.watch(crisisOverlayProvider);
 
-    if (_dismissed || pending == null) return const SizedBox.shrink();
+    if (_dismissed || pending == null || crisisActive) return const SizedBox.shrink();
 
     Future<void> respond(bool granted) async {
       setState(() => _isResponding = true);
@@ -58,12 +65,12 @@ class _PendingChatAccessBannerState extends ConsumerState<PendingChatAccessBanne
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$therapistLabel requested access to your chat history',
+            '$therapistLabel asked to see summaries of your chats.',
             style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
           Text(
-            'They\'ll be able to read your conversations with OKUVU, not just summaries. You can change this anytime in Settings.',
+            'It means the themes you two talk about — not your messages. Your chats work exactly the same either way; this only changes what they can read. You can switch it off any time.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -78,7 +85,7 @@ class _PendingChatAccessBannerState extends ConsumerState<PendingChatAccessBanne
               const Spacer(),
               FilledButton(
                 onPressed: _isResponding ? null : () => respond(true),
-                child: const Text('Grant access'),
+                child: const Text('Grant'),
               ),
             ],
           ),

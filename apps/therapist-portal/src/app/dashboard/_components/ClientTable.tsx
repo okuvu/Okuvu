@@ -214,13 +214,22 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                           type="button"
                           disabled={endClient.isPending}
                           onClick={() => {
-                            if (window.confirm('End this client relationship? This cannot be undone from here.')) {
+                            // Decisions doc round, 15 Sep 2026 §11 — exact
+                            // confirm copy. No client name field exists on
+                            // ClientListItem, so the masked phone (already
+                            // this table's own identifier for the client)
+                            // fills the [client] slot.
+                            if (
+                              window.confirm(
+                                `End care for ${maskPhone(client.phoneNumber)}? They'll see a quiet close message — no error, no accusation. Crisis support stays open to them, and you can add them again later.`,
+                              )
+                            ) {
                               endClient.mutate({ clientUserId: client.id });
                             }
                           }}
                           className="text-sm font-medium text-danger hover:underline disabled:opacity-60"
                         >
-                          End
+                          End care
                         </button>
                       )}
                       <Link

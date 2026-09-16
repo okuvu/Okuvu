@@ -159,7 +159,7 @@ export default function ClientDetailPage() {
           <TabStrip clientId={clientId} active="profile" />
 
           {/* Consent chip — wireframes C-08 */}
-          <ConsentChip clientUserId={clientId} consent={data.consent} />
+          <ConsentChip clientUserId={clientId} clientLabel={clientLabel} consent={data.consent} />
 
           {/* Appointments — wireframes P-02/P-03/P-04 */}
           <AppointmentsCard clientUserId={clientId} />

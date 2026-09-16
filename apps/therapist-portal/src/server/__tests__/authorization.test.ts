@@ -41,6 +41,7 @@ function buildPrisma(overrides: CtxOverrides = {}) {
       create: vi.fn(),
       findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     toolRegistryEntry: { findMany: vi.fn().mockResolvedValue([]) },
     sessionSummary: { findMany: vi.fn().mockResolvedValue([]) },

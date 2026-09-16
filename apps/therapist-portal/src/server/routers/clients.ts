@@ -263,6 +263,15 @@ export const clientsRouter = router({
         data: { ended_at: new Date() },
       });
 
+      // Decisions doc round, 15 Sep 2026 §11 — "reminders stop." No
+      // delivery mechanism reads Reminder.active yet (push/FCM stays out
+      // of scope), but this is correct-for-later rather than leaving stale
+      // active reminders behind an ended relationship.
+      await db.reminder.updateMany({
+        where: { user_id: input.clientUserId, active: true },
+        data: { active: false },
+      });
+
       return { success: true };
     }),
 
@@ -278,6 +287,32 @@ export const clientsRouter = router({
       const therapistId = ctx.therapistId;
 
       await assertClientAssigned(db, therapistId, input.clientUserId);
+
+      // Decisions doc round, 15 Sep 2026 §9 — a re-ask is capped at once
+      // per 30 days, regardless of whether the client has answered.
+      // "Only at a care-plan review" isn't enforced — no such event concept
+      // exists anywhere in the product today.
+      const existing = await db.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapistId,
+            client_user_id: input.clientUserId,
+          },
+        },
+        select: { chat_access_requested_at: true },
+      });
+
+      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+      if (
+        existing?.chat_access_requested_at &&
+        Date.now() - existing.chat_access_requested_at.getTime() < THIRTY_DAYS_MS
+      ) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'You already asked recently — try again later.',
+        });
+      }
+
       await logClinicalAccess(db, therapistId, input.clientUserId, "REQUEST_CHAT_ACCESS");
 
       await db.therapistClient.update({
