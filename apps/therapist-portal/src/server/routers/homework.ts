@@ -14,6 +14,11 @@ export const homeworkRouter = router({
       z.object({
         clientUserId: z.string(),
         description: z.string().trim().min(1, 'Homework description must not be empty'),
+        // Decisions doc round, 15 Sep 2026 §4/§5 — optional link to one of
+        // the 5 approved exercises, so the client app can render this as a
+        // real, playable exercise rather than just prose. Additive: existing
+        // pure-text assignments (toolId omitted) keep working unchanged.
+        toolId: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -27,6 +32,7 @@ export const homeworkRouter = router({
           therapist_id: therapistId,
           client_user_id: input.clientUserId,
           description: input.description,
+          tool_id: input.toolId,
         },
         select: {
           id: true,
@@ -65,10 +71,14 @@ export const homeworkRouter = router({
           status: true,
           assigned_at: true,
           updated_at: true,
+          tool: { select: { tool_id: true, label: true } },
         },
       });
 
-      return homework;
+      return homework.map((h) => ({
+        ...h,
+        tool: h.tool ? { toolId: h.tool.tool_id, label: h.tool.label } : null,
+      }));
     }),
 
   markCompleted: therapistMutation

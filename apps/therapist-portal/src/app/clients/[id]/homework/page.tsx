@@ -65,11 +65,18 @@ export default function ClientHomeworkPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  // Decisions doc round, 15 Sep 2026 §4 — optional link to one of the 5
+  // approved exercises, so the client app renders this as a real, playable
+  // exercise instead of just prose. Empty string = "no linked exercise",
+  // matching the free-text-only behavior every existing assignment has.
+  const [toolId, setToolId] = useState('');
 
   const homeworkQuery = trpc.homework.listHomework.useQuery(
     { clientId },
     { enabled: Boolean(clientId) },
   );
+
+  const toolsQuery = trpc.reminders.listTools.useQuery();
 
   const assignHomework = trpc.homework.assign.useMutation({
     onSuccess: async () => {
@@ -77,6 +84,7 @@ export default function ClientHomeworkPage() {
       setErrorMessage(null);
       setValidationError(null);
       setDescription('');
+      setToolId('');
       sessionStorage.removeItem(DRAFT_KEY);
       await homeworkQuery.refetch();
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -108,7 +116,11 @@ export default function ClientHomeworkPage() {
     setSuccessMessage(null);
     setErrorMessage(null);
     setValidationError(null);
-    assignHomework.mutate({ clientUserId: clientId, description: description.trim() });
+    assignHomework.mutate({
+      clientUserId: clientId,
+      description: description.trim(),
+      toolId: toolId || undefined,
+    });
   }
 
   const clientLabel = formatClientLabel(clientId);
@@ -171,6 +183,11 @@ export default function ClientHomeworkPage() {
                       </p>
                       <StatusBadge status={item.status as HomeworkStatus} />
                     </div>
+                    {item.tool && (
+                      <span className="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-lavender-wash text-royal-purple">
+                        {item.tool.label}
+                      </span>
+                    )}
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="text-xs text-gray-500">
                         Assigned {formatHomeworkDate(item.assigned_at)}
@@ -224,6 +241,29 @@ export default function ClientHomeworkPage() {
                 disabled={assignHomework.isPending}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60 disabled:cursor-not-allowed"
               />
+
+              <label htmlFor="homework-tool" className="mt-3 block text-xs font-medium text-gray-500">
+                Link to a specific exercise (optional)
+              </label>
+              <select
+                id="homework-tool"
+                value={toolId}
+                onChange={(e) => setToolId(e.target.value)}
+                disabled={assignHomework.isPending || toolsQuery.isLoading}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value="">None — text only</option>
+                {toolsQuery.data?.map((tool) => (
+                  <option key={tool.toolId} value={tool.toolId}>
+                    {tool.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Linking renders this as a real, playable exercise in the client&rsquo;s app —
+                only what you assign here appears there.
+              </p>
+
               <button
                 type="submit"
                 disabled={assignHomework.isPending || !description.trim()}
