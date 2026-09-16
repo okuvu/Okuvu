@@ -3,10 +3,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'consent_provider.dart';
+import 'emergency_contact_notifier.dart';
 import '../home/providers/today_card_provider.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
 
+/// Decisions doc round, 15 Sep 2026 §8 — "What your therapist can see."
 class PrivacyDataScreen extends ConsumerWidget {
   const PrivacyDataScreen({super.key});
 
@@ -14,7 +16,7 @@ class PrivacyDataScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final consentState = ref.watch(consentProvider);
-    final notifier = ref.read(consentProvider.notifier);
+    final emergencyContact = ref.watch(emergencyContactProvider);
 
     return PopScope(
       canPop: false,
@@ -34,67 +36,34 @@ class PrivacyDataScreen extends ConsumerWidget {
             : ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  _ConsentSwitch(
-                    icon: LucideIcons.shield,
-                    title: 'Safety monitoring',
-                    subtitle:
-                        'Required to ensure a safe space during sensitive conversations.',
-                    value: consentState.safetyMonitoring,
-                    enabled: false,
-                    theme: theme,
-                  ),
-                  _ConsentSwitch(
-                    icon: LucideIcons.heart,
-                    title: 'Mood understanding',
-                    subtitle:
-                        'Allows OKUVU to adapt its tone based on your emotional state.',
-                    value: consentState.moodInference,
-                    onChanged: (v) => notifier.setMoodInference(v),
-                    theme: theme,
-                  ),
-                  _ConsentSwitch(
-                    icon: LucideIcons.barChart2,
-                    title: 'Progress tracking',
-                    subtitle:
-                        'Collects insights to show your growth over time.',
-                    value: consentState.assessment,
-                    onChanged: (v) => notifier.setAssessment(v),
-                    theme: theme,
-                  ),
-                  _ConsentSwitch(
-                    icon: LucideIcons.phone,
-                    title: 'Emergency contact',
-                    subtitle:
-                        'Provides a trusted contact option directly within the app.',
-                    value: consentState.emergencyContact,
-                    onChanged: (v) => notifier.setEmergencyContact(v),
-                    theme: theme,
-                  ),
-                  const _ChatAccessSwitch(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed:
-                            (notifier.hasChanges && !consentState.isSaving)
-                                ? () => notifier.save()
-                                : null,
-                        child: consentState.isSaving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Save Preferences'),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(
+                      'What your therapist can see',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ),
+                  const _ChatAccessSwitch(),
+                  _MoodProgressRow(
+                    shared: consentState.moodInference,
+                    theme: theme,
+                  ),
+                  const _StaticChipRow(
+                    icon: LucideIcons.lock,
+                    title: 'Journal',
+                    chipLabel: 'Private (never shared)',
+                  ),
+                  _EmergencyContactRow(
+                    hasContact: emergencyContact.hasContact,
+                    name: emergencyContact.name,
+                    theme: theme,
+                  ),
+                  const _StaticChipRow(
+                    icon: LucideIcons.shield,
+                    title: 'Safety monitoring',
+                    chipLabel: 'Always on',
                   ),
                   if (consentState.error != null)
                     Padding(
@@ -109,12 +78,12 @@ class PrivacyDataScreen extends ConsumerWidget {
                   const Divider(height: 32),
                   _DataRow(
                     icon: LucideIcons.download,
-                    title: 'Download my data',
+                    title: 'Your data',
+                    subtitle: 'Export or delete',
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content:
-                              Text('Data export is coming soon.'),
+                          content: Text('Data export is coming soon.'),
                         ),
                       );
                     },
@@ -133,6 +102,16 @@ class PrivacyDataScreen extends ConsumerWidget {
                     iconColor: theme.colorScheme.error,
                     onTap: () => context.go('/settings/delete-account'),
                     theme: theme,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(
+                      "Change any of this whenever you want. Every time your therapist looks, it's logged — nothing is silent.",
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ],
               ),
@@ -179,11 +158,232 @@ class _ChatAccessSwitchState extends ConsumerState<_ChatAccessSwitch> {
     return _ConsentSwitch(
       icon: LucideIcons.messagesSquare,
       title: 'Chat summaries',
-      subtitle:
-          '${access.therapistName ?? 'Your therapist'} can read summaries of your conversations with OKUVU. Off by default — change this anytime.',
+      subtitle: 'See the themes from what you discuss.',
       value: access.granted,
       onChanged: _isUpdating ? null : respond,
       theme: theme,
+    );
+  }
+}
+
+/// Decisions doc round, 15 Sep 2026 §8 — one chip covering both
+/// mood_inference and assessment consent, with a just-in-time prompt
+/// gating the first "Sure".
+class _MoodProgressRow extends ConsumerWidget {
+  final bool shared;
+  final ThemeData theme;
+
+  const _MoodProgressRow({required this.shared, required this.theme});
+
+  Future<void> _confirmShare(BuildContext context, WidgetRef ref) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: const Text(
+          'Keep your mood check-ins so you can see patterns? Your therapist sees the trend only if you share mood & progress.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sure'),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      await ref.read(consentProvider.notifier).setMoodAndProgressShared(true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: theme.colorScheme.primaryContainer,
+              child: Icon(LucideIcons.barChart2, color: theme.colorScheme.onPrimaryContainer),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Mood & progress',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            GestureDetector(
+              onTap: shared
+                  ? () => ref.read(consentProvider.notifier).setMoodAndProgressShared(false)
+                  : () => _confirmShare(context, ref),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: shared ? AppColors.sageTint : AppColors.lavenderTint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  shared ? 'Shared' : 'Ask me first',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: shared ? AppColors.sageDeep : AppColors.royalPurple,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmergencyContactRow extends ConsumerWidget {
+  final bool hasContact;
+  final String? name;
+  final ThemeData theme;
+
+  const _EmergencyContactRow({
+    required this.hasContact,
+    required this.name,
+    required this.theme,
+  });
+
+  Future<void> _confirmAdd(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: const Text(
+          "Add a contact we can reach if you're ever in danger? They're only ever contacted in an emergency.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    if (result == true && context.mounted) {
+      context.go('/settings/emergency');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => hasContact
+            ? context.go('/settings/emergency')
+            : _confirmAdd(context),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Icon(LucideIcons.phone, color: theme.colorScheme.onPrimaryContainer),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Emergency contact',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                hasContact ? (name ?? 'Added') : 'Not set',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(LucideIcons.chevronRight, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A non-interactive row for states that never toggle from Settings itself
+/// (Journal is never shared; Safety monitoring is always on).
+class _StaticChipRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String chipLabel;
+
+  const _StaticChipRow({
+    required this.icon,
+    required this.title,
+    required this.chipLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: theme.colorScheme.primaryContainer,
+              child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.lavenderTint,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                chipLabel,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: AppColors.royalPurple,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -194,7 +394,6 @@ class _ConsentSwitch extends StatelessWidget {
   final String subtitle;
   final bool value;
   final ValueChanged<bool>? onChanged;
-  final bool enabled;
   final ThemeData theme;
 
   const _ConsentSwitch({
@@ -203,7 +402,6 @@ class _ConsentSwitch extends StatelessWidget {
     required this.subtitle,
     required this.value,
     this.onChanged,
-    this.enabled = true,
     required this.theme,
   });
 
@@ -229,35 +427,11 @@ class _ConsentSwitch extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (!enabled) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Required',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -285,6 +459,7 @@ class _ConsentSwitch extends StatelessWidget {
 class _DataRow extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final Color? titleColor;
   final Color? iconColor;
   final VoidCallback onTap;
@@ -293,6 +468,7 @@ class _DataRow extends StatelessWidget {
   const _DataRow({
     required this.icon,
     required this.title,
+    this.subtitle,
     this.titleColor,
     this.iconColor,
     required this.onTap,
@@ -307,6 +483,7 @@ class _DataRow extends StatelessWidget {
         title,
         style: TextStyle(color: titleColor),
       ),
+      subtitle: subtitle != null ? Text(subtitle!) : null,
       trailing: const Icon(LucideIcons.chevronRight),
       onTap: onTap,
     );

@@ -124,36 +124,27 @@ void main() {
       dio.httpClientAdapter = adapter;
     });
 
-    Future<void> scrollToBottom(WidgetTester tester) async {
-      final listView = find.byType(ListView);
-      await tester.drag(listView, const Offset(0, -500));
-      await tester.pumpAndSettle();
-    }
-
     testWidgets('renders heading, subtitle, and both cards',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      expect(find.text('Before we begin'), findsOneWidget);
+      expect(find.text('Before we start'), findsOneWidget);
+      expect(find.text('Two things. Ten seconds.'), findsOneWidget);
+      expect(find.text('Safety comes first'), findsOneWidget);
       expect(
-        find.text('A few things to know about how OKUVU works.'),
-        findsOneWidget,
-      );
-      expect(find.text('Safety monitoring'), findsOneWidget);
-      expect(
-        find.text('Share chat insights with your therapist'),
+        find.text('Can your therapist see summaries of your chats?'),
         findsOneWidget,
       );
     });
 
     testWidgets(
-        'safety monitoring is checked, shows Required badge, and cannot be toggled',
+        'safety monitoring is checked, shows Always on chip, and cannot be toggled',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      expect(find.text('Required'), findsOneWidget);
+      expect(find.text('Always on'), findsOneWidget);
 
       final checkboxWidget =
           tester.widget<Checkbox>(find.byType(Checkbox).first);
@@ -161,7 +152,7 @@ void main() {
       expect(checkboxWidget.onChanged, isNull);
     });
 
-    testWidgets('chat-share item defaults on and toggles independently',
+    testWidgets('chat-share item defaults OFF and toggles independently',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
@@ -170,28 +161,26 @@ void main() {
       Checkbox checkbox(int i) => tester.widget<Checkbox>(checkboxes.at(i));
 
       expect(checkbox(0).value, true);
-      expect(checkbox(1).value, true);
+      expect(checkbox(1).value, false);
 
       await tester.tap(find.byType(Checkbox).at(1));
       await tester.pumpAndSettle();
 
       expect(checkbox(0).value, true);
-      expect(checkbox(1).value, false);
+      expect(checkbox(1).value, true);
     });
 
     testWidgets(
-        'Save and continue sends POST /users/me/consent with correct payload',
+        'Start sends POST /users/me/consent with correct payload',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      // Uncheck chat-share
+      // Turn chat-share on (default OFF)
       await tester.tap(find.byType(Checkbox).at(1));
       await tester.pumpAndSettle();
 
-      await scrollToBottom(tester);
-
-      await tester.tap(find.text('Save and continue'));
+      await tester.tap(find.text('Start'));
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 50)),
       );
@@ -203,7 +192,7 @@ void main() {
 
       final body = adapter.lastRequest!.data as Map<String, dynamic>;
       expect(body['safety_monitoring'], true);
-      expect(body['mood_inference'], false);
+      expect(body['mood_inference'], true);
       expect(body.containsKey('assessment'), isFalse);
       expect(body.containsKey('emergency_contact'), isFalse);
     });
@@ -212,10 +201,8 @@ void main() {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      await scrollToBottom(tester);
-
       await tester.runAsync(() async {
-        await tester.tap(find.text('Save and continue'));
+        await tester.tap(find.text('Start'));
         await Future<void>.delayed(const Duration(milliseconds: 50));
       });
       await tester.pumpAndSettle();
@@ -230,9 +217,7 @@ void main() {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      await scrollToBottom(tester);
-
-      await tester.tap(find.text('Save and continue'));
+      await tester.tap(find.text('Start'));
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 50)),
       );
@@ -246,15 +231,13 @@ void main() {
 
       final checkboxes = find.byType(Checkbox);
       final chatShareCheckbox = tester.widget<Checkbox>(checkboxes.at(1));
-      expect(chatShareCheckbox.value, true);
+      expect(chatShareCheckbox.value, false);
     });
 
-    testWidgets('button is enabled after scrolling to bottom',
+    testWidgets('Start button is enabled immediately, no scroll gate',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
-
-      await scrollToBottom(tester);
 
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
@@ -262,15 +245,13 @@ void main() {
       );
     });
 
-    testWidgets('Continue button shows loading state during submission',
+    testWidgets('Start button shows loading state during submission',
         (WidgetTester tester) async {
       await tester.pumpWidget(createTestApp(dio));
       await tester.pumpAndSettle();
 
-      await scrollToBottom(tester);
-
-      final continueButton = find.text('Save and continue');
-      await tester.tap(continueButton);
+      final startButton = find.text('Start');
+      await tester.tap(startButton);
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -298,7 +279,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('You can change any of these in Settings > Privacy.'),
+        find.text("That's it. Anything else, we'll ask only when it comes up."),
         findsOneWidget,
       );
     });

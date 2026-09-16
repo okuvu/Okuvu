@@ -103,6 +103,15 @@ class ConsentNotifier extends Notifier<ConsentState> {
     state = state.copyWith(emergencyContact: value);
   }
 
+  // Decisions doc round, 15 Sep 2026 §8 — the T3 "Mood & progress" row is
+  // one chip covering both consent_2 (mood_inference) and consent_3
+  // (assessment) at once; the just-in-time prompt persists immediately on
+  // "Sure" rather than waiting for a separate Save action.
+  Future<void> setMoodAndProgressShared(bool value) async {
+    state = state.copyWith(moodInference: value, assessment: value);
+    await save();
+  }
+
   Future<void> save() async {
     state = state.copyWith(isSaving: true, error: null);
 

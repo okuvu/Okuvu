@@ -17,39 +17,10 @@ class ConsentScreen extends ConsumerStatefulWidget {
 }
 
 class _ConsentScreenState extends ConsumerState<ConsentScreen> {
-  static const double _scrollTolerance = 10.0;
-
   final bool _safetyMonitoring = true;
-  bool _chatShare = true;
+  bool _chatShare = false;
   bool _isSubmitting = false;
-  bool _hasScrolledToBottom = false;
   String? _errorMessage;
-  late final ScrollController _scrollController;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController();
-    _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final maxScroll = _scrollController.position.maxScrollExtent;
-    final currentScroll = _scrollController.position.pixels;
-    final reached = currentScroll >= maxScroll - _scrollTolerance;
-    if (reached != _hasScrolledToBottom) {
-      setState(() => _hasScrolledToBottom = reached);
-    }
-  }
 
   bool _isNetworkError(DioException e) {
     switch (e.type) {
@@ -126,18 +97,6 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    const Color activeBg = AppColors.violet;
-    const Color activeFg = Colors.white;
-    const Color inactiveBg = AppColors.hairline;
-    // Was a second, slightly-darker grey pre-rebrand — inkSoft keeps that
-    // "visible but muted" relationship instead of matching inactiveBg
-    // exactly, which would make the disabled label unreadable.
-    const Color inactiveFg = AppColors.inkSoft;
-
-    final bool showActiveColors = _hasScrolledToBottom;
-    final Color buttonBg = showActiveColors ? activeBg : inactiveBg;
-    final Color buttonFg = showActiveColors ? activeFg : inactiveFg;
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -146,60 +105,34 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
             _TopBar(onBack: () => context.pop()),
             const _Header(),
             Expanded(
-              child: Stack(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  ListView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      _ConsentCard(
-                        icon: LucideIcons.shield,
-                        title: 'Safety monitoring',
-                        description:
-                            'Required to ensure a safe space during sensitive conversations.',
-                        value: _safetyMonitoring,
-                        onChanged: null,
-                        isRequired: true,
-                        theme: theme,
-                        colorScheme: colorScheme,
-                      ),
-                      const SizedBox(height: 12),
-                      _ConsentCard(
-                        icon: LucideIcons.messageCircle,
-                        title: 'Share chat insights with your therapist',
-                        description:
-                            'Lets your therapist see a summary of what you talk about with OKUVU.',
-                        value: _chatShare,
-                        onChanged: _isSubmitting
-                            ? null
-                            : (v) => setState(() => _chatShare = v!),
-                        theme: theme,
-                        colorScheme: colorScheme,
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+                  _ConsentCard(
+                    icon: LucideIcons.shield,
+                    title: 'Safety comes first',
+                    description:
+                        "We keep an eye out for signs you might need urgent help, and a crisis line is always one tap away. This one isn't optional — it's how OKUVU stays safe.",
+                    value: _safetyMonitoring,
+                    onChanged: null,
+                    isRequired: true,
+                    theme: theme,
+                    colorScheme: colorScheme,
                   ),
-                  if (!_hasScrolledToBottom)
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: 40,
-                      child: IgnorePointer(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.white.withValues(alpha: 0),
-                                Colors.white,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  const SizedBox(height: 12),
+                  _ConsentCard(
+                    icon: LucideIcons.messageCircle,
+                    title: 'Can your therapist see summaries of your chats?',
+                    description:
+                        'Turn this on and your therapist can read short summaries — the themes, not your words. Off by default. Flip it whenever you want, and every time they look, it\'s logged.',
+                    value: _chatShare,
+                    onChanged: _isSubmitting
+                        ? null
+                        : (v) => setState(() => _chatShare = v!),
+                    theme: theme,
+                    colorScheme: colorScheme,
+                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -219,11 +152,10 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed:
-                      showActiveColors && !_isSubmitting ? _submit : null,
+                  onPressed: _isSubmitting ? null : _submit,
                   style: ButtonStyle(
-                    backgroundColor: WidgetStatePropertyAll(buttonBg),
-                    foregroundColor: WidgetStatePropertyAll(buttonFg),
+                    backgroundColor: const WidgetStatePropertyAll(AppColors.violet),
+                    foregroundColor: const WidgetStatePropertyAll(Colors.white),
                     shape: WidgetStatePropertyAll(
                       RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -242,7 +174,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text('Save and continue'),
+                      : const Text('Start'),
                 ),
               ),
             ),
@@ -250,7 +182,7 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'You can change any of these in Settings > Privacy.',
+                "That's it. Anything else, we'll ask only when it comes up.",
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
@@ -301,14 +233,14 @@ class _Header extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Before we begin',
+            'Before we start',
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'A few things to know about how OKUVU works.',
+            'Two things. Ten seconds.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -362,10 +294,12 @@ class _ConsentCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     if (isRequired) ...[
@@ -380,7 +314,7 @@ class _ConsentCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'Required',
+                          'Always on',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: colorScheme.onPrimaryContainer,
                             fontSize: 10,
