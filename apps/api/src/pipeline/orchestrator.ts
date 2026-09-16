@@ -18,7 +18,7 @@ function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
   return new Error(faultType === 'timeout' ? 'injected_timeout' : 'injected_api_error');
 }
 
-const KNOWN_TOOL_CARD_TYPES: ReadonlySet<string> = new Set(['guided_breathing', 'box_breathing', 'grounding_5431']);
+const KNOWN_TOOL_CARD_TYPES: ReadonlySet<string> = new Set(['guided_breathing', 'box_breathing', 'grounding_5431', 'physiological_sigh', 'extended_exhale']);
 
 function isKnownToolCardType(value: string): value is ToolCardType {
   return KNOWN_TOOL_CARD_TYPES.has(value);

@@ -3,7 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
-import 'breathing_picker_screen.dart';
+import 'breathing_screen.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/mood_check_in.dart';
 import 'widgets/next_session_card.dart';
@@ -111,7 +111,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       subtitle: '4 min',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const BreathingPickerScreen(),
+                          builder: (_) => const BreathingScreen(),
                         ),
                       ),
                     ),

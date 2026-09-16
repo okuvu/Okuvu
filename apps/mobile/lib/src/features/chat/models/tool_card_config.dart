@@ -1,4 +1,10 @@
-enum ToolCardType { guidedBreathing, boxBreathing, grounding5431 }
+enum ToolCardType {
+  guidedBreathing,
+  boxBreathing,
+  grounding5431,
+  physiologicalSigh,
+  extendedExhale,
+}
 
 ToolCardType toolCardTypeFromJson(String value) {
   switch (value) {
@@ -8,6 +14,10 @@ ToolCardType toolCardTypeFromJson(String value) {
       return ToolCardType.boxBreathing;
     case 'grounding_5431':
       return ToolCardType.grounding5431;
+    case 'physiological_sigh':
+      return ToolCardType.physiologicalSigh;
+    case 'extended_exhale':
+      return ToolCardType.extendedExhale;
     default:
       return ToolCardType.guidedBreathing;
   }
@@ -22,6 +32,10 @@ extension ToolCardTypeX on ToolCardType {
         return 'box_breathing';
       case ToolCardType.grounding5431:
         return 'grounding_5431';
+      case ToolCardType.physiologicalSigh:
+        return 'physiological_sigh';
+      case ToolCardType.extendedExhale:
+        return 'extended_exhale';
     }
   }
 }
@@ -31,6 +45,9 @@ class BreathingConfig {
   final int holdSeconds;
   final int exhaleSeconds;
   final int? secondHoldSeconds;
+  // Physiological sigh's double-inhale shape: a second inhale immediately
+  // after the first, no exhale between them.
+  final int? secondInhaleSeconds;
   final int cycles;
   final String label;
   final bool isBoxVisual;
@@ -40,6 +57,7 @@ class BreathingConfig {
     required this.holdSeconds,
     required this.exhaleSeconds,
     this.secondHoldSeconds,
+    this.secondInhaleSeconds,
     required this.cycles,
     required this.label,
     this.isBoxVisual = false,
@@ -51,6 +69,7 @@ class BreathingConfig {
       holdSeconds: (json['hold_seconds'] as num?)?.toInt() ?? 2,
       exhaleSeconds: (json['exhale_seconds'] as num?)?.toInt() ?? 6,
       secondHoldSeconds: (json['second_hold_seconds'] as num?)?.toInt(),
+      secondInhaleSeconds: (json['second_inhale_seconds'] as num?)?.toInt(),
       cycles: (json['cycles'] as num?)?.toInt() ?? 3,
       label: (json['label'] as String?) ?? 'Breathing Exercise',
       isBoxVisual: (json['is_box_visual'] as bool?) ?? false,

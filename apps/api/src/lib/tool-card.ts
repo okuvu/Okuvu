@@ -18,13 +18,34 @@ const DEFAULTS: Record<ToolCardType, ToolCardConfig> = {
       hold_seconds: 4,
       exhale_seconds: 4,
       second_hold_seconds: 4,
-      cycles: 3,
+      cycles: 5,
       label: 'Box Breathing',
       is_box_visual: true,
     },
   },
   grounding_5431: {
     type: 'grounding_5431',
+  },
+  physiological_sigh: {
+    type: 'physiological_sigh',
+    breathing_config: {
+      inhale_seconds: 2,
+      second_inhale_seconds: 2,
+      hold_seconds: 0,
+      exhale_seconds: 8,
+      cycles: 5,
+      label: 'Physiological Sigh',
+    },
+  },
+  extended_exhale: {
+    type: 'extended_exhale',
+    breathing_config: {
+      inhale_seconds: 4,
+      hold_seconds: 2,
+      exhale_seconds: 8,
+      cycles: 3,
+      label: 'Extended Exhale',
+    },
   },
 };
 

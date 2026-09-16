@@ -14,6 +14,8 @@ class ToolCardWidget extends StatelessWidget {
     switch (config.type) {
       case ToolCardType.guidedBreathing:
       case ToolCardType.boxBreathing:
+      case ToolCardType.physiologicalSigh:
+      case ToolCardType.extendedExhale:
         return GuidedBreathingCard(config: config);
       case ToolCardType.grounding5431:
         return const GroundingCard();

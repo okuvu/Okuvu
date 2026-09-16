@@ -71,15 +71,31 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
       if (!mounted || _skipped) break;
       setState(() => _currentCycle = cycle);
 
-      await _speakAndCount('Breathe in', cfg.inhaleSeconds, expanding: true, boxPhase: 0);
+      final hasSecondInhale = (cfg.secondInhaleSeconds ?? 0) > 0;
+      await _speakAndCount(
+        'Breathe in',
+        cfg.inhaleSeconds,
+        expandTo: hasSecondInhale ? 0.5 : 1.0,
+        boxPhase: 0,
+      );
       if (!mounted || _skipped) break;
+
+      if (hasSecondInhale) {
+        await _speakAndCount(
+          'Breathe in again',
+          cfg.secondInhaleSeconds!,
+          expandTo: 1.0,
+          boxPhase: 0,
+        );
+        if (!mounted || _skipped) break;
+      }
 
       if (cfg.holdSeconds > 0) {
         await _speakAndCount('Hold', cfg.holdSeconds, boxPhase: 1);
         if (!mounted || _skipped) break;
       }
 
-      await _speakAndCount('Breathe out', cfg.exhaleSeconds, contract: true, boxPhase: 2);
+      await _speakAndCount('Breathe out', cfg.exhaleSeconds, expandTo: 0.0, boxPhase: 2);
       if (!mounted || _skipped) break;
 
       if ((cfg.secondHoldSeconds ?? 0) > 0) {
@@ -97,8 +113,12 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
   Future<void> _speakAndCount(
     String instruction,
     int seconds, {
-    bool expanding = false,
-    bool contract = false,
+    // Target position (0.0-1.0) for the circle's expand/contract Tween —
+    // 1.0 is fully expanded, 0.0 fully contracted. Physiological sigh's
+    // double inhale drives this to 0.5 then 1.0 across two calls instead
+    // of jumping straight to 1.0 in one, since the circle would otherwise
+    // already be at 1.0 and visibly do nothing on the second inhale.
+    double? expandTo,
     int? boxPhase,
   }) async {
     if (boxPhase != null) {
@@ -110,12 +130,12 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
     if (_voiceEnabled) await _tts.speak(instruction);
     if (!mounted) return;
 
-    if (expanding) {
-      _circleController.duration = Duration(seconds: seconds);
-      _circleController.forward();
-    } else if (contract) {
-      _circleController.duration = Duration(seconds: seconds);
-      _circleController.reverse();
+    if (expandTo != null) {
+      _circleController.animateTo(
+        expandTo,
+        duration: Duration(seconds: seconds),
+        curve: Curves.easeInOut,
+      );
     }
 
     for (int i = 1; i <= seconds; i++) {
@@ -206,6 +226,7 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
             const SizedBox(height: 8),
             Text(
               '${cfg.inhaleSeconds}'
+              '${(cfg.secondInhaleSeconds ?? 0) > 0 ? '+${cfg.secondInhaleSeconds}' : ''}'
               '${cfg.holdSeconds > 0 ? '-${cfg.holdSeconds}' : ''}'
               '-${cfg.exhaleSeconds}'
               '${(cfg.secondHoldSeconds ?? 0) > 0 ? '-${cfg.secondHoldSeconds}' : ''}',
