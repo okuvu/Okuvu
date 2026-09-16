@@ -95,7 +95,9 @@ void main() {
     expect(find.text('Upcoming'), findsOneWidget);
     expect(find.text('Earlier'), findsOneWidget);
     expect(find.textContaining('Dr. Rao · Video · 50 min'), findsOneWidget);
-    expect(find.textContaining('Cancelled'), findsOneWidget);
+    expect(find.textContaining('Called off'), findsOneWidget);
+    // Decisions doc round, 15 Sep 2026 §10 — never "Cancelled", never red.
+    expect(find.textContaining('Cancelled'), findsNothing);
   });
 
   testWidgets('shows empty state when nothing is booked', (tester) async {
@@ -115,22 +117,51 @@ void main() {
     expect(find.byType(AppointmentDetailScreen), findsOneWidget);
     expect(find.textContaining("Let's pick up the sleep thread"), findsOneWidget);
     expect(find.text('Add to my calendar'), findsOneWidget);
-    expect(find.text("Can't make it?"), findsOneWidget);
+    expect(find.text('tell Dr. Rao ›'), findsOneWidget);
     // Read-only: no edit/reschedule/cancel controls anywhere.
     expect(find.textContaining('Edit'), findsNothing);
     expect(find.textContaining('Reschedule'), findsNothing);
   });
 
-  testWidgets('cancelled session detail shows the cancelled banner and no action buttons',
+  testWidgets('cancelled session detail shows the "Called off" copy, no red, no action buttons',
       (tester) async {
     await tester.pumpWidget(_buildApp(_mockDio(_sampleBody)));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.textContaining('Cancelled'));
+    await tester.tap(find.textContaining('Called off'));
     await tester.pumpAndSettle();
 
-    expect(find.text('This session was cancelled.'), findsOneWidget);
+    expect(find.text('Called off'), findsOneWidget);
+    expect(find.textContaining('was called off. Nothing you need to do.'), findsOneWidget);
+    expect(
+      find.textContaining("Want another time? Let Dr. Rao know and she'll sort it."),
+      findsOneWidget,
+    );
+    // Banned per decisions doc round, 15 Sep 2026 §10.
+    expect(find.textContaining('cancelled'), findsNothing);
+    expect(find.textContaining('we missed you'), findsNothing);
+    expect(find.textContaining('you missed'), findsNothing);
     expect(find.text('Add to my calendar'), findsNothing);
-    expect(find.text("Can't make it?"), findsNothing);
+    expect(find.textContaining('tell Dr. Rao'), findsNothing);
+  });
+
+  testWidgets('"Can\'t make it?" trigger and dialog use the locked copy', (tester) async {
+    await tester.pumpWidget(_buildApp(_mockDio(_sampleBody)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Dr. Rao · Video · 50 min'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('tell Dr. Rao ›'), findsOneWidget);
+
+    await tester.tap(find.text('tell Dr. Rao ›'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        "Let Dr. Rao know you can't make it — she'll sort a new time. This won't cancel anything on its own.",
+      ),
+      findsOneWidget,
+    );
   });
 }

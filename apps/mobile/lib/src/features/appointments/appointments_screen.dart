@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'appointments_provider.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 const Map<String, String> _modeLabels = {
   'video': 'Video',
@@ -141,10 +142,13 @@ class _AppointmentTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${appointment.therapistName ?? 'Your therapist'} · ${_modeLabels[appointment.mode] ?? appointment.mode} · ${appointment.durationMinutes} min'
-                    '${isCancelled ? ' · Cancelled' : ''}',
+                    // Decisions doc round, 15 Sep 2026 §10 — "Called off,"
+                    // never a red/alarming state. The DB value (cancelled_at)
+                    // stays as-is; only the display label and color change.
+                    '${isCancelled ? ' · Called off' : ''}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: isCancelled
-                          ? theme.colorScheme.error
+                          ? AppColors.inkSoft
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),

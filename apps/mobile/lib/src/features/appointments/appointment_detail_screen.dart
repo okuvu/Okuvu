@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'appointments_provider.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
+import '../../theme/app_colors.dart';
 
 const Map<String, String> _modeLabels = {
   'video': 'Video call',
@@ -27,6 +28,31 @@ String _formatFullDateTime(DateTime dt) {
   final period = hour >= 12 ? 'pm' : 'am';
   final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
   return '${weekdays[local.weekday - 1]}, ${local.day} ${months[local.month - 1]} · $displayHour:$minute $period';
+}
+
+// Decisions doc round, 15 Sep 2026 §10 — the short "Thu 18 Sep, 7:00 pm"
+// form used in the cancelled/rescheduled copy, distinct from the headline's
+// full-weekday format above.
+String _formatShortDateTime(DateTime dt) {
+  final local = dt.toLocal();
+  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final hour = local.hour;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final period = hour >= 12 ? 'pm' : 'am';
+  final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+  return '${weekdays[local.weekday - 1]} ${local.day} ${months[local.month - 1]}, $displayHour:$minute $period';
+}
+
+/// Decisions doc round, 15 Sep 2026 §10 — T-24h reminder copy, stored for
+/// whenever push infra exists (FCM stays out of scope this round; no
+/// delivery mechanism is built). Not sent anywhere yet.
+String appointmentCancelledPushCopy(DateTime scheduledAt) {
+  return 'Your session ${_formatShortDateTime(scheduledAt)} is off. '
+      "You don't need to do anything.";
 }
 
 String _icsDateTime(DateTime dt) {
@@ -119,21 +145,54 @@ class AppointmentDetailScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.errorContainer,
+                              // Decisions doc round, 15 Sep 2026 §10 — no red/
+                              // alarming state, ever. A neutral surface, not
+                              // an errorContainer.
+                              color: theme.colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(
-                              'This session was cancelled.',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onErrorContainer,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.lavenderTint,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Text(
+                                        'Called off',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.royalPurple,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Your session on ${_formatShortDateTime(appointment.scheduledAt)} was called off. Nothing you need to do.',
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Want another time? Let ${appointment.therapistName ?? 'your therapist'} know and she\'ll sort it.',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                         if (appointment.rescheduledFrom != null) ...[
                           const SizedBox(height: 12),
                           Text(
-                            'Rescheduled from an earlier time.',
+                            'Moved to ${_formatShortDateTime(appointment.scheduledAt)}. Same place.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                               fontStyle: FontStyle.italic,
@@ -183,10 +242,9 @@ class AppointmentDetailScreen extends ConsumerWidget {
                                 showDialog<void>(
                                   context: context,
                                   builder: (context) => AlertDialog(
-                                    title: const Text("Can't make it?"),
                                     content: Text(
-                                      'Sessions can only be changed by ${appointment.therapistName ?? 'your therapist'}. '
-                                      'Please reach out to them directly to reschedule or cancel.',
+                                      "Let ${appointment.therapistName ?? 'your therapist'} know you can't make it — "
+                                      "she'll sort a new time. This won't cancel anything on its own.",
                                     ),
                                     actions: [
                                       TextButton(
@@ -197,7 +255,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
                                   ),
                                 );
                               },
-                              child: const Text("Can't make it?"),
+                              child: Text('tell ${appointment.therapistName ?? 'your therapist'} ›'),
                             ),
                           ),
                         ],
