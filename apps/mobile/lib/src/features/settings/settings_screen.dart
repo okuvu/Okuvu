@@ -111,7 +111,6 @@ class _SettingsTile extends StatelessWidget {
   final Color? titleColor;
   final IconData? trailingIcon;
   final Color? trailingColor;
-  final bool showTrailing;
   final VoidCallback? onTap;
 
   const _SettingsTile({
@@ -121,7 +120,6 @@ class _SettingsTile extends StatelessWidget {
     this.titleColor,
     this.trailingIcon = LucideIcons.chevronRight,
     this.trailingColor,
-    this.showTrailing = true,
     this.onTap,
   });
 
@@ -135,9 +133,7 @@ class _SettingsTile extends StatelessWidget {
           title,
           style: TextStyle(color: titleColor ?? _kLabelColor),
         ),
-        trailing: showTrailing
-            ? Icon(trailingIcon, color: trailingColor ?? _kIconColor)
-            : null,
+        trailing: Icon(trailingIcon, color: trailingColor ?? _kIconColor),
         onTap: onTap,
       ),
     );
