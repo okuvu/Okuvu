@@ -1,17 +1,48 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:okuvu/src/config/app_config.dart';
+import 'package:okuvu/src/core/auth_service.dart';
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/core/tts_service.dart';
 import 'package:okuvu/src/core/websocket_service.dart';
 import 'package:okuvu/src/features/chat/chat_screen.dart';
 import 'package:okuvu/src/features/chat/models/chat_state.dart';
+
+/// Firebase-free fake — ChatScreen's initState reaches authServiceProvider
+/// via FlavorConfig.devBypassToken's fallback, hitting the same
+/// Firebase.initializeApp()-unavailable-in-tests landmine documented
+/// elsewhere this session. Mirrors otp_login_screen_test.dart's fake.
+class FakeAuthService implements AuthService {
+  @override
+  User? get currentUser => null;
+
+  @override
+  Future<String?> getIdToken() async => null;
+
+  @override
+  Future<void> verifyPhone({
+    required String phoneNumber,
+    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
+    required void Function(FirebaseAuthException) onError,
+    int? forceResendingToken,
+  }) async {}
+
+  @override
+  Future<void> verifyOtp({
+    required String verificationId,
+    required String smsCode,
+  }) async {}
+
+  @override
+  Future<void> signOut() async {}
+}
 
 class FakeWebSocketService extends WebSocketService {
   FakeWebSocketService({WsConnectionState initialState = WsConnectionState.disconnected})
@@ -107,12 +138,53 @@ Dio _createMockDio() {
   return dio;
 }
 
-Widget _buildChatScreenApp({required WebSocketService webSocketService}) {
+Dio _createMockDioWithCareEnded(String therapistName) {
+  final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (options.path.endsWith('/users/me/today')) {
+          handler.resolve(
+            Response(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'careEnded': true,
+                'careEndedByTherapistName': therapistName,
+              },
+            ),
+          );
+          return;
+        }
+        if (options.path == '/settings/voice' &&
+            options.method.toUpperCase() == 'GET') {
+          handler.resolve(
+            Response(
+              requestOptions: options,
+              statusCode: 200,
+              data: {'voice_enabled': false},
+            ),
+          );
+          return;
+        }
+        handler.resolve(
+          Response(requestOptions: options, statusCode: 200, data: {'success': true}),
+        );
+      },
+    ),
+  );
+
+  return dio;
+}
+
+Widget _buildChatScreenApp({required WebSocketService webSocketService, Dio? dio}) {
   return ProviderScope(
     overrides: [
       webSocketServiceProvider.overrideWithValue(webSocketService),
       ttsServiceProvider.overrideWithValue(FakeTtsService()),
-      dioClientProvider.overrideWithValue(_createMockDio()),
+      dioClientProvider.overrideWithValue(dio ?? _createMockDio()),
+      authServiceProvider.overrideWithValue(FakeAuthService()),
     ],
     child: MaterialApp.router(
       routerConfig: GoRouter(
@@ -253,6 +325,27 @@ void main() {
         tester.widget<TextField>(find.byKey(const ValueKey('chat_input'))).enabled,
         isTrue,
       );
+    });
+
+    testWidgets('becomes read-only with an explanatory message once care has ended', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeWs = FakeWebSocketService(initialState: WsConnectionState.sessionActive);
+
+      await tester.pumpWidget(_buildChatScreenApp(
+        webSocketService: fakeWs,
+        dio: _createMockDioWithCareEnded('Dr. Rao'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('This chat is read-only now that care has ended.'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Back to Home'), findsOneWidget);
     });
   });
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +17,7 @@ import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
 import 'widgets/tool_card_widget.dart';
 import '../home/widgets/home_bottom_nav.dart';
+import '../home/providers/today_card_provider.dart';
 import '../../theme/app_colors.dart';
 
 const bool _useMockResponses = false;
@@ -111,6 +111,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _sendMessage() {
     if (ref.read(chatMessagesProvider).isSessionClosed) return;
+    if (ref.read(todayCardProvider).asData?.value.careEnded ?? false) return;
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
@@ -148,6 +149,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final chatState = ref.watch(chatMessagesProvider);
     final isOnline = ref.watch(isOnlineProvider);
     final isCrisisActive = ref.watch(crisisOverlayProvider);
+    // Decisions doc round, 15 Sep 2026 §11 — "chat goes read-only" once
+    // care has ended. app.dart's app-wide overlay already covers normal
+    // navigation into this state; this is defense-in-depth for a chat
+    // screen that was already open when the relationship ended.
+    final careEnded = ref.watch(todayCardProvider).asData?.value.careEnded ?? false;
 
     // The crisis overlay renders app-wide via app.dart's Stack-based
     // _CrisisOverlaySlot (watching crisisOverlayProvider directly) whenever
@@ -273,7 +279,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           },
                         ),
                 ),
-                _buildInputBar(context, chatState.isSessionClosed,
+                _buildInputBar(context, chatState.isSessionClosed, careEnded,
                     ref.watch(wsConnectionStateProvider)),
               ],
             ),
@@ -311,13 +317,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildInputBar(
-      BuildContext context, bool sessionClosed, WsConnectionState wsState) {
+  Widget _buildInputBar(BuildContext context, bool sessionClosed,
+      bool careEnded, WsConnectionState wsState) {
     final isInputDisabled = sessionClosed ||
+        careEnded ||
         _isAgentTyping ||
         wsState != WsConnectionState.sessionActive;
 
-    if (sessionClosed) {
+    if (sessionClosed || careEnded) {
       final theme = Theme.of(context);
       return Container(
         padding: const EdgeInsets.all(16),
@@ -335,7 +342,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'This session has ended.',
+              careEnded
+                  ? 'This chat is read-only now that care has ended.'
+                  : 'This session has ended.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

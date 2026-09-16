@@ -73,6 +73,28 @@ class _ShowCrisisNotifier extends CrisisOverlayNotifier {
   bool build() => true;
 }
 
+Dio _mockDioForToday({required bool careEnded, String? therapistName}) {
+  final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+  dio.interceptors.add(InterceptorsWrapper(
+    onRequest: (options, handler) {
+      if (options.path.endsWith('/users/me/today')) {
+        handler.resolve(Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: {
+            'careEnded': careEnded,
+            'careEndedByTherapistName': therapistName,
+          },
+        ));
+        return;
+      }
+      handler.resolve(
+          Response(requestOptions: options, statusCode: 200, data: {}));
+    },
+  ));
+  return dio;
+}
+
 final _testSessionState =
     NotifierProvider<_TestSessionState, SessionState>(_TestSessionState.new);
 
@@ -159,32 +181,15 @@ void main() {
         .update(SessionState.authenticated);
     container.read(routerProvider).go('/onboarding/consent');
     await tester.pumpAndSettle();
-    expect(find.text('Before we begin'), findsOneWidget);
+    expect(find.text('Before we start'), findsOneWidget);
 
-    await tester.drag(find.byType(Scrollable), const Offset(0, -500));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Save and continue'));
-    await tester.pumpAndSettle();
-    expect(
-        find.text("What's been weighing on your mind lately?"), findsOneWidget);
-
-    // Skip the intake screen's 3-turn flow and directly navigate to home
-    // by simulating the intake's internal state completion.
-    // The intake screen is tested separately in its own test suite.
-
-    // Navigate directly to home to verify the rest of the flow
-    container.read(routerProvider).go('/home');
+    // Consent submission now completes onboarding and routes straight to
+    // /home itself — the guided-chat intake step no longer sits between
+    // them (decisions doc round, 15 Sep 2026 — "4 taps, no questions").
+    await tester.tap(find.text('Start'));
     await tester.pumpAndSettle();
 
     expect(find.text('How are you feeling today?'), findsOneWidget);
-    expect(find.text('FROM OKUVU'), findsOneWidget);
-    expect(
-      find.text(
-        'Your insights will appear here after your first check-in.',
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('Crisis overlay shows all 5 crisis resources',
@@ -268,6 +273,67 @@ void main() {
 
     expect(find.text("You're not alone."), findsOneWidget);
     expect(find.text('9152987821'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Care-ended overlay shows app-wide when careEnded is true',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SessionState.authenticated),
+          dioClientProvider.overrideWithValue(
+              _mockDioForToday(careEnded: true, therapistName: 'Dr. Rao')),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your therapist has closed this space.'),
+        findsOneWidget);
+    expect(
+        find.textContaining('Dr. Rao has ended your care on OKUVU'),
+        findsOneWidget);
+    expect(find.text('Get support now'), findsOneWidget);
+    expect(find.text('Export my writing'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Care-ended overlay stays hidden when careEnded is false',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SessionState.authenticated),
+          dioClientProvider
+              .overrideWithValue(_mockDioForToday(careEnded: false)),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your therapist has closed this space.'), findsNothing);
+  });
+
+  testWidgets(
+      'Crisis overlay still renders when care has also ended — crisis line always wins',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionProvider.overrideWith((ref) => SessionState.authenticated),
+          dioClientProvider.overrideWithValue(
+              _mockDioForToday(careEnded: true, therapistName: 'Dr. Rao')),
+          crisisOverlayProvider.overrideWith(_ShowCrisisNotifier.new),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text("You're not alone."), findsOneWidget);
   });
 
   testWidgets('Unknown route shows not-found page',

@@ -18,6 +18,12 @@ vi.mock('../lib/prisma.js', () => ({
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn(),
     },
+    homework: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    userToolPreference: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 

@@ -277,6 +277,7 @@ void main() {
           ProviderScope(
             overrides: [
               webSocketServiceProvider.overrideWithValue(fakeWs),
+              authServiceProvider.overrideWithValue(FakeAuthService()),
             ],
             child: MaterialApp.router(
               routerConfig: GoRouter(
@@ -338,6 +339,7 @@ void main() {
             overrides: [
               webSocketServiceProvider.overrideWithValue(fakeWs),
               dioClientProvider.overrideWithValue(_createMockDio()),
+              authServiceProvider.overrideWithValue(FakeAuthService()),
             ],
             child: MaterialApp.router(
               routerConfig: GoRouter(

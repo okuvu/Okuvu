@@ -120,6 +120,32 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
 
       await markClientActivatedIfNeeded(user.id);
 
+      // Decisions doc round, 15 Sep 2026 §4 — real playable exercises
+      // (active Homework rows with a tool_id link), plus the client's own
+      // pace preferences (their default box breathing, and any assigned
+      // exercise) — UserToolPreference covers both under one query.
+      const [assignedHomework, toolPreferences] = await Promise.all([
+        prisma.homework.findMany({
+          where: { client_user_id: user.id, status: 'active', tool_id: { not: null } },
+          select: { tool: { select: { tool_id: true, label: true, text: true } } },
+        }),
+        prisma.userToolPreference.findMany({
+          where: { user_id: user.id },
+          select: { tool_id: true, pace_preset: true },
+        }),
+      ]);
+
+      const pacePresetByToolId = new Map(toolPreferences.map((p) => [p.tool_id, p.pace_preset]));
+
+      const assignedExercises = assignedHomework
+        .filter((h) => h.tool !== null)
+        .map((h) => ({
+          toolId: h.tool!.tool_id,
+          label: h.tool!.label,
+          text: h.tool!.text,
+          pacePreset: pacePresetByToolId.get(h.tool!.tool_id) ?? 'standard',
+        }));
+
       const reminders = await prisma.reminder.findMany({
         where: { user_id: user.id, active: true },
         include: { tool: { select: { label: true } } },
@@ -149,6 +175,18 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         therapistRelationship.chat_access_requested_at
           ? therapistRelationship
           : null;
+
+      // Decisions doc round, 15 Sep 2026 §11 — "care relationship ended."
+      // Only looked up when there's no active relationship, since a client
+      // can be re-provisioned to a new therapist later (a fresh, non-ended
+      // row) without this stale close screen re-appearing.
+      const endedRelationship = therapistRelationship
+        ? null
+        : await prisma.therapistClient.findFirst({
+            where: { client_user_id: user.id, ended_at: { not: null } },
+            orderBy: { ended_at: 'desc' },
+            select: { therapist: { select: { name: true } } },
+          });
 
       // App wireframes A1 — Home's "next session" card. Same split logic as
       // GET /users/me/appointments' upcoming list (appointments.ts), just
@@ -183,9 +221,62 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
             }
           : null,
         nextAppointment: nextAppointment ? toAppointmentView(nextAppointment) : null,
+        assignedExercises,
+        defaultBoxBreathingPacePreset: pacePresetByToolId.get('box_breathing') ?? 'standard',
+        careEnded: endedRelationship !== null,
+        careEndedByTherapistName: endedRelationship?.therapist.name ?? null,
       };
 
       reply.send(body);
+    },
+  });
+
+  // Decisions doc round, 15 Sep 2026 §1/§4 — "pace = client-only": the
+  // client's own write for their chosen preset on one exercise. Never
+  // writable by the therapist portal. Always one of slower/standard/faster,
+  // clamped to the safe band in application code (mobile's
+  // breathing_presets.dart), not stored as raw seconds here.
+  app.patch<{ Body: { tool_id: string; pace_preset: string } }>('/users/me/tool-preference', {
+    preHandler: [verifyFirebaseJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const { tool_id, pace_preset } = request.body ?? {};
+
+      if (typeof tool_id !== 'string' || tool_id.trim().length === 0) {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'tool_id is required' },
+        });
+      }
+
+      if (!['slower', 'standard', 'faster'].includes(pace_preset)) {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'pace_preset must be slower, standard, or faster' },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { firebase_uid: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      await prisma.userToolPreference.upsert({
+        where: { user_id_tool_id: { user_id: user.id, tool_id } },
+        create: { user_id: user.id, tool_id, pace_preset },
+        update: { pace_preset },
+      });
+
+      request.log.info(
+        { event: 'tool_preference_updated', user_id: user.id, tool_id, pace_preset },
+        'Tool pace preference updated',
+      );
+
+      reply.send({ success: true });
     },
   });
 

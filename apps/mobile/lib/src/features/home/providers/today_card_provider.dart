@@ -57,6 +57,29 @@ class TherapistChatAccess {
   }
 }
 
+class AssignedExercise {
+  final String toolId;
+  final String label;
+  final String text;
+  final String pacePreset;
+
+  const AssignedExercise({
+    required this.toolId,
+    required this.label,
+    required this.text,
+    required this.pacePreset,
+  });
+
+  factory AssignedExercise.fromJson(Map<String, dynamic> json) {
+    return AssignedExercise(
+      toolId: json['toolId'] as String,
+      label: json['label'] as String,
+      text: json['text'] as String,
+      pacePreset: json['pacePreset'] as String? ?? 'standard',
+    );
+  }
+}
+
 class TodayCardData {
   final String? homeworkId;
   final String? homework;
@@ -65,6 +88,10 @@ class TodayCardData {
   final PendingChatAccessRequest? pendingChatAccessRequest;
   final TherapistChatAccess? therapistChatAccess;
   final AppointmentView? nextAppointment;
+  final List<AssignedExercise> assignedExercises;
+  final String defaultBoxBreathingPacePreset;
+  final bool careEnded;
+  final String? careEndedByTherapistName;
 
   const TodayCardData({
     required this.homeworkId,
@@ -74,6 +101,10 @@ class TodayCardData {
     required this.pendingChatAccessRequest,
     required this.therapistChatAccess,
     required this.nextAppointment,
+    required this.assignedExercises,
+    required this.defaultBoxBreathingPacePreset,
+    required this.careEnded,
+    required this.careEndedByTherapistName,
   });
 
   factory TodayCardData.fromJson(Map<String, dynamic> json) {
@@ -81,6 +112,7 @@ class TodayCardData {
     final rawPending = json['pendingChatAccessRequest'] as Map<String, dynamic>?;
     final rawChatAccess = json['therapistChatAccess'] as Map<String, dynamic>?;
     final rawNextAppointment = json['nextAppointment'] as Map<String, dynamic>?;
+    final rawAssignedExercises = json['assignedExercises'] as List<dynamic>? ?? [];
     return TodayCardData(
       homeworkId: json['homeworkId'] as String?,
       homework: json['homework'] as String?,
@@ -103,6 +135,19 @@ class TodayCardData {
       // appointment. Null if nothing's booked.
       nextAppointment:
           rawNextAppointment != null ? AppointmentView.fromJson(rawNextAppointment) : null,
+      // Decisions doc round, 15 Sep 2026 §4 — real playable exercises
+      // (active Homework rows with a tool_id link), surfaced on the
+      // Breathe screen alongside the client's own default.
+      assignedExercises: rawAssignedExercises
+          .map((e) => AssignedExercise.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      defaultBoxBreathingPacePreset:
+          json['defaultBoxBreathingPacePreset'] as String? ?? 'standard',
+      // Decisions doc round, 15 Sep 2026 §11 — surfaces a closed
+      // TherapistClient relationship so the app can show the graceful-close
+      // screen. Only ever true when there's no active relationship.
+      careEnded: json['careEnded'] as bool? ?? false,
+      careEndedByTherapistName: json['careEndedByTherapistName'] as String?,
     );
   }
 }
@@ -138,6 +183,33 @@ class HomeworkCompleteNotifier extends Notifier<void> {
 
 final homeworkCompleteProvider = NotifierProvider<HomeworkCompleteNotifier, void>(
   HomeworkCompleteNotifier.new,
+);
+
+/// PATCH /users/me/tool-preference — decisions doc round, 15 Sep 2026
+/// §1/§4: "pace = client-only". Covers both the client's own default
+/// box-breathing and any therapist-assigned exercise under one endpoint,
+/// keyed by tool_id.
+class ToolPreferenceNotifier extends Notifier<void> {
+  @override
+  void build() {}
+
+  Future<bool> setPacePreset({required String toolId, required String pacePreset}) async {
+    final dio = ref.read(dioClientProvider);
+    try {
+      await dio.patch(
+        '/users/me/tool-preference',
+        data: {'tool_id': toolId, 'pace_preset': pacePreset},
+      );
+      ref.invalidate(todayCardProvider);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+final toolPreferenceProvider = NotifierProvider<ToolPreferenceNotifier, void>(
+  ToolPreferenceNotifier.new,
 );
 
 /// PATCH /users/me/chat-access — therapist-portal wireframes C-08. The

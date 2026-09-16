@@ -118,13 +118,20 @@ export interface AgentTurnFrame {
 
 // ─── Tool Card Types ──────────────────────────────────────────────
 
-export type ToolCardType = 'guided_breathing' | 'box_breathing' | 'grounding_5431'
+export type ToolCardType =
+  | 'guided_breathing'
+  | 'box_breathing'
+  | 'grounding_5431'
+  | 'physiological_sigh'
+  | 'extended_exhale'
 
 export interface BreathingConfig {
   inhale_seconds: number
   hold_seconds: number
   exhale_seconds: number
   second_hold_seconds?: number
+  /** Physiological sigh's double-inhale shape: a second inhale immediately after the first, no exhale between. */
+  second_inhale_seconds?: number
   cycles: number
   label: string
   is_box_visual?: boolean
@@ -324,6 +331,14 @@ export interface AppointmentsResponse {
   past: AppointmentView[]
 }
 
+/** Decisions doc round, 15 Sep 2026 §4/§5 — a therapist-assigned exercise with a `tool_id` link, surfaced on Home's Breathe screen. */
+export interface AssignedExerciseView {
+  toolId: string
+  label: string
+  text: string
+  pacePreset: string
+}
+
 export interface TodayCard {
   homeworkId: string | null
   homework: string | null
@@ -336,6 +351,14 @@ export interface TodayCard {
   therapistChatAccess: TherapistChatAccess | null
   /** App wireframes A1 — the single soonest upcoming, non-cancelled appointment. Null if none booked. */
   nextAppointment: AppointmentView | null
+  /** Decisions doc round, 15 Sep 2026 §4 — active Homework rows with a tool_id link, i.e. real playable exercises (not just free-text homework). */
+  assignedExercises: AssignedExerciseView[]
+  /** Decisions doc round, 15 Sep 2026 §4 — the client's own pace preset for their default box-breathing exercise (no Homework row needed for this one). Always one of slower/standard/faster. */
+  defaultBoxBreathingPacePreset: string
+  /** Decisions doc round, 15 Sep 2026 §11 — true once the client's most recent therapist relationship has TherapistClient.ended_at set. */
+  careEnded: boolean
+  /** The therapist who ended care, for the close screen's copy. Null if careEnded is false. */
+  careEndedByTherapistName: string | null
 }
 
 export type ReminderFrequency = 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed'
