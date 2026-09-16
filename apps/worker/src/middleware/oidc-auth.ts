@@ -32,7 +32,18 @@ export async function verifyOidcToken(
     : authHeader;
 
   try {
-    const ticket = await client.verifyIdToken({ idToken: token });
+    // Cloud Tasks mints the token with audience: env.workerUrl (see
+    // apps/api/src/lib/summary-enqueue.ts) specifically so it can't be
+    // replayed against a different Cloud Run service using the same
+    // service account. Omitting `audience` here skipped that check
+    // entirely — google-auth-library only validates the `aud` claim when
+    // it's passed, so the only real check left was the email match below,
+    // which any token minted by this SA for any audience would still pass.
+    const expectedAudience = process.env.CLOUD_TASKS_WORKER_URL;
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      ...(expectedAudience ? { audience: expectedAudience } : {}),
+    });
     const payload = ticket.getPayload();
     const expectedEmail = process.env.WORKER_SERVICE_ACCOUNT_EMAIL;
 
