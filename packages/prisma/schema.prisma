@@ -59,6 +59,7 @@ model User {
   reminders           Reminder[]
   appointments        Appointment[]       @relation("ClientToAppointment")
   invite_tokens       InviteToken[]
+  tool_preferences    UserToolPreference[]
 }
 
 model Therapist {
@@ -265,18 +266,24 @@ model TherapistClient {
 
 /// OKUVU v2.0: therapist-assigned homework. Read by A2's ${homework}
 /// (agent-context.ts pulls the most recent `active` row's description) and
-/// (eventually) Worker 05's homework_progress. No portal UI creates these
-/// yet — that write path is a separate, not-yet-built workstream.
+/// (eventually) Worker 05's homework_progress. Assigned via the portal's
+/// Homework page (apps/therapist-portal/.../clients/[id]/homework) — always
+/// free-text `description`, optionally also linked to a specific approved
+/// exercise via `tool_id` (decisions doc round, 15 Sep 2026 §5) so the
+/// client app can render it as a real, playable exercise rather than just
+/// prose.
 model Homework {
-  id             String         @id @default(uuid())
+  id             String              @id @default(uuid())
   client_user_id String
   therapist_id   String
   description    String
-  status         HomeworkStatus @default(active)
-  assigned_at    DateTime       @default(now())
-  updated_at     DateTime       @updatedAt
-  client         User           @relation("ClientToHomework", fields: [client_user_id], references: [id])
-  therapist      Therapist      @relation("TherapistToHomework", fields: [therapist_id], references: [id])
+  tool_id        String?
+  status         HomeworkStatus      @default(active)
+  assigned_at    DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  client         User                @relation("ClientToHomework", fields: [client_user_id], references: [id])
+  therapist      Therapist           @relation("TherapistToHomework", fields: [therapist_id], references: [id])
+  tool           ToolRegistryEntry?  @relation(fields: [tool_id], references: [tool_id])
   reminders      Reminder[]
 
   @@index([client_user_id, status, assigned_at(sort: Desc)])
@@ -473,17 +480,42 @@ enum LanguageMode {
 }
 
 /// OKUVU v2.0: canonical tool-id registry (docs/okuvu-v2.0's B.3 — "chat
-/// parity: T1-T8 column" replacement). Seeded with only the 3 ids already
-/// live in apps/api/src/lib/tool-card.ts — the full proposed list is
-/// pending clinical review (Shubhangi), not invented here. Now wired as the
-/// optional tool link on Reminder (§D reminders workstream).
+/// parity: T1-T8 column" replacement). The 5 clinically-approved exercises
+/// (decisions doc round, 15 Sep 2026 §3) are seeded here — `text` is the
+/// single canonical copy for that exercise, read verbatim by the mobile
+/// player; apps/api/src/prompts/a2-okuvu-v2.0.txt is hand-aligned to match
+/// it rather than reading it live (data parity, not live orchestrator
+/// wiring — see §7). Now wired as the optional tool link on Reminder (§D
+/// reminders workstream) and on Homework (§5).
 model ToolRegistryEntry {
   id            String     @id @default(uuid())
   tool_id       String     @unique
   label         String
+  text          String
   chat_guidable Boolean    @default(true)
   created_at    DateTime   @default(now())
   reminders     Reminder[]
+  homeworks     Homework[]
+  preferences   UserToolPreference[]
+}
+
+/// OKUVU v2.0: a client's chosen pace preset for one approved exercise —
+/// covers both their own default (box breathing, no Homework row needed)
+/// and any therapist-assigned exercise (same tool_id as the Homework row).
+/// Decisions doc round, 15 Sep 2026 §1/§4: "pace = client-only" — this
+/// table is the client's write, never the therapist's; presets are always
+/// slower/standard/faster, clamped to the safe band in application code
+/// (apps/mobile's breathing_presets.dart), not stored as raw seconds here.
+model UserToolPreference {
+  id           String            @id @default(uuid())
+  user_id      String
+  tool_id      String
+  pace_preset  String            @default("standard")
+  updated_at   DateTime          @updatedAt
+  user         User              @relation(fields: [user_id], references: [id])
+  tool         ToolRegistryEntry @relation(fields: [tool_id], references: [tool_id])
+
+  @@unique([user_id, tool_id])
 }
 
 /// OKUVU v2.0: canonical crisis-helpline source (master-handoff O7 —
