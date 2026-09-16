@@ -72,14 +72,14 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
               _resolveNextScreen();
               return const SizedBox.shrink();
             }
-            return _buildContent(theme, plan.focusAreaName);
+            return _buildContent(theme);
           },
         ),
       ),
     );
   }
 
-  Widget _buildContent(ThemeData theme, String focusAreaName) {
+  Widget _buildContent(ThemeData theme) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final contentHeight = constraints.maxHeight * 0.6;
@@ -124,39 +124,6 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                     textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: theme.colorScheme.outlineVariant),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Your focus area',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.inkSoft,
-                            letterSpacing: 1.2,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          focusAreaName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.violet,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                   const SizedBox(height: 32),
                   SizedBox(

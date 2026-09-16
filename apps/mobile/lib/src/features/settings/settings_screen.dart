@@ -46,11 +46,6 @@ class SettingsScreen extends ConsumerWidget {
                     onTap: () => context.go('/settings/notifications'),
                   ),
                   _SettingsTile(
-                    icon: LucideIcons.brain,
-                    title: 'My Focus Area',
-                    onTap: () => context.go('/settings/focus'),
-                  ),
-                  _SettingsTile(
                     icon: LucideIcons.contact,
                     title: 'Emergency Contact',
                     onTap: () => context.go('/settings/emergency'),

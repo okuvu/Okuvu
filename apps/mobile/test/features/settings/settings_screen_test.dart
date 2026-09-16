@@ -126,7 +126,7 @@ void main() {
 
   group('SettingsScreen', () {
     testWidgets(
-      'renders all entries: My Focus Area, Emergency Contact, '
+      'renders all entries: Emergency Contact, '
       'Privacy & Data, Language, About, Voice, Quote of the Day, '
       'Delete Account',
       (tester) async {
@@ -135,7 +135,9 @@ void main() {
 
         expect(find.text('Profile'), findsOneWidget);
         expect(find.text('Notifications'), findsOneWidget);
-        expect(find.text('My Focus Area'), findsOneWidget);
+        // W4.3 — care-plan/focus-area labels are a clinical-internal
+        // construct, no longer surfaced client-facing anywhere.
+        expect(find.text('My Focus Area'), findsNothing);
         expect(find.text('Emergency Contact'), findsOneWidget);
         expect(find.text('Privacy & Data'), findsOneWidget);
         expect(find.text('Language'), findsOneWidget);

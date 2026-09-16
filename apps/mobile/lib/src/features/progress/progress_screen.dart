@@ -4,7 +4,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/providers.dart';
 import 'models/mood_data_point.dart';
 import 'providers/progress_provider.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
@@ -24,7 +23,6 @@ class ProgressScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final moodProgress = ref.watch(moodProgressProvider);
-    final carePlanAsync = ref.watch(userCarePlanProvider);
 
     return PopScope(
       canPop: false,
@@ -46,20 +44,17 @@ class ProgressScreen extends ConsumerWidget {
           ),
           data: (entries) {
             final days = _buildLast14Days(entries);
-            final carePlanData = carePlanAsync.asData?.value;
 
             if (days.every((day) => day.mood == null)) {
               return const _EmptyProgressState();
             }
-
-            final carePlanId = carePlanData?.carePlanId;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _CarePhaseCard(carePlanId: carePlanId),
+                  const _CarePhaseCard(),
                   const SizedBox(height: 24),
                   Text(
                     'Mood over the last 14 days',
@@ -109,9 +104,7 @@ List<MoodDataPoint> _buildLast14Days(List<MoodDataPoint> entries) {
 }
 
 class _CarePhaseCard extends StatelessWidget {
-  const _CarePhaseCard({this.carePlanId});
-
-  final String? carePlanId;
+  const _CarePhaseCard();
 
   @override
   Widget build(BuildContext context) {

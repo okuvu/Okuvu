@@ -311,7 +311,10 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('My Focus Area'), findsOneWidget);
+      // W4.3 — care-plan/focus-area labels are a clinical-internal
+      // construct and are no longer surfaced anywhere client-facing;
+      // "My Focus Area" was removed from Settings for that reason.
+      expect(find.text('My Focus Area'), findsNothing);
       expect(find.text('Emergency Contact'), findsOneWidget);
     });
   });
