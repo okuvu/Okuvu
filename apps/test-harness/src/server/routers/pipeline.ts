@@ -11,6 +11,7 @@ import { isCannedRunActive } from '../../lib/canned-mode';
 import { resolveFrozenTriple } from '../../lib/frozen-triple';
 import { checkPipelineInvariants } from '../../lib/pipeline-invariants';
 import { checkCrisisRecordCompleteness } from '../../lib/crisis-record';
+import { buildRunHeader } from '../../lib/run-identity';
 import { prisma } from '../../lib/prisma';
 
 // ─── Direct import of apps/api's real orchestrator + its test-hook types ───
@@ -78,12 +79,23 @@ export const pipelineRouter = router({
     .mutation(async ({ input }) => {
       const { uid, sessionId } = await setupSyntheticSession();
 
-      const { result, trace, activatedAgents } = await runFullPipelineImpl({
+      const { result, trace, activatedAgents, workerStage } = await runFullPipelineImpl({
         uid,
         sessionId,
         message: input.message,
         testMode: input.testMode as TestModeOptions | undefined,
       });
+
+      // B1 (OKUVU — Plumbing Fixes & Rationale v1.0): a run where any pipeline
+      // stage failed or no-oped is marked 'incomplete' — excluded from
+      // scorecard aggregation, never scored clean. Previously the harness
+      // scored a run whose A13/A15 worker stage silently no-oped ('WORKER_URL
+      // is not configured', processed:false) as a clean PASS — the exact
+      // H-1-class false pass this prevents. Only real-turn results have a
+      // worker stage (crisis turns are persisted before any summary could
+      // run); 'error' takes priority over 'incomplete'.
+      const workerStageIncomplete =
+        result.type !== 'crisis' && (workerStage.attempted ? !workerStage.ok : true);
 
       // Hard-fail gating (mvp-v2-engineering-spec.md §5.1/§5.2): a canned-mode
       // hygiene violation (this run wasn't in sandbox, yet went canned), a
@@ -91,6 +103,8 @@ export const pipelineRouter = router({
       // suppression) all demote status to 'halt' — previously this only
       // checked result.type === 'error', so a turn that quietly degraded to
       // a hardcoded fallback recorded identically to a genuine pass.
+      // (A4 note: fallbackUsed is now set on EVERY substitute path — block
+      // turns included — so the fallback gate sees the whole truth.)
       const canned = isCannedRunActive();
       const cannedHygieneViolation = input.environment !== 'sandbox' && canned;
       const invariantViolations = checkPipelineInvariants(result.signals ?? [], result.type);
@@ -98,11 +112,13 @@ export const pipelineRouter = router({
       const status: TestRunStatus =
         result.type === 'error'
           ? 'error'
-          : cannedHygieneViolation ||
-              (result.type === 'agent_turn' && result.fallbackUsed) ||
-              invariantViolations.length > 0
-            ? 'halt'
-            : 'pass';
+          : workerStageIncomplete
+            ? 'incomplete'
+            : cannedHygieneViolation ||
+                (result.type === 'agent_turn' && result.fallbackUsed) ||
+                invariantViolations.length > 0
+              ? 'halt'
+              : 'pass';
 
       const run = await withEnvironment(input.environment, async (tx) => {
         const frozenTriple = await resolveFrozenTriple({
@@ -118,6 +134,9 @@ export const pipelineRouter = router({
             altitude: 1,
             status,
             canned,
+            // B2: run identity header (see run-identity.ts) — build_sha /
+            // corpus_version (null for non-corpus runs) / run_mode.
+            ...buildRunHeader('full_pipeline'),
             frozen_triple: JSON.parse(JSON.stringify(frozenTriple)),
             // Prisma's Json input type wants InputJsonValue, not our typed
             // domain objects — a JSON round-trip is the simplest way to erase
@@ -129,6 +148,8 @@ export const pipelineRouter = router({
                 trace,
                 signals: result.signals ?? [],
                 invariantViolations,
+                // B1: why the run was (or wasn't) marked incomplete.
+                workerStage,
               }),
             ),
             activated_agents: activatedAgents,

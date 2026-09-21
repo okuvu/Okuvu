@@ -59,6 +59,7 @@ import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
+import { A2_DEGRADED_RESPONSE, A9_PRE_BLOCKED_RESPONSE, getSafeFallback } from '../pipeline/fallbacks.js';
 import { clearToolResult } from '../lib/tool-result-store.js';
 import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 
@@ -288,9 +289,7 @@ describe('processTurn — TH-S10 faults', () => {
     if (result.type === 'agent_turn') {
       expect(result.fallbackUsed).toBe(true);
       expect(result.failureReason).toBe('api_error');
-      expect(result.message).toBe(
-        "I hear you, and I'm here to support you. Could you tell me a bit more about what's going on right now?",
-      );
+      expect(result.message).toBe(A2_DEGRADED_RESPONSE);
     }
   });
 
@@ -311,5 +310,129 @@ describe('processTurn — TH-S10 faults', () => {
       expect(result.fallbackUsed).toBe(true);
       expect(result.failureReason).toBe('timeout');
     }
+  });
+});
+
+// Distinguishes the assistant turn.create call (second of the two — user +
+// assistant in one $transaction) from the user row's call: only the
+// assistant create carries a `select` clause.
+const selectDiscriminator = { select: { id: true } };
+
+// ─── A4 + B4 regression seeds (OKUVU — Plumbing Fixes & Rationale v1.0) ─────
+// A4: "Blocked turns showed a substitute to the user but recorded
+// fallbackUsed:false / canned:false." Every static-substitute path must now
+// surface fallbackUsed:true + fallbackSource on the result (and persist
+// Turn.fallback_source), so the scorecard's zero-tolerance fallback count is
+// honest. B4: these freeze the fix — if blocks ever again record as clean
+// passes, these fail before any large run does.
+describe('A4 — block substitutes are honest fallbacks (B4 regression seed)', () => {
+  it('A9-pre blocked mode records fallbackUsed:true + fallbackSource + Turn.fallback_source', async () => {
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'blocked' });
+
+    const result = await processTurn(UID, SESSION_ID, 'test', null, {});
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.fallbackSource).toBe('a9_pre_blocked');
+      expect(result.message).toBe(A9_PRE_BLOCKED_RESPONSE);
+    }
+    expect(prisma.turn.create).toHaveBeenCalledWith({
+      // The assistant row is the second create (user + assistant in one
+      // $transaction) — the `select` clause only appears on that one.
+      ...selectDiscriminator,
+      data: expect.objectContaining({
+        role: 'assistant',
+        fallback_source: 'a9_pre_blocked',
+      }),
+    });
+  });
+
+  it('A9-post BLOCKED substitution records fallbackUsed:true + fallbackSource', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(a9PostReview).mockResolvedValue({ decision: 'BLOCKED', violation_type: 'direct_advice', confidence: 'high', notes: null });
+
+    const result = await processTurn(UID, SESSION_ID, 'test', null, {});
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.fallbackSource).toBe('a9_post_blocked');
+      expect(result.message).toBe(getSafeFallback('S1'));
+    }
+    expect(prisma.turn.create).toHaveBeenCalledWith({
+      ...selectDiscriminator,
+      data: expect.objectContaining({
+        role: 'assistant',
+        fallback_source: 'a9_post_blocked',
+      }),
+    });
+  });
+
+  it('deterministic-grounding (S3) records fallbackUsed:true + fallbackSource', async () => {
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'deterministic-grounding' });
+
+    const result = await processTurn(UID, SESSION_ID, 'test', null, {});
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.fallbackSource).toBe('deterministic_grounding');
+    }
+    expect(prisma.turn.create).toHaveBeenCalledWith({
+      ...selectDiscriminator,
+      data: expect.objectContaining({
+        role: 'assistant',
+        fallback_source: 'deterministic_grounding',
+      }),
+    });
+  });
+
+  it('A9-post unavailable at S2 records fallbackSource a9_post_unavailable', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(a9PostReview).mockRejectedValue(new Error('reviewer down'));
+
+    const result = await processTurn(UID, SESSION_ID, 'test', null, {});
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.fallbackSource).toBe('a9_post_unavailable');
+      expect(result.message).toBe(getSafeFallback('S2'));
+    }
+  });
+});
+
+// ─── A2 (reset-on-affirmation) regression seed ──────────────────────────────
+// Root cause of the reproduced failures: the current session's turns were
+// never passed to A2 (fetched for A1's metrics and discarded). These pin the
+// wiring: handleTurn.recentHistory must contain the current session's own
+// turns, oldest-first.
+describe('A2 — current-session history reaches handleTurn (B4 regression seed)', () => {
+  it('passes the session\'s own turns into A2 recentHistory alongside past-session summaries', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S0', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+    vi.mocked(getSessionConversationTurns).mockResolvedValue([
+      { role: 'user' as const, content: 'Can we try the breathing exercise?', created_at: new Date('2026-09-20T10:00:00Z') },
+      { role: 'assistant' as const, content: 'Let\u2019s try it together.', created_at: new Date('2026-09-20T10:00:05Z') },
+    ]);
+
+    await processTurn(UID, SESSION_ID, 'okay', null, {});
+
+    const call = vi.mocked(handleTurn).mock.calls[0][0];
+    const history = call.recentHistory;
+    expect(history.length).toBeGreaterThanOrEqual(2);
+    expect(history.some((t) => t.role === 'user' && t.content === 'Can we try the breathing exercise?')).toBe(true);
+    expect(history.some((t) => t.role === 'assistant')).toBe(true);
+    // The current message is appended by handleTurn, never duplicated by the orchestrator.
+    expect(history.some((t) => t.content === 'okay')).toBe(false);
   });
 });

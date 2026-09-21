@@ -31,7 +31,7 @@ const promptsDir = join(__dirname, '..', '..', 'api', 'src', 'prompts');
 const outDir = join(__dirname, '..', '.generated');
 const outFile = join(outDir, 'prompt-shim.ts');
 
-const mvp = readFileSync(join(promptsDir, 'a2-okuvu-v2.0.txt'), 'utf-8');
+const mvp = readFileSync(join(promptsDir, 'a2-okuvu-v2.1.txt'), 'utf-8');
 
 // A2_PROMPT_VERSION is a plain string literal in the real
 // apps/api/src/prompts/index.ts (no file I/O involved, unlike the
@@ -43,7 +43,7 @@ const mvp = readFileSync(join(promptsDir, 'a2-okuvu-v2.0.txt'), 'utf-8');
 // (confirmed live 2026-09-06 — see docs/test-harness/mvp-v2-engineering-spec.md's
 // implementation-status note). Kept in sync by hand, same as
 // apps/api/src/prompts/index.ts's own comment already says about this value.
-const promptVersion = 'v2.0';
+const promptVersion = 'v2.1';
 
 mkdirSync(outDir, { recursive: true });
 writeFileSync(

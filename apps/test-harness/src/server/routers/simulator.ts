@@ -15,7 +15,9 @@ import { processTurn } from '@okuvu/api/src/pipeline/orchestrator';
 import type { TestModeOptions } from '@okuvu/api/src/pipeline/types';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
-const personaIdSchema = z.enum(['anxious', 'crisis-escalating', 'fidelity', 'adversarial']);
+// 'continuity' is the B4 regression seed for the reset-on-affirmation bug
+// (OKUVU — Plumbing Fixes & Rationale v1.0) — see lib/persona-scripts.ts.
+const personaIdSchema = z.enum(['anxious', 'crisis-escalating', 'fidelity', 'adversarial', 'continuity']);
 // Same boundary/type vocabulary as faultInjection.ts — reusing it here keeps
 // the two routers' fault shapes identical rather than inventing a second one.
 const faultSchema = z.object({

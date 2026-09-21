@@ -256,6 +256,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             outcome: 'success',
             turn_count: result.turnCount,
             fallback_used: result.fallbackUsed,
+            fallback_source: result.fallbackSource ?? null,
             timing: result.timing,
           }, 'Turn completed');
 

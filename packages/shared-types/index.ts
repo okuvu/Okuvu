@@ -423,7 +423,12 @@ export interface CreateJournalEntryBody {
 
 export type TestEnvironment = 'sandbox' | 'staging' | 'beta'
 
-export type TestRunStatus = 'running' | 'pass' | 'halt' | 'warning' | 'error'
+/**
+ * 'incomplete' (B1, OKUVU — Plumbing Fixes & Rationale v1.0): a run where any
+ * pipeline stage failed or no-oped. Excluded from scorecard aggregation,
+ * never scored clean — a green run that skipped a stage is a false pass.
+ */
+export type TestRunStatus = 'running' | 'pass' | 'halt' | 'warning' | 'error' | 'incomplete'
 
 export type CorpusCaseType = 'safety' | 'fidelity' | 'adversarial' | 'persona'
 

@@ -56,7 +56,9 @@ export interface PromptManifestEntry {
  * variant prompt (a2-onboarding-v1.0.txt) was retired alongside the
  * onboarding-scoring machinery it served — see
  * okuvu-remaining-changes.md §B.1):
- *   - a2-okuvu-v2.0.txt       -> 'A2'   (A2's main OKUVU conversation prompt)
+ *   - a2-okuvu-v2.1.txt       -> 'A2'   (A2's main OKUVU conversation prompt;
+ *      v2.0 → v2.1 added §3.1 continuity / no-re-onboarding — see
+ *      OKUVU — Plumbing Fixes & Rationale v1.0, fix A2)
  *   - memory-extraction-v2.0.txt -> 'A15' (memory extraction agent, worker-side)
  */
 export function getPromptManifest(): PromptManifestEntry[] {
@@ -64,8 +66,8 @@ export function getPromptManifest(): PromptManifestEntry[] {
   return [
     {
       agentId: 'A2',
-      version: 'v2.0',
-      path: path.join(root, 'apps', 'api', 'src', 'prompts', 'a2-okuvu-v2.0.txt'),
+      version: 'v2.1',
+      path: path.join(root, 'apps', 'api', 'src', 'prompts', 'a2-okuvu-v2.1.txt'),
     },
     {
       agentId: 'A15',

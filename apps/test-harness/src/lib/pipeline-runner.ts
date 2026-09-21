@@ -32,6 +32,17 @@ export interface AgentTraceEntry {
   output: unknown;
   latencyMs: number;
   signals: PipelineSignal[];
+  /** B2: per-agent provenance — which model/prompt produced this entry's output. Only set for A2 (the only agent that surfaces attribution today); A1/A9-pre/A9-post attribution fields don't exist yet. */
+  modelVersion?: string | null;
+  promptVersion?: string | null;
+  canned?: boolean;
+}
+
+/** B1: outcome of the A13/A15 combined worker call that follows a real turn. */
+export interface WorkerStageOutcome {
+  attempted: boolean;
+  ok: boolean;
+  error: string | null;
 }
 
 export interface PipelineRunResult {
@@ -39,6 +50,8 @@ export interface PipelineRunResult {
   trace: AgentTraceEntry[];
   /** Agents that actually ran this turn, in pipeline order. */
   activatedAgents: string[];
+  /** B1: whether the summary/memory worker stage ran successfully — false means the run must be marked 'incomplete', never clean. */
+  workerStage: WorkerStageOutcome;
 }
 
 /** Maps a `StageTiming.stage` value (real or `*_skipped`) to a TestAgentId. */
@@ -124,6 +137,17 @@ export async function runFullPipeline(params: {
   const trace: AgentTraceEntry[] = [];
   const activatedAgents: string[] = [];
 
+  // A7/B3 (OKUVU — Plumbing Fixes & Rationale v1.0): trace entries now carry
+  // the real stimulus. `input: null` here is exactly how Conv 3/4 became
+  // unverifiable — reviewers could not judge whether a reply was appropriate
+  // without the user turn that provoked it. `runFullPipeline` is a
+  // single-message call, so the stimulus is exactly `params.message` for
+  // every agent this turn; the timing data still comes from the real stages,
+  // only the previously-missing stimulus is filled in. (The conversation
+  // driver's per-turn traces already carry the user turn in
+  // PerTurnTrace.message — this closes the pipeline.ts/corpus.ts gap.)
+  const stimulus = params.message;
+
   for (const stageTiming of result.timing) {
     const agentId = STAGE_TO_AGENT[stageTiming.stage];
     if (!agentId) continue; // e.g. 'validation', 'layer3_rag', 'total_turn' — not a pipeline agent
@@ -133,18 +157,33 @@ export async function runFullPipeline(params: {
     const boundary = AGENT_TO_BOUNDARY[agentId];
     const signal = signals.find((s) => s.boundary === boundary);
 
+    // B2 per-agent provenance: A2's attribution fields come off its captured
+    // signal payload (the orchestrator's A2_result signal IS handleTurn's
+    // return value).
+    let modelVersion: string | null | undefined;
+    let promptVersion: string | null | undefined;
+    let canned: boolean | undefined;
+    if (agentId === 'A2') {
+      const a2Payload = signal?.payload as { modelVersion?: string; promptVersion?: string; canned?: boolean } | undefined;
+      modelVersion = a2Payload?.modelVersion ?? null;
+      promptVersion = a2Payload?.promptVersion ?? null;
+      canned = a2Payload?.canned ?? false;
+    }
+
     trace.push({
       agentId,
-      input: null,
+      input: { message: stimulus },
       output: signal?.payload ?? null,
       latencyMs: stageTiming.elapsedMs,
       signals: signal ? [signal] : [],
+      ...(agentId === 'A2' ? { modelVersion, promptVersion, canned } : {}),
     });
   }
 
   // A13/A15: one combined worker call (per TH-S09's finding that both run
   // via the same POST /tasks/summary endpoint), only attempted when a real
   // turn was actually written (i.e. not the crisis silence path).
+  let workerStage: WorkerStageOutcome = { attempted: false, ok: false, error: null };
   if (result.type === 'agent_turn') {
     const start = performance.now();
     const workerResult = await invokeAgent(
@@ -153,8 +192,14 @@ export async function runFullPipeline(params: {
       {},
     );
     const latencyMs = performance.now() - start;
-    const output = workerResult.output as { error?: string };
+    const output = workerResult.output as { error?: string; processed?: boolean };
     const succeeded = !output?.error;
+
+    workerStage = {
+      attempted: true,
+      ok: succeeded,
+      error: output?.error ?? null,
+    };
 
     if (succeeded) {
       activatedAgents.push('A13', 'A15');
@@ -169,5 +214,5 @@ export async function runFullPipeline(params: {
     });
   }
 
-  return { result, trace, activatedAgents };
+  return { result, trace, activatedAgents, workerStage };
 }

@@ -317,7 +317,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
 
       const result = await handleTurn(makeInput());
 
-      expect(result.promptVersion).toBe('v2.0');
+      expect(result.promptVersion).toBe('v2.1');
     });
 
     it('propagates canned:true from the Vertex AI wrapper', async () => {
@@ -630,5 +630,59 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
       expect(typeof result.response).toBe('string');
       expect(result.response).toBe('I hear you.');
     });
+  });
+});
+
+// ─── B4 regression seeds (OKUVU — Plumbing Fixes & Rationale v1.0) ──────────
+// "Freeze each as a regression seed before any large run: the failures as
+// regression tests." A5: the fenced-block stripper alone let an improvised
+// prose header (Conv 4: "BLOCK 2 — MACHINE SIGNAL (stripped before delivery
+// to user)") leak into user-visible text. These freeze the strip-everything-
+// after-a-marker contract; if scaffolding ever again reaches the user, these
+// fail before any large run does.
+describe('A5 signal-marker stripping (B4 regression seed)', () => {
+  it('strips everything after an improvised "BLOCK 2 — MACHINE SIGNAL" header line', () => {
+    const raw = [
+      "That sounds really heavy — let's slow down together.",
+      'BLOCK 2 — MACHINE SIGNAL (stripped before delivery to user)',
+      '{"signal": "S-07", "agent": "A2"}',
+    ].join('\n');
+
+    const result = parseA2Response(raw);
+
+    expect(result.userContent).toBe("That sounds really heavy — let's slow down together.");
+    expect(result.userContent).not.toContain('BLOCK');
+    expect(result.userContent).not.toContain('MACHINE SIGNAL');
+    expect(result.userContent).not.toContain('stripped before delivery');
+  });
+
+  it('strips an inline header with the parenthetical tail on the same line', () => {
+    const raw = "I'm here with you. BLOCK 2 — MACHINE SIGNAL (stripped before delivery to user)";
+
+    const result = parseA2Response(raw);
+
+    expect(result.userContent).toBe("I'm here with you.");
+    expect(result.userContent).not.toContain('stripped before delivery');
+  });
+
+  it('strips the canonical fenced S-07 block as before (no regression of the normal path)', () => {
+    const raw = [
+      'I hear you.',
+      '```json',
+      '{"signal": "S-07", "agent": "A2", "intensity": 4}',
+      '```',
+    ].join('\n');
+
+    const result = parseA2Response(raw);
+
+    expect(result.userContent).toBe('I hear you.');
+  });
+
+  it('never leaks a bare "MACHINE SIGNAL" marker line', () => {
+    const raw = ['You are not alone in this.', 'MACHINE SIGNAL', '{"signal": "S-07"}'].join('\n');
+
+    const result = parseA2Response(raw);
+
+    expect(result.userContent).toBe('You are not alone in this.');
   });
 });

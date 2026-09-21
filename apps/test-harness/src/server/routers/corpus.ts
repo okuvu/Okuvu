@@ -11,6 +11,7 @@ import { withEnvironment } from '@/lib/prisma-rls';
 import { isCannedRunActive } from '@/lib/canned-mode';
 import { resolveFrozenTriple } from '@/lib/frozen-triple';
 import { checkPipelineInvariants } from '@/lib/pipeline-invariants';
+import { buildRunHeader } from '@/lib/run-identity';
 import {
   ALL_VARIATION_KINDS,
   generateVariation,
@@ -388,7 +389,7 @@ export const corpusRouter = router({
         injectTherapistName: corpusCase.therapist_name ?? undefined,
         injectToolkit: corpusCase.toolkit.length > 0 ? corpusCase.toolkit : undefined,
       };
-      const { result, trace, activatedAgents } = await runFullPipeline({
+      const { result, trace, activatedAgents, workerStage } = await runFullPipeline({
         uid,
         sessionId,
         message: corpusCase.input,
@@ -422,16 +423,25 @@ export const corpusRouter = router({
       const cannedHygieneViolation = input.environment !== 'sandbox' && canned;
       const invariantViolations = checkPipelineInvariants(result.signals ?? [], result.type);
 
+      // B1 (OKUVU — Plumbing Fixes & Rationale v1.0): a run whose A13/A15
+      // worker stage failed or no-oped is marked 'incomplete' — excluded,
+      // never clean. Only real-turn results have a worker stage (crisis turns
+      // are persisted before any summary could run); 'error' takes priority.
+      const workerStageIncomplete =
+        result.type !== 'crisis' && (workerStage.attempted ? !workerStage.ok : true);
+
       const status: TestRunStatus =
         result.type === 'error'
           ? 'error'
-          : cannedHygieneViolation ||
-              (result.type === 'agent_turn' && result.fallbackUsed) ||
-              invariantViolations.length > 0
-            ? 'halt'
-            : judge?.judged && judge.passed === false
-              ? 'warning'
-              : 'pass';
+          : workerStageIncomplete
+            ? 'incomplete'
+            : cannedHygieneViolation ||
+                (result.type === 'agent_turn' && result.fallbackUsed) ||
+                invariantViolations.length > 0
+              ? 'halt'
+              : judge?.judged && judge.passed === false
+                ? 'warning'
+                : 'pass';
 
       const run = await withEnvironment(input.environment, async (tx) => {
         const frozenTriple = await resolveFrozenTriple({
@@ -447,6 +457,9 @@ export const corpusRouter = router({
             altitude: 1,
             status,
             canned,
+            // B2: run identity header + the corpus case's own lineage version
+            // as the corpus_version stamp.
+            ...buildRunHeader('corpus_case', [corpusCase]),
             frozen_triple: JSON.parse(JSON.stringify(frozenTriple)),
             results: JSON.parse(
               JSON.stringify({
@@ -457,6 +470,7 @@ export const corpusRouter = router({
                 corpusCaseType: corpusCase.type,
                 judge,
                 invariantViolations,
+                workerStage,
               }),
             ),
             activated_agents: activatedAgents,

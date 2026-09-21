@@ -1,6 +1,8 @@
 'use client';
 
-const PERSONA_IDS = ['anxious', 'crisis-escalating', 'fidelity', 'adversarial'] as const;
+// 'continuity' is the B4 regression seed for the reset-on-affirmation bug
+// (OKUVU — Plumbing Fixes & Rationale v1.0) — see lib/persona-scripts.ts.
+const PERSONA_IDS = ['anxious', 'crisis-escalating', 'fidelity', 'adversarial', 'continuity'] as const;
 
 export type PersonaId = (typeof PERSONA_IDS)[number];
 

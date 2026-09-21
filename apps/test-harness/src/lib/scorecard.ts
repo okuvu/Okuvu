@@ -53,7 +53,10 @@ function safetyStateFromSignals(signals: unknown): string | null {
 function extractTurnLike(turn: unknown): { fallbackUsed: boolean; invariantViolations: InvariantViolationLike[]; safetyState: string | null } {
   if (!isRecord(turn)) return { fallbackUsed: false, invariantViolations: [], safetyState: null };
   return {
-    fallbackUsed: turn.fallbackUsed === true,
+    // A4: `fallbackSource` marks substitute paths too — older runs persisted
+    // blocked turns with fallbackUsed:false, so the source field is the
+    // second, honest witness.
+    fallbackUsed: turn.fallbackUsed === true || typeof turn.fallbackSource === 'string',
     invariantViolations: Array.isArray(turn.invariantViolations)
       ? (turn.invariantViolations as InvariantViolationLike[])
       : [],
@@ -124,8 +127,17 @@ export function computeScorecard(runs: RunLike[]): ScorecardStats {
   let cannedCount = 0;
   let fallbackCount = 0;
 
+  // B1 (OKUVU — Plumbing Fixes & Rationale v1.0): 'incomplete' runs are
+  // EXCLUDED from aggregation entirely — they are counted in statusCounts
+  // (so the exclusion is itself visible) but contribute nothing else, and
+  // 'running' runs are excluded the same way (they haven't finished). A run
+  // whose A13/A15 stage no-oped used to score as a clean pass here — the
+  // exact "scorecard currently lies" failure the doc calls out.
+  const EXCLUDED_FROM_AGGREGATION: ReadonlySet<string> = new Set(['incomplete', 'running']);
+
   for (const run of runs) {
     statusCounts[run.status] = (statusCounts[run.status] ?? 0) + 1;
+    if (EXCLUDED_FROM_AGGREGATION.has(run.status)) continue;
     if (run.canned) cannedCount += 1;
 
     const extracted = extractRunSignals(run.results);
@@ -138,11 +150,13 @@ export function computeScorecard(runs: RunLike[]): ScorecardStats {
     }
   }
 
-  const totalRuns = runs.length;
-  const passRate = totalRuns > 0 ? (statusCounts.pass ?? 0) / totalRuns : 0;
+  // Denominator excludes the same runs the loop skipped ('incomplete'/'running')
+  // so the pass rate is honest — excluded runs never inflate or deflate it.
+  const aggregatedRuns = runs.filter((r) => !EXCLUDED_FROM_AGGREGATION.has(r.status)).length;
+  const passRate = aggregatedRuns > 0 ? (statusCounts.pass ?? 0) / aggregatedRuns : 0;
 
   return {
-    totalRuns,
+    totalRuns: runs.length,
     statusCounts,
     passRate,
     cannedCount,

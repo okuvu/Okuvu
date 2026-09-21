@@ -26,6 +26,7 @@ try {
 
 import { buildApp } from './app.js';
 import { prisma } from './lib/prisma.js';
+import { assertWorkerReachable } from './lib/worker-health.js';
 
 async function checkDatabaseConnection(app: ReturnType<typeof buildApp>): Promise<void> {
   try {
@@ -46,6 +47,13 @@ async function main() {
   );
 
   await checkDatabaseConnection(app);
+
+  // A1 (OKUVU — Plumbing Fixes & Rationale v1.0): fail startup loudly when the
+  // summary/memory worker is unreachable. Without it, session summaries and
+  // memory extraction never run and A2 has no continuity to read — the
+  // structural root of the reset-on-affirmation failures. Deliberately AFTER
+  // the DB check so the error message names the right missing dependency.
+  await assertWorkerReachable(app.log);
 
   process.on('SIGTERM', async () => {
     app.log.info('Shutting down gracefully');

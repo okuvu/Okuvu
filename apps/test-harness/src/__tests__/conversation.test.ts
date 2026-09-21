@@ -21,6 +21,14 @@ vi.mock('../lib/agent-adapter', () => ({
   invokeAgent: mockInvokeAgent,
 }));
 
+// B1 (A1 counterpart): the run-status probe must not depend on a live worker
+// in unit tests — mock the nominal (healthy) condition here and cover the
+// unhealthy branch explicitly in the dedicated regression case below.
+const mockAssertWorkerHealth = vi.hoisted(() => vi.fn());
+vi.mock('../lib/worker-health', () => ({
+  assertWorkerHealthOrIncomplete: mockAssertWorkerHealth,
+}));
+
 const mockUserUpsert = vi.hoisted(() => vi.fn());
 const mockSessionLogCreate = vi.hoisted(() => vi.fn());
 const mockTestRunCreate = vi.hoisted(() => vi.fn());
@@ -62,6 +70,7 @@ function buildCtx() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockAssertWorkerHealth.mockResolvedValue({ ok: true as const });
   mockUserUpsert.mockResolvedValue({ id: 'db-user-1', firebase_uid: 'test-user-pipeline-1' });
   mockSessionLogCreate.mockResolvedValue({ id: 'session-1' });
   mockModelConfigPinFindFirst.mockResolvedValue(null);
@@ -100,6 +109,24 @@ describe('conversationRouter.runPersonaScript', () => {
     const createArgs = mockTestRunCreate.mock.calls[0][0];
     expect(createArgs.data.status).toBe('pass');
     expect(createArgs.data.canned).toBe(true);
+  });
+
+  it("marks the run 'incomplete' when the worker health probe fails (B1/A1 regression)", async () => {
+    mockProcessTurn.mockImplementation(() => Promise.resolve(agentTurn('Reply.')));
+    mockAssertWorkerHealth.mockResolvedValueOnce({
+      ok: false as const,
+      reason: 'WORKER_URL is not configured — the A13/A15 summary/memory stage cannot run (A1).',
+    });
+    mockTestRunCreate.mockResolvedValue({ id: 'run-incomplete' });
+    const caller = createCaller(buildCtx());
+
+    const result = await caller.runPersonaScript({ personaId: 'anxious', environment: 'staging' });
+
+    // B1: a run whose summary/memory stage no-ops is excluded, never scored clean.
+    const createArgs = mockTestRunCreate.mock.calls[0][0];
+    expect(createArgs.data.status).toBe('incomplete');
+    expect(createArgs.data.results.workerHealth.ok).toBe(false);
+    expect(result.turns).toHaveLength(5); // the conversation itself still ran
   });
 
   it('demotes status to "halt" when any turn silently used a fallback', async () => {

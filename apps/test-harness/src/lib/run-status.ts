@@ -57,6 +57,15 @@ const RUN_STATUS_MAP: Record<TestRunStatus, RunStatusPresentation> = {
     dotClass: 'bg-gray-500',
     icon: '?',
   },
+  // B1 (OKUVU — Plumbing Fixes & Rationale v1.0): a run where a pipeline
+  // stage failed or no-oped. Amber/outline treatment — visually distinct
+  // from both pass and halt, and excluded from scorecard aggregation.
+  incomplete: {
+    label: 'Incomplete',
+    colorClass: 'text-amber-700 bg-amber-50 border-amber-300',
+    dotClass: 'bg-amber-300',
+    icon: '◌', // ◌ dashed circle — neither ✓ nor ✕: the run didn't finish honestly
+  },
 };
 
 export function getRunStatusPresentation(status: TestRunStatus): RunStatusPresentation {

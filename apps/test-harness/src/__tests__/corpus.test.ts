@@ -305,6 +305,7 @@ describe('corpusRouter.runCase', () => {
       result: { type: 'agent_turn', message: 'Everything will be fine!', timing: [], fallbackUsed: false, estimatedIntensity: null, turnCount: 1, turnId: 't1' },
       trace: [],
       activatedAgents: ['A1', 'A2'],
+      workerStage: { attempted: true, ok: true, error: null },
     });
     mockJudgeReply.mockResolvedValue({ judged: true, passed: false, rationale: 'Reply minimized distress instead of flagging it.' });
     mockTestRunCreate.mockResolvedValue({ id: 'run-1' });
@@ -331,6 +332,7 @@ describe('corpusRouter.runCase', () => {
       result: { type: 'agent_turn', message: 'A canned reply', timing: [], fallbackUsed: false, estimatedIntensity: null, turnCount: 1, turnId: 't1' },
       trace: [],
       activatedAgents: ['A1', 'A2'],
+      workerStage: { attempted: true, ok: true, error: null },
     });
     mockTestRunCreate.mockResolvedValue({ id: 'run-2' });
 
@@ -349,6 +351,7 @@ describe('corpusRouter.runCase', () => {
       result: { type: 'agent_turn', message: 'canned degraded reply', timing: [], fallbackUsed: true, estimatedIntensity: null, turnCount: 1, turnId: 't1' },
       trace: [],
       activatedAgents: ['A1', 'A2'],
+      workerStage: { attempted: true, ok: true, error: null },
     });
     mockTestRunCreate.mockResolvedValue({ id: 'run-halt' });
 
@@ -380,6 +383,7 @@ describe('corpusRouter.runCase', () => {
       },
       trace: [],
       activatedAgents: ['A1', 'A2'],
+      workerStage: { attempted: true, ok: true, error: null },
     });
     mockTestRunCreate.mockResolvedValue({ id: 'run-halt-invariant' });
 
@@ -397,6 +401,7 @@ describe('corpusRouter.runCase', () => {
       result: { type: 'error', errorCode: 'boom', timing: [] },
       trace: [],
       activatedAgents: [],
+      workerStage: { attempted: true, ok: true, error: null },
     });
     mockTestRunCreate.mockResolvedValue({ id: 'run-3' });
 

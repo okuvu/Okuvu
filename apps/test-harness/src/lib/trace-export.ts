@@ -73,6 +73,23 @@ const CSV_HEADER = [
 ];
 
 /**
+ * B3 (OKUVU — Plumbing Fixes & Rationale v1.0): "Enforce that probe exports
+ * always include the user input before a case enters the review queue.
+ * Reviewers must score the pair, not the reply in isolation."
+ *
+ * Returns the turn numbers whose stored trace is missing the user stimulus.
+ * The export boundary (`conversation.exportTrace`) refuses to produce a
+ * review artifact while this returns anything non-empty — a blind review
+ * queue is worse than no export. (Legacy runs stored before A7 may lack
+ * `message`; they fail loudly here instead of exporting reply-only rows.)
+ */
+export function missingStimulusTurns(turns: PerTurnTrace[]): number[] {
+  return turns
+    .filter((t) => typeof t.message !== 'string' || t.message.trim() === '')
+    .map((t) => t.turnNumber);
+}
+
+/**
  * Format an already-assembled per-turn trace array into the two
  * clinician-review export formats: a full structured JSON array, and a flat
  * one-row-per-turn CSV (the `signals` field is intentionally omitted from

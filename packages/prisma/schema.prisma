@@ -146,6 +146,19 @@ model Turn {
   // actually model-produced should not be attributed to one.
   model_version  String?
   prompt_version String?
+  // OKUVU — Plumbing Fixes & Rationale v1.0, A4: which mechanism produced a
+  // substitute reply (assistant turns only). Null on every turn whose content
+  // is genuinely A2's model output; set whenever a static response replaced
+  // or degraded the real one:
+  //   'a2_degraded'      — A2 itself timed out / errored (A2_DEGRADED_RESPONSE)
+  //   'a9_pre_blocked'   — A8 routed mode='blocked' (A9_PRE_BLOCKED_RESPONSE)
+  //   'a9_post_blocked'  — A9-post BLOCKED and substituted getSafeFallback()
+  //   'a9_post_unavailable' — A9-post call failed at S2 and fail-closed
+  //   'deterministic_grounding' — A8 routed agent='deterministic-grounding'
+  // Persisted alongside (not instead of) `fallback_used` — that flag must
+  // now be true for every one of these paths (A4's "telemetry lies on
+  // blocks" fix), so the scorecard's zero-tolerance fallback count is honest.
+  fallback_source String?
   // A2's own S-07 signal (assistant turns only) — okuvu-remaining-changes.md
   // §B.2/§C.2: previously computed by the LLM every turn and discarded
   // entirely, no consumer read them. Persisted here so a future pass has
@@ -584,6 +597,13 @@ model TestRun {
   // went canned is visibly flagged rather than only inferable indirectly
   // from fallbackUsed/status.
   canned                   Boolean         @default(false)
+  // ─── Run identity header (B2, OKUVU — Plumbing Fixes & Rationale v1.0) ───
+  // "A result is only valid for the exact (build, model, prompt) it was
+  // produced with." Populated on every run-creating router; null where the
+  // value genuinely can't be determined (see run-identity.ts).
+  build_sha                String?
+  corpus_version           String?
+  run_mode                 String?
   activated_agents         String[]
   manually_selected_agents String[]
   dependency_graph         Json
@@ -743,6 +763,12 @@ enum TestRunStatus {
   halt
   warning
   error
+  /// OKUVU — Plumbing Fixes & Rationale v1.0, B1: a run where any pipeline
+  /// stage failed or no-oped (e.g. the A13/A15 summary worker being
+  /// unreachable). Such runs are EXCLUDED from scorecard aggregation, never
+  /// scored clean — a green run that skipped a stage is a false pass (the
+  /// H-1 failure class the framework exists to prevent).
+  incomplete
 }
 
 enum CorpusCaseType {

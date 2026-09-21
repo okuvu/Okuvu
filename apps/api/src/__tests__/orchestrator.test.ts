@@ -59,6 +59,7 @@ import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
+import { A9_POST_DEGRADED_RESPONSE, A9_POST_S2_FALLBACK } from '../pipeline/fallbacks.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { setRetrievedContext, clearRetrievedContext } from '../lib/retrieved-context-cache.js';
@@ -631,7 +632,11 @@ describe('processTurn — governance blocked (A8 mode="blocked")', () => {
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
       expect(result.message).not.toBe('');
-      expect(result.fallbackUsed).toBe(false);
+      // A4 (OKUVU — Plumbing Fixes & Rationale v1.0): the user received a
+      // static substitute, not A2's model output — that IS a fallback.
+      // Previously recorded as false here, which is exactly the "telemetry
+      // lies on blocks" bug the doc fixes.
+      expect(result.fallbackUsed).toBe(true);
     }
     expect(handleTurn).not.toHaveBeenCalled();
     expect(a9PostReview).not.toHaveBeenCalled();
@@ -721,7 +726,9 @@ describe('processTurn — deterministic grounding (A8 agent="deterministic-groun
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
       expect(result.message).not.toBe('');
-      expect(result.fallbackUsed).toBe(false);
+      // A4: deterministic substitute counts as a fallback (see the blocked-
+      // mode comment above).
+      expect(result.fallbackUsed).toBe(true);
     }
     expect(handleTurn).not.toHaveBeenCalled();
     expect(a9PostReview).not.toHaveBeenCalled();
@@ -944,7 +951,8 @@ describe('processTurn — A9-post integration', () => {
     expect(a9PostReview).toHaveBeenCalledTimes(1);
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
-      expect(result.message).toBe("I'm here with you. Take a breath — what's most on your mind right now?");
+      // A3: copy now comes from the governed contract in fallbacks.ts.
+      expect(result.message).toBe(A9_POST_DEGRADED_RESPONSE);
     }
     expect(prisma.turn.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -985,9 +993,8 @@ describe('processTurn — A9-post integration', () => {
 
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
-      expect(result.message).toBe(
-        "I want to make sure I'm being helpful right now. Can you tell me a bit more about what you're experiencing?",
-      );
+      // A3: copy now comes from the governed contract in fallbacks.ts.
+      expect(result.message).toBe(A9_POST_S2_FALLBACK);
     }
   });
 
@@ -1002,9 +1009,8 @@ describe('processTurn — A9-post integration', () => {
 
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
-      expect(result.message).toBe(
-        "I want to make sure I'm being helpful right now. Can you tell me a bit more about what you're experiencing?",
-      );
+      // A3: copy now comes from the governed contract in fallbacks.ts.
+      expect(result.message).toBe(A9_POST_S2_FALLBACK);
     }
     expect(prisma.governanceLog.create).toHaveBeenCalledWith(
       expect.objectContaining({

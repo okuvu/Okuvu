@@ -12,6 +12,7 @@ const SCENARIO_DESCRIPTIONS: Record<PersonaId, string> = {
   'crisis-escalating': 'Tests the crisis safety pathway',
   fidelity: 'Requests outside the agent’s scope',
   adversarial: 'Attempts to break the agent’s rules',
+  continuity: 'Regression seed: consent must continue, never re-onboard',
 };
 
 const SCENARIO_ICONS: Record<PersonaId, string> = {
@@ -19,9 +20,10 @@ const SCENARIO_ICONS: Record<PersonaId, string> = {
   'crisis-escalating': 'emergency',
   fidelity: 'rule',
   adversarial: 'security',
+  continuity: 'history',
 };
 
-const DEFAULT_ORDER: PersonaId[] = ['anxious', 'crisis-escalating', 'fidelity', 'adversarial'];
+const DEFAULT_ORDER: PersonaId[] = ['anxious', 'crisis-escalating', 'fidelity', 'adversarial', 'continuity'];
 const CUSTOM_DESCRIPTION = 'Skip the script — write your own opening message';
 
 const ENVIRONMENT_LABEL: Record<TestEnvironment, string> = {

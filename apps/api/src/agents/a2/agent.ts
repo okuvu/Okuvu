@@ -141,6 +141,7 @@ export function formatUserMemory(memory: {
 
 export function parseA2Response(raw: string): A2ParsedResponse {
   let userContent = stripFencedBlocks(raw);
+  userContent = stripSignalMarkers(userContent);
 
   let signal: S07Signal | null = null;
 
@@ -217,6 +218,47 @@ function stripFencedBlocks(raw: string): string {
   }
 
   return result.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * A5 (OKUVU — Plumbing Fixes & Rationale v1.0): the fenced-block stripper
+ * above only removes ``` fences, so a model that improvises its own prose
+ * header for the signal block — e.g. "BLOCK 2 — MACHINE SIGNAL (stripped
+ * before delivery to user)" instead of the expected fence — leaked that
+ * scaffolding straight into user-visible text. Strip EVERYTHING from the
+ * first signal-marker onward — standalone header lines AND markers dropped
+ * mid-line — not just the expected fence: the signal block is the last
+ * thing A2 emits, so nothing from a marker onward is ever user-facing
+ * prose. Any prose BEFORE the marker on the same line is kept.
+ *
+ * Case-sensitivity is deliberate: the leaked scaffolding is always
+ * uppercase ("BLOCK 2 — MACHINE SIGNAL"), and a case-insensitive match
+ * would over-strip ordinary replies containing e.g. "a block — ...".
+ * "stripped before delivery" is distinctive enough to match regardless of
+ * case.
+ */
+const SIGNAL_MARKER_RE = /\**\s*(?:BLOCK(?:\s*\d+)?\s*[—\-–:]|MACHINE SIGNAL)/;
+const SIGNAL_MARKER_SOFT_RE = /stripped\s+before\s+delivery/i;
+
+function stripSignalMarkers(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const kept: string[] = [];
+
+  for (const line of lines) {
+    const markerMatch = SIGNAL_MARKER_RE.exec(line) ?? SIGNAL_MARKER_SOFT_RE.exec(line);
+    if (markerMatch && markerMatch.index !== undefined) {
+      console.warn({ line: line.slice(0, 120) }, 'A2: improvised signal marker found in user-facing text — truncated everything from it');
+      const before = line.slice(0, markerMatch.index).replace(/[—\-–:\s]+$/, '').trim();
+      if (before) kept.push(before);
+      break;
+    }
+    kept.push(line);
+  }
+
+  return kept
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function extractFirstJsonBlock(raw: string): string | null {

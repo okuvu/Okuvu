@@ -12,7 +12,7 @@ import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConvers
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE } from './fallbacks.js';
-import type { PipelineResult, StageTiming, TestModeOptions } from './types.js';
+import type { PipelineResult, StageTiming, TestModeOptions, FallbackSource } from './types.js';
 
 function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
   return new Error(faultType === 'timeout' ? 'injected_timeout' : 'injected_api_error');
@@ -83,6 +83,22 @@ export async function processTurn(
 
   const contextBundle = await getAgentContextBundle(uid);
 
+  // A2 fix (OKUVU — Plumbing Fixes & Rationale v1.0): fetch the CURRENT
+  // session's own turns ONCE, up front. Previously these were fetched only
+  // inside timedA1 (for gap_before_ms/repetition_count) and discarded — A2
+  // never saw them. Combined with the dead summary worker (A1 fix), that
+  // meant A2 had zero continuity: past-session summaries were empty AND the
+  // current session's turns were dropped, so "okay" read as a fresh session
+  // and the agent re-onboarded. Continuity is structurally impossible
+  // without this wiring, no matter how good the model is.
+  //
+  // Safe to call before any Turn rows for THIS turn exist — the user/assistant
+  // rows for the current message are written in the $transaction at the end
+  // of processTurn, so this list never contains the message we're about to
+  // send (handleTurn appends it itself). Also reused for A1's timing metrics
+  // below instead of a second identical DB round-trip.
+  const currentSessionTurns = await getSessionConversationTurns(sessionId);
+
   const sessionCount = await getSessionCount(user.id);
   const sessionTurn = await prisma.sessionLog.findUnique({
     where: { id: sessionId },
@@ -94,12 +110,11 @@ export async function processTurn(
     const start = now();
     try {
       if (testMode?.faults?.boundary === 'A1') throw injectedFaultError(testMode.faults.type);
-      const sessionTurns = await getSessionConversationTurns(sessionId);
       return await classifySafety({
         message,
         recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
-        gap_before_ms: computeGapBeforeMs(sessionTurns),
-        repetition_count: computeRepetitionCount(sessionTurns, message),
+        gap_before_ms: computeGapBeforeMs(currentSessionTurns),
+        repetition_count: computeRepetitionCount(currentSessionTurns, message),
       });
     } finally { recordTiming(timing, 'A1', start, now()); }
   }
@@ -262,6 +277,13 @@ export async function processTurn(
   const a2Start = now();
   let finalText: string;
   let a2Fallback = false;
+  // A4 (OKUVU — Plumbing Fixes & Rationale v1.0): the reply the user actually
+  // saw must be attributable. Every path below that serves a static substitute
+  // sets BOTH a2Fallback:true (so the scorecard's zero-tolerance fallback gate
+  // sees it — previously only the A2-degraded path did, which is exactly how
+  // blocked turns got recorded as fallbackUsed:false) AND fallbackSource (so
+  // the substitute persists as its own governed artifact on the Turn row).
+  let fallbackSource: FallbackSource | null = null;
   let a2FailureReason: 'timeout' | 'api_error' | undefined;
   // Null whenever the persisted `content` isn't actually A2's model output —
   // either no model call completed (the outer catch block below), or
@@ -342,15 +364,22 @@ export async function processTurn(
   if (decision.agent === 'deterministic-grounding') {
     // A1 classified S3 (elevated risk) — no real A2 call, no A9-post review
     // (there is nothing of A2's to review). A static, grounding-oriented
-    // reply, always.
+    // reply, always. (A4: counts as a substitute — the user did not receive
+    // model output this turn.)
     finalText = A8_S3_GROUNDING_RESPONSE;
     a8GroundingDeterministic = true;
+    a2Fallback = true;
+    fallbackSource = 'deterministic_grounding';
   } else if (decision.mode === 'blocked') {
     // A9-pre (governance) rejected this message and A1 did not find
     // crisis-level risk — no real A2 call, no A9-post review (there is
-    // nothing of A2's to review). A static, non-alarming reply, always.
+    // nothing of A2's to review). A static, governed block-response, always.
+    // (A4: the canonical "telemetry lies on blocks" path — this used to
+    // record fallbackUsed:false while the user saw a canned line.)
     finalText = A9_PRE_BLOCKED_RESPONSE;
     a9PreBlocked = true;
+    a2Fallback = true;
+    fallbackSource = 'a9_pre_blocked';
   } else {
     try {
       if (testMode?.faults?.boundary === 'A2') throw injectedFaultError(testMode.faults.type);
@@ -362,7 +391,17 @@ export async function processTurn(
         safetyState: safetyState as 'S0' | 'S1' | 'S2',
         sessionHistorySummary: contextBundle.session_summary,
         perceivedIntensity,
-        recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
+        // A2 fix (see the currentSessionTurns comment near the top): the
+        // current session's own turns now actually reach A2 as conversation
+        // history. These are the raw user/assistant turns of THIS session,
+        // ordered oldest-first; handleTurn appends the current message
+        // itself. summariesToConversationTurns (past-session summary
+        // digests) are still passed alongside via recentHistory below —
+        // the two layers are complementary, not redundant.
+        recentHistory: [
+          ...summariesToConversationTurns(contextBundle.recent_history ?? []),
+          ...currentSessionTurns.map((t) => ({ role: t.role, content: t.content })),
+        ],
         toolResultContext,
         userMemoryContext,
         retrievedContext,
@@ -419,6 +458,7 @@ export async function processTurn(
     } catch {
       finalText = A2_DEGRADED_RESPONSE;
       a2Fallback = true;
+      fallbackSource = 'a2_degraded';
       a2FailureReason = testMode?.faults?.boundary === 'A2' ? testMode.faults.type : 'api_error';
     }
   }
@@ -448,6 +488,11 @@ export async function processTurn(
         finalText = getSafeFallback(safetyState);
         a9PostBlocked = true;
         a9PostViolation = a9PostResult.violation_type;
+        // A4: the user is now looking at a governed substitute, not A2's
+        // model output — record it as the fallback it is, never as a clean
+        // pass.
+        a2Fallback = true;
+        fallbackSource = 'a9_post_blocked';
         // finalText is now a static getSafeFallback() string, not A2's model
         // output — the model/prompt attribution no longer applies to it.
         turnModelVersion = null;
@@ -466,6 +511,8 @@ export async function processTurn(
         a9PostBlocked = true;
         a9PostViolation = 'a9_post_unavailable_s2';
         a9PostConfidence = 'low';
+        a2Fallback = true;
+        fallbackSource = 'a9_post_unavailable';
         turnModelVersion = null;
         turnPromptVersion = null;
       }
@@ -507,6 +554,7 @@ export async function processTurn(
         session_id: sessionId, user_id: user.id, turn_number: newTurnCount,
         role: 'assistant', content: finalText,
         is_a9_fallback: a9PostBlocked || a9PreBlocked,
+        fallback_source: fallbackSource,
         model_version: turnModelVersion,
         prompt_version: turnPromptVersion,
         taper_state: taperState,
@@ -580,6 +628,7 @@ export async function processTurn(
     turnId: assistantTurn?.id ?? null,
     timing,
     fallbackUsed: a2Fallback,
+    ...(fallbackSource ? { fallbackSource } : {}),
     failureReason: a2FailureReason,
     estimatedIntensity,
     toolCard,

@@ -35,6 +35,18 @@ export interface AgentInvocationResult {
   output: unknown;
   latencyMs: number;
   mockMode: boolean;
+  /**
+   * A7 (OKUVU — Plumbing Fixes & Rationale v1.0): the stimulus this probe
+   * ran against — the caller's per-agent input merged over the resolved mock
+   * context. Previously the invocation result carried only the output, so
+   * single-turn probe logs (Conv 3/4 in the SME review) had no record of the
+   * user input and could not be judged for appropriateness at all.
+   */
+  input: {
+    agentId: TestAgentId;
+    request: Record<string, unknown>;
+    resolvedContext: MockSessionContext;
+  };
 }
 
 /**
@@ -177,15 +189,33 @@ export async function invokeAgent(
   const ctx = buildMockSessionContext(contextOverrides);
   const start = performance.now();
 
-  return withCannedMode(useCanned, () => invokeAgentInner(agentId, input, ctx, start));
+  const result = await withCannedMode(useCanned, () => invokeAgentInner(agentId, input, ctx, start));
+
+  // A7: echo the stimulus back on every probe result (see the input field's
+  // doc comment on AgentInvocationResult).
+  return {
+    ...result,
+    input: {
+      agentId,
+      request: input,
+      resolvedContext: ctx,
+    },
+  };
 }
+
+/**
+ * Returns everything except the A7 `input` echo — `invokeAgent` (the only
+ * public entry) assembles that from the caller's own arguments, so the inner
+ * switch doesn't have to thread it through every case.
+ */
+type AgentInvocationCore = Omit<AgentInvocationResult, 'input'>;
 
 async function invokeAgentInner(
   agentId: TestAgentId,
   input: Record<string, unknown>,
   ctx: MockSessionContext,
   start: number,
-): Promise<AgentInvocationResult> {
+): Promise<AgentInvocationCore> {
   switch (agentId) {
     case 'A1': {
       const output = await classifySafety(toA1Input(ctx, input));

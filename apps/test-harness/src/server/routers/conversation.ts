@@ -6,11 +6,13 @@ import { setupSyntheticSession } from '../../lib/pipeline-runner';
 import { withEnvironment, withAnyEnvironment } from '../../lib/prisma-rls';
 import { shouldUseCanned, withCannedMode, isCannedRunActive } from '../../lib/canned-mode';
 import { PERSONA_SCRIPTS, type PersonaId } from '../../lib/persona-scripts';
-import { exportTraceToClinicianFormat, type PerTurnTrace } from '../../lib/trace-export';
+import { exportTraceToClinicianFormat, missingStimulusTurns, type PerTurnTrace } from '../../lib/trace-export';
 import { invokeAgent } from '../../lib/agent-adapter';
 import { resolveFrozenTriple } from '../../lib/frozen-triple';
 import { hasDegenerateLoop } from '../../lib/hard-fail-rules';
 import { checkPipelineInvariants, type InvariantViolation } from '../../lib/pipeline-invariants';
+import { buildRunHeader } from '../../lib/run-identity';
+import { assertWorkerHealthOrIncomplete } from '../../lib/worker-health';
 
 // ─── Direct import of apps/api's real orchestrator ──────────────────────────
 // Same relative-import pattern as pipeline-runner.ts / agent-adapter.ts.
@@ -23,7 +25,9 @@ import type { TestModeOptions } from '@okuvu/api/src/pipeline/types';
 import { closeSession } from '@okuvu/api/src/lib/session-close';
 
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
-const personaIdSchema = z.enum(['anxious', 'crisis-escalating', 'fidelity', 'adversarial']);
+// 'continuity' is the B4 regression seed for the A2 reset-on-affirmation bug
+// (OKUVU — Plumbing Fixes & Rationale v1.0) — see persona-scripts.ts.
+const personaIdSchema = z.enum(['anxious', 'crisis-escalating', 'fidelity', 'adversarial', 'continuity']);
 
 function requirePrisma<T>(prisma: T | null): T {
   if (!prisma) {
@@ -153,11 +157,23 @@ export const conversationRouter = router({
       const cannedHygieneViolation = input.environment !== 'sandbox' && canned;
       const degenerateLoop = hasDegenerateLoop(turns.map((t) => t.response));
 
+      // B1 (A1 counterpart): probe the worker BEFORE persisting the run. The
+      // conversation driver's per-turn flow never calls the worker directly
+      // (that happens later via simulateSessionClose), so the runner itself
+      // can't report a workerStage — this probe is the honest equivalent: if
+      // the summary/memory stage couldn't run at all, the run is 'incomplete',
+      // never clean.
+      const workerHealth = await assertWorkerHealthOrIncomplete();
+
+      // B1: stage-failure → 'incomplete' (error takes priority; then the
+      // worker verdict; then the existing halt conditions).
       const overallStatus: TestRunStatus = anyError
         ? 'error'
-        : cannedHygieneViolation || anyFallback || degenerateLoop || anyInvariantViolation
-          ? 'halt'
-          : 'pass';
+        : !workerHealth.ok
+          ? 'incomplete'
+          : cannedHygieneViolation || anyFallback || degenerateLoop || anyInvariantViolation
+            ? 'halt'
+            : 'pass';
 
       const run = await withEnvironment(input.environment, async (tx) => {
         const lastResponse = turns[turns.length - 1]?.response ?? '';
@@ -174,8 +190,10 @@ export const conversationRouter = router({
             altitude: 1,
             status: overallStatus,
             canned,
+            // B2: run identity header.
+            ...buildRunHeader('persona_script'),
             frozen_triple: JSON.parse(JSON.stringify(frozenTriple)),
-            results: JSON.parse(JSON.stringify({ turns, personaId, endedInCrisis, uid, sessionId })),
+            results: JSON.parse(JSON.stringify({ turns, personaId, endedInCrisis, uid, sessionId, workerHealth })),
             activated_agents: [],
             manually_selected_agents: [],
             dependency_graph: {},
@@ -228,6 +246,21 @@ export const conversationRouter = router({
 
       const results = run.results as { turns?: PerTurnTrace[] } | null;
       const turns = results?.turns ?? [];
+
+      // B3 (OKUVU — Plumbing Fixes & Rationale v1.0): "Enforce that probe
+      // exports always include the user input before a case enters the
+      // review queue." A trace whose turns are missing the stimulus cannot
+      // be judged — reviewers must score the pair, not the reply in
+      // isolation — so the export REFUSES rather than producing a blind
+      // review artifact. (Reviewer-facing note: legacy runs stored before
+      // the A7 fix can legitimately hit this; re-run them.)
+      const missingStimulus = missingStimulusTurns(turns);
+      if (missingStimulus.length > 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Export refused (B3): turns ${missingStimulus.join(', ')} have no recorded user input. Reviewers must score the stimulus+reply pair; re-run this case with a harness build that records it (A7).`,
+        });
+      }
 
       const { json, csv } = exportTraceToClinicianFormat(turns);
 

@@ -52,6 +52,19 @@ export interface TestModeOptions {
   faults?: { boundary: 'A1' | 'A2' | 'A9_pre' | 'A9_post'; type: 'timeout' | 'api_error' }
 }
 
+/**
+ * A4 (OKUVU — Plumbing Fixes & Rationale v1.0): which mechanism produced the
+ * reply the user actually saw. Set on EVERY static-substitute path, not just
+ * the A2-degraded one — a blocked turn must never again record a substitute
+ * as a clean model pass (the telemetry-lies-on-blocks bug).
+ */
+export type FallbackSource =
+  | 'a2_degraded'
+  | 'a9_pre_blocked'
+  | 'a9_post_blocked'
+  | 'a9_post_unavailable'
+  | 'deterministic_grounding'
+
 export type PipelineResult =
   | {
       type: 'agent_turn'
@@ -60,6 +73,8 @@ export type PipelineResult =
       turnId: string | null
       timing: StageTiming[]
       fallbackUsed: boolean
+      /** A4: set whenever `fallbackUsed` is true — which mechanism produced the substitute. */
+      fallbackSource?: FallbackSource
       failureReason?: 'timeout' | 'api_error'
       estimatedIntensity: number | null
       toolCard?: ToolCardConfig
