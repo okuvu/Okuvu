@@ -2,8 +2,7 @@ import { FastifyInstance } from 'fastify';
 
 // Route handlers
 import { verifyFirebaseJWT } from '../middleware/auth.js';
-import { prisma } from '../lib/prisma.js';
-import { getISTDateString } from '@okuvu/shared-types';
+import { recordMoodCheckin, getMoodHistory } from '../lib/progress.js';
 
 const MOOD_MIN = 1;
 const MOOD_MAX = 5;
@@ -40,46 +39,17 @@ export async function progressRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
-        select: { id: true },
-      });
+      const result = await recordMoodCheckin(uid, mood_value, request.log);
 
-      if (!user) {
+      if (result.status === 'user_not_found') {
         return reply.status(401).send({
           error: { code: 'UNAUTHORIZED', message: 'User not found' },
         });
       }
 
-      const dateIst = getISTDateString();
-
-      await prisma.moodLog.upsert({
-        where: {
-          user_id_date_ist: {
-            user_id: user.id,
-            date_ist: dateIst,
-          },
-        },
-        create: {
-          user_id: user.id,
-          mood_value,
-          date_ist: dateIst,
-          source: 'user_input',
-        },
-        update: {
-          mood_value,
-          source: 'user_input',
-        },
-      });
-
-      request.log.info(
-        { event: 'mood_checkin', user_id: user.id, date: dateIst, mood_value },
-        'Mood check-in recorded',
-      );
-
       reply.send({
         success: true,
-        date: dateIst,
+        date: result.dateIst,
         mood_value,
       });
     },
@@ -104,39 +74,15 @@ export async function progressRoute(app: FastifyInstance): Promise<void> {
         }
       }
 
-      const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
-        select: { id: true },
-      });
+      const result = await getMoodHistory(uid, days);
 
-      if (!user) {
+      if (result.status === 'user_not_found') {
         return reply.status(401).send({
           error: { code: 'UNAUTHORIZED', message: 'User not found' },
         });
       }
 
-      const todayStr = getISTDateString();
-      const today = new Date(todayStr + 'T00:00:00.000Z');
-      const start = new Date(today.getTime() - (days - 1) * 86_400_000);
-
-      const entries = await prisma.moodLog.findMany({
-        where: {
-          user_id: user.id,
-          date_ist: { gte: start, lte: today },
-        },
-        orderBy: { date_ist: 'asc' },
-        select: {
-          date_ist: true,
-          mood_value: true,
-        },
-      });
-
-      reply.send({
-        entries: entries.map(e => ({
-          date: e.date_ist.toISOString().split('T')[0],
-          mood_value: e.mood_value,
-        })),
-      });
+      reply.send({ entries: result.entries });
     },
   });
 }

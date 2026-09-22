@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
-import { prisma } from '../lib/prisma.js';
-import { hashInviteToken } from '../crypto/invite-token-hash.js';
+import { redeemInvite } from '../lib/invites.js';
 
 interface RedeemInviteBody {
   token?: string;
@@ -17,6 +16,12 @@ interface RedeemInviteBody {
 export async function invitesRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: RedeemInviteBody }>('/invites/redeem', {
     preHandler: [verifyFirebaseJWT],
+    // Tighter than the app-wide default (app.ts) — this endpoint takes a
+    // secret token as input, so it's brute-forceable in a way most other
+    // routes aren't. 10/minute per source IP is generous for a real user
+    // (one invite, entered by hand or via deep link) but meaningfully
+    // slows down guessing.
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { token } = request.body ?? {};
@@ -27,54 +32,31 @@ export async function invitesRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const invite = await prisma.inviteToken.findUnique({
-        where: { token_hash: hashInviteToken(token) },
-        select: { id: true, client_user_id: true, expires_at: true, redeemed_at: true },
-      });
+      const result = await redeemInvite(uid, token);
 
-      if (!invite) {
-        return reply.status(404).send({
-          error: { code: 'NOT_FOUND', message: 'Invite not found' },
-        });
+      switch (result.status) {
+        case 'not_found':
+          return reply.status(404).send({
+            error: { code: 'NOT_FOUND', message: 'Invite not found' },
+          });
+        case 'already_redeemed':
+          return reply.status(409).send({
+            error: { code: 'ALREADY_REDEEMED', message: 'This invite has already been used' },
+          });
+        case 'expired':
+          return reply.status(410).send({
+            error: { code: 'EXPIRED', message: 'This invite has expired' },
+          });
+        case 'account_already_linked':
+          return reply.status(409).send({
+            error: {
+              code: 'ACCOUNT_ALREADY_LINKED',
+              message: 'This device is already signed in as a different OKUVU account',
+            },
+          });
+        case 'ok':
+          return reply.send({ success: true, user_id: result.userId });
       }
-
-      if (invite.redeemed_at) {
-        return reply.status(409).send({
-          error: { code: 'ALREADY_REDEEMED', message: 'This invite has already been used' },
-        });
-      }
-
-      if (invite.expires_at < new Date()) {
-        return reply.status(410).send({
-          error: { code: 'EXPIRED', message: 'This invite has expired' },
-        });
-      }
-
-      const existingForUid = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
-        select: { id: true },
-      });
-      if (existingForUid && existingForUid.id !== invite.client_user_id) {
-        return reply.status(409).send({
-          error: {
-            code: 'ACCOUNT_ALREADY_LINKED',
-            message: 'This device is already signed in as a different OKUVU account',
-          },
-        });
-      }
-
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: invite.client_user_id },
-          data: { firebase_uid: uid },
-        }),
-        prisma.inviteToken.update({
-          where: { id: invite.id },
-          data: { redeemed_at: new Date() },
-        }),
-      ]);
-
-      reply.send({ success: true, user_id: invite.client_user_id });
     },
   });
 }

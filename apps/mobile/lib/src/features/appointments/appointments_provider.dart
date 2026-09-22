@@ -54,8 +54,15 @@ class AppointmentView {
 class AppointmentsData {
   final List<AppointmentView> upcoming;
   final List<AppointmentView> past;
+  final bool pastHasMore;
+  final bool isLoadingMorePast;
 
-  const AppointmentsData({required this.upcoming, required this.past});
+  const AppointmentsData({
+    required this.upcoming,
+    required this.past,
+    required this.pastHasMore,
+    this.isLoadingMorePast = false,
+  });
 
   factory AppointmentsData.fromJson(Map<String, dynamic> json) {
     final upcoming = json['upcoming'] as List<dynamic>? ?? [];
@@ -63,6 +70,20 @@ class AppointmentsData {
     return AppointmentsData(
       upcoming: upcoming.map((a) => AppointmentView.fromJson(a as Map<String, dynamic>)).toList(),
       past: past.map((a) => AppointmentView.fromJson(a as Map<String, dynamic>)).toList(),
+      pastHasMore: json['pastHasMore'] as bool? ?? false,
+    );
+  }
+
+  AppointmentsData copyWith({
+    List<AppointmentView>? past,
+    bool? pastHasMore,
+    bool? isLoadingMorePast,
+  }) {
+    return AppointmentsData(
+      upcoming: upcoming,
+      past: past ?? this.past,
+      pastHasMore: pastHasMore ?? this.pastHasMore,
+      isLoadingMorePast: isLoadingMorePast ?? this.isLoadingMorePast,
     );
   }
 }
@@ -70,11 +91,56 @@ class AppointmentsData {
 /// GET /users/me/appointments — app wireframes A2. Read-only: the client
 /// can never create/move/cancel from the app (I10/I11) — all writes stay
 /// on the therapist portal.
-final appointmentsProvider = FutureProvider.autoDispose<AppointmentsData>((ref) async {
-  final dio = ref.read(dioClientProvider);
-  final response = await dio.get('/users/me/appointments');
-  return AppointmentsData.fromJson(response.data as Map<String, dynamic>);
-});
+///
+/// `past` is paginated server-side (past_limit/past_offset) since it grows
+/// unbounded with tenure; `upcoming` never is — a client only ever has a
+/// handful of future sessions booked at once.
+class AppointmentsNotifier extends AsyncNotifier<AppointmentsData> {
+  static const int _pastPageSize = 20;
+
+  @override
+  Future<AppointmentsData> build() async {
+    final dio = ref.read(dioClientProvider);
+    final response = await dio.get(
+      '/users/me/appointments',
+      queryParameters: {'past_limit': _pastPageSize, 'past_offset': 0},
+    );
+    return AppointmentsData.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> loadMorePast() async {
+    final current = state.value;
+    if (current == null || !current.pastHasMore || current.isLoadingMorePast) return;
+
+    state = AsyncData(current.copyWith(isLoadingMorePast: true));
+
+    try {
+      final dio = ref.read(dioClientProvider);
+      final response = await dio.get(
+        '/users/me/appointments',
+        queryParameters: {
+          'past_limit': _pastPageSize,
+          'past_offset': current.past.length,
+        },
+      );
+      final page = AppointmentsData.fromJson(response.data as Map<String, dynamic>);
+      state = AsyncData(current.copyWith(
+        past: [...current.past, ...page.past],
+        pastHasMore: page.pastHasMore,
+        isLoadingMorePast: false,
+      ));
+    } catch (_) {
+      // Leave the existing page in place and clear the loading flag — the
+      // "Load more" affordance stays visible so the user can just retry.
+      state = AsyncData(current.copyWith(isLoadingMorePast: false));
+    }
+  }
+}
+
+final appointmentsProvider =
+    AsyncNotifierProvider.autoDispose<AppointmentsNotifier, AppointmentsData>(
+  AppointmentsNotifier.new,
+);
 
 /// Looks up a single appointment by id from the already-fetched list
 /// (upcoming or past) — the detail screen (A3) doesn't need its own GET,

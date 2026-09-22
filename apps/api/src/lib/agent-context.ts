@@ -1,4 +1,5 @@
 import { prisma } from './prisma.js';
+import { getActiveHomework } from './homework.js';
 import { DEFAULT_CARE_PLAN_FOCUS } from '@okuvu/shared-types';
 import type { AgentContextBundle, SessionSummaryView } from '@okuvu/shared-types';
 import type { ConversationTurn } from '../agents/a1/types.js';
@@ -54,12 +55,6 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
         orderBy: { created_at: 'desc' },
         select: { therapist: { select: { name: true } } },
       },
-      homeworks: {
-        where: { status: 'active' },
-        take: 1,
-        orderBy: { assigned_at: 'desc' },
-        select: { description: true },
-      },
     },
   });
 
@@ -107,6 +102,8 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
     }
   }
 
+  const activeHomework = await getActiveHomework(user.id);
+
   const userMemoryRecord = user.user_memory
     ? {
         life_context: user.user_memory.life_context,
@@ -146,7 +143,7 @@ export async function getAgentContextBundle(firebaseUid: string): Promise<AgentC
     care_plan_focus:
       user.clinical_config?.care_plan_focus ??
       (user.clinical_config ? DEFAULT_CARE_PLAN_FOCUS[user.clinical_config.care_plan_id] : null),
-    homework: user.homeworks[0]?.description ?? null,
+    homework: activeHomework?.description ?? null,
   };
 }
 

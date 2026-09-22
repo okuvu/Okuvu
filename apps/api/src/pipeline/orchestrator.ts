@@ -11,7 +11,7 @@ import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
-import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE } from './fallbacks.js';
+import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE } from './fallbacks.js';
 import type { PipelineResult, StageTiming, TestModeOptions, FallbackSource } from './types.js';
 
 function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
@@ -244,18 +244,23 @@ export async function processTurn(
 
   if (decision.agent === 'crisis') {
     // Audit 1.3 / OKUVU v2.0: a genuine S4 crisis must still leave a real,
-    // reviewable record — client-facing behavior (a bare CRISIS_SIGNAL frame,
-    // no message text) is unchanged; this only adds persistence. There is
-    // still no approved crisis-response script anywhere in the codebase (a
-    // separate, clinically-owned content gap — see the companion Fix Log),
-    // so only the user's own message is persisted here, never a fabricated
-    // assistant reply.
+    // reviewable record. As of the crisis-content fix, it also gets a real,
+    // persisted, deterministic assistant reply — same tier of determinism as
+    // the S3/blocked paths above (no real A2 call, no A9-post review; a
+    // static, approved-content reply, always). See CRISIS_RESPONSE in
+    // fallbacks.ts for the content and its provenance.
     const persistStart = now();
     const crisisTurnCount = await incrementTurnCount(sessionId);
     await prisma.turn.create({
       data: {
         session_id: sessionId, user_id: user.id, turn_number: crisisTurnCount,
         role: 'user', content: message,
+      },
+    });
+    await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: crisisTurnCount,
+        role: 'assistant', content: CRISIS_RESPONSE,
       },
     });
     await prisma.safetyState.upsert({
@@ -271,7 +276,7 @@ export async function processTurn(
     }
     recordTiming(timing, 'crisis_persistence', persistStart, now());
 
-    return { type: 'crisis', timing, ...(testMode?.captureSignalBus ? { signals } : {}) };
+    return { type: 'crisis', message: CRISIS_RESPONSE, timing, ...(testMode?.captureSignalBus ? { signals } : {}) };
   }
 
   const a2Start = now();

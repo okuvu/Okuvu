@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
-import { prisma } from '../lib/prisma.js';
+import { submitSrsScore } from '../lib/sessions.js';
 
 interface SrsBody {
   srs_score: number;
@@ -23,59 +23,31 @@ export async function sessionRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
-        select: { id: true },
-      });
+      const result = await submitSrsScore(uid, id, srs_score, request.log);
 
-      if (!user) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'User not found' },
-        });
+      switch (result.status) {
+        case 'user_not_found':
+          return reply.status(401).send({
+            error: { code: 'UNAUTHORIZED', message: 'User not found' },
+          });
+        case 'session_not_found':
+          return reply.status(404).send({
+            error: { code: 'session_not_found' },
+          });
+        case 'forbidden':
+          return reply.status(403).send({
+            error: { code: 'forbidden' },
+          });
+        case 'session_still_active':
+          return reply.status(409).send({
+            error: {
+              code: 'session_still_active',
+              message: 'Session must be closed before submitting SRS.',
+            },
+          });
+        case 'ok':
+          return reply.send({ success: true });
       }
-
-      const session = await prisma.sessionLog.findUnique({
-        where: { id },
-        select: { user_id: true, session_ended_at: true },
-      });
-
-      if (!session) {
-        return reply.status(404).send({
-          error: { code: 'session_not_found' },
-        });
-      }
-
-      if (session.user_id !== user.id) {
-        return reply.status(403).send({
-          error: { code: 'forbidden' },
-        });
-      }
-
-      if (!session.session_ended_at) {
-        return reply.status(409).send({
-          error: {
-            code: 'session_still_active',
-            message: 'Session must be closed before submitting SRS.',
-          },
-        });
-      }
-
-      await prisma.sessionLog.update({
-        where: { id },
-        data: { session_feedback_score: srs_score },
-      });
-
-      request.log.info(
-        {
-          event: 'srs_submitted',
-          session_id: id,
-          srs_score,
-          submitted_at: new Date().toISOString(),
-        },
-        'SRS score submitted',
-      );
-
-      reply.send({ success: true });
     },
   });
 }

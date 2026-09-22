@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPrisma } from './prisma.js';
-import { generateContent } from './vertex-ai.js';
+import { generateContent } from './generate-content.js';
 
 const __dirname = resolve(fileURLToPath(import.meta.url), '..');
 

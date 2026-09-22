@@ -20,6 +20,7 @@ vi.mock('../lib/prisma.js', () => ({
     },
     homework: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
     },
     userToolPreference: {
       findMany: vi.fn(),
@@ -39,7 +40,6 @@ function baseUserRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: MOCK_USER_ID,
     quote_of_day_enabled: false,
-    homeworks: [],
     clinical_config: null,
     ...overrides,
   };
@@ -65,6 +65,7 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
     vi.mocked(prisma.homework.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.userToolPreference.findMany).mockResolvedValue([]);
     app = buildApp();
 
@@ -95,6 +96,7 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
       { tool_id: 'physiological_sigh', pace_preset: 'faster' },
       { tool_id: 'box_breathing', pace_preset: 'slower' },
     ] as any);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
     app = buildApp();
 
     const response = await app.inject({ method: 'GET', url: '/users/me/today' });
@@ -118,6 +120,7 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
     vi.mocked(prisma.homework.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.userToolPreference.findMany).mockResolvedValue([]);
     app = buildApp();
 
@@ -152,6 +155,7 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
     vi.mocked(prisma.homework.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.userToolPreference.findMany).mockResolvedValue([]);
     app = buildApp();
 
@@ -176,6 +180,7 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
     vi.mocked(prisma.homework.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.userToolPreference.findMany).mockResolvedValue([]);
     app = buildApp();
 

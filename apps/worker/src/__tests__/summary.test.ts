@@ -28,7 +28,7 @@ vi.mock('../lib/embedding.js', () => ({
   generateEmbedding: mockGenerateEmbedding,
 }));
 
-vi.mock('../lib/vertex-ai.js', () => ({
+vi.mock('../lib/generate-content.js', () => ({
   generateContent: mockGenerateContent,
   DEFAULT_MAX_OUTPUT_TOKENS: 1000,
   DEFAULT_TIMEOUT_MS: 25_000,

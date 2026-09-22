@@ -1,5 +1,5 @@
 import { getPrisma } from './prisma.js';
-import { generateContent } from './vertex-ai.js';
+import { generateContent } from './generate-content.js';
 import { generateEmbedding } from './embedding.js';
 import { updateUserMemory } from './memory-extraction.js';
 import { DEFAULT_CARE_PLAN_FOCUS } from '@okuvu/shared-types';
@@ -296,6 +296,14 @@ export async function generateSessionSummary(
   // §D: the Homework schema now exists — query the client's most recent
   // active assignment the same way agent-context.ts does, so the model
   // actually knows what was assigned instead of always seeing null.
+  //
+  // This is an intentional, documented duplicate of
+  // apps/api/src/lib/homework.ts's getActiveHomework — apps/worker can't
+  // cleanly import from apps/api/src/lib today (separate package, and
+  // worker's Prisma access is a lazy getPrisma() getter vs. api's eager
+  // singleton). If "what counts as active homework" ever changes, update
+  // both. A real fix would be a packages/-level shared query helper if a
+  // third consumer ever appears.
   const activeHomework = await getPrisma().homework.findFirst({
     where: { client_user_id: userId, status: 'active' },
     orderBy: { assigned_at: 'desc' },

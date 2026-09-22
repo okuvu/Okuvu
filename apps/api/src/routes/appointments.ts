@@ -1,40 +1,25 @@
 import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
-import type { AppointmentView, AppointmentsResponse } from '@okuvu/shared-types';
+import { toView } from '../lib/appointments.js';
+import type { AppointmentsResponse } from '@okuvu/shared-types';
 
-interface AppointmentRow {
-  id: string;
-  therapist_id: string;
-  scheduled_at: Date;
-  duration_minutes: number;
-  mode: string;
-  location: string | null;
-  note_to_client: string | null;
-  remind_24h: boolean;
-  remind_1h: boolean;
-  rescheduled_from: string | null;
-  cancelled_at: Date | null;
-  therapist: { name: string | null };
-}
+// Relocated to lib/appointments.ts (also consumed by lib/today-card.ts's
+// next_appointment field) — re-exported here so any existing import of
+// `toView` from this route file keeps working.
+export { toView };
 
-// Exported for GET /users/me/today's next_appointment field (users.ts) —
-// same row shape, same mapping, avoids duplicating it.
-export function toView(a: AppointmentRow): AppointmentView {
-  return {
-    id: a.id,
-    scheduledAt: a.scheduled_at.toISOString(),
-    durationMinutes: a.duration_minutes,
-    mode: a.mode,
-    location: a.location,
-    noteToClient: a.note_to_client,
-    remind24h: a.remind_24h,
-    remind1h: a.remind_1h,
-    rescheduledFrom: a.rescheduled_from,
-    cancelledAt: a.cancelled_at?.toISOString() ?? null,
-    therapistId: a.therapist_id,
-    therapistName: a.therapist.name,
-  };
+// `upcoming` isn't paginated — a client only ever has a handful of future
+// sessions booked at once, no real growth vector. `past` is the one that
+// grows unbounded with tenure, so only it takes limit/offset params.
+const PAST_LIMIT_DEFAULT = 20;
+const PAST_LIMIT_MIN = 1;
+const PAST_LIMIT_MAX = 50;
+const PAST_OFFSET_DEFAULT = 0;
+
+interface AppointmentsQuery {
+  past_limit?: string;
+  past_offset?: string;
 }
 
 // App wireframes A2 — "Your sessions": own rows only, not consent-gated
@@ -42,10 +27,33 @@ export function toView(a: AppointmentRow): AppointmentView {
 // here; all mutation stays on the therapist-portal's own appointments
 // router. Split/ordering mirrors that router's listForClient exactly.
 export async function appointmentsRoute(app: FastifyInstance): Promise<void> {
-  app.get('/users/me/appointments', {
+  app.get<{ Querystring: AppointmentsQuery }>('/users/me/appointments', {
     preHandler: [verifyFirebaseJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
+
+      let pastLimit = PAST_LIMIT_DEFAULT;
+      if (request.query.past_limit !== undefined) {
+        pastLimit = parseInt(request.query.past_limit, 10);
+        if (isNaN(pastLimit) || !Number.isInteger(pastLimit) || pastLimit < PAST_LIMIT_MIN || pastLimit > PAST_LIMIT_MAX) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_PAST_LIMIT',
+              message: `past_limit must be an integer between ${PAST_LIMIT_MIN} and ${PAST_LIMIT_MAX}`,
+            },
+          });
+        }
+      }
+
+      let pastOffset = PAST_OFFSET_DEFAULT;
+      if (request.query.past_offset !== undefined) {
+        pastOffset = parseInt(request.query.past_offset, 10);
+        if (isNaN(pastOffset) || !Number.isInteger(pastOffset) || pastOffset < 0) {
+          return reply.status(400).send({
+            error: { code: 'INVALID_PAST_OFFSET', message: 'past_offset must be a non-negative integer' },
+          });
+        }
+      }
 
       const user = await prisma.user.findUnique({
         where: { firebase_uid: uid },
@@ -59,7 +67,7 @@ export async function appointmentsRoute(app: FastifyInstance): Promise<void> {
       }
 
       const now = new Date();
-      const [upcoming, past] = await Promise.all([
+      const [upcoming, pastPage] = await Promise.all([
         prisma.appointment.findMany({
           where: { client_user_id: user.id, scheduled_at: { gte: now }, cancelled_at: null },
           orderBy: { scheduled_at: 'asc' },
@@ -71,14 +79,21 @@ export async function appointmentsRoute(app: FastifyInstance): Promise<void> {
             OR: [{ scheduled_at: { lt: now } }, { cancelled_at: { not: null } }],
           },
           orderBy: { scheduled_at: 'desc' },
-          take: 20,
+          skip: pastOffset,
+          // Fetch one extra row to learn whether another page exists without
+          // a separate COUNT query — sliced back off below before mapping.
+          take: pastLimit + 1,
           include: { therapist: { select: { name: true } } },
         }),
       ]);
 
+      const pastHasMore = pastPage.length > pastLimit;
+      const past = pastHasMore ? pastPage.slice(0, pastLimit) : pastPage;
+
       const body: AppointmentsResponse = {
         upcoming: upcoming.map(toView),
         past: past.map(toView),
+        pastHasMore,
       };
 
       reply.send(body);

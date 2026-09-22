@@ -2,18 +2,10 @@ import { FastifyInstance } from 'fastify';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-import { getQuoteOfDay } from '../lib/quote-of-day.js';
-import { markClientActivatedIfNeeded } from '../lib/client-activation.js';
-import { toView as toAppointmentView } from './appointments.js';
-import type { UserConsent, CarePlanId, AssignmentState, TodayCard } from '@okuvu/shared-types';
-
-interface CarePlanBody {
-  care_plan_id: CarePlanId;
-  assignment_state: AssignmentState;
-  confidence_at_last_eval: number;
-  turns_evaluated: number;
-  reasoning_note: string;
-}
+import { getTodayCard } from '../lib/today-card.js';
+import { completeHomework } from '../lib/homework.js';
+import { updateCarePlan, type CarePlanBody } from '../lib/care-plan.js';
+import type { UserConsent, CarePlanId, AssignmentState } from '@okuvu/shared-types';
 
 interface ChatAccessBody {
   therapist_id: string;
@@ -110,139 +102,15 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
     preHandler: [verifyFirebaseJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
+      const result = await getTodayCard(uid);
 
-      const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
-        select: {
-          id: true,
-          quote_of_day_enabled: true,
-          homeworks: {
-            where: { status: 'active' },
-            take: 1,
-            orderBy: { assigned_at: 'desc' },
-            select: { id: true, description: true },
-          },
-          clinical_config: { select: { care_plan_id: true, display_abbreviation: true } },
-        },
-      });
-
-      if (!user) {
+      if (result.status === 'user_not_found') {
         return reply.status(401).send({
           error: { code: 'UNAUTHORIZED', message: 'User not found' },
         });
       }
 
-      await markClientActivatedIfNeeded(user.id);
-
-      // Decisions doc round, 15 Sep 2026 §4 — real playable exercises
-      // (active Homework rows with a tool_id link), plus the client's own
-      // pace preferences (their default box breathing, and any assigned
-      // exercise) — UserToolPreference covers both under one query.
-      const [assignedHomework, toolPreferences] = await Promise.all([
-        prisma.homework.findMany({
-          where: { client_user_id: user.id, status: 'active', tool_id: { not: null } },
-          select: { tool: { select: { tool_id: true, label: true, text: true } } },
-        }),
-        prisma.userToolPreference.findMany({
-          where: { user_id: user.id },
-          select: { tool_id: true, pace_preset: true },
-        }),
-      ]);
-
-      const pacePresetByToolId = new Map(toolPreferences.map((p) => [p.tool_id, p.pace_preset]));
-
-      const assignedExercises = assignedHomework
-        .filter((h) => h.tool !== null)
-        .map((h) => ({
-          toolId: h.tool!.tool_id,
-          label: h.tool!.label,
-          text: h.tool!.text,
-          pacePreset: pacePresetByToolId.get(h.tool!.tool_id) ?? 'standard',
-        }));
-
-      const reminders = await prisma.reminder.findMany({
-        where: { user_id: user.id, active: true },
-        include: { tool: { select: { label: true } } },
-        orderBy: { created_at: 'desc' },
-      });
-
-      // Therapist-portal wireframes — the client's current (non-ended)
-      // therapist relationship, if any. Powers both the "Request chat
-      // access" Grant/Not-now banner (pendingChatAccessRequest, only when
-      // there's an unanswered request) and the app wireframes' T3 Settings
-      // revoke toggle (therapistChatAccess, always present when assigned) —
-      // one query serving both, rather than a second lookup for the latter.
-      const therapistRelationship = await prisma.therapistClient.findFirst({
-        where: { client_user_id: user.id, ended_at: null },
-        orderBy: { created_at: 'desc' },
-        select: {
-          therapist_id: true,
-          chat_access_granted: true,
-          chat_access_requested_at: true,
-          therapist: { select: { name: true } },
-        },
-      });
-
-      const pendingRequest =
-        therapistRelationship &&
-        !therapistRelationship.chat_access_granted &&
-        therapistRelationship.chat_access_requested_at
-          ? therapistRelationship
-          : null;
-
-      // Decisions doc round, 15 Sep 2026 §11 — "care relationship ended."
-      // Only looked up when there's no active relationship, since a client
-      // can be re-provisioned to a new therapist later (a fresh, non-ended
-      // row) without this stale close screen re-appearing.
-      const endedRelationship = therapistRelationship
-        ? null
-        : await prisma.therapistClient.findFirst({
-            where: { client_user_id: user.id, ended_at: { not: null } },
-            orderBy: { ended_at: 'desc' },
-            select: { therapist: { select: { name: true } } },
-          });
-
-      // App wireframes A1 — Home's "next session" card. Same split logic as
-      // GET /users/me/appointments' upcoming list (appointments.ts), just
-      // limited to the single soonest row.
-      const nextAppointment = await prisma.appointment.findFirst({
-        where: { client_user_id: user.id, scheduled_at: { gte: new Date() }, cancelled_at: null },
-        orderBy: { scheduled_at: 'asc' },
-        include: { therapist: { select: { name: true } } },
-      });
-
-      const body: TodayCard = {
-        homeworkId: user.homeworks[0]?.id ?? null,
-        homework: user.homeworks[0]?.description ?? null,
-        reminders: reminders.map((r) => ({
-          id: r.id,
-          scheduleNote: r.schedule_note,
-          toolLabel: r.tool?.label ?? null,
-        })),
-        // okuvu-remaining-changes.md O6: placeholder content, care-plan-aware,
-        // opt-in — see apps/api/src/lib/quote-of-day.ts.
-        quote: user.quote_of_day_enabled && user.clinical_config
-          ? getQuoteOfDay(user.clinical_config.care_plan_id)
-          : null,
-        pendingChatAccessRequest: pendingRequest
-          ? { therapistId: pendingRequest.therapist_id, therapistName: pendingRequest.therapist.name }
-          : null,
-        therapistChatAccess: therapistRelationship
-          ? {
-              therapistId: therapistRelationship.therapist_id,
-              therapistName: therapistRelationship.therapist.name,
-              granted: therapistRelationship.chat_access_granted,
-            }
-          : null,
-        nextAppointment: nextAppointment ? toAppointmentView(nextAppointment) : null,
-        assignedExercises,
-        defaultBoxBreathingPacePreset: pacePresetByToolId.get('box_breathing') ?? 'standard',
-        careEnded: endedRelationship !== null,
-        careEndedByTherapistName: endedRelationship?.therapist.name ?? null,
-        displayAbbreviation: user.clinical_config?.display_abbreviation ?? null,
-      };
-
-      reply.send(body);
+      reply.send(result.card);
     },
   });
 
@@ -374,23 +242,15 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const homework = await prisma.homework.findUnique({
-        where: { id },
-        select: { client_user_id: true },
-      });
+      const result = await completeHomework(user.id, id);
 
-      if (!homework || homework.client_user_id !== user.id) {
+      if (result.status === 'not_found') {
         return reply.status(404).send({
           error: { code: 'NOT_FOUND', message: 'Homework not found' },
         });
       }
 
-      const updated = await prisma.homework.update({
-        where: { id },
-        data: { status: 'completed' },
-      });
-
-      reply.send({ success: true, status: updated.status });
+      reply.send({ success: true, status: result.homeworkStatus });
     },
   });
 
@@ -458,76 +318,34 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
-        select: { id: true },
-      });
+      const result = await updateCarePlan(uid, id, body, request.log);
 
-      if (!user) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'User not found' },
-        });
+      switch (result.status) {
+        case 'user_not_found':
+          return reply.status(401).send({
+            error: { code: 'UNAUTHORIZED', message: 'User not found' },
+          });
+        case 'forbidden':
+          return reply.status(403).send({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Cannot update another user\'s care plan',
+            },
+          });
+        case 'stale_turns_evaluated':
+          return reply.status(400).send({
+            error: {
+              code: 'STALE_TURNS_EVALUATED',
+              message: `turns_evaluated (${body.turns_evaluated}) is lower than current stored value (${result.current})`,
+            },
+          });
+        case 'ok':
+          return reply.send({
+            success: true,
+            care_plan_id: result.carePlanId,
+            assignment_state: result.assignmentState,
+          });
       }
-
-      if (user.id !== id) {
-        return reply.status(403).send({
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Cannot update another user\'s care plan',
-          },
-        });
-      }
-
-      const existing = await prisma.clinicalConfig.findUnique({
-        where: { user_id: user.id },
-        select: { turns_evaluated: true, assignment_state: true },
-      });
-
-      if (existing && body.turns_evaluated < existing.turns_evaluated) {
-        return reply.status(400).send({
-          error: {
-            code: 'STALE_TURNS_EVALUATED',
-            message: `turns_evaluated (${body.turns_evaluated}) is lower than current stored value (${existing.turns_evaluated})`,
-          },
-        });
-      }
-
-      const result = await prisma.clinicalConfig.upsert({
-        where: { user_id: user.id },
-        create: {
-          user_id: user.id,
-          care_plan_id: body.care_plan_id,
-          assignment_state: body.assignment_state,
-          confidence_at_last_eval: body.confidence_at_last_eval,
-          turns_evaluated: body.turns_evaluated,
-          reasoning_note: body.reasoning_note,
-        },
-        update: {
-          care_plan_id: body.care_plan_id,
-          assignment_state: body.assignment_state,
-          confidence_at_last_eval: body.confidence_at_last_eval,
-          turns_evaluated: body.turns_evaluated,
-          reasoning_note: body.reasoning_note,
-        },
-      });
-
-      if (existing && existing.assignment_state !== body.assignment_state) {
-        request.log.info(
-          {
-            event: 'assignment_state_transition',
-            user_id: user.id,
-            from: existing.assignment_state,
-            to: body.assignment_state,
-          },
-          `Assignment state changed from ${existing.assignment_state} to ${body.assignment_state}`,
-        );
-      }
-
-      reply.send({
-        success: true,
-        care_plan_id: result.care_plan_id,
-        assignment_state: result.assignment_state,
-      });
     },
   });
 

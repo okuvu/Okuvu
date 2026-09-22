@@ -115,4 +115,64 @@ describe('GET /users/me/appointments (app wireframes A2)', () => {
       }),
     );
   });
+
+  describe('past pagination', () => {
+    it('defaults to a page of 20 and reports pastHasMore false when fewer than 20 rows exist', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.appointment.findMany)
+        .mockResolvedValueOnce([] as never)
+        .mockResolvedValueOnce([mockAppointment({ id: 'appt-1' })] as never);
+
+      const response = await app.inject({ method: 'GET', url: '/users/me/appointments' });
+
+      expect(response.json().pastHasMore).toBe(false);
+      expect(response.json().past).toHaveLength(1);
+      expect(prisma.appointment.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ skip: 0, take: 21 }),
+      );
+    });
+
+    it('reports pastHasMore true and trims the extra probe row when a full page is returned', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      const twentyOneRows = Array.from({ length: 21 }, (_, i) => mockAppointment({ id: `appt-${i}` }));
+      vi.mocked(prisma.appointment.findMany)
+        .mockResolvedValueOnce([] as never)
+        .mockResolvedValueOnce(twentyOneRows as never);
+
+      const response = await app.inject({ method: 'GET', url: '/users/me/appointments' });
+
+      expect(response.json().pastHasMore).toBe(true);
+      expect(response.json().past).toHaveLength(20);
+    });
+
+    it('honors past_limit and past_offset query params', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+      vi.mocked(prisma.appointment.findMany)
+        .mockResolvedValueOnce([] as never)
+        .mockResolvedValueOnce([] as never);
+
+      await app.inject({ method: 'GET', url: '/users/me/appointments?past_limit=5&past_offset=20' });
+
+      expect(prisma.appointment.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ skip: 20, take: 6 }),
+      );
+    });
+
+    it('rejects a past_limit outside 1-50', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/appointments?past_limit=51' });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_PAST_LIMIT');
+    });
+
+    it('rejects a negative past_offset', async () => {
+      const response = await app.inject({ method: 'GET', url: '/users/me/appointments?past_offset=-1' });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_PAST_OFFSET');
+    });
+  });
 });

@@ -75,3 +75,27 @@ export function getSafeFallback(safetyState: string): string {
 export const A8_S3_GROUNDING_RESPONSE =
   "It sounds like things feel really heavy right now. Let's slow down together — " +
   "can you take a breath with me, and tell me what's around you right now?"
+
+// OKUVU v2.0 / audit fix: A1 classified this turn S4 (crisis) — the router's
+// 'crisis' agent (a8-router.ts). Previously this path persisted only the
+// user's own turn and the client received a bare CRISIS_SIGNAL frame with no
+// message — the "no approved crisis-response script" gap tracked in
+// okuvu-remaining-changes.md and docs/architecture.md. This closes that gap
+// using the exact approved helpline set already referenced by A9-post's
+// system prompt (docs/okuvu-v2.0/system-prompts/04-A9-Post-Content-Reviewer-
+// v2.0.md §2.1) and already hardcoded in the mobile app's CrisisOverlay
+// (apps/mobile/lib/src/features/crisis/crisis_overlay.dart) — no new
+// helpline numbers are introduced here, only the surrounding language is
+// new. That surrounding language is a first pass and should get a clinical/
+// RCI sign-off before it reaches real users in production; the resource
+// list itself is the pre-existing approved set, not new clinical content.
+export const CRISIS_RESPONSE =
+  "I'm really glad you told me. What you're carrying right now sounds like too much to hold alone, " +
+  "and I don't want you to be on your own with it. " +
+  "Please reach out to one of these right now — they're ready to talk with you:\n\n" +
+  "iCall: 9152987821\n" +
+  "Vandrevala Foundation: 1860-2662-345\n" +
+  "NIMHANS: 080-46110007\n" +
+  "Snehi: 044-24640050\n" +
+  "Emergency Services: 112\n\n" +
+  "I'll be here when you're ready to come back."

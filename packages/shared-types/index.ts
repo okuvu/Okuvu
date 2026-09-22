@@ -85,7 +85,7 @@ export interface SessionOpenRejectedFrame {
   }
 }
 
-export type ErrorReason = 'INVALID_JSON' | 'UNKNOWN_FRAME_TYPE' | 'INVALID_PAYLOAD' | 'SESSION_CLOSED' | 'TURN_FAILED'
+export type ErrorReason = 'INVALID_JSON' | 'UNKNOWN_FRAME_TYPE' | 'INVALID_PAYLOAD' | 'SESSION_CLOSED' | 'TURN_FAILED' | 'RATE_LIMITED'
 
 export interface ErrorFrame {
   type: 'ERROR'
@@ -146,6 +146,12 @@ export interface CrisisSignalFrame {
   type: 'CRISIS_SIGNAL'
   payload: {
     session_id: string
+    // Crisis-content fix: the deterministic CRISIS_RESPONSE text (see
+    // apps/api/src/pipeline/fallbacks.ts) — the mobile app's CrisisOverlay
+    // renders its own static, offline-safe resource list regardless of this
+    // field, but it's included for audit/transcript continuity and for any
+    // future client that isn't offline-safe by the same design.
+    message: string
   }
 }
 
@@ -329,6 +335,8 @@ export interface AppointmentView {
 export interface AppointmentsResponse {
   upcoming: AppointmentView[]
   past: AppointmentView[]
+  /** True when more `past` rows exist beyond this page — see `past_limit`/`past_offset` on GET /users/me/appointments. */
+  pastHasMore: boolean
 }
 
 /** Decisions doc round, 15 Sep 2026 §4/§5 — a therapist-assigned exercise with a `tool_id` link, surfaced on Home's Breathe screen. */

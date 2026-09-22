@@ -145,6 +145,65 @@ void main() {
     expect(find.textContaining('tell Dr. Rao'), findsNothing);
   });
 
+  testWidgets('"Load more" fetches and appends another page of past sessions', (tester) async {
+    final firstPage = {
+      'upcoming': _sampleBody['upcoming'],
+      'past': _sampleBody['past'],
+      'pastHasMore': true,
+    };
+    final secondPage = {
+      'upcoming': _sampleBody['upcoming'],
+      'past': [
+        {
+          'id': 'appt-past-2',
+          'scheduledAt': '2026-07-14T13:00:00.000Z',
+          'durationMinutes': 45,
+          'mode': 'in_person',
+          'location': null,
+          'noteToClient': null,
+          'remind24h': false,
+          'remind1h': false,
+          'rescheduledFrom': null,
+          'cancelledAt': null,
+          'therapistId': 'th_1',
+          'therapistName': 'Dr. Rao',
+        },
+      ],
+      'pastHasMore': false,
+    };
+
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.path.endsWith('/users/me/appointments')) {
+            final offset = options.queryParameters['past_offset'];
+            final body = (offset == 0 || offset == null) ? firstPage : secondPage;
+            handler.resolve(Response(requestOptions: options, statusCode: 200, data: body));
+            return;
+          }
+          handler.resolve(Response(requestOptions: options, statusCode: 200, data: {}));
+        },
+      ),
+    );
+
+    await tester.pumpWidget(_buildApp(dio));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Load more'), findsOneWidget);
+    expect(find.textContaining('In person'), findsNothing);
+
+    await tester.tap(find.text('Load more'));
+    await tester.pumpAndSettle();
+
+    // Second page reported pastHasMore: false, so the button is gone and
+    // the newly-appended session (14 Jul) is now on screen alongside the
+    // original one (28 Aug) — nothing was replaced, only appended.
+    expect(find.text('Load more'), findsNothing);
+    expect(find.textContaining('Dr. Rao · Phone · 30 min'), findsOneWidget);
+    expect(find.textContaining('Dr. Rao · In person · 45 min'), findsOneWidget);
+  });
+
   testWidgets('"Can\'t make it?" trigger and dialog use the locked copy', (tester) async {
     await tester.pumpWidget(_buildApp(_mockDio(_sampleBody)));
     await tester.pumpAndSettle();

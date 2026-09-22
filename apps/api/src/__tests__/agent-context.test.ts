@@ -11,6 +11,9 @@ vi.mock('../lib/prisma.js', () => ({
     turn: {
       findMany: vi.fn(),
     },
+    homework: {
+      findFirst: vi.fn(),
+    },
   },
 }));
 
@@ -87,7 +90,6 @@ function buildFullUser() {
       { summary_text: 'Latest overall summary.', created_at: new Date('2026-06-29T14:00:00Z'), status: 'COMPLETED' },
     ],
     assigned_therapists: [{ therapist: { name: 'Dr. Priya Nair' } }],
-    homeworks: [{ description: 'Practice box breathing before bed.' }],
   };
 }
 
@@ -131,7 +133,6 @@ function buildUserWithManySessions(count: number) {
       { summary_text: 'Latest overall summary for many sessions.', created_at: new Date('2026-06-29T14:00:00Z'), status: 'COMPLETED' },
     ],
     assigned_therapists: [],
-    homeworks: [],
   };
   return user;
 }
@@ -150,7 +151,6 @@ function buildUserWithNoRelations() {
     session_logs: [],
     session_summaries: [],
     assigned_therapists: [],
-    homeworks: [],
   };
 }
 
@@ -171,6 +171,10 @@ describe('GET /users/me/context', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
       vi.mocked(prisma.user.findUnique).mockResolvedValue(buildFullUser() as any);
+      vi.mocked(prisma.homework.findFirst).mockResolvedValue({
+        id: 'hw-1',
+        description: 'Practice box breathing before bed.',
+      } as any);
       app = buildApp();
     });
 
@@ -225,10 +229,20 @@ describe('GET /users/me/context', () => {
             session_logs: expect.objectContaining({ take: 6 }),
             session_summaries: expect.objectContaining({ take: 3, where: { status: 'COMPLETED', summary_text: { not: null } } }),
             assigned_therapists: expect.objectContaining({ take: 1 }),
-            homeworks: expect.objectContaining({ take: 1, where: { status: 'active' } }),
           }),
         }),
       );
+    });
+
+    it('fetches active homework via the shared getActiveHomework query', async () => {
+      const prisma = await importMocks();
+      await app.inject({ method: 'GET', url: '/users/me/context' });
+
+      expect(prisma.homework.findFirst).toHaveBeenCalledWith({
+        where: { client_user_id: 'user-1', status: 'active' },
+        orderBy: { assigned_at: 'desc' },
+        select: { id: true, description: true },
+      });
     });
 
     it('includes ISO string dates in recent_history entries', async () => {

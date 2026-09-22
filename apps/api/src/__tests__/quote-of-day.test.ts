@@ -20,6 +20,7 @@ vi.mock('../lib/prisma.js', () => ({
     },
     homework: {
       findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
     },
     userToolPreference: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -80,7 +81,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: true,
-      homeworks: [],
       clinical_config: { care_plan_id: 'CP2' },
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -96,7 +96,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: false,
-      homeworks: [],
       clinical_config: { care_plan_id: 'CP1' },
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -111,7 +110,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: true,
-      homeworks: [],
       clinical_config: null,
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -126,7 +124,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: false,
-      homeworks: [],
       clinical_config: null,
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -144,7 +141,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: false,
-      homeworks: [],
       clinical_config: null,
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -168,7 +164,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: false,
-      homeworks: [],
       clinical_config: null,
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -185,7 +180,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: false,
-      homeworks: [],
       clinical_config: null,
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -211,7 +205,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: false,
-      homeworks: [],
       clinical_config: null,
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
@@ -227,7 +220,6 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
       quote_of_day_enabled: false,
-      homeworks: [],
       clinical_config: null,
     } as never);
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);

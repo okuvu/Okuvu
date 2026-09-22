@@ -83,6 +83,7 @@ export type PipelineResult =
     }
   | {
       type: 'crisis'
+      message: string
       timing: StageTiming[]
       signals?: PipelineSignal[]
     }

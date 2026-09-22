@@ -63,6 +63,7 @@ import { A9_POST_DEGRADED_RESPONSE, A9_POST_S2_FALLBACK } from '../pipeline/fall
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { setRetrievedContext, clearRetrievedContext } from '../lib/retrieved-context-cache.js';
+import { CRISIS_RESPONSE } from '../pipeline/fallbacks.js';
 
 const UID = 'test-user-1';
 const SESSION_ID = 'test-session-1';
@@ -560,8 +561,20 @@ describe('processTurn — crisis short-circuit', () => {
           }),
         }),
       );
-      // Never fabricates an assistant reply — no approved crisis script exists.
-      expect(prisma.turn.create).toHaveBeenCalledTimes(1);
+      // Crisis-content fix: also persists the deterministic CRISIS_RESPONSE
+      // as a real assistant turn (see fallbacks.ts), same tier of
+      // determinism as the S3/blocked static replies.
+      expect(prisma.turn.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            session_id: SESSION_ID,
+            role: 'assistant',
+            content: CRISIS_RESPONSE,
+            turn_number: 4,
+          }),
+        }),
+      );
+      expect(prisma.turn.create).toHaveBeenCalledTimes(2);
     });
 
     it('updates SafetyState to S4', async () => {
@@ -603,15 +616,14 @@ describe('processTurn — crisis short-circuit', () => {
       expect(prisma.sessionLog.update).not.toHaveBeenCalled();
     });
 
-    it('still returns { type: "crisis" } with no message field — client-facing behavior is unchanged', async () => {
+    it('returns { type: "crisis" } with the deterministic CRISIS_RESPONSE message', async () => {
       vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S4', fallbackUsed: false, crisis_language_detected: true, basis: 'literal', signal_strength: 'high', notes: null });
       vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
       vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
 
       const result = await processTurn(UID, SESSION_ID, 'test');
 
-      expect(result).toEqual(expect.objectContaining({ type: 'crisis' }));
-      expect(result).not.toHaveProperty('message');
+      expect(result).toEqual(expect.objectContaining({ type: 'crisis', message: CRISIS_RESPONSE }));
     });
   });
 });

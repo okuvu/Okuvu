@@ -8,11 +8,20 @@ import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from 
 import { processTurn } from '../pipeline/orchestrator.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
+import { checkRateLimit } from '../lib/rate-limit.js';
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 export const MAX_MESSAGE_LENGTH = 4000;
 export const MAX_GROUNDING_ITEMS = 10;
 export const MAX_GROUNDING_ITEM_LENGTH = 200;
+// Each USER_TURN triggers a real LLM call (apps/api/src/pipeline/orchestrator.ts)
+// — the single most expensive thing this service does per request, and the
+// one @fastify/rate-limit (app.ts) never sees, since it only hooks the HTTP
+// request lifecycle, not messages sent over an already-open WebSocket.
+// Generous for real usage (a therapy chat exchange), tight enough to bound
+// a single account's worst-case LLM spend from a runaway/malicious client.
+export const MAX_TURNS_PER_WINDOW = 20;
+export const TURN_WINDOW_SECONDS = 60;
 
 export function isValidGroundingResult(value: unknown): value is import('@okuvu/shared-types').GroundingResult {
   if (typeof value !== 'object' || value === null) return false;
@@ -205,6 +214,16 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           return;
         }
 
+        const withinTurnLimit = await checkRateLimit(`ws_turn:${uid}`, MAX_TURNS_PER_WINDOW, TURN_WINDOW_SECONDS);
+        if (!withinTurnLimit) {
+          send({
+            type: 'ERROR',
+            payload: { reason: 'RATE_LIMITED' },
+          });
+          req.log.warn({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, outcome: 'rate_limited' }, 'USER_TURN rate limit exceeded');
+          return;
+        }
+
         try {
           const activeSession = activeSessions.get(session_id);
           const perceivedIntensity = activeSession?.perceivedIntensity ?? null;
@@ -222,7 +241,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           if (result.type === 'crisis') {
             send({
               type: 'CRISIS_SIGNAL',
-              payload: { session_id },
+              payload: { session_id, message: result.message },
             });
             req.log.info({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, outcome: 'crisis' }, 'Crisis detected, sent CRISIS_SIGNAL');
             return;

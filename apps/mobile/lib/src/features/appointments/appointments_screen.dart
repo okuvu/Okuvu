@@ -100,6 +100,7 @@ class AppointmentsScreen extends ConsumerWidget {
                   Text('Earlier', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 8),
                   ...data.past.map((a) => _AppointmentTile(appointment: a)),
+                  if (data.pastHasMore) _LoadMorePastButton(isLoading: data.isLoadingMorePast),
                 ],
               ],
             );
@@ -158,6 +159,31 @@ class _AppointmentTile extends StatelessWidget {
             const Icon(LucideIcons.chevronRight),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LoadMorePastButton extends ConsumerWidget {
+  const _LoadMorePastButton({required this.isLoading});
+
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Center(
+        child: isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : TextButton(
+                onPressed: () => ref.read(appointmentsProvider.notifier).loadMorePast(),
+                child: const Text('Load more'),
+              ),
       ),
     );
   }

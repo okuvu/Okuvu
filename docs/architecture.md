@@ -33,11 +33,11 @@ Everything runs on GCP asia-south1 (Mumbai). There is no AWS. Deliberate decisio
 | Auth — end users | Firebase Authentication (phone/OTP) | |
 | Auth — therapists | Firebase Authentication (Google OAuth) | |
 | LLM — live chat pipeline (A1/A2/A9-pre/A9-post) | **OpenRouter — Llama-3.1-8B-instruct** (default) | Vertex AI/Gemini kept as a rollback path (`LLM_PROVIDER=gemini`) — see "LLM provider" below |
-| LLM — worker jobs (session summary, memory extraction) | Vertex AI — Gemini | **Not yet migrated** to the OpenRouter dispatcher the live pipeline uses — see note below |
+| LLM — worker jobs (session summary, memory extraction) | **OpenRouter — Llama-3.1-8B-instruct** (default) | Migrated to its own `apps/worker/src/lib/generate-content.ts` dispatcher, same `LLM_PROVIDER`/rollback contract as the live pipeline — see note below. Requires `OPENROUTER_API_KEY` to be provisioned on worker's Cloud Run service (not tracked in this repo's `cloudbuild.yaml`, which is API-only) |
 | TTS | **Client-side**, `flutter_tts` in the mobile app | Not a backend call — see "Text-to-speech" below |
 | File storage | Cloud Storage + Cloud CDN | |
 | Emergency-contact encryption | Secret Manager (holds an AES-256-GCM key) + application-layer encryption in `apps/api/src/crypto/emergency-contact-encryption.ts` | Not Cloud KMS envelope encryption — corrected from the previous version of this doc |
-| Session/turn rate limiting | **Not implemented.** `REDIS_URL`/Memorystore is a provisioned env var with zero consumers in `apps/api/src` or `apps/worker/src` | Known open gap — every route accepts requests at whatever rate a client sends them |
+| Session/turn rate limiting | **Implemented.** `@fastify/rate-limit`, Redis-backed via the previously-unused `REDIS_URL`/Memorystore, global 300 req/min per IP (`apps/api/src/app.ts`), 10/min on `/invites/redeem` specifically, and a separate 20 turns/min-per-user Redis counter on the WebSocket chat path (`apps/api/src/routes/websocket.ts`) — `@fastify/rate-limit` only sees the HTTP request lifecycle, not messages sent over an already-open WebSocket, so the actual LLM-cost driver (USER_TURN) needed its own check | Fails open if Redis is unreachable — a cost/abuse guard, not a correctness guarantee |
 | Async jobs | Cloud Tasks (queue, OIDC-authenticated worker endpoints) | Cloud Scheduler is provisioned for future cron jobs (push notifications) but nothing schedules against it yet |
 | Secrets | Secret Manager | |
 | CI/CD | GitHub Actions (`.github/workflows/`) for typecheck/test/lint; Cloud Build for API/worker container builds; Vercel's own CI for portal/test-harness | |
@@ -49,7 +49,7 @@ The previous version of this doc described Gemini/Vertex AI as the only LLM. Tha
 - `openrouter` (default) → OpenRouter, model `meta-llama/llama-3.1-8b-instruct`.
 - `gemini` → Vertex AI, same as before — kept as an explicit rollback path, not deleted.
 
-**`apps/worker`'s async jobs (`lib/summary.ts`, `lib/memory-extraction.ts`) still import their own `vertex-ai.ts` directly** — they were never migrated to the shared dispatcher above. This means a session's live chat replies come from Llama by default today, but its post-close summary and memory extraction still come from Gemini. This is a real, current inconsistency, not a doc error — worth a deliberate decision (migrate the worker too, or intentionally keep summarization on a different/stronger model) rather than assuming it's already unified.
+**Fixed.** `apps/worker`'s async jobs (`lib/summary.ts`, `lib/memory-extraction.ts`) now import from `apps/worker/src/lib/generate-content.ts` — worker's own copy of the same dispatcher pattern (apps/api and apps/worker are separate deployable services and don't share Node code directly, only `packages/prisma`/`packages/shared-types`), same `LLM_PROVIDER` env var, same default (`openrouter`), same rollback (`LLM_PROVIDER=gemini`). This was a deliberate decision, not an assumption: Llama-3.1-8B is a materially weaker model than Gemini 2.5 Flash for structured JSON extraction, which is exactly what summarization and memory extraction do — evaluate output quality after this ships before trusting it unreviewed, and roll back to `LLM_PROVIDER=gemini` on worker specifically if quality regresses.
 
 There is also a dead `apps/api/src/lib/llm-provider.ts` (a Sarvam-LLM stub, unused, not imported anywhere outside its own test) — not part of any live path, safe to ignore or remove.
 
@@ -160,7 +160,7 @@ Single PostgreSQL database (Neon for dev, Cloud SQL for staging/prod). ORM is Pr
 | Mobile framework | Flutter (Android-first) | Cross-platform coverage from one codebase |
 | Backend framework | Fastify (not Express) | Better TypeScript support, lower overhead for WebSocket-heavy workload |
 | ORM | Prisma | Type safety, migration management, Neon compatibility |
-| LLM provider | OpenRouter/Llama-3.1-8B-instruct (default), Vertex AI/Gemini (rollback) | Migrated from Gemini-only; see "LLM provider" above. Worker jobs not yet migrated — open decision |
+| LLM provider | OpenRouter/Llama-3.1-8B-instruct (default), Vertex AI/Gemini (rollback) | Migrated from Gemini-only; see "LLM provider" above. Worker jobs migrated too — same contract on both services now |
 | Local dev database | Neon (not Cloud SQL Proxy) | Cloud SQL Proxy setup takes 1.5-2h per developer; Neon branches are instant |
 | Session notes isolation | T-05 notes (`TherapistNote`) are never ingested into any agent | Deliberate clinical boundary — therapist controls what informs the AI |
 | Session model | Continuous chat, no turn cap, no daily-slot gating | OKUVU v2.0 product pivot away from bounded therapy-style sessions |
@@ -173,10 +173,10 @@ Each of the original items is documented with full rationale in `docs/adr/`.
 
 Not exhaustive — see the project's own fix/audit log for the full list — but the ones most relevant to "is this ready for real users":
 
-1. **No crisis-response content.** The routing is correct (S4 → crisis path, fail-closed on any classification error), but the actual message shown to a user in genuine crisis doesn't exist yet. This is a P0 blocker for any pilot with real users, not a nice-to-have.
-2. **No rate limiting anywhere in `apps/api`.** Unbounded LLM-cost exposure from a single misbehaving client; no throttle on OTP/invite endpoints either.
+1. ~~**No crisis-response content.**~~ **Fixed.** The S4 crisis path now persists a real, deterministic assistant reply (`CRISIS_RESPONSE` in `apps/api/src/pipeline/fallbacks.ts`) using the same approved helpline set already hardcoded in the mobile app's `CrisisOverlay` and referenced in A9-post's system prompt — no new clinical content, just closing the pipe. The surrounding language is a first pass and still needs clinical/RCI sign-off before real users see it; the resource list itself was already approved.
+2. ~~**No rate limiting anywhere in `apps/api`.**~~ **Fixed.** See the infrastructure table above.
 3. **Push notifications are entirely unbuilt.** No device-token storage, no Firebase Admin SDK, no scheduler job. Today-card/reminders are pull-only.
-4. **Worker's LLM calls weren't migrated with the rest of the pipeline** — summary/memory extraction still run on Gemini while live chat runs on Llama by default. Decide deliberately rather than assume parity.
+4. ~~**Worker's LLM calls weren't migrated with the rest of the pipeline.**~~ **Fixed.** Both services now share the same `LLM_PROVIDER` contract — see "LLM provider" above. Still needs: (a) `OPENROUTER_API_KEY` provisioned on worker's Cloud Run service before this reaches staging/prod, and (b) an output-quality eval, since Llama-3.1-8B is weaker than Gemini for structured extraction.
 5. **Account deletion doesn't remove `JournalEntry` or `UserMemory`.**
 
 ---

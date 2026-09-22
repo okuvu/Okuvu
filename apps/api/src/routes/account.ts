@@ -1,7 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { randomUUID } from 'node:crypto';
 import { verifyFirebaseJWT } from '../middleware/auth.js';
-import { prisma } from '../lib/prisma.js';
+import { deleteAccount } from '../lib/account.js';
 
 interface DeleteAccountBody {
   confirm?: boolean;
@@ -23,65 +22,30 @@ export async function accountRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
-        select: { id: true, deleted_at: true },
-      });
+      const result = await deleteAccount(uid, request.log);
 
-      if (!user) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'User not found' },
-        });
+      switch (result.status) {
+        case 'user_not_found':
+          return reply.status(401).send({
+            error: { code: 'UNAUTHORIZED', message: 'User not found' },
+          });
+        case 'already_deleted':
+          return reply.status(409).send({
+            error: {
+              code: 'ALREADY_DELETED',
+              message: 'This account has already been deleted',
+            },
+          });
+        case 'active_session':
+          return reply.status(409).send({
+            error: {
+              code: 'ACTIVE_SESSION',
+              message: 'You have an active session. Please close it before deleting your account.',
+            },
+          });
+        case 'ok':
+          return reply.send({ success: true });
       }
-
-      if (user.deleted_at) {
-        return reply.status(409).send({
-          error: {
-            code: 'ALREADY_DELETED',
-            message: 'This account has already been deleted',
-          },
-        });
-      }
-
-      const activeSession = await prisma.sessionLog.findFirst({
-        where: { user_id: user.id, session_ended_at: null },
-        select: { id: true },
-      });
-
-      if (activeSession) {
-        return reply.status(409).send({
-          error: {
-            code: 'ACTIVE_SESSION',
-            message: 'You have an active session. Please close it before deleting your account.',
-          },
-        });
-      }
-
-      await prisma.$transaction(async (tx) => {
-        await tx.emergencyContact.deleteMany({ where: { user_id: user.id } });
-        await tx.engagementProfile.deleteMany({ where: { user_id: user.id } });
-        await tx.clinicalConfig.deleteMany({ where: { user_id: user.id } });
-        await tx.safetyState.deleteMany({ where: { user_id: user.id } });
-        await tx.turn.deleteMany({ where: { user_id: user.id } });
-        await tx.sessionSummary.deleteMany({ where: { user_id: user.id } });
-        await tx.moodLog.deleteMany({ where: { user_id: user.id } });
-        await tx.sessionLog.deleteMany({ where: { user_id: user.id } });
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            phone_number: '',
-            firebase_uid: `deleted-${randomUUID()}`,
-            deleted_at: new Date(),
-          },
-        });
-      });
-
-      request.log.info(
-        { event: 'account_deleted', user_id: user.id },
-        'Account deleted',
-      );
-
-      reply.send({ success: true });
     },
   });
 }
