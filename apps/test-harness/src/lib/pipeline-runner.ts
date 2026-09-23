@@ -88,22 +88,57 @@ export async function setupSyntheticSession(): Promise<{
   userId: string;
   sessionId: string;
 }> {
+  const { uid, userId } = await createSyntheticThread();
+  const { sessionId } = await openSyntheticSession(uid, userId);
+  return { uid, userId, sessionId };
+}
+
+/**
+ * TH-S34 (Simulated-Conversation Runner Spec v1.1): create ONLY the
+ * synthetic user (the persistent identity across an N-session run).
+ * Split out of `setupSyntheticSession` so the multi-session orchestrator
+ * can create one thread and then open many sessions against it — history
+ * and memory attach to the USER, so they survive across SessionLog rows.
+ */
+export async function createSyntheticThread(suffix = 'pipeline'): Promise<{ uid: string; userId: string }> {
   if (!prisma) {
     throw new Error('Database not configured — DATABASE_URL is unset.');
   }
 
-  const firebaseUid = `${TEST_USER_PREFIX}pipeline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const firebaseUid = `${TEST_USER_PREFIX}${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const user = await prisma.user.upsert({
     where: { firebase_uid: firebaseUid },
     update: {},
     create: { firebase_uid: firebaseUid, phone_number: '+10000000000' },
   });
 
+  return { uid: firebaseUid, userId: user.id };
+}
+
+/**
+ * TH-S34: open a fresh SessionLog for an EXISTING synthetic thread. The
+ * session-scoped half of the split — call once per simulated session.
+ * `userId` may be passed when the caller already has it (skips the lookup).
+ */
+export async function openSyntheticSession(uid: string, userId?: string): Promise<{ sessionId: string }> {
+  if (!prisma) {
+    throw new Error('Database not configured — DATABASE_URL is unset.');
+  }
+
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    const user = await prisma.user.findUnique({ where: { firebase_uid: uid } });
+    if (!user) {
+      throw new Error(`No synthetic user with firebase_uid '${uid}' — the thread must be created first (createSyntheticThread).`);
+    }
+    resolvedUserId = user.id;
+  }
+
   const session = await prisma.sessionLog.create({
-    data: { user_id: user.id },
+    data: { user_id: resolvedUserId },
   });
 
-  return { uid: firebaseUid, userId: user.id, sessionId: session.id };
+  return { sessionId: session.id };
 }
 
 /**

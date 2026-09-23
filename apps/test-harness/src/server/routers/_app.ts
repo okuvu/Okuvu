@@ -15,6 +15,7 @@ import { conversationRouter } from './conversation';
 import { ciRouter } from './ci';
 import { simulatorRouter } from './simulator';
 import { scorecardRouter } from './scorecard';
+import { resultsExportRouter } from './results-export';
 
 export const appRouter = router({
   example: exampleRouter,
@@ -33,6 +34,7 @@ export const appRouter = router({
   ci: ciRouter,
   simulator: simulatorRouter,
   scorecard: scorecardRouter,
+  resultsExport: resultsExportRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthOptions } from 'next-auth';
+import NextAuth, { type NextAuthOptions, type Session } from 'next-auth';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import GoogleProvider from 'next-auth/providers/google';
@@ -86,6 +86,36 @@ const nextAuth = NextAuth(authConfig);
 export const handlers = { GET: nextAuth, POST: nextAuth };
 
 export async function auth() {
+  // Local-dev bypass (mirror of LOCAL_DEV_BYPASS_AUTH in apps/api + apps/worker):
+  // HARD_HARNESS_LOCAL_DEV_BYPASS_AUTH=true issues a synthetic PI session so the
+  // harness is usable without Google OAuth (e.g. redirect_uri not registered).
+  // Guardrails: production refuses to boot with it set (below); every bypassed
+  // request is loudly logged; and the synthetic session is scoped to sandbox
+  // environments only — real OAuth remains the only path to staging/beta.
+  if (process.env.HARD_HARNESS_LOCAL_DEV_BYPASS_AUTH === 'true') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'FATAL: HARD_HARNESS_LOCAL_DEV_BYPASS_AUTH is set in NODE_ENV=production — refusing to serve.',
+      );
+    }
+    if (!(globalThis as { __harnessBypassWarned?: boolean }).__harnessBypassWarned) {
+      console.warn(
+        '[AUTH] LOCAL DEV BYPASS ACTIVE — synthetic PI session (sandbox-only). NEVER set in any deployed environment.',
+      );
+      (globalThis as { __harnessBypassWarned?: boolean }).__harnessBypassWarned = true;
+    }
+    return {
+      user: {
+        id: 'local-dev-bypass',
+        email: 'local-dev-bypass@okuvu.in',
+        name: 'Local Dev (bypass)',
+        role: 'PI' as const,
+        environments: ['sandbox'] as TestEnvironment[],
+      },
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    } satisfies Session;
+  }
+
   return getServerSession(authConfig);
 }
 

@@ -604,6 +604,16 @@ model TestRun {
   build_sha                String?
   corpus_version           String?
   run_mode                 String?
+  // ─── TH-S33/S34 telemetry (Simulated-Conversation Runner Spec v1.1) ───
+  // Populated on runs created by the simulated-conversation runner; null on
+  // every other run kind (the same nullable+backfill-free convention as the
+  // B2 identity columns above).
+  persona_id               String?
+  persona_version          String?
+  simulator_model          String?
+  session_index            Int?
+  turn_in_session          Int?
+  gap_before_ms            Int?
   activated_agents         String[]
   manually_selected_agents String[]
   dependency_graph         Json
@@ -629,6 +639,73 @@ model TestResultRow {
   run        TestRun       @relation(fields: [run_id], references: [id])
 
   @@index([run_id])
+}
+
+/// TH-S37 (OKUVU — Simulated-Conversation Runner Spec v1.1): the grouping row
+/// for one simulated-conversation run batch — N sessions × M turns of ONE
+/// synthetic persona driven across a planned gap schedule. Append-only,
+/// same convention as ModelConfigPin/BaselineArchive: status/next_step/cost
+/// rollup fields are the ONLY mutable columns (the tick loop needs a durable
+/// resume point), and every content column (sessions, run_ids, persona pin)
+/// is written once at group creation and never edited.
+model ConversationRun {
+  id              String             @id @default(uuid())
+  environment     TestEnvironment
+  /// The persona this batch drives — a type='persona' CorpusCase id (TH-S32).
+  persona_case_id String
+  /// Denormalized pinning stamps (§6.4 contract): personaId/personaVersion
+  /// come from the case's persona_meta; model/promptVersion from the frozen
+  /// triple at creation. Stored flat so the run-group list needs no joins.
+  persona_id      String
+  persona_version String
+  model           String?
+  prompt_version  String?
+  /// 'story-time' (default — gaps injected as gap_before_ms, no real waits)
+  /// | 'wall-clock' (Cloud-Tasks-scheduled real waits, staging only).
+  scheduler_mode  String             @default("story-time")
+  /// Multi-session plan (§6.2): [gapBeforeMsForSession1, session2, ...] —
+  /// gap[0] is conventionally 0 (first session starts immediately).
+  gap_plan_ms     Int[]
+  /// Turn-count range per session; the orchestrator draws each session's
+  /// actual count deterministically from the run's seed within [min, max].
+  turns_min       Int
+  turns_max       Int
+  /// Deterministic simulator seed (TH-S33: "deterministic under a fixed
+  /// seed"). Same seed + same persona + same history ⇒ same plan.
+  seed            Int
+  /// Cost rails (TH-S37): ceiling in USD (not INR — the spec's contract is
+  /// USD, unlike TestBudget's monthly INR cap) and the running estimate.
+  cost_ceiling_usd Float
+  cost_estimates_usd Float         @default(0)
+  /// Only mutable fields: the tick loop's durable resume point. status is
+  /// one of 'planned' | 'running' | 'complete' | 'incomplete' | 'halt'.
+  status          String             @default("planned")
+  /// Next step the advance-tick should process: null = nothing due (done
+  /// or not started). Shape: { sessionIndex, turnNumber, dueAt? } (§6.4).
+  next_step       Json?
+  /// Per-session rollup, written after each session closes (§6.4 sessions[]):
+  /// [{ index, sessionId, gapBeforeMs, turnsPlanned, turnsCompleted,
+  ///    summaryWritten, memoryWritten, runIds: string[],
+  ///    continuity: { C1..C5 } }]
+  sessions        Json               @default("[]")
+  /// Completed per-session TestRun ids (flattened across the whole group) —
+  /// what BaselineArchive pinning and the bulk export resolve against.
+  run_ids         String[]           @default([])
+  /// Idempotency (TH-S35): the caller-supplied key. Unique — a duplicate
+  /// POST with the same key returns the existing group instead of creating
+  /// a second one.
+  idempotency_key String             @unique
+  /// Session-scoped LLM spend accumulator (USD), updated as turns complete.
+  cost_so_far_usd Float              @default(0)
+  canned          Boolean            @default(false)
+  started_at      DateTime?
+  completed_at    DateTime?
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+
+  @@index([environment, created_at(sort: Desc)])
+  @@index([persona_case_id])
+  @@index([status])
 }
 
 model CorpusCase {
@@ -662,6 +739,20 @@ model CorpusCase {
   homework_context      String?
   toolkit               String[]         @default([])
   therapist_name        String?
+  // ─── TH-S32 (Simulated-Conversation Runner Spec v1.1) — persona bank ───
+  // A type='persona' CorpusCase may carry an ordered seed script — the
+  // "sample chat / starter" the user-simulator continues from. Each entry:
+  // { role: 'user', text: string, expected?: { safetyState?, a2Stance? } }.
+  // Nullable Json: non-persona cases (and personas seeded before this
+  // column) simply have null — no backfill needed.
+  turns                 Json?
+  // TH-S32: the persona library metadata block — { personaId,
+  // personaVersion, demographics, profile, trajectory, goals[], secrets[],
+  // openerStyle, sampleStarters[], expectedArc, targetBand, governance,
+  // techniqueFamily, continuityCues{}, determinismRules[] }. Consumed by the
+  // TH-S33 user-simulator as its character sheet; carried onto every run for
+  // pinning (TH-S37). Nullable for the same reason as `turns`.
+  persona_meta          Json?
   created_at            DateTime         @default(now())
   updated_at            DateTime         @updatedAt
 

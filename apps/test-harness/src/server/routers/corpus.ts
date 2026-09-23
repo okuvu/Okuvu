@@ -661,4 +661,156 @@ export const corpusRouter = router({
 
       return toCorpusCase(row);
     }),
+
+  // ─── TH-S32 — persona bank (Simulated-Conversation Runner Spec v1.1) ────
+
+  /**
+   * Create (or version) a type='persona' CorpusCase with its seed script
+   * (turns) and persona metadata — the data-driven persona bank. No code
+   * edit needed to add a persona (spec TH-S32 Accept).
+   */
+  createPersona: protectedProcedure
+    .input(
+      z.object({
+        input: z.string().default(''),
+        tags: z.array(z.string()).default(['persona-bank']),
+        turns: z
+          .array(
+            z.object({
+              role: z.literal('user'),
+              text: z.string().min(1),
+              expected: z.unknown().optional(),
+            }),
+          )
+          .default([]),
+        personaMeta: z.unknown(),
+        environment: environmentSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+
+      // Validate persona_meta through the shared schema (kept inline rather
+      // than as a router field so the type inference flows into this body).
+      const metaSchema = z
+        .object({
+          personaId: z.string().min(1),
+          personaVersion: z.string().min(1),
+          trajectory: z.enum(['stable', 'escalating', 'de-escalating']).optional(),
+        })
+        .passthrough();
+      const meta = metaSchema.parse(input.personaMeta);
+
+      const created = await ctx.prisma.corpusCase.create({
+        data: {
+          type: 'persona',
+          input: input.input || meta.personaId,
+          tags: input.tags,
+          data_origin: 'synthetic',
+          turns: JSON.parse(JSON.stringify(input.turns)),
+          persona_meta: JSON.parse(JSON.stringify(meta)),
+        },
+      });
+
+      return toCorpusCase(created);
+    }),
+
+  /**
+   * Bulk-import persona rows (the 15-persona v0.2 library load, or any
+   * subset). Same per-row rejection contract as bulkImportCases: one bad
+   * persona doesn't block the batch.
+   */
+  bulkImportPersonas: protectedProcedure
+    .input(
+      z.object({
+        rows: z
+          .array(
+            z.object({
+              input: z.string().optional(),
+              tags: z.array(z.string()).default(['persona-bank']),
+              turns: z
+                .array(
+                  z.object({
+                    role: z.literal('user'),
+                    text: z.string().min(1),
+                    expected: z.unknown().optional(),
+                  }),
+                )
+                .default([]),
+              personaMeta: z.record(z.string(), z.unknown()),
+            }),
+          )
+          .min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+
+      const metaSchema = z
+        .object({
+          personaId: z.string().min(1),
+          personaVersion: z.string().min(1),
+        })
+        .passthrough();
+
+      const created: CorpusCaseWithLineage[] = [];
+      const rejected: { index: number; personaId: string; reason: string }[] = [];
+
+      for (let i = 0; i < input.rows.length; i++) {
+        const row = input.rows[i];
+        const metaResult = metaSchema.safeParse(row.personaMeta);
+        if (!metaResult.success) {
+          rejected.push({
+            index: i,
+            personaId: String(row.personaMeta?.personaId ?? `row-${i}`),
+            reason: 'persona_meta must include personaId and personaVersion',
+          });
+          continue;
+        }
+
+        const createdRow = await ctx.prisma.corpusCase.create({
+          data: {
+            type: 'persona',
+            input: row.input || String(row.personaMeta.personaId),
+            tags: row.tags,
+            data_origin: 'synthetic',
+            turns: JSON.parse(JSON.stringify(row.turns)),
+            persona_meta: JSON.parse(JSON.stringify(metaResult.data)),
+          },
+        });
+        created.push(toCorpusCase(createdRow));
+      }
+
+      return { created, rejected };
+    }),
+
+  /**
+   * List the persona bank: latest-version type='persona' rows with their
+   * turns + persona_meta (the run-batch picker's data source).
+   */
+  listPersonas: protectedProcedure
+    .query(async ({ ctx }) => {
+      if (!ctx.prisma) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not configured' });
+      }
+      const { prisma } = ctx;
+
+      const [rows, supersededRows] = await Promise.all([
+        prisma.corpusCase.findMany({ where: { type: 'persona' }, orderBy: { created_at: 'desc' } }),
+        prisma.corpusCase.findMany({ where: { supersedes_id: { not: null } }, select: { supersedes_id: true } }),
+      ]);
+      const supersededIds = new Set(supersededRows.map((r) => r.supersedes_id).filter((id): id is string => !!id));
+
+      return rows
+        .filter((r) => !supersededIds.has(r.id))
+        .map((row) => ({
+          ...toCorpusCase(row),
+          turns: (row.turns as { role: 'user'; text: string }[] | null) ?? [],
+          personaMeta: (row.persona_meta as Record<string, unknown> | null) ?? {},
+        }));
+    }),
 });
