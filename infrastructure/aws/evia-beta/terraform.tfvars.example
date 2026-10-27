@@ -10,3 +10,39 @@ environment = "beta"
 
 # Set once an ACM certificate exists for the api hostname; adds an HTTPS listener.
 # alb_certificate_arn = "arn:aws:acm:ap-south-1:123456789012:certificate/..."
+
+# -----------------------------------------------------------------------------
+# DNS + TLS (dns.tf). manage_dns = true (the default) creates the Route53 zone,
+# the ACM certificate and the api / beta.api / portal alias records.
+#
+# FIRST APPLY, in this order — ACM cannot validate until the zone is delegated,
+# and a full apply sits on the validation resource until it times out:
+#
+#   1. terraform apply -target=aws_route53_zone.main
+#   2. copy the `route53_zone_nameservers` output into Spaceship
+#      (okuvu.in → Nameservers). Delegation propagates in minutes.
+#   3. terraform apply
+#
+# Set manage_dns = false if DNS lives elsewhere, and supply alb_certificate_arn.
+# -----------------------------------------------------------------------------
+# dns_zone_name = "okuvu.in"
+# manage_dns    = true
+
+# Therapist portal hostname (must be covered by the certificate).
+# portal_hostname = "portal.okuvu.in"
+
+# Comma-separated therapist emails allowed into /admin. Empty disables the admin
+# console entirely (audit F-07).
+# admin_emails = "therapist@okuvu.in"
+
+# Brevo key for the Add-Client wizard's invite emails. Empty leaves emails off
+# and the invite code is shown on screen instead.
+# brevo_api_key = ""
+
+# -----------------------------------------------------------------------------
+# Build pipeline (pipeline.tf). Create the GitHub connection once in the console
+# (Developer Tools → Connections → GitHub) and paste its ARN; until then the
+# CodeBuild project is not created.
+# -----------------------------------------------------------------------------
+# codestar_connection_arn = "arn:aws:codeconnections:ap-south-1:123456789012:connection/..."
+# github_repository       = "yashraj-ops/Okuvu"
