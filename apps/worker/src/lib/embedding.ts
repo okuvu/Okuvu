@@ -1,4 +1,5 @@
 import { v1beta1, protos } from '@google-cloud/aiplatform';
+import { resolveEmbeddingProvider } from './provider-config.js';
 
 let client: v1beta1.PredictionServiceClient | null = null;
 
@@ -19,6 +20,13 @@ function getModelResource(): string {
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
+  // Provider seam (see provider-config.ts): default `vertex` is the unchanged
+  // path; Bedrock is imported lazily so the AWS SDK never loads otherwise.
+  if (resolveEmbeddingProvider() === 'bedrock') {
+    const { generateEmbedding: generateBedrockEmbedding } = await import('./bedrock.js');
+    return generateBedrockEmbedding(text);
+  }
+
   const endpoint = getModelResource();
   const instances = [{ structValue: { fields: { content: { stringValue: text } } } }];
   const parameters = { structValue: { fields: { taskType: { stringValue: 'SEMANTIC_SIMILARITY' } } } };

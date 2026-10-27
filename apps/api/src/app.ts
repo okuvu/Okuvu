@@ -3,6 +3,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import { errorHandler } from './errors/handler.js';
 import { registerRoutes } from './routes/index.js';
 import { validateCloudTasksConfig } from './lib/summary-enqueue.js';
+import { validateAwsConfig, resolveQueueProvider } from './lib/provider-config.js';
 import { getRedisClient } from './lib/redis.js';
 
 const LOAD_TEST_MODE = process.env.LOAD_TEST_MODE === 'true';
@@ -22,9 +23,19 @@ export function buildApp() {
     trustProxy: true,
   });
 
-  const missingCloudTasks = validateCloudTasksConfig();
-  if (missingCloudTasks.length > 0) {
-    app.log.warn({ event: 'config_validation', missing_vars: missingCloudTasks }, 'Cloud Tasks is not fully configured — summary enqueue will be skipped');
+  // Queue transport validation: only the *active* transport is checked, so a
+  // GCP deployment (default) logs exactly what it logged before this migration
+  // and an AWS deployment is not told that Cloud Tasks is unset.
+  if (resolveQueueProvider() === 'sqs') {
+    const missingSqs = validateAwsConfig();
+    if (missingSqs.length > 0) {
+      app.log.warn({ event: 'config_validation', missing_vars: missingSqs }, 'SQS is not fully configured — summary enqueue will be skipped');
+    }
+  } else {
+    const missingCloudTasks = validateCloudTasksConfig();
+    if (missingCloudTasks.length > 0) {
+      app.log.warn({ event: 'config_validation', missing_vars: missingCloudTasks }, 'Cloud Tasks is not fully configured — summary enqueue will be skipped');
+    }
   }
 
   if (!process.env.REDIS_URL) {

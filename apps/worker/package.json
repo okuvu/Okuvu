@@ -10,9 +10,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1156.0",
+    "@google-cloud/aiplatform": "^6.8.1",
     "@okuvu/prisma": "workspace:*",
     "@okuvu/shared-types": "workspace:*",
-    "@google-cloud/aiplatform": "^6.8.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "dotenv": "^16.4.7",

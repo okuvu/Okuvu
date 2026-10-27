@@ -1,5 +1,6 @@
 import * as vertexAi from './vertex-ai.js';
 import * as openRouter from './openrouter.js';
+import { resolveContentBackend } from './provider-config.js';
 
 export type {
   GenerateContentParams,
@@ -9,6 +10,7 @@ export { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS } from './vertex-ai.js';
 
 export type LlmProvider = 'openrouter' | 'gemini';
 
+/** Unchanged pre-existing agent-facing switch (see the API copy's comment). */
 export function resolveProvider(): LlmProvider {
   return process.env.LLM_PROVIDER === 'gemini' ? 'gemini' : 'openrouter';
 }
@@ -26,13 +28,24 @@ export function resolveProvider(): LlmProvider {
  * deliberate one. This closes it: same `LLM_PROVIDER` env var, same default
  * (`openrouter`), same rollback path (`LLM_PROVIDER=gemini`) as the live
  * pipeline.
+ *
+ * AWS seam: `OKUVU_LLM_PROVIDER=bedrock` (resolved in `provider-config.ts`)
+ * routes the worker's LLM calls to Bedrock instead, taking precedence over
+ * `LLM_PROVIDER`. Default (both unset) is byte-for-byte the old behaviour.
+ * The Bedrock module is imported lazily so the AWS SDK never loads on the
+ * OpenRouter/Vertex paths.
  */
 export async function generateContent(
   params: vertexAi.GenerateContentParams,
 ): Promise<vertexAi.GenerateContentResult> {
-  const provider = resolveProvider();
+  const backend = resolveContentBackend();
 
-  if (provider === 'gemini') {
+  if (backend === 'bedrock') {
+    const { generateContent: bedrockGenerateContent } = await import('./bedrock.js');
+    return bedrockGenerateContent(params);
+  }
+
+  if (backend === 'vertex') {
     return vertexAi.generateContent(params);
   }
 

@@ -1,4 +1,6 @@
 import { CloudTasksClient } from '@google-cloud/tasks';
+import { enqueueSummaryJob as enqueueSummaryJobOnSqs, validateSqsConfig } from './sqs-enqueue.js';
+import { resolveQueueProvider } from './provider-config.js';
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
@@ -48,6 +50,15 @@ export async function enqueueSummaryJob(
   userId: string,
   log?: { info: (obj: Record<string, unknown>, msg: string) => void; warn: (obj: Record<string, unknown>, msg: string) => void; error: (obj: Record<string, unknown>, msg: string) => void },
 ): Promise<void> {
+  // Provider seam (see provider-config.ts): the queue transport is chosen in
+  // exactly one place. `cloudtasks` is the default, so this function's own
+  // body below is the pre-migration code path untouched; `sqs` delegates to
+  // the SQS producer with the identical contract. Callers (session-close.ts,
+  // app.ts) never learn which transport is live.
+  if (resolveQueueProvider() === 'sqs') {
+    return enqueueSummaryJobOnSqs(sessionId, userId, log);
+  }
+
   const isDev = process.env.NODE_ENV === 'development';
   const workerUrl = process.env.CLOUD_TASKS_WORKER_URL;
 

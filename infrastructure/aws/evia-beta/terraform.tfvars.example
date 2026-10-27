@@ -1,0 +1,12 @@
+# AWS profile to use if you do not rely on the default credential chain.
+# aws_profile = "okuvu-beta"
+
+aws_region  = "ap-south-1"
+environment = "beta"
+
+# Optional alerting destinations. Left empty, no SNS email subscription is created.
+# budget_notification_email = "finops@example.com"
+# alarm_notification_email  = "oncall@example.com"
+
+# Set once an ACM certificate exists for the api hostname; adds an HTTPS listener.
+# alb_certificate_arn = "arn:aws:acm:ap-south-1:123456789012:certificate/..."

@@ -27,10 +27,24 @@ def keystorePropertiesFile = rootProject.file('keystore.properties')
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
+def hasReleaseKeystore = keystorePropertiesFile.exists() &&
+        keystoreProperties['storeFile'] != null &&
+        project.file(keystoreProperties['storeFile'].toString()).exists()
 
 android {
     namespace "ai.okuvu.app"
-    compileSdk flutter.compileSdkVersion
+
+    // compileSdk is pinned deliberately instead of using flutter.compileSdkVersion (36):
+    // permission_handler_android 14.1.0 declares `compileSdk = 37`, and Flutter refuses to
+    // build against a lower SDK than a plugin requires.
+    //
+    // IMPORTANT: Google's SDK repository now ships API 37 as *minor-version* platforms
+    // ("platforms;android-37.0" / "37.1" / "37.2"); there is no plain "platforms;android-37".
+    // AGP therefore needs compileSdkMinor to resolve the installed package. This requires
+    // AGP >= 8.13 (see android/settings.gradle). Do NOT replace this with a symlink
+    // platforms/android-37 -> android-37.0: that is invisible to fresh checkouts/CI.
+    compileSdk 37
+    compileSdkMinor 0
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -49,7 +63,10 @@ android {
     defaultConfig {
         applicationId "ai.okuvu.app"
         minSdkVersion flutter.minSdkVersion
-        targetSdk flutter.targetSdkVersion
+        // Play requirement (verified 2026-10-27): since 31 Aug 2026 new apps and app
+        // updates must target Android 16 (API 36) or higher.
+        // https://support.google.com/googleplay/android-developer/answer/11926878
+        targetSdk 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
 
@@ -79,20 +96,41 @@ android {
     }
 
     signingConfigs {
-        release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
+        // Only defined when android/keystore.properties exists (gitignored, see
+        // keystore.properties.example). Without it, debug flavours still build but a
+        // release bundle fails fast with a clear message instead of producing an
+        // unsigned .aab that Play Console would reject.
+        if (hasReleaseKeystore) {
+            release {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+// Fail fast if a release bundle is requested with no signing config, rather than
+// emitting an unsigned artifact that Play Console will reject on upload.
+tasks.configureEach { t ->
+    if (t.name ==~ /bundle.*Release/ && !hasReleaseKeystore) {
+        t.doFirst {
+            throw new GradleException(
+                "Release signing is not configured. Create apps/mobile/android/keystore.properties " +
+                "(copy keystore.properties.example) and point storeFile at a real .jks. " +
+                "See apps/mobile/android/PLAY_RELEASE_CHECKLIST.md")
         }
     }
 }

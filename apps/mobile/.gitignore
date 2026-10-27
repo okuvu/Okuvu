@@ -49,3 +49,6 @@ app.*.map.json
 /android/upload-keystore.jks
 /android/*.jks
 /android/**/*.jks
+
+# Build/release evidence (logs, .aab artifacts, memory traces) — not source, can be large
+/android/play-release-evidence/

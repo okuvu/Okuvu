@@ -12,13 +12,16 @@
     "test:load": "k6 run load-tests/k6-websocket-load.js"
   },
   "dependencies": {
-    "@okuvu/prisma": "workspace:*",
-    "@okuvu/shared-types": "workspace:*",
+    "@aws-sdk/client-bedrock-runtime": "^3.1156.0",
+    "@aws-sdk/client-secrets-manager": "^3.1156.0",
+    "@aws-sdk/client-sqs": "^3.1156.0",
     "@fastify/rate-limit": "^11.2.0",
     "@fastify/websocket": "^11.0.0",
     "@google-cloud/aiplatform": "^6.8.1",
     "@google-cloud/secret-manager": "^6.0.1",
     "@google-cloud/tasks": "^6.2.3",
+    "@okuvu/prisma": "workspace:*",
+    "@okuvu/shared-types": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "dotenv": "^16.4.7",
