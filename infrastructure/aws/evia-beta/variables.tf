@@ -250,15 +250,118 @@ variable "alarm_notification_email" {
 }
 
 variable "portal_callback_urls" {
-  description = "NextAuth OAuth callback URLs registered on the therapist Cognito app client"
+  description = "NextAuth OAuth callback URLs registered on the therapist Cognito app client (portal_url is appended automatically)"
   type        = list(string)
   default     = ["http://localhost:3001/api/auth/callback/cognito"]
 }
 
 variable "portal_logout_urls" {
-  description = "Post-sign-out redirect URLs registered on the therapist Cognito app client"
+  description = "Post-sign-out redirect URLs registered on the therapist Cognito app client (portal_url is appended automatically)"
   type        = list(string)
   default     = ["http://localhost:3001/auth"]
+}
+
+# -----------------------------------------------------------------------------
+# Therapist portal (portal.tf)
+# -----------------------------------------------------------------------------
+
+variable "portal_container_port" {
+  description = "Port the portal container listens on (Next.js `next start`)"
+  type        = number
+  default     = 3000
+}
+
+variable "portal_cpu" {
+  description = "Fargate CPU units for the portal task"
+  type        = number
+  default     = 512
+}
+
+variable "portal_memory" {
+  description = "Fargate memory (MiB) for the portal task"
+  type        = number
+  default     = 1024
+}
+
+variable "portal_desired_count" {
+  description = "Number of portal tasks"
+  type        = number
+  default     = 2
+}
+
+variable "portal_hostname" {
+  description = "Public hostname the therapist portal is served on (must be in the ACM certificate)"
+  type        = string
+  default     = "portal.okuvu.in"
+}
+
+variable "admin_emails" {
+  description = "Comma-separated therapist emails allowed into /admin. Empty disables the admin console (audit F-07)."
+  type        = string
+  default     = ""
+}
+
+variable "brevo_from_email" {
+  description = "From address on invite emails sent by the Add-Client wizard"
+  type        = string
+  default     = "noreply@okuvu.in"
+}
+
+variable "brevo_from_name" {
+  description = "From name on invite emails"
+  type        = string
+  default     = "OKUVU"
+}
+
+variable "brevo_api_key" {
+  description = "Brevo API key stored in Secrets Manager for the portal invite flow. Empty leaves invite emails disabled (code shown on screen instead)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# -----------------------------------------------------------------------------
+# DNS + TLS (dns.tf) — Cloud Run used to hand out *.a.run.app hostnames and
+# Google-managed certificates, so none of this existed before the cutover.
+# -----------------------------------------------------------------------------
+
+variable "dns_zone_name" {
+  description = "Public zone created in Route53 for the app + portal hostnames"
+  type        = string
+  default     = "okuvu.in"
+}
+
+variable "manage_dns" {
+  description = "Create the Route53 zone, ACM certificate and alias records. Set false to supply alb_certificate_arn and manage DNS elsewhere."
+  type        = bool
+  default     = true
+}
+
+# -----------------------------------------------------------------------------
+# Build pipeline (pipeline.tf)
+# -----------------------------------------------------------------------------
+
+variable "codestar_connection_arn" {
+  description = "CodeStar (CodeConnections) GitHub connection ARN. Empty leaves the CodeBuild project uncreated, because the OAuth handshake cannot be automated."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.codestar_connection_arn == "" || can(regex("^arn:aws:codeconnections:", var.codestar_connection_arn))
+    error_message = "codestar_connection_arn must be empty or a CodeConnections connection ARN."
+  }
+}
+
+variable "github_repository" {
+  description = "owner/repo the CodeBuild project builds from"
+  type        = string
+  default     = "yashraj-ops/Okuvu"
+}
+
+variable "codebuild_compute_type" {
+  description = "CodeBuild compute size; MEDIUM is the smallest that reliably runs the pnpm install + three image builds"
+  type        = string
+  default     = "BUILD_GENERAL1_MEDIUM"
 }
 
 variable "bedrock_model_id" {

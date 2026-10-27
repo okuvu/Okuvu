@@ -185,8 +185,10 @@ resource "aws_cognito_user_pool_client" "portal" {
   allowed_oauth_flows_user_pool_client = true
   supported_identity_providers         = ["COGNITO"]
 
-  callback_urls = var.portal_callback_urls
-  logout_urls   = var.portal_logout_urls
+  # localhost for development, plus the deployed portal URL so the same client
+  # works in the browser and in the ECS service.
+  callback_urls = concat(var.portal_callback_urls, ["${local.portal_url}/api/auth/callback/cognito"])
+  logout_urls   = concat(var.portal_logout_urls, [local.portal_url])
 
   # Same 12-hour working-day session the portal enforces in NextAuth.
   access_token_validity  = 12

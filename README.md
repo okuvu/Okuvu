@@ -19,6 +19,18 @@ The stack moved from Google Cloud to AWS. Cloud Run → ECS Fargate, Cloud SQL �
 
 The authoritative contract for the cutover is [`docs/AWS-CUTOVER-SPEC.md`](docs/AWS-CUTOVER-SPEC.md); the phased plan is [`docs/AWS-MIGRATION-PLAN.md`](docs/AWS-MIGRATION-PLAN.md). Where older docs in `docs/` still describe the previous stack, the spec wins.
 
+### Public hostnames (no Google-managed DNS or certificates)
+
+Cloud Run used to hand out `*.a.run.app` hostnames and Google-managed TLS certs. The AWS equivalents are Route53 alias records to the ALB plus an ACM certificate, both in `infrastructure/aws/evia-beta/dns.tf`:
+
+| Hostname | Serves | Client that hardcodes it |
+|---|---|---|
+| `api.okuvu.in` | apps/api | `apps/mobile` `prod` flavour |
+| `beta.api.okuvu.in` | apps/api | `apps/mobile` `beta` flavour |
+| `portal.okuvu.in` | apps/therapist-portal | therapist browsers; Cognito callback URL |
+
+`terraform apply` creates the zone and prints `route53_zone_nameservers`; those NS records must be pasted into Spaceship (the `okuvu.in` registrar) before anything resolves. That delegation is the only DNS step not in code.
+
 ---
 
 ## Repo Structure
@@ -29,11 +41,11 @@ okuvu/
 │   ├── mobile/               Flutter app (Android-first MVP) — not an npm workspace member
 │   ├── api/                  Node.js/TypeScript backend (ECS Fargate) — @okuvu/api
 │   ├── worker/               Background worker (ECS Fargate, SQS consumer) — @okuvu/worker
-│   └── therapist-portal/     Next.js therapist portal — @okuvu/therapist-portal (see apps/therapist-portal/README.md)
+│   └── therapist-portal/     Next.js therapist portal — @okuvu/therapist-portal (ECS Fargate, portal.okuvu.in)
 ├── packages/
 │   ├── prisma/               Prisma schema + generated client (shared) — @okuvu/prisma
 │   └── shared-types/         TypeScript types shared across apps — @okuvu/shared-types
-├── infrastructure/aws/       Terraform for the beta stack (VPC, RDS, ElastiCache, ECS, ALB, SQS, S3, KMS, ECR)
+├── infrastructure/aws/       Terraform for the beta stack (VPC, RDS, ElastiCache, ECS api/worker/portal, ALB, Route53 + ACM, SQS, S3, KMS, ECR, Cognito)
 ├── scripts/                  Deploy and utility scripts (ECR push + ECS rollout)
 ├── buildspec.yml             CodeBuild pipeline: test → build → migrate → deploy
 ├── load-tests/               k6 WebSocket load test scripts

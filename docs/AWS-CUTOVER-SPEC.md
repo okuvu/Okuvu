@@ -30,6 +30,31 @@ Removal targets, by category:
 | `firebase_core/auth/analytics/crashlytics` pub deps | removed | mobile |
 | infrastructure/gcp/*, cloudbuild.yaml | infrastructure/aws/*, buildspec.yml (CodeBuild) | infra |
 | `firebase_uid` DB column | `auth_subject` (already renamed in schema + migration) | prisma |
+| Cloud Run service hostnames (`*.a.run.app`) | Route53 aliases to the ALB: `api.` / `beta.api.` / `portal.okuvu.in` | mobile env, load tests, portal |
+| Google-managed TLS certificates | ACM certificate + DNS validation (`dns.tf`) | infra |
+| (no prior home) therapist portal hosting | ECS Fargate service `evia-beta-portal`, host-routed on the shared ALB | infra, portal |
+
+## Hosting the therapist portal on AWS (added at the same cutover)
+
+The portal was the one workload with **no cloud definition at all** — no
+Dockerfile, no Terraform, no hostname. It is now a first-class AWS service:
+
+- `apps/therapist-portal/Dockerfile` — two-stage pnpm build, `next start` on 3000.
+- `infrastructure/aws/evia-beta/portal.tf` — ECR repo, task definition, ECS
+  service, target group, and host-header listener rules for both listeners.
+- Secrets: NextAuth signing key, the therapist Cognito client secret and the
+  optional Brevo key are generated/stored in Secrets Manager and injected by the
+  execution role; none are baked into the image or the task definition.
+- Health: `/api/health`, unauthenticated, exempted in `proxy.ts`. Polling `/`
+  would 307 to `/auth` and never turn healthy.
+- Routing is **host-based**, because the portal serves its own `/api/trpc` and
+  `/api/auth`; path-based rules would collide with the api's routes.
+- `buildspec.yml` builds and pushes the portal image and rolls
+  `evia-beta-portal` in the same deploy as api and worker.
+
+Still manual, and not because of missing code: the CodeStar (CodeConnections)
+GitHub OAuth handshake (`codestar_connection_arn`), the NS delegation for
+`okuvu.in` at Spaceship, and Cognito therapist provisioning.
 
 ## Decisions already made (do not re-litigate)
 

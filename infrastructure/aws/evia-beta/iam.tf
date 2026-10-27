@@ -47,7 +47,14 @@ data "aws_iam_policy_document" "ecs_execution" {
       "secretsmanager:DescribeSecret",
     ]
 
-    resources = [aws_secretsmanager_secret.database.arn]
+    # The portal's secrets are read by the same execution role: NextAuth's
+    # signing key, its Cognito client secret, and the optional Brevo key.
+    resources = [
+      aws_secretsmanager_secret.database.arn,
+      aws_secretsmanager_secret.nextauth_secret.arn,
+      aws_secretsmanager_secret.portal_cognito_client.arn,
+      aws_secretsmanager_secret.brevo.arn,
+    ]
   }
 
   statement {

@@ -12,6 +12,12 @@ export async function proxy(request: NextRequest) {
     return undefined;
   }
 
+  // ALB liveness probe (alb.tf polls this path with matcher 200). It carries no
+  // session, so it must short-circuit before the session lookup.
+  if (pathname === '/api/health') {
+    return undefined;
+  }
+
   if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
     return undefined;
   }

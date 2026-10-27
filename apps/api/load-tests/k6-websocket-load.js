@@ -11,7 +11,7 @@ import { Trend, Rate } from 'k6/metrics';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 const LOAD_TEST_KEY = __ENV.LOAD_TEST_KEY;
-const WS_URL = __ENV.WS_URL || 'wss://evia-beta-xxxx-uc.a.run.app/ws';
+const WS_URL = __ENV.WS_URL || 'wss://beta.api.okuvu.in/ws';
 
 const turnLatency = new Trend('turn_latency', true);
 const wsErrors = new Rate('ws_errors');

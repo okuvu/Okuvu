@@ -65,7 +65,7 @@ Practical consequences:
 | Item | Requirement | Source |
 |---|---|---|
 | Privacy policy URL | Required on the store listing **and** in-app when the app requests sensitive permissions/data (this app: `RECORD_AUDIO`, health/wellness content). Must be an active, publicly reachable URL that applies to this app. | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455) |
-| Data safety form | "All developers that have an app published on Google Play must complete the Data safety form, including apps on closed, open, or production testing tracks." Only apps *exclusively* on internal testing are exempt. Must cover third-party SDKs (Firebase Analytics/Crashlytics here). | [10787469](https://support.google.com/googleplay/android-developer/answer/10787469) |
+| Data safety form | "All developers that have an app published on Google Play must complete the Data safety form, including apps on closed, open, or production testing tracks." Only apps *exclusively* on internal testing are exempt. The app bundles no third-party analytics or crash SDK (Firebase was removed in the AWS cutover), so declare only what the first-party `Analytics`/`CrashReporter` code actually collects. | [10787469](https://support.google.com/googleplay/android-developer/answer/10787469) |
 | Content rating questionnaire | Required; "Unrated" apps may be removed from Play. | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455), [9859655](https://support.google.com/googleplay/android-developer/answer/9859655) |
 | App access / sign-in instructions | "If your entire app or parts of your app are restricted based on login credentials … you must provide all required details to enable access to your app." Okuvu has auth → reviewer demo credentials are mandatory. | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455), [15748846](https://support.google.com/googleplay/android-developer/answer/15748846) |
 | Ads declaration | "You must declare whether or not your app contains ads." (Mandatory either way.) | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455) |
@@ -106,11 +106,13 @@ SHA-256: 77:C1:EA:A9:80:AF:FC:75:03:F9:BB:85:4C:6A:FB:C6:96:EE:CF:31:CA:99:6C:D3
    removed with the rest of the Firebase surface; auth is Amazon Cognito over HTTPS and
    crashes go through `CrashReporter`. The only build-time configuration that matters now
    is `--dart-define=COGNITO_CLIENT_ID` (+ region/pool), see `README.md`.
-2. **Prod API host is dead.** `lib/src/config/environment.dart` points `prod` at
-   `https://backend-971397352159.asia-south1.run.app`, which returns **HTTP 404** on `/`,
-   `/health` and `/v1/health` (checked 2026-10-27). That is also a Cloud Run host, i.e. a
-   GCP endpoint: it needs to move to the AWS ALB hostname in the same cutover.
-   Shipping this points the app at a backend that serves nothing.
+2. **Prod/beta API host moved off GCP** (resolved 2026-10-27). `lib/src/config/environment.dart`
+   used to point both flavours at `https://backend-971397352159.asia-south1.run.app` (Cloud Run),
+   which returned **HTTP 404** on `/`, `/health` and `/v1/health` (checked 2026-10-27). It now
+   points at `https://api.okuvu.in` (prod) and `https://beta.api.okuvu.in` (beta) — Route53
+   aliases to the AWS ALB in `infrastructure/aws/evia-beta/dns.tf`. The remaining dependency is
+   outside the repo: those records must exist and serve a valid ACM certificate before an upload
+   build is worth shipping.
 3. **Stale URL assertion in tests** (resolved 2026-10-27). `test/config/app_config_test.dart`
    asserted the literal `https://evia-500215-xxxxx-uc.a.run.app` placeholder host, so 2 of
    211 tests failed. The test now asserts the contract (`https`/`wss` + enum identity)
@@ -142,8 +144,8 @@ SHA-256: 77:C1:EA:A9:80:AF:FC:75:03:F9:BB:85:4C:6A:FB:C6:96:EE:CF:31:CA:99:6C:D3
 4. **Host the privacy policy** at a stable, public URL you control (the app currently
    points at a Google Docs "pub" link, `AppConfig.privacyPolicyUrl` — fine as a stopgap,
    not something to ship as the legal record), and link the same URL in-app and in the
-   store listing. It must describe health/wellness data, audio recording, Firebase
-   Analytics/Crashlytics, retention and deletion.
+   store listing. It must describe health/wellness data, audio recording, the
+   first-party analytics/crash logging that replaced Firebase, retention and deletion.
 5. **Complete the App content declarations** (Data safety, content rating questionnaire,
    target audience, ads declaration, sign-in/app-access instructions with working reviewer
    credentials, sensitive-permission declarations).

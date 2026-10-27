@@ -3,16 +3,19 @@
 # What it does, in order:
 #   1. install   — pnpm workspace dependencies (frozen lockfile)
 #   2. pre_build — Prisma client, typecheck, unit tests, ECR login
-#   3. build     — docker build + push the api and worker images to ECR
-#   4. post_build— prisma migrate deploy against RDS, then roll both ECS
+#   3. build     — docker build + push the api, worker and therapist-portal
+#                  images to ECR
+#   4. post_build— prisma migrate deploy against RDS, then roll all three ECS
 #                  services onto a new task-definition revision and wait for
 #                  the deployment to stabilise
 #
 # Every name and port here mirrors infrastructure/aws/evia-beta:
-#   ecr.tf  → ${NAME_PREFIX}/api and ${NAME_PREFIX}/worker repositories
-#   ecs.tf  → cluster ${NAME_PREFIX}, services ${NAME_PREFIX}-api / -worker,
-#             containers "api" (port 8080) and "worker"
-#   alb.tf  → the api target group polls /health on the container port
+#   ecr.tf    → ${NAME_PREFIX}/{api,worker,portal} repositories
+#   ecs.tf    → cluster ${NAME_PREFIX}, services ${NAME_PREFIX}-api / -worker,
+#               containers "api" (port 8080) and "worker"
+#   portal.tf → service ${NAME_PREFIX}-portal, container "portal" (port 3000),
+#               target group polling /api/health
+#   alb.tf    → the api target group polls /health on the container port
 #
 # Requirements on the CodeBuild project itself (set these in Terraform/console,
 # not here):
@@ -70,9 +73,11 @@ phases:
       - echo "=== Typecheck ==="
       - cd apps/api && npx tsc --noEmit && cd -
       - cd apps/worker && npx tsc --noEmit && cd -
-      - echo "=== Unit tests (api + worker) ==="
+      - cd apps/therapist-portal && npx tsc --noEmit && cd -
+      - echo "=== Unit tests (api + worker + portal) ==="
       - cd apps/api && npx vitest run && cd -
       - cd apps/worker && npx vitest run && cd -
+      - cd apps/therapist-portal && npx vitest run && cd -
       - echo "=== ECR login ==="
       - aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
@@ -82,11 +87,15 @@ phases:
       - docker build -t "${ECR_REGISTRY}/${NAME_PREFIX}/api:${IMAGE_TAG}" -t "${ECR_REGISTRY}/${NAME_PREFIX}/api:latest" -f apps/api/Dockerfile .
       - echo "=== Building apps/worker image ==="
       - docker build -t "${ECR_REGISTRY}/${NAME_PREFIX}/worker:${IMAGE_TAG}" -t "${ECR_REGISTRY}/${NAME_PREFIX}/worker:latest" -f apps/worker/Dockerfile .
+      - echo "=== Building apps/therapist-portal image ==="
+      - docker build -t "${ECR_REGISTRY}/${NAME_PREFIX}/portal:${IMAGE_TAG}" -t "${ECR_REGISTRY}/${NAME_PREFIX}/portal:latest" -f apps/therapist-portal/Dockerfile .
       - echo "=== Pushing to ECR ==="
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/api:${IMAGE_TAG}"
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/api:latest"
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/worker:${IMAGE_TAG}"
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/worker:latest"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/portal:${IMAGE_TAG}"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/portal:latest"
 
   post_build:
     commands:
@@ -136,17 +145,18 @@ phases:
 
         deploy_service "${NAME_PREFIX}-api" api
         deploy_service "${NAME_PREFIX}-worker" worker
+        deploy_service "${NAME_PREFIX}-portal" portal
 
-        echo "=== Waiting for both services to stabilise (up to ~25 min) ==="
+        echo "=== Waiting for all three services to stabilise (up to ~25 min) ==="
         aws ecs wait services-stable \
           --cluster "${NAME_PREFIX}" \
-          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" \
+          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
           --region "${AWS_REGION}"
 
         echo "=== Deployment complete ==="
         aws ecs describe-services \
           --cluster "${NAME_PREFIX}" \
-          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" \
+          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
           --region "${AWS_REGION}" \
           --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,taskDefinition:taskDefinition}' \
           --output table

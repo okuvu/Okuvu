@@ -168,6 +168,14 @@ resource "aws_security_group" "ecs" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  ingress {
+    description     = "therapist portal traffic from the ALB only"
+    from_port       = var.portal_container_port
+    to_port         = var.portal_container_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
   egress {
     description = "HTTPS to AWS APIs and third-party services via NAT"
     from_port   = 443

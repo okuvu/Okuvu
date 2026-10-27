@@ -1,4 +1,6 @@
-export const WS_URL = process.env.WS_URL || 'wss://evia-beta-xxxx-uc.a.run.app/ws';
+// AWS ALB hostname (Route53 alias, see infrastructure/aws/evia-beta/dns.tf).
+// Override with WS_URL for a one-off run.
+export const WS_URL = process.env.WS_URL || 'wss://beta.api.okuvu.in/ws';
 export const LOAD_TEST_KEY = process.env.LOAD_TEST_KEY;
 export const VUS = 50;
 export const RAMP_UP = '2m';

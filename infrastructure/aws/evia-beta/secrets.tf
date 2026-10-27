@@ -61,3 +61,82 @@ resource "aws_secretsmanager_secret_version" "worker_internal_auth" {
     secret = random_password.worker_internal_auth.result
   })
 }
+
+# -----------------------------------------------------------------------------
+# Therapist portal secrets (portal.tf). NextAuth's signing key is generated here
+# for the same reason as the worker key: a hand-set value in a tfvars file is a
+# copy that can drift, and this one signs every session cookie.
+# -----------------------------------------------------------------------------
+resource "random_password" "nextauth_secret" {
+  length  = 48
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "nextauth_secret" {
+  name        = "${var.name_prefix}/portal-nextauth-secret"
+  description = "NextAuth session-cookie signing key for the therapist portal"
+  kms_key_id  = aws_kms_key.secrets.arn
+
+  recovery_window_in_days = 7
+
+  tags = merge(local.common_tags, {
+    Name               = "${var.name_prefix}-portal-nextauth-secret"
+    DataClassification = "secret"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "nextauth_secret" {
+  secret_id = aws_secretsmanager_secret.nextauth_secret.id
+
+  secret_string = jsonencode({
+    secret = random_password.nextauth_secret.result
+  })
+}
+
+# The therapist app client's own secret, republished under the name the task
+# definition reads. Cognito owns the value; this is a projection, not a copy
+# anyone has to keep in sync by hand.
+resource "aws_secretsmanager_secret" "portal_cognito_client" {
+  name        = "${var.name_prefix}/portal-cognito-client-secret"
+  description = "Cognito therapist app-client secret (COGNITO_THERAPIST_CLIENT_SECRET)"
+  kms_key_id  = aws_kms_key.secrets.arn
+
+  recovery_window_in_days = 7
+
+  tags = merge(local.common_tags, {
+    Name               = "${var.name_prefix}-portal-cognito-client-secret"
+    DataClassification = "secret"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "portal_cognito_client" {
+  secret_id = aws_secretsmanager_secret.portal_cognito_client.id
+
+  secret_string = jsonencode({
+    secret = aws_cognito_user_pool_client.portal.client_secret
+  })
+}
+
+# Brevo key for the Add-Client wizard's invite emails. Empty by default: the
+# wizard then shows the invite code on screen instead of emailing it, which is
+# the documented graceful degradation.
+resource "aws_secretsmanager_secret" "brevo" {
+  name        = "${var.name_prefix}/brevo-api-key"
+  description = "Brevo transactional-email API key used by the portal invite flow"
+  kms_key_id  = aws_kms_key.secrets.arn
+
+  recovery_window_in_days = 7
+
+  tags = merge(local.common_tags, {
+    Name               = "${var.name_prefix}-brevo-api-key"
+    DataClassification = "secret"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "brevo" {
+  secret_id = aws_secretsmanager_secret.brevo.id
+
+  secret_string = jsonencode({
+    api_key = var.brevo_api_key
+  })
+}

@@ -39,11 +39,32 @@ output "ecs_cluster_name" {
 }
 
 output "ecs_service_names" {
-  description = "ECS service names for api and worker"
+  description = "ECS service names for api, worker and the therapist portal"
   value = {
     api    = aws_ecs_service.api.name
     worker = aws_ecs_service.worker.name
+    portal = aws_ecs_service.portal.name
   }
+}
+
+output "portal_url" {
+  description = "Public URL of the therapist portal (AWS-hosted; replaces any Vercel or GCP surface)"
+  value       = local.portal_url
+}
+
+output "portal_service_name" {
+  description = "ECS service that runs the therapist portal"
+  value       = aws_ecs_service.portal.name
+}
+
+output "alb_hostnames" {
+  description = "Hostnames that resolve to the ALB, and therefore the ones clients are configured with"
+  value       = var.manage_dns ? local.alb_hostnames : []
+}
+
+output "route53_zone_nameservers" {
+  description = "NS records to paste into the registrar for dns_zone_name; nothing resolves until they are delegated"
+  value       = var.manage_dns ? aws_route53_zone.main[0].name_servers : []
 }
 
 output "ecr_repository_urls" {

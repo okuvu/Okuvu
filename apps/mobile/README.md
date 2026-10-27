@@ -116,8 +116,13 @@ lib/
 | Flavor | Application ID | Backend URL |
 |---|---|---|
 | `dev` | `ai.evia.app.dev` | Localhost (configurable) |
-| `beta` | `ai.evia.app.beta` | GCP Cloud Run (staging) |
-| `prod` | `ai.evia.app` | GCP Cloud Run (production) |
+| `beta` | `ai.evia.app.beta` | `https://beta.api.okuvu.in` — AWS ECS Fargate behind the ALB |
+| `prod` | `ai.evia.app` | `https://api.okuvu.in` — AWS ECS Fargate behind the ALB |
+
+Both hosts are Route53 aliases to the ALB in `infrastructure/aws/evia-beta/dns.tf`.
+Override per build with `--dart-define=BASE_URL=… --dart-define=WS_URL=…`.
+Nothing in the app points at GCP any more: auth is Amazon Cognito over HTTPS,
+crashes go through `CrashReporter`, and there is no Firebase SDK or config file.
 
 ## Building APKs
 
