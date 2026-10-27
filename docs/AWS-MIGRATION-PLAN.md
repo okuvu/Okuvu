@@ -50,15 +50,62 @@ The Android APK path was also proven end-to-end with a temporary placeholder Fir
 
 These came from checking AWS's own documentation rather than from memory, and each one changes a decision.
 
-### 3.1 The AI layer is the risk. Not the database.
+### 3.1 The AI layer, revised: DeepSeek is in-region and credit-eligible
 
-Every infrastructural port is cheap and boring: RDS at about $88/month, ElastiCache at $12–23, two Fargate services behind load balancers at $56–73, one KMS key at $1.
+**Superseded 27 Oct 2026.** The original version of this section assumed a Claude or Gemini-class model was required and that no frontier model sat in-region. That premise is obsolete: the product standard is now DeepSeek, and DeepSeek is the one model family that is *both* in-region in Mumbai *and* billed by AWS directly.
 
-The AI layer is where the problem is. **Amazon Bedrock is available in ap-south-1, but no frontier Claude model sits on the in-region `bedrock-runtime` path.** On the Mumbai endpoint, Claude is either India-geo (Mumbai **and Hyderabad**) or Global. The only genuinely in-region Claude route is a newer `bedrock-mantle` endpoint which is **billed through AWS Marketplace — and promotional credits explicitly exclude Marketplace.** So the credits you are migrating for would not cover the model you would want to use.
+Verified against the Bedrock region-compatibility matrix and the AWS Price List API (`AmazonBedrock`, ap-south-1, publication date **2026-10-16T21:08:06Z**):
 
-What *is* in-region and credit-eligible: open-weight models — Qwen3 235B at $0.26/$1.04 per million tokens, Mistral Large 3 at $0.59/$1.76, Kimi K2.5 at $0.72/$3.60, GLM 5 at $1.20/$3.84, Gemma 3 4B at $0.05/$0.09. Titan Text Embeddings V2 at $0.024/M replaces Gemini embeddings cleanly.
+| Model | In-Region `bedrock-runtime` | In-Region `bedrock-mantle` | Context / max output | Mumbai price (per 1M tokens) |
+|---|---|---|---|---|
+| **DeepSeek V3.2** (`deepseek.v3.2`) | **Yes** | **Yes** | 164K / 8K | **$0.74 in · $2.22 out** |
+| DeepSeek V3.1 (`deepseek.v3.1`) | Yes | Yes | — | $0.68 in · $1.98 out |
+| DeepSeek R1 | No | No | — | US regions only (us-east-1/2, us-west-2) |
 
-Those models are decent. **They are not Gemini-class for structured clinical summarisation**, and a silent quality drop on the crisis-classification and summarisation prompts is a safety regression, not a cost optimisation. This must be measured, not assumed.
+Geo and Global inference profiles are *not* offered for these models, which is the good outcome: there is no cross-region path to accidentally use, so traffic cannot silently leave India.
+
+Service tiers, same region: **flex and batch are 50% of standard** ($0.37 / $1.11), **priority is 1.75×** ($1.295 / $3.885). Standard is the default and what the figures below assume.
+
+**Credit eligibility — the decisive point.** DeepSeek rows sit in `AmazonBedrock/ap-south-1/index.csv` with `serviceCode: AmazonBedrock` and `serviceName: Amazon Bedrock`, alongside Mistral, Qwen, OpenAI, Moonshot, Google and xAI. Anthropic Claude has **zero** rows in that file. That distinction is the whole answer:
+
+- DeepSeek is an ordinary AWS service charge, so promotional credit applies to it like RDS or Fargate, subject only to the credit's own "Applicable products" list.
+- Claude is Marketplace-billed, and the AWS Promotional Credit Terms (last updated 24 Sep 2026) put AWS Marketplace among the Ineligible Services "unless authorized by us."
+
+**Correction to what this document previously said.** It claimed credits could never cover Claude. That was too strong. **AWS Activate** terms (last updated 22 Jan 2026) explicitly authorise promotional credit against "fees and charges for AWS Marketplace incurred for the use of third-party foundation models available on Amazon Bedrock" — Bedrock 3P Model Spend. So if these credits are Activate credits, they would have covered Claude too. If they are ordinary promotional credits, they would not. DeepSeek is covered under *either* reading, which is precisely why it removes the risk instead of shifting it.
+
+The remaining check is administrative, not technical: the **Credits** page in the AWS Billing console shows each credit's Credit type, Expiration date and Applicable products. That page decides it in writing.
+
+### 3.1.1 What DeepSeek costs at Okuvu's shape
+
+Modelled per client turn as four model calls — A1 classify, A2 converse, A9 pre-gate, A9-post review — at roughly 7,700 input and 1,250 output tokens:
+
+| Volume (turns/month) | Model cost | + infra ~$200 | Total | $5,000 of credits lasts |
+|---|---|---|---|---|
+| 5,000 | $42 | $242 | $242 | 20.6 months |
+| 10,000 | $85 | $285 | $285 | 17.6 months |
+| 25,000 | $212 | $412 | $412 | 12.1 months |
+| 50,000 | $424 | $624 | $624 | 8.0 months |
+| 100,000 | $847 | $1,047 | $1,047 | 4.8 months |
+| 250,000 | $2,118 | $2,318 | $2,318 | 2.2 months |
+
+Cost per turn at standard tier is **$0.0085**. The crisis path stays on standard or priority; A10 insights, A11 learning and session summarisation can run on batch/flex at half price because nothing waits on them.
+
+Consequence for the programme: **the model line no longer has to sit outside the credits**, so the two-track split in §4 is no longer a cost necessity. Track B's model comparison survives only as a quality check between DeepSeek V3.2 and V3.1, not as a Gemini-versus-Claude decision.
+
+### 3.1.2 Three engineering constraints that come with DeepSeek
+
+1. **Structured outputs, not forced tool use.** DeepSeek V3.2 lists *Structured outputs* as supported on `bedrock-runtime`, but *client-side tool calling* appears only under `bedrock-mantle`. The repo's `bedrock.ts` currently enforces schema by forced tool use with `toolSpec.strict: true`. For DeepSeek the correct mechanism is `outputConfig.textFormat` (Converse) or `response_format` (InvokeModel on open-weight models). This is a code change, and it sits directly on the safety path — A1's JSON contract — so it needs its own tests, not a config flip.
+2. **First call with a new schema compiles a grammar for up to ~90 seconds.** Set the client read timeout to at least 120s and pre-warm every schema at deploy. On a crisis path, an un-warmed A1 schema is a 90-second stall.
+3. **Schema limits:** max 12 optional properties across all nested objects, max 16 union-typed properties. Exceeding either returns `ValidationException` ("Schema is too complex"). The A1 response schema must be authored within that budget — put nullable fields in `required` with `type: ["string","null"]`.
+
+DeepSeek has **no embedding model**, so Titan Text Embeddings V2 at 768 dimensions remains the embedding target, unchanged from the original plan.
+
+### 3.1.3 The repo does not use DeepSeek yet
+
+Grep across `apps/` and `packages/` (excluding `node_modules` and `dist`) returns **zero** DeepSeek references. The live default is `OPENROUTER_MODEL` falling back to `meta-llama/llama-3.1-8b-instruct`, with `LLM_PROVIDER` defaulting to `openrouter`. The harness dashboard separately names `gemini-2.5-flash`.
+
+So "we use only DeepSeek" is a decision, not yet a fact in code. Making it true requires: a DeepSeek Bedrock model id in `provider-config.ts`, the structured-outputs path in `bedrock.ts`, an `OPENROUTER_MODEL`/provider change for the bridge period, and one live call to prove the schema actually constrains. Until that last step, the claim is unverified.
+
 
 ### 3.2 Firebase users cannot be moved to Cognito without forcing password resets
 
@@ -75,16 +122,18 @@ Cognito's import tool accepts BCRYPT, SCRYPT, ARGON2ID and PBKDF2_SHA256 in fixe
 
 ## 4. The bridge that gets you off GCP without gambling on models
 
-There is a way to leave GCP infrastructure entirely in about three weeks while deferring the model question to measurement. It works because **the LLM call today goes through an API-key path, not through GCP infrastructure.** The repo already supports a non-Vertex provider (`LLM_PROVIDER=openrouter|gemini`).
+**Revised 27 Oct 2026.** The original rationale for this bridge was that no credit-eligible in-region model existed, so the model decision had to be deferred while infrastructure moved. DeepSeek removes that constraint (§3.1): the model is now in-region *and* credit-eligible, so there is no longer any reason to keep an external API key in the loop. What survives from the bridge is only its **sequencing** principle — do not change infrastructure and the safety-path model in the same week.
+
+There is a way to leave GCP infrastructure entirely in about three weeks. It works because **the LLM call today goes through an API-key path, not through GCP infrastructure.** The repo already supports a non-Vertex provider (`LLM_PROVIDER=openrouter|gemini`).
 
 So:
 
 - **Move compute, database, cache, storage, queue, secrets and encryption to AWS now.** These are the billable, residency-relevant, lock-in parts.
-- **Keep the LLM call on an API key during the bridge** (OpenRouter or a Gemini API key). No GCP project, no GCP IAM, no GCP billing — just a vendor HTTPS call.
+- **Keep the LLM call on an API key for the bridge week only** (existing OpenRouter key), so the infra cutover is not also a model cutover.
 - **Move embeddings to Titan on Bedrock** (§3.1), because embedding quality risk is low and it is in-region and credit-eligible.
-- **Run the Bedrock model comparison as a measured spike**, in parallel, with a clinical acceptance threshold. Migrate the model when it passes; not before.
+- **Then flip to DeepSeek V3.2 on Bedrock** once D2 measures it against the current baseline. This is now a one-week step, not a vendor negotiation.
 
-That gives a two-track programme: Track A gets you hosted on AWS and unblocks the Play Store; Track B decides the model with evidence. Neither blocks the other.
+That gives two tracks: Track A gets you hosted on AWS and unblocks the Play Store; Track B swaps the model behind a measured gate. Neither blocks the other, and both are now inside the credits.
 
 ---
 
@@ -92,7 +141,7 @@ That gives a two-track programme: Track A gets you hosted on AWS and unblocks th
 
 | GCP today | AWS target | In ap-south-1 | Effort (dev-days) | Risk |
 |---|---|---|---|---|
-| Vertex AI · Gemini structured JSON | Bedrock Converse + structured outputs; open-weight in-region, or Claude via mantle | Yes, with In-Region/Geo/Global caveats | 12–20 | **HIGH** |
+| Vertex AI · Gemini structured JSON | Bedrock Converse + structured outputs on **DeepSeek V3.2** (`deepseek.v3.2`), in-region Mumbai | Yes — In-Region, no Geo/Global profile exists | 12–20 | MEDIUM |
 | Vertex AI embeddings | Titan Text Embeddings V2 | Yes | 3–5 + full re-index | LOW |
 | Firebase Auth (token verify) | Cognito user pools + `aws-jwt-verify` | Yes | 10–15 | **HIGH** |
 | Firebase Cloud Messaging | Keep FCM (independent of auth) or SNS push | n/a | 0–3 | LOW |
@@ -144,9 +193,9 @@ That gives a two-track programme: Track A gets you hosted on AWS and unblocks th
 | ID | Story | dd |
 |---|---|---|
 | D1 | Eval harness: replay the 3 safety-critical prompts across candidates | 5 |
-| D2 | Run comparison: Gemini baseline vs Mistral Large 3 / Qwen3 235B / Kimi K2.5 in-region vs Claude via mantle | 3 |
+| D2 | Run comparison: current baseline (Llama 3.1 8B via OpenRouter) vs **DeepSeek V3.2** vs DeepSeek V3.1, in-region on Bedrock | 3 |
 | D3 | **Clinical acceptance decision** — Shubhangi signs the quality bar | 2 (external) |
-| D4 | Bedrock hardening: structured outputs, guardrails, `data_retention_mode: none` | 6 |
+| D4 | Bedrock hardening: structured outputs (`outputConfig.textFormat`), guardrails, `data_retention_mode: none`, schema pre-warm at deploy | 6 |
 | D5 | Flip `OKUVU_LLM_PROVIDER=bedrock` in production | 3 |
 
 ### Phase 5 — Identity (19 dev-days) · Track B, only if you want off Google entirely
@@ -189,10 +238,12 @@ That gives a two-track programme: Track A gets you hosted on AWS and unblocks th
 | KMS CMK × 3 | ~$3 |
 | S3 + CloudWatch + SQS | ~$10–20 |
 | **Infrastructure subtotal** | **~$175–210/month** |
-| Inference (in-region open-weight, light beta volume) | ~$20–60 |
-| Inference (Claude via mantle) | Marketplace rates, **not credit-eligible** |
+| Inference — **DeepSeek V3.2 in ap-south-1**, 10k turns/month | **~$85** |
+| Inference — same, at 50k turns/month | ~$424 |
 
-Your credits cover the infrastructure line comfortably for a beta. They do **not** cover Claude on Bedrock. That asymmetry is the single most important commercial fact in this document.
+**Credit position, corrected.** DeepSeek on Bedrock is billed as `serviceCode: AmazonBedrock` — an ordinary AWS charge, not a Marketplace charge — so promotional credit applies to the model line as well as the infrastructure. At beta volumes the whole stack (infra + model) runs **under $300/month**, so $5,000 of credits covers roughly 17 months at 10k turns/month.
+
+What was previously described here as "the single most important commercial fact" — that credits could not cover the model — is no longer true under DeepSeek. The one caveat that remains is administrative: confirm the credit's **Applicable products** on the Billing console Credits page, because a credit can be narrowed by the programme that issued it. See §3.1.
 
 ---
 
@@ -211,12 +262,12 @@ Ordered by what blocks first. Nothing in Phase 1 starts without item 1.
 8. **Domain/DNS access** for `okuvu.in` at Spaceship, for the cutover.
 
 ### From Dr Shubhangi Goswami — blocking Track B only
-9. **The model acceptance bar** in writing: what quality threshold the safety-critical prompts must clear before an in-region open-weight model may replace Gemini. Without a signed threshold, D2 has no pass/fail criterion and the migration stalls at the last gate.
+9. **The model acceptance bar** in writing: what quality threshold the safety-critical prompts must clear before DeepSeek V3.2 replaces the current Llama 3.1 8B baseline. Without a signed threshold, D2 has no pass/fail criterion and the migration stalls at the last gate.
 10. **Sign-off on the crisis copy and helpline numbers**, still outstanding from the clinical packet. This gates what the app may display in the store listing and in the crisis overlay.
 
 ### From you — needed later, not blocking week 1
-11. **LLM vendor choice for the bridge**: OpenRouter key or Gemini API key. One of them must exist before the app can serve a real turn on AWS.
-12. **Residency tolerance, in writing.** If Claude is required, inference becomes India-geo (Mumbai + Hyderabad) rather than Mumbai-only. Defensible under DPDP as "India"; indefensible against the README's "asia-south1 only" claim. Choose explicitly.
+11. **LLM route for the bridge**: either keep the existing OpenRouter key for the bridge period, or go straight to Bedrock DeepSeek V3.2. The direct Bedrock route is now the better choice — it removes a third-party sub-processor from the DPDP chain and is credit-eligible, so there is no cost reason to keep an external API key. One of the two must exist before the app can serve a real turn on AWS.
+12. **Residency: resolved, not a choice.** DeepSeek V3.2 on Bedrock has no Geo or Global inference profile — only In-Region. Inference stays in Mumbai, so the README's residency claim translates to "ap-south-1 only" without weakening. No written residency decision is needed while DeepSeek is the model. This reverses the earlier §9.12 item, which assumed Claude's India-geo profile would be unavoidable.
 13. **Invite-email sender** (SES or Brevo) so the API can send therapist invites.
 14. **Voice vendor** (Sarvam key) if A13 voice ships in this release — otherwise it stays unavailable, as it is today.
 
@@ -246,13 +297,13 @@ Verified today, from Google's own documentation:
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | R1 | No AWS credentials → nothing can be applied | High | Blocks everything | Terraform is written and validated; needs only credentials |
-| R2 | In-region models fail the clinical bar and Claude is Marketplace-billed | Medium | The credits argument collapses for the biggest cost line | Bridge keeps the LLM on an API key; decide with data in D2/D3 |
-| R3 | Residency claim weakens to India-geo if Claude is used | Medium | DPDP position changes | Written residency decision (§9.12) before any flip |
+| R2 | DeepSeek V3.2 fails the clinical bar on crisis classification | Medium | If it fails there is no credit-eligible in-region fallback of comparable class | Measure V3.2 against V3.1 and the current baseline in D2 before the flip; keep the API-key path one env var away |
+| R3 | Credits are a narrowed programme that excludes Bedrock inference | Low | Model line bills outside the credit | Check Applicable products on the Billing console Credits page before Phase 1; infra is only ~$200/mo worst case |
 | R4 | 14-day Play clock means store release cannot be pulled forward | Certain | ~4 weeks minimum | Start the clock the day staging is live |
 | R5 | Forced password resets if Cognito migration happens post-launch | Certain if deferred | Churn | Do identity migration before public launch, or never |
 | R6 | Model-quality regression is invisible because recall is unmeasured | High | Safety | D1/D2 require an eval set; this is the same gap flagged in the agent evaluation |
 
-**Kill criteria.** Stop the migration and revert to GCP if: AWS credits turn out to exclude Bedrock inference *and* in-region open-weight models fail the clinical bar *and* you decline Marketplace billing. In that case the credits buy you infrastructure you do not need while the model — the thing that costs money at scale — stays outside them.
+**Kill criteria.** Stop the migration and revert to GCP if: AWS credits turn out to exclude Bedrock inference (ruled unlikely — DeepSeek is billed as an ordinary AWS service charge) *and* DeepSeek V3.2 fails the clinical bar *and* you decline to fund the model line outside the credits. With DeepSeek those three conditions now have to fail together, which is a materially weaker case for abandoning the migration than this document originally described — the model line at beta volume is under $100/month.
 
 ---
 
