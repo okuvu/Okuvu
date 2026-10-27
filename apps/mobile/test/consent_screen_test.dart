@@ -11,36 +11,7 @@ import 'package:okuvu/src/features/consent/consent_screen.dart';
 import 'package:okuvu/src/features/consent/consent_request.dart';
 import 'package:okuvu/src/features/intake/cold_start_screen.dart';
 import 'package:okuvu/src/core/providers.dart';
-import 'package:okuvu/src/core/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-class FakeAuthService implements AuthService {
-  @override
-  User? get currentUser => null;
-
-  @override
-  Future<String?> getIdToken() async => null;
-
-  @override
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken)
-        onCodeSent,
-    required void Function(FirebaseAuthException) onError,
-    int? forceResendingToken,
-  }) async {
-    onCodeSent('test-verification-id', null);
-  }
-
-  @override
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {}
-
-  @override
-  Future<void> signOut() async {}
-}
+import 'support/fake_auth_service.dart';
 
 class MockHttpClientAdapter implements HttpClientAdapter {
   RequestOptions? lastRequest;

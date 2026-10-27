@@ -1,6 +1,6 @@
 # OKUVU — Architecture Overview
 
-> Last updated: 18 Sep 2026 · Refreshed against the current codebase (previous version, June 2026, described a Gemini-only pipeline and a bounded 10-turn session model — both since replaced). Corresponds to Infrastructure Decision Record v3.0 plus the OKUVU v2.0 migration (`docs/okuvu-v2.0/`).
+> Last updated: 27 Oct 2026 (AWS cutover applied — see `docs/AWS-CUTOVER-SPEC.md`) · Previously 18 Sep 2026 · Refreshed against the current codebase (previous version, June 2026, described a Gemini-only pipeline and a bounded 10-turn session model — both since replaced). Corresponds to Infrastructure Decision Record v3.0 plus the OKUVU v2.0 migration (`docs/okuvu-v2.0/`).
 
 ---
 
@@ -9,8 +9,8 @@
 OKUVU is five things running together, all in one repo (`apps/*`), each deployed independently:
 
 1. **A Flutter mobile app** (`apps/mobile`) — the end-user experience (Android-first for MVP). Ships via its own Flutter/app-store pipeline.
-2. **A Node.js API** (`apps/api`) — the backend handling sessions, the agent pipeline, and data. Deploys to GCP Cloud Run via `cloudbuild.yaml` + `apps/api/Dockerfile`.
-3. **A Node.js worker** (`apps/worker`) — background jobs (session summarization, memory extraction, beta-retention cleanup), triggered via Cloud Tasks. Its own Cloud Run service, its own `Dockerfile`, deployed separately from the API.
+2. **A Node.js API** (`apps/api`) — the backend handling sessions, the agent pipeline, and data. Deploys to ECS Fargate via `buildspec.yml` + `apps/api/Dockerfile`.
+3. **A Node.js worker** (`apps/worker`) — background jobs (session summarization, memory extraction, beta-retention cleanup), triggered via Amazon SQS. Its own ECS service, its own `Dockerfile`, deployed separately from the API.
 4. **A Next.js therapist portal** (`apps/therapist-portal`) — where licensed therapists supervise their clients. Deploys to its own Vercel project independently of everything else.
 5. **A Next.js test harness** (`apps/test-harness`) — internal tooling for replaying pipeline scenarios and tracking regressions. Also its own, separate Vercel project.
 
@@ -18,38 +18,41 @@ OKUVU is five things running together, all in one repo (`apps/*`), each deployed
 
 ---
 
-## Infrastructure — GCP Only
+## Infrastructure — AWS Only
 
-Everything runs on GCP asia-south1 (Mumbai). There is no AWS. Deliberate decision (ADR-001a), primarily for DPDP 2026 compliance (single GCP DPA covers compute, database, storage, auth, and LLM inference).
+Everything runs on AWS ap-south-1 (Mumbai). There is no GCP, and no Firebase. Deliberate decision (ADR-001a, superseded 27 Oct 2026 by the AWS cutover), primarily for DPDP 2026 compliance: one AWS DPA covers compute, database, storage, identity, and model inference, and every one of those stays inside India.
 
 | Component | Service | Notes |
 |---|---|---|
-| API | Cloud Run (`apps/api/Dockerfile`, `cloudbuild.yaml`) | |
-| Worker | Cloud Run (`apps/worker/Dockerfile`, own build trigger) | Deployed separately from the API |
-| Therapist portal | Vercel (own project) | |
+| API | ECS Fargate behind an ALB (`apps/api/Dockerfile`, `buildspec.yml`) | 2 tasks minimum, health-checked at `/health` |
+| Worker | ECS Fargate (own service, own task definition) | Deployed separately from the API; consumes SQS |
+| Therapist portal | Vercel (own project) | NextAuth with the Cognito provider |
 | Test harness | Vercel (own project) | Internal tooling, not user-facing |
-| Mobile | Flutter build → app store(s) | Own pipeline, outside GCP |
-| Database | Cloud SQL PostgreSQL (staging/prod), Neon (local dev, branch per developer) | |
-| Auth — end users | Firebase Authentication (phone/OTP) | |
-| Auth — therapists | Firebase Authentication (Google OAuth) | |
-| LLM — live chat pipeline (A1/A2/A9-pre/A9-post) | **OpenRouter — Llama-3.1-8B-instruct** (default) | Vertex AI/Gemini kept as a rollback path (`LLM_PROVIDER=gemini`) — see "LLM provider" below |
-| LLM — worker jobs (session summary, memory extraction) | **OpenRouter — Llama-3.1-8B-instruct** (default) | Migrated to its own `apps/worker/src/lib/generate-content.ts` dispatcher, same `LLM_PROVIDER`/rollback contract as the live pipeline — see note below. Requires `OPENROUTER_API_KEY` to be provisioned on worker's Cloud Run service (not tracked in this repo's `cloudbuild.yaml`, which is API-only) |
+| Mobile | Flutter build → app store(s) | Own pipeline, outside AWS |
+| Database | RDS PostgreSQL (staging/prod), Neon (local dev, branch per developer) | Single-AZ in beta, Multi-AZ in prod |
+| Auth — end users | **Amazon Cognito** user pool, phone number + SMS OTP | `infrastructure/aws/evia-beta/cognito.tf`; API verifies the JWT offline against the pool JWKS |
+| Auth — therapists | **Amazon Cognito** user pool, email + password + optional TOTP MFA | Federated into NextAuth via `CognitoProvider` |
+| LLM — live chat pipeline (A1/A2/A9-pre/A9-post) | **Amazon Bedrock — `amazon.nova-pro-v1:0`** (`LLM_PROVIDER=bedrock` in the task definition) | OpenRouter remains selectable for load tests and A/B comparison — see "LLM provider" below |
+| LLM — worker jobs (session summary, memory extraction) | **Amazon Bedrock** via `apps/worker/src/lib/generate-content.ts` | Same dispatcher shape as the API, same env contract |
+| Embeddings | **Bedrock Titan Text Embeddings V2**, 768 dims | Must stay 768 to match the pgvector column |
 | TTS | **Client-side**, `flutter_tts` in the mobile app | Not a backend call — see "Text-to-speech" below |
-| File storage | Cloud Storage + Cloud CDN | |
-| Emergency-contact encryption | Secret Manager (holds an AES-256-GCM key) + application-layer encryption in `apps/api/src/crypto/emergency-contact-encryption.ts` | Not Cloud KMS envelope encryption — corrected from the previous version of this doc |
-| Session/turn rate limiting | **Implemented.** `@fastify/rate-limit`, Redis-backed via the previously-unused `REDIS_URL`/Memorystore, global 300 req/min per IP (`apps/api/src/app.ts`), 10/min on `/invites/redeem` specifically, and a separate 20 turns/min-per-user Redis counter on the WebSocket chat path (`apps/api/src/routes/websocket.ts`) — `@fastify/rate-limit` only sees the HTTP request lifecycle, not messages sent over an already-open WebSocket, so the actual LLM-cost driver (USER_TURN) needed its own check | Fails open if Redis is unreachable — a cost/abuse guard, not a correctness guarantee |
-| Async jobs | Cloud Tasks (queue, OIDC-authenticated worker endpoints) | Cloud Scheduler is provisioned for future cron jobs (push notifications) but nothing schedules against it yet |
-| Secrets | Secret Manager | |
-| CI/CD | GitHub Actions (`.github/workflows/`) for typecheck/test/lint; Cloud Build for API/worker container builds; Vercel's own CI for portal/test-harness | |
-| Monitoring | Cloud Monitoring + Cloud Logging | |
+| File storage | S3 (+ CloudFront when a CDN is actually needed) | |
+| Emergency-contact encryption | Secrets Manager (holds an AES-256-GCM key) + application-layer encryption in `apps/api/src/crypto/emergency-contact-encryption.ts` | Not KMS envelope encryption — the key is fetched and used directly |
+| Session/turn rate limiting | `@fastify/rate-limit`, Redis-backed via ElastiCache, global 300 req/min per IP (`apps/api/src/app.ts`), 10/min on `/invites/redeem`, and a separate 20 turns/min-per-user counter on the WebSocket chat path (`apps/api/src/routes/websocket.ts`) | Fails open if Redis is unreachable — a cost/abuse guard, not a correctness guarantee |
+| Async jobs | Amazon SQS (`summary-jobs`, with a DLQ driven by maxReceiveCount) | The worker's `/tasks/summary` endpoint is additionally HMAC-authenticated over the internal network |
+| Secrets | AWS Secrets Manager (`AWS_SECRETS_PREFIX`-scoped) | |
+| CI/CD | GitHub Actions for typecheck/test/lint; CodeBuild (`buildspec.yml`) for images and ECS deploys; Vercel's own CI for portal/test-harness | |
+| Monitoring | CloudWatch Logs + alarms, AWS Budgets | |
 
 ### LLM provider — the actual current state
 
-The previous version of this doc described Gemini/Vertex AI as the only LLM. That changed: **`apps/api/src/lib/generate-content.ts`** is the single call site all four live-pipeline agents (A1, A2, A9-pre, A9-post) import from. It dispatches on `LLM_PROVIDER` (`.env`):
-- `openrouter` (default) → OpenRouter, model `meta-llama/llama-3.1-8b-instruct`.
-- `gemini` → Vertex AI, same as before — kept as an explicit rollback path, not deleted.
+**`apps/api/src/lib/generate-content.ts`** is the single call site all four live-pipeline agents (A1, A2, A9-pre, A9-post) import from. It dispatches on `LLM_PROVIDER` (`.env`):
+- `bedrock` → Amazon Bedrock, `amazon.nova-pro-v1:0`, in-region in ap-south-1. **This is what the ECS task definition sets.**
+- `openrouter` (default when unset) → OpenRouter, model `meta-llama/llama-3.1-8b-instruct`. Kept for load tests and for comparing model behaviour without touching production traffic.
 
-**Fixed.** `apps/worker`'s async jobs (`lib/summary.ts`, `lib/memory-extraction.ts`) now import from `apps/worker/src/lib/generate-content.ts` — worker's own copy of the same dispatcher pattern (apps/api and apps/worker are separate deployable services and don't share Node code directly, only `packages/prisma`/`packages/shared-types`), same `LLM_PROVIDER` env var, same default (`openrouter`), same rollback (`LLM_PROVIDER=gemini`). This was a deliberate decision, not an assumption: Llama-3.1-8B is a materially weaker model than Gemini 2.5 Flash for structured JSON extraction, which is exactly what summarization and memory extraction do — evaluate output quality after this ships before trusting it unreviewed, and roll back to `LLM_PROVIDER=gemini` on worker specifically if quality regresses.
+There is no third backend: the Gemini/Vertex path was deleted in the cutover, not left behind a flag.
+
+**Fixed.** `apps/worker`'s async jobs (`lib/summary.ts`, `lib/memory-extraction.ts`) now import from `apps/worker/src/lib/generate-content.ts` — worker's own copy of the same dispatcher pattern (apps/api and apps/worker are separate deployable services and don't share Node code directly, only `packages/prisma`/`packages/shared-types`), same `LLM_PROVIDER` env var and the same Bedrock/OpenRouter choice. This was a deliberate decision, not an assumption: Llama-3.1-8B is a materially weaker model than Gemini 2.5 Flash for structured JSON extraction, which is exactly what summarization and memory extraction do — evaluate output quality after this ships before trusting it unreviewed, and roll back to `LLM_PROVIDER=gemini` on worker specifically if quality regresses.
 
 There is also a dead `apps/api/src/lib/llm-provider.ts` (a Sarvam-LLM stub, unused, not imported anywhere outside its own test) — not part of any live path, safe to ignore or remove.
 
@@ -109,10 +112,10 @@ User message (USER_TURN)
 
 **Agents deferred to post-MVP:** A3–A7 (specialised therapeutic agents), A10B (offline insights), A11 (content library), A14 (assessment scoring), A15 (full care-plan domain coverage beyond CP1/CP2/CP3). A12 (a response-renderer agent) was built, never wired in, and formally deleted as dead code during the v2.0 migration.
 
-**Async, post-session-close (in `apps/worker`, triggered via Cloud Tasks):**
+**Async, post-session-close (in `apps/worker`, triggered via SQS):**
 - Session summarization (`lib/summary.ts`) — structured summary of the closed session.
 - Memory extraction (`lib/memory-extraction.ts`) — updates `UserMemory` (recurring themes, life context, stressors) read back into future sessions' context.
-- Both currently call Vertex AI/Gemini directly (see "LLM provider" above).
+- Both call Amazon Bedrock through the worker's own `generate-content.ts` (see "LLM provider" above).
 
 ---
 
@@ -124,7 +127,7 @@ The previous version of this doc (and the original MVP spec) described a hard 10
 
 ## Database
 
-Single PostgreSQL database (Neon for dev, Cloud SQL for staging/prod). ORM is Prisma; the full schema is in `packages/prisma/schema.prisma`. Selected models, grouped by what they own (not exhaustive — see the schema file for the current full list):
+Single PostgreSQL database (Neon for dev, RDS for staging/prod). ORM is Prisma; the full schema is in `packages/prisma/schema.prisma`. Selected models, grouped by what they own (not exhaustive — see the schema file for the current full list):
 
 - **Identity & clinical assignment:** `User`, `Therapist`, `ClinicalConfig`, `TherapistClient` (the portal-side relationship, including `chat_access_granted` and `ended_at` for the care-relationship-ended flow), `InviteToken` (redemption codes — stored as a SHA-256 hash, not plaintext, as of this month).
 - **Sessions & safety:** `SessionLog`, `Turn`, `SafetyState`, `GovernanceLog` (A9-pre/A9-post decisions, for audit).
@@ -135,7 +138,7 @@ Single PostgreSQL database (Neon for dev, Cloud SQL for staging/prod). ORM is Pr
 - **Ops:** `WaitlistEntry`, `BetaConsent`.
 - **Test-harness-only (not part of the product's runtime data):** `PromptRegistryEntry`, `ModelConfigPin`, `TestRun`, `TestResultRow`, `CorpusCase`, `BlindedReviewItem`, `ReviewRating`, `TestBudget`, `TestHarnessAccess`, `GateSignOff`, `BaselineArchive`.
 
-**Not implemented despite being planned:** `PushToken`/device-token storage — there is no push-notification delivery anywhere in the product (no `firebase_messaging` dependency, no Firebase Admin SDK, no Cloud Scheduler job). `Reminder`/`Homework` are pull-only (read by the client, never pushed) until that's built.
+**Not implemented despite being planned:** `PushToken`/device-token storage — there is no push-notification delivery anywhere in the product (no push SDK in the mobile app, no notification service on the backend). `Reminder`/`Homework` are pull-only (read by the client, never pushed) until that's built.
 
 ---
 
@@ -143,9 +146,9 @@ Single PostgreSQL database (Neon for dev, Cloud SQL for staging/prod). ORM is Pr
 
 | | dev | staging | prod |
 |---|---|---|---|
-| GCP Project | `evia-dev` | `evia-500215` | `evia-production` |
-| Database | Neon (personal branch) | Cloud SQL | Cloud SQL (Multi-zone) |
-| LLM | OpenRouter (dev key) / Vertex AI (dev quota) for rollback | OpenRouter (Vertex AI rollback available) | OpenRouter (Vertex AI rollback available) |
+| AWS account / stack | local docker + Neon | `evia-beta` | `evia-production` |
+| Database | Neon (personal branch) | RDS (single-AZ) | RDS (Multi-AZ) |
+| LLM | OpenRouter (dev key) or Bedrock | Bedrock Nova Pro | Bedrock Nova Pro |
 | Deployed from | Local machine | `main` branch (auto, on every merge — Cloud Build) | Git tag on `main` (`v1.0.0`, etc.) |
 
 ---
@@ -154,14 +157,14 @@ Single PostgreSQL database (Neon for dev, Cloud SQL for staging/prod). ORM is Pr
 
 | Decision | What was decided | Why |
 |---|---|---|
-| Cloud provider | GCP only, no AWS | Single DPA for DPDP 2026 compliance; Vertex AI is already GCP |
+| Cloud provider | AWS only, no GCP | Single DPA for DPDP 2026 compliance; Bedrock inference stays in ap-south-1 |
 | Monorepo tool | Plain pnpm workspaces, not Turborepo/Nx | Team size doesn't justify build-system overhead; the real reason for one repo is atomic cross-app schema/type changes, not build orchestration |
-| One repo, independently deployed apps | Not one repo *or* independent deploys — both. Splitting into separate repos was reconsidered Sep 2026 (pilot-readiness review) and rejected again, same reasoning as ADR-001b | Deploy separation (the thing repo-splitting is usually chasing) already exists via separate Cloud Run services and separate Vercel projects |
+| One repo, independently deployed apps | Not one repo *or* independent deploys — both. Splitting into separate repos was reconsidered Sep 2026 (pilot-readiness review) and rejected again, same reasoning as ADR-001b | Deploy separation (the thing repo-splitting is usually chasing) already exists via separate ECS services and separate Vercel projects |
 | Mobile framework | Flutter (Android-first) | Cross-platform coverage from one codebase |
 | Backend framework | Fastify (not Express) | Better TypeScript support, lower overhead for WebSocket-heavy workload |
 | ORM | Prisma | Type safety, migration management, Neon compatibility |
-| LLM provider | OpenRouter/Llama-3.1-8B-instruct (default), Vertex AI/Gemini (rollback) | Migrated from Gemini-only; see "LLM provider" above. Worker jobs migrated too — same contract on both services now |
-| Local dev database | Neon (not Cloud SQL Proxy) | Cloud SQL Proxy setup takes 1.5-2h per developer; Neon branches are instant |
+| LLM provider | Amazon Bedrock Nova Pro (production), OpenRouter/Llama-3.1-8B-instruct (load tests + comparison) | See "LLM provider" above. Both services share the same contract |
+| Local dev database | Neon (not a VPN into RDS) | RDS access needs bastion/VPN setup; Neon branches are instant |
 | Session notes isolation | T-05 notes (`TherapistNote`) are never ingested into any agent | Deliberate clinical boundary — therapist controls what informs the AI |
 | Session model | Continuous chat, no turn cap, no daily-slot gating | OKUVU v2.0 product pivot away from bounded therapy-style sessions |
 
@@ -175,14 +178,14 @@ Not exhaustive — see the project's own fix/audit log for the full list — but
 
 1. ~~**No crisis-response content.**~~ **Fixed.** The S4 crisis path now persists a real, deterministic assistant reply (`CRISIS_RESPONSE` in `apps/api/src/pipeline/fallbacks.ts`) using the same approved helpline set already hardcoded in the mobile app's `CrisisOverlay` and referenced in A9-post's system prompt — no new clinical content, just closing the pipe. The surrounding language is a first pass and still needs clinical/RCI sign-off before real users see it; the resource list itself was already approved.
 2. ~~**No rate limiting anywhere in `apps/api`.**~~ **Fixed.** See the infrastructure table above.
-3. **Push notifications are entirely unbuilt.** No device-token storage, no Firebase Admin SDK, no scheduler job. Today-card/reminders are pull-only.
-4. ~~**Worker's LLM calls weren't migrated with the rest of the pipeline.**~~ **Fixed.** Both services now share the same `LLM_PROVIDER` contract — see "LLM provider" above. Still needs: (a) `OPENROUTER_API_KEY` provisioned on worker's Cloud Run service before this reaches staging/prod, and (b) an output-quality eval, since Llama-3.1-8B is weaker than Gemini for structured extraction.
+3. **Push notifications are entirely unbuilt.** No device-token storage, no notification service, no scheduler job. Today-card/reminders are pull-only.
+4. ~~**Worker's LLM calls weren't migrated with the rest of the pipeline.**~~ **Fixed.** Both services now share the same `LLM_PROVIDER` contract — see "LLM provider" above. Still needs: (a) the Bedrock model quota raised in the target account before staging/prod traffic, and (b) an output-quality eval comparing Nova Pro against the OpenRouter baseline for structured extraction.
 5. **Account deletion doesn't remove `JournalEntry` or `UserMemory`.**
 
 ---
 
 ## DPDP 2026 Compliance Note
 
-All user data — including session content sent to the LLM (OpenRouter/Llama by default, Vertex AI/Gemini on rollback) — is intended to be processed within GCP asia-south1 (Mumbai). A single Google Cloud DPA covers compute, database, storage, auth, and Vertex AI inference. **OpenRouter is a separate, non-GCP vendor** — its own data-processing terms need the same legal review the original Vertex-only design assumed wasn't necessary. Sarvam AI (currently unused/stub, see "Text-to-speech" above) has a separate DPA if it's ever activated.
+All user data — including session content sent to the LLM (Amazon Bedrock Nova Pro in production) — is intended to be processed within AWS ap-south-1 (Mumbai). A single AWS DPA covers compute, database, storage, identity, and Bedrock inference. **OpenRouter is a separate, non-AWS vendor** — it is enabled only for load tests and comparison runs, never for production traffic, and its data-processing terms need their own review if that ever changes. Sarvam AI (currently unused/stub, see "Text-to-speech" above) has a separate DPA if it's ever activated.
 
-**Legal counsel must confirm DPDP 2026 adequacy of both GCP asia-south1 and OpenRouter's data handling before any pilot or production deployment with real user data.** This is a P0 pre-pilot blocker, and the OpenRouter migration makes it a materially different question than the one originally answered for Vertex-only.
+**Legal counsel must confirm DPDP 2026 adequacy of AWS ap-south-1 (including Bedrock) and — separately — of any OpenRouter use before a pilot or production deployment with real user data.** This is a P0 pre-pilot blocker. The identity cutover adds one concrete sub-question: Cognito's SMS OTP is delivered through SNS, which routes through Indian carrier SMS aggregators, and SNS SMS requires TRAI DLT registration of the sender before codes will deliver at all.

@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
     // inlines the same content as plain string literals — no runtime file
     // access at all, so Vercel's packaging boundary can't drop it. Scoped
     // tightly (exact request string + importing directory) so nothing else
-    // is affected, and apps/api's own separate Docker/tsc build for GCP is
+    // is affected, and apps/api's own separate Docker/tsc build is
     // completely untouched by this test-harness-only webpack config.
     config.plugins.push(
       new webpack.NormalModuleReplacementPlugin(
@@ -56,17 +56,15 @@ const nextConfig: NextConfig = {
         },
       ),
     );
-    // GCP client libraries (@google-cloud/tasks, @google-cloud/aiplatform's
-    // google-gax dependency) dynamically `require()` JSON proto/client
-    // config files at runtime in a way webpack can't statically bundle
-    // (surfaces as "Cannot find module '...cloud_tasks_client_config.json'"
-    // — a well-known incompatibility between these libraries and static
-    // bundlers). They only need to work server-side (API routes run in a
-    // real Node.js process), so mark them external there instead of
-    // bundling them — Node's own require() resolves them correctly.
+    // Server-only SDKs. The Bedrock/SQS clients are Node libraries that
+    // dynamically require() parts of their runtime (credential providers,
+    // endpoint rules, model metadata JSON) in ways webpack can't statically
+    // bundle. They only need to work server-side (API routes run in a real
+    // Node.js process), so mark them external there instead of bundling
+    // them — Node's own require() resolves them correctly.
     if (isServer) {
       config.externals = config.externals || [];
-      config.externals.push('@google-cloud/tasks', '@google-cloud/aiplatform', 'google-gax', 'next-auth', 'next-auth/next');
+      config.externals.push('@aws-sdk/client-bedrock-runtime', '@aws-sdk/client-sqs', 'next-auth', 'next-auth/next');
     }
     return config;
   },

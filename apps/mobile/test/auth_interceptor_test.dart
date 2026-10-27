@@ -4,39 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:okuvu/src/config/app_config.dart';
 import 'package:okuvu/src/core/auth_interceptor.dart';
 import 'package:okuvu/src/core/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-/// A fake [AuthService] that never touches Firebase.
-class FakeAuthService implements AuthService {
-  bool signOutCalled = false;
-  String? tokenToReturn;
-  User? currentUserToReturn;
-
-  @override
-  User? get currentUser => currentUserToReturn;
-
-  @override
-  Future<String?> getIdToken() async => tokenToReturn;
-
-  @override
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
-    required void Function(FirebaseAuthException) onError,
-    int? forceResendingToken,
-  }) async {}
-
-  @override
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {}
-
-  @override
-  Future<void> signOut() async {
-    signOutCalled = true;
-  }
-}
+import 'support/fake_auth_service.dart';
 
 /// Simulates an HTTP backend without a real network.
 class MockHttpClientAdapter implements HttpClientAdapter {
@@ -80,13 +49,11 @@ void main() {
     });
 
     testWidgets('Authorization header: present when user is signed in', (tester) async {
-      final fakeAuth = FakeAuthService()
-        ..currentUserToReturn = null  // We can't easily mock User, but we
-        ..tokenToReturn = 'fake-id-token';  // test the getIdToken path
+      final fakeAuth = FakeAuthService(
+        currentUser: const AuthUser(uid: 'sub-123', phoneNumber: '+919876543210'),
+        tokenToReturn: 'fake-id-token',
+      );
 
-      // Since currentUser is null, the interceptor skips setting the header.
-      // This is correct — an authenticated interceptor needs a real User.
-      // To fully validate with a real token, sign in via AuthService first.
       final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
       dio.interceptors.add(AuthInterceptor(fakeAuth, dio.options));
       final adapter = MockHttpClientAdapter();
@@ -94,8 +61,8 @@ void main() {
 
       await tester.runAsync(() => dio.get('/test'));
 
-      // currentUser is null → no header set (expected for no signed-in user)
-      expect(adapter.lastRequest?.headers['Authorization'], isNull);
+      expect(adapter.lastRequest?.headers['Authorization'],
+          'Bearer fake-id-token');
     });
 
     /* ───────── 2. 401 handling  ───────── */

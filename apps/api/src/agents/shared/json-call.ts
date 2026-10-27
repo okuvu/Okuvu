@@ -13,8 +13,8 @@ import { generateContent } from '../../lib/generate-content.js';
  *
  * Two properties are deliberate and must not be "simplified" later:
  *
- *  1. `responseSchema` is only enforced by the Vertex/Gemini path. Under
- *     OpenRouter (the default provider) it is silently dropped and only
+ *  1. `responseSchema` is honoured by the Bedrock backend (it becomes a
+ *     tool-use input schema) but not by OpenRouter, where only
  *     `response_format: json_object` is sent — so the model can return any
  *     JSON at all. Every field is therefore re-validated here, never assumed.
  *  2. Every failure (timeout, API error, unparseable JSON, schema violation)
@@ -34,7 +34,7 @@ export interface JsonCallParams<T> {
   agent: string;
   systemInstruction: string;
   contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
-  /** Vertex-only structured-output hint. See property 1 above. */
+  /** provider-specific structured-output hint. See property 1 above. */
   schema: Record<string, unknown>;
   required: string[];
   /** Schema-shaped canned reply so sandbox mode exercises the real parser. */

@@ -1,15 +1,17 @@
 /**
- * TH-S17 — best-effort live Vertex AI pricing fetch.
+ * TH-S17 — best-effort live Bedrock pricing fetch.
  *
- * There is no publicly documented, stable JSON API for Vertex AI Gemini
- * pricing as of this writing (the canonical source is the human-readable
- * pricing page at https://cloud.google.com/vertex-ai/generative-ai/pricing).
- * Rather than invent a fake response shape, this module is intentionally
- * generic and defensive: it will call an operator-configured endpoint
- * (`VERTEX_AI_PRICE_API_URL`) if and only if one is set, and treats any
- * failure — not configured, network error, timeout, non-2xx, unexpected
- * JSON shape — identically: return `null` and let the caller fall back to
- * the static table in `apps/test-harness/src/lib/pricing.ts` (TH-S15).
+ * There is no publicly documented, stable per-request JSON API for Bedrock
+ * model prices as of this writing (the canonical sources are the Bedrock
+ * pricing page at https://aws.amazon.com/bedrock/pricing/ and the AWS Price
+ * List API offer files, e.g. the AmazonBedrock offer for ap-south-1, which are
+ * bulk catalogues rather than a per-model lookup). Rather than invent a fake
+ * response shape, this module is intentionally generic and defensive: it will
+ * call an operator-configured endpoint (`BEDROCK_PRICE_API_URL`, e.g. a thin
+ * proxy over the Price List API) if and only if one is set, and treats any
+ * failure — not configured, network error, timeout, non-2xx, unexpected JSON
+ * shape — identically: return `null` and let the caller fall back to the
+ * static table in `apps/test-harness/src/lib/pricing.ts` (TH-S15).
  *
  * This is a pending integration point, not a finished pricing client. When
  * a real pricing API contract exists, replace the response parsing below
@@ -37,10 +39,10 @@ function isValidPricingShape(value: unknown): value is LivePricing {
 /**
  * Attempt to fetch live per-1K-token INR pricing for `model` from the
  * configured price API. Returns `null` on any failure so callers can
- * transparently fall back to the static `GEMINI_PRICING_INR` table.
+ * transparently fall back to the static `BEDROCK_PRICING_INR` table.
  */
 export async function fetchLivePricing(model: string): Promise<LivePricing | null> {
-  const baseUrl = process.env.VERTEX_AI_PRICE_API_URL;
+  const baseUrl = process.env.BEDROCK_PRICE_API_URL;
   if (!baseUrl) {
     return null;
   }

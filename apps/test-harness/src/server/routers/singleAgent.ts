@@ -95,15 +95,15 @@ export const singleAgentRouter = router({
       }
 
       const context: MockSessionContext = buildMockSessionContext(input.overrides ?? {});
-      const firebaseUid = context.userId.startsWith(TEST_USER_PREFIX)
+      const authSubject = context.userId.startsWith(TEST_USER_PREFIX)
         ? context.userId
         : `${TEST_USER_PREFIX}${context.userId}`;
 
       const user = await ctx.prisma.user.upsert({
-        where: { firebase_uid: firebaseUid },
+        where: { auth_subject: authSubject },
         update: {},
         create: {
-          firebase_uid: firebaseUid,
+          auth_subject: authSubject,
           phone_number: '+10000000000',
         },
       });
@@ -111,7 +111,7 @@ export const singleAgentRouter = router({
       return {
         ...context,
         userId: user.id,
-        firebaseUid: user.firebase_uid,
+        authSubject: user.auth_subject,
       };
     }),
 

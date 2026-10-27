@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dio/dio.dart';
+import '../../core/auth_service.dart';
 import '../../core/providers.dart';
 import '../../router/router.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
@@ -129,12 +129,11 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
             });
             _startResendTimer();
           },
-          onError: (FirebaseAuthException e) {
+          onError: (AuthException e) {
             if (!mounted) return;
             setState(() {
               _isSending = false;
-              _phoneError =
-                  e.message ?? 'Verification failed. Please try again.';
+              _phoneError = e.message;
             });
           },
         );
@@ -157,12 +156,11 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
             _clearOtpFields();
             _startResendTimer();
           },
-          onError: (FirebaseAuthException e) {
+          onError: (AuthException e) {
             if (!mounted) return;
             setState(() {
               _isResending = false;
-              _otpError =
-                  e.message ?? 'Failed to resend code. Please try again.';
+              _otpError = e.message;
             });
           },
         );
@@ -277,11 +275,11 @@ class _OtpLoginScreenState extends ConsumerState<OtpLoginScreen> {
         });
         return;
       }
-    } on FirebaseAuthException {
+    } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
         _isVerifying = false;
-        _otpError = 'Incorrect code. Try again.';
+        _otpError = e.message;
       });
       _clearOtpFields();
     }

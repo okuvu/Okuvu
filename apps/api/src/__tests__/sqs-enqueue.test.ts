@@ -45,7 +45,7 @@ describe('enqueueSummaryJob (SQS)', () => {
     }
   });
 
-  it('sends the same JSON payload the Cloud Tasks producer sent', async () => {
+  it('sends the same JSON payload shape the pipeline expects', async () => {
     const log = makeLog();
 
     await enqueueSummaryJob('session-1', 'user-1', log);

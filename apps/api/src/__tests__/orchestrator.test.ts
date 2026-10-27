@@ -509,7 +509,7 @@ describe('processTurn — Layer 3 RAG semantic retrieval', () => {
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
-    vi.mocked(retrieveRelevantSessions).mockRejectedValue(new Error('Vertex AI embedding failed'));
+    vi.mocked(retrieveRelevantSessions).mockRejectedValue(new Error('LLM embedding failed'));
 
     vi.mocked(prisma.sessionLog.findUnique).mockResolvedValue({ turn_count: 0 } as never);
 
@@ -859,7 +859,7 @@ describe('processTurn — canned-reply model attribution', () => {
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     // handleTurn reports the resolved model it would have used (per
-    // vertex-ai.ts's contract), but canned:true means no real call happened —
+    // GenerateContentResult's contract), but canned:true means no real call happened —
     // this must not end up as real Turn.model_version/prompt_version provenance.
     vi.mocked(handleTurn).mockResolvedValue({
       response: 'a canned reply',

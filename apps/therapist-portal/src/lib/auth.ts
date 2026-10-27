@@ -1,14 +1,26 @@
 import NextAuth, { type NextAuthOptions } from 'next-auth';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
-import GoogleProvider from 'next-auth/providers/google';
+import CognitoProvider from 'next-auth/providers/cognito';
 
-function buildProviders(): NextAuthOptions['providers'] {
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+// Cognito replaced Google OAuth for therapist sign-in (see
+// docs/AWS-CUTOVER-SPEC.md). Google federation inside the pool is off: an
+// OAuth client id is a GCP resource, so relying on it would keep a GCP
+// dependency alive.
+export function buildProviders(): NextAuthOptions['providers'] {
+  const clientId = process.env.COGNITO_THERAPIST_CLIENT_ID;
+  const clientSecret = process.env.COGNITO_THERAPIST_CLIENT_SECRET;
+  const issuer = process.env.COGNITO_ISSUER;
+
+  // The provider's discovery document is derived from `issuer`, so a partial
+  // config is as unusable as no config at all — render no provider rather than
+  // a broken one.
+  if (clientId && clientSecret && issuer) {
     return [
-      GoogleProvider({
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      CognitoProvider({
+        clientId,
+        clientSecret,
+        issuer,
       }),
     ];
   }
@@ -24,7 +36,7 @@ export const authConfig: NextAuthOptions = {
   session: { strategy: 'jwt', maxAge: 12 * 60 * 60 },
   callbacks: {
     async signIn({ account, profile }) {
-      if (account?.provider === 'google' && profile?.email) {
+      if (account?.provider === 'cognito' && profile?.email) {
         if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
           return true;
         }
@@ -68,7 +80,7 @@ export async function auth() {
   // server/trpc.ts both honor LOCAL_DEV_BYPASS_AUTH, but this helper didn't
   // — so dashboard/page.tsx and admin/page.tsx (both call auth() directly
   // and redirect on no session) still bounced to /auth even with the flag
-  // set, defeating its one purpose (local dev without real Google OAuth).
+  // set, defeating its one purpose (local dev without a real Cognito pool).
   // Safe to make consistent: F-01's boot guard already guarantees this
   // flag can never be "true" in NODE_ENV=production.
   if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {

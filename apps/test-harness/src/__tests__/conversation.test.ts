@@ -71,7 +71,7 @@ function buildCtx() {
 beforeEach(() => {
   vi.clearAllMocks();
   mockAssertWorkerHealth.mockResolvedValue({ ok: true as const });
-  mockUserUpsert.mockResolvedValue({ id: 'db-user-1', firebase_uid: 'test-user-pipeline-1' });
+  mockUserUpsert.mockResolvedValue({ id: 'db-user-1', auth_subject: 'test-user-pipeline-1' });
   mockSessionLogCreate.mockResolvedValue({ id: 'session-1' });
   mockModelConfigPinFindFirst.mockResolvedValue(null);
 });

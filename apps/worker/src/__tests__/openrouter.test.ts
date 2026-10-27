@@ -116,18 +116,18 @@ describe('openrouter generateContent (worker)', () => {
     expect(body.response_format).toEqual({ type: 'json_object' });
   });
 
-  it('silently ignores safetySettings (no OpenRouter/Llama equivalent)', async () => {
+  it('sends only OpenRouter fields — no cloud-specific knobs leak into the body', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
     global.fetch = fetchMock;
 
     const result = await generateContent({
       systemInstruction: 'test',
       contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
-      safetySettings: [{ category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }],
+      generationConfig: { temperature: 0, maxOutputTokens: 256 },
     });
 
     expect(result.fallbackUsed).toBe(false);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.safetySettings).toBeUndefined();
+    expect(Object.keys(body).sort()).toEqual(['max_tokens', 'messages', 'model', 'temperature']);
   });
 });

@@ -18,13 +18,13 @@ export interface WorkerHealthResult {
 }
 
 /**
- * The worker base URL. `CLOUD_TASKS_WORKER_URL` is accepted as an alias so an
- * environment that already configured the Cloud Tasks enqueue path (which
- * points at the same service) doesn't need a second variable — same service,
- * same base URL.
+ * The worker base URL used by the health probe. `WORKER_URL` is the only
+ * name — the retired queue vendor's variable is not accepted as an alias,
+ * because a stale value there would silently point the probe at a host that
+ * no longer exists.
  */
 export function getWorkerUrl(): string | null {
-  return process.env.WORKER_URL ?? process.env.CLOUD_TASKS_WORKER_URL ?? null;
+  return process.env.WORKER_URL ?? null;
 }
 
 /** One health probe with a hard timeout — never hangs startup. */

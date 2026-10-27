@@ -101,21 +101,20 @@ SHA-256: 77:C1:EA:A9:80:AF:FC:75:03:F9:BB:85:4C:6A:FB:C6:96:EE:CF:31:CA:99:6C:D3
 
 ## 3. Still blocked (cannot be fixed from the repo)
 
-1. **`android/app/google-services.json` is missing.** It is gitignored by design
-   (`.gitignore`: `apps/**/google-services.json`) and only `google-services.json.example`
-   exists. Without it the Google Services Gradle plugin fails the build:
-   `> File google-services.json is missing. The Google Services Plugin cannot function without it.`
-   It must be downloaded from the **prod** Firebase project (`ai.okuvu.app`) by someone with
-   Firebase console access. Do not generate one — a wrong project id silently breaks
-   Crashlytics/Auth and the app dies at `Firebase.initializeApp()`.
+1. **No Firebase assets are needed any more** (resolved 2026-10-27, Cognito cutover).
+   `google-services.json` and the Google Services / Crashlytics Gradle plugins were
+   removed with the rest of the Firebase surface; auth is Amazon Cognito over HTTPS and
+   crashes go through `CrashReporter`. The only build-time configuration that matters now
+   is `--dart-define=COGNITO_CLIENT_ID` (+ region/pool), see `README.md`.
 2. **Prod API host is dead.** `lib/src/config/environment.dart` points `prod` at
    `https://backend-971397352159.asia-south1.run.app`, which returns **HTTP 404** on `/`,
-   `/health` and `/v1/health` (checked 2026-10-27). Shipping this points the app at a
-   backend that serves nothing.
-3. **Stale URL assertion in tests.** `test/config/app_config_test.dart` asserts
-   `https://evia-500215-xxxxx-uc.a.run.app` — a literal `xxxxx` placeholder host that never
-   existed. 2 of 211 tests fail because of it; the test, not `lib/`, is wrong. Left
-   unedited on purpose (product decision on the real URL belongs to the owner).
+   `/health` and `/v1/health` (checked 2026-10-27). That is also a Cloud Run host, i.e. a
+   GCP endpoint: it needs to move to the AWS ALB hostname in the same cutover.
+   Shipping this points the app at a backend that serves nothing.
+3. **Stale URL assertion in tests** (resolved 2026-10-27). `test/config/app_config_test.dart`
+   asserted the literal `https://evia-500215-xxxxx-uc.a.run.app` placeholder host, so 2 of
+   211 tests failed. The test now asserts the contract (`https`/`wss` + enum identity)
+   instead of a host that changes on every backend cutover.
 4. **Build flavour must be passed to Dart.** `AppConfig.init()` reads
    `String.fromEnvironment('FLAVOR')`. `flutter build appbundle --flavor prod --release`
    alone therefore produces a bundle that throws `FlavorNotSpecifiedException` at launch.
@@ -148,7 +147,8 @@ SHA-256: 77:C1:EA:A9:80:AF:FC:75:03:F9:BB:85:4C:6A:FB:C6:96:EE:CF:31:CA:99:6C:D3
 5. **Complete the App content declarations** (Data safety, content rating questionnaire,
    target audience, ads declaration, sign-in/app-access instructions with working reviewer
    credentials, sensitive-permission declarations).
-6. **Provide `google-services.json`** from the prod Firebase project (see §3.1).
+6. **No Firebase config asset needed** (see §3.1) — Cognito client id comes from
+   `--dart-define=COGNITO_CLIENT_ID` at build time.
 7. **Generate the real upload keystore and enrol Play App Signing.** Recommended:
    ```
    keytool -genkeypair -v -keystore upload-keystore.jks -storetype PKCS12 -alias upload \
@@ -168,7 +168,7 @@ SHA-256: 77:C1:EA:A9:80:AF:FC:75:03:F9:BB:85:4C:6A:FB:C6:96:EE:CF:31:CA:99:6C:D3
 
 ---
 
-## 5. Commands once `google-services.json` lands
+## 5. Build commands (no Firebase asset required)
 
 ```bash
 cd apps/mobile
@@ -178,8 +178,12 @@ export ANDROID_HOME=/opt/data/home/.local/android ANDROID_SDK_ROOT=/opt/data/hom
 # 1. sanity: release signing resolves to the real keystore
 (cd android && ./gradlew :app:signingReport | grep -A5 'Variant: prodRelease')
 
-# 2. the real artifact (FLAVOR dart-define is REQUIRED, see §3.4)
-flutter build appbundle --flavor prod --release --dart-define=FLAVOR=prod
+# 2. the real artifact (FLAVOR + COGNITO_CLIENT_ID dart-defines are REQUIRED, see §3.4)
+flutter build appbundle --flavor prod --release \
+  --dart-define=FLAVOR=prod \
+  --dart-define=COGNITO_REGION=ap-south-1 \
+  --dart-define=COGNITO_USER_POOL_ID=ap-south-1_XXXXXXXX \
+  --dart-define=COGNITO_CLIENT_ID=<mobile app client id>
 # -> build/app/outputs/bundle/prodRelease/app-prod-release.aab
 
 # 3. verify what you built
@@ -219,9 +223,10 @@ The whole evidence directory is gitignored (`/android/play-release-evidence/`); 
 **Fixed (repo, verified by running the build):** compileSdk/AGP/platform resolution, targetSdk 36,
 Gradle memory/OOM, signing config + signingReport, fail-fast guards, docs and evidence.
 
-**Blocked (needs a human/asset we don't have):** `google-services.json`, the real prod API host
-(404), the real upload key, the owner's Play Console account and the 14-day closed test.
+**Blocked (needs a human/asset we don't have):** the real prod API host (404, and still a
+Cloud Run URL — see §3.2), the real upload key, the owner's Play Console account and the
+14-day closed test. No Firebase asset is on the list any more (§3.1).
 
-With `google-services.json` present, the pipeline builds and signs a bundle end-to-end — that
-is what log `08` demonstrates.
+The pipeline itself (AGP/R8/shrinking/signing) is proven end-to-end by log `08`; the
+Cognito build no longer needs a Google config file to reach the same point.
 

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,41 +8,13 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:okuvu/src/config/app_config.dart';
-import 'package:okuvu/src/core/auth_service.dart';
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/core/tts_service.dart';
 import 'package:okuvu/src/core/websocket_service.dart';
 import 'package:okuvu/src/features/chat/chat_screen.dart';
 import 'package:okuvu/src/features/chat/models/chat_state.dart';
 
-/// Firebase-free fake — ChatScreen's initState reaches authServiceProvider
-/// via FlavorConfig.devBypassToken's fallback, hitting the same
-/// Firebase.initializeApp()-unavailable-in-tests landmine documented
-/// elsewhere this session. Mirrors otp_login_screen_test.dart's fake.
-class FakeAuthService implements AuthService {
-  @override
-  User? get currentUser => null;
-
-  @override
-  Future<String?> getIdToken() async => null;
-
-  @override
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
-    required void Function(FirebaseAuthException) onError,
-    int? forceResendingToken,
-  }) async {}
-
-  @override
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {}
-
-  @override
-  Future<void> signOut() async {}
-}
+import '../../support/fake_auth_service.dart';
 
 class FakeWebSocketService extends WebSocketService {
   FakeWebSocketService({WsConnectionState initialState = WsConnectionState.disconnected})

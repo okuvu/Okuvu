@@ -63,7 +63,7 @@ describe('worker bedrock generateContent', () => {
     expect(mockSend.mock.calls[0][0].input.inferenceConfig.maxTokens).toBe(1000);
   });
 
-  it('maps the Vertex request shape onto a Converse call', async () => {
+  it('maps the shared request shape onto a Converse call', async () => {
     mockSend.mockResolvedValue(textReply('summary text'));
 
     const result = await generateContent({
@@ -126,7 +126,7 @@ describe('worker bedrock generateContent', () => {
     expect(result.fallbackUsed).toBe(false);
   });
 
-  it('mirrors vertex-ai.ts: an empty completion is not reported as a fallback', async () => {
+  it('returns an empty completion as text without reporting a fallback', async () => {
     mockSend.mockResolvedValue({ output: { message: { role: 'assistant', content: [] } }, stopReason: 'end_turn' });
 
     const result = await generateContent({
@@ -135,7 +135,7 @@ describe('worker bedrock generateContent', () => {
     });
 
     // summary.ts treats unparseable text as a parse failure and stores
-    // summary_text:null — the same path an empty Gemini candidate took.
+    // summary_text:null — the same path an empty completion always took.
     expect(result).toEqual({ text: '', fallbackUsed: false });
   });
 
@@ -176,19 +176,6 @@ describe('worker bedrock generateContent', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it('accepts and ignores Vertex safetySettings instead of failing the call', async () => {
-    mockSend.mockResolvedValue(textReply('ok'));
-
-    const result = await generateContent({
-      systemInstruction: 's',
-      contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
-      safetySettings: [{ category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }],
-    });
-
-    expect(result.text).toBe('ok');
-    expect(mockSend.mock.calls[0][0].input.toolConfig).toBeUndefined();
   });
 
   it('honours BEDROCK_MODEL_ID over the default', async () => {

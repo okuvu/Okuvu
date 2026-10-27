@@ -314,7 +314,7 @@ describe('POST /journal', () => {
       app = buildApp();
     });
 
-    it('returns 401 when firebase_uid has no User row', async () => {
+    it('returns 401 when auth_subject has no User row', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/journal',
@@ -401,7 +401,7 @@ describe('POST /journal/prompt', () => {
     expect(mockGenerateJournalPrompt).toHaveBeenCalledWith(memory);
   });
 
-  it('returns 401 when firebase_uid has no User row', async () => {
+  it('returns 401 when auth_subject has no User row', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
     app = buildApp();
@@ -553,7 +553,7 @@ describe('GET /journal', () => {
       app = buildApp();
     });
 
-    it('returns 401 when firebase_uid has no User row', async () => {
+    it('returns 401 when auth_subject has no User row', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/journal',

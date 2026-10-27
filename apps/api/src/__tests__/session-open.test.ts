@@ -62,7 +62,7 @@ describe('handleSessionOpen', () => {
     vi.clearAllMocks();
   });
 
-  function makeContext(uid: string = 'mock-firebase-uid-1') {
+  function makeContext(uid: string = 'dev-bypass-subject-1') {
     return {
       uid,
       requestId: crypto.randomUUID(),
@@ -216,7 +216,7 @@ describe('concurrency', () => {
       const send = vi.fn();
 
       await handleSessionOpen({
-        uid: 'mock-firebase-uid-1',
+        uid: 'dev-bypass-subject-1',
         requestId: `reconnect-${reconnect}`,
         sessionId: 'existing-session-1',
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },

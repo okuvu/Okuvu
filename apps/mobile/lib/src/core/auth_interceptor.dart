@@ -19,7 +19,7 @@ class AuthInterceptor extends Interceptor {
       } else {
         final user = _authService.currentUser;
         if (user != null) {
-          final token = await user.getIdToken();
+          final token = await _authService.getIdToken();
           options.headers['Authorization'] = 'Bearer $token';
         }
       }

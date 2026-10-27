@@ -349,7 +349,7 @@ describe('A9 Governance Agent', () => {
 
   describe('fallback — API errors', () => {
     it('falls back to Restricted on timeout', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Vertex AI timeout'));
+      mockGenerateContent.mockRejectedValue(new Error('LLM timeout'));
 
       const result = await classifyGovernance(makeInput());
 

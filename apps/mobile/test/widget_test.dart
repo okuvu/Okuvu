@@ -10,8 +10,7 @@ import 'package:okuvu/src/config/app_config.dart';
 import 'package:okuvu/src/core/not_found_screen.dart';
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/router/router.dart';
-import 'package:okuvu/src/core/auth_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'support/fake_auth_service.dart';
 
 class MockHttpClientAdapter implements HttpClientAdapter {
   RequestOptions? lastRequest;
@@ -31,34 +30,6 @@ class MockHttpClientAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
-}
-
-class FakeAuthService implements AuthService {
-  @override
-  User? get currentUser => null;
-
-  @override
-  Future<String?> getIdToken() async => null;
-
-  @override
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken)
-        onCodeSent,
-    required void Function(FirebaseAuthException) onError,
-    int? forceResendingToken,
-  }) async {
-    onCodeSent('test-verification-id', null);
-  }
-
-  @override
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {}
-
-  @override
-  Future<void> signOut() async {}
 }
 
 class _TestSessionState extends Notifier<SessionState> {
@@ -98,6 +69,22 @@ Dio _mockDioForToday({required bool careEnded, String? therapistName}) {
 final _testSessionState =
     NotifierProvider<_TestSessionState, SessionState>(_TestSessionState.new);
 
+/// Answers every request from memory — nothing leaves the process, so no
+/// adapter timers are left armed when a test tears down.
+Dio _createOfflineDio() {
+  final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+  dio.interceptors.add(InterceptorsWrapper(
+    onRequest: (options, handler) {
+      handler.resolve(Response(
+        requestOptions: options,
+        statusCode: 200,
+        data: <String, dynamic>{},
+      ));
+    },
+  ));
+  return dio;
+}
+
 Dio _createMockDio() {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
   dio.interceptors.add(InterceptorsWrapper(
@@ -128,8 +115,24 @@ void main() {
   AppConfig.init('dev');
 
   testWidgets('App starts at splash screen', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: App()));
+    // Anything the app pulls at start-up (today card, voice preference) is
+    // served from an in-memory dio so the test exercises the splash screen
+    // only, with no in-flight request left arming a timer at teardown.
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        authServiceProvider.overrideWithValue(FakeAuthService()),
+        dioClientProvider.overrideWithValue(_createOfflineDio()),
+      ],
+      child: const App(),
+    ));
     await tester.pump();
+
+    // Drain the requests the providers kicked off during the first frame. dio
+    // runs each request stage on a zero-duration Timer, and pump() without a
+    // duration only flushes microtasks — so advance fake time by 1ms per stage.
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
 
     expect(find.text('OKUVU'), findsOneWidget);
     expect(find.text('A space that listens.'), findsOneWidget);

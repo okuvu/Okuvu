@@ -111,8 +111,8 @@ describe('stochasticRouter.estimateCost', () => {
   it('returns a positive INR cost scaling with n', async () => {
     const caller = createCaller(buildCtx());
 
-    const small = await caller.estimateCost({ model: 'gemini-2.5-flash', n: 200 });
-    const large = await caller.estimateCost({ model: 'gemini-2.5-flash', n: 400 });
+    const small = await caller.estimateCost({ model: 'amazon.nova-pro-v1:0', n: 200 });
+    const large = await caller.estimateCost({ model: 'amazon.nova-pro-v1:0', n: 400 });
 
     expect(small.estimatedCostInr).toBeGreaterThan(0);
     expect(large.estimatedCostInr).toBeCloseTo(small.estimatedCostInr * 2, 6);

@@ -3,16 +3,17 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'src/app.dart';
 import 'src/config/app_config.dart';
+import 'src/core/crash_reporter.dart';
 import 'src/core/logger.dart';
 import 'src/theme/app_colors.dart';
 import 'src/features/intake/onboarding_provider.dart';
 
 void main() {
+  final crashReporter = CrashReporter();
+
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
@@ -29,23 +30,12 @@ void main() {
       return;
     }
 
-    try {
-      await Firebase.initializeApp();
-    } catch (e, st) {
-      startupError = 'Firebase.initializeApp failed: $e\n$st';
-      Logger.debug('========================================');
-      Logger.debug(startupError);
-      Logger.debug('========================================');
-      runApp(_FatalErrorApp(message: startupError));
-      return;
-    }
-
     FlutterError.onError = (details) {
-      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      crashReporter.recordFlutterFatalError(details);
     };
 
     PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      crashReporter.recordZoneError(error, stack);
       return true;
     };
 
@@ -66,7 +56,7 @@ void main() {
       child: const App(),
     ));
   }, (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    crashReporter.recordZoneError(error, stack);
     Logger.debug('========================================');
       Logger.debug('  Okuvu — Unhandled error during startup');
     Logger.debug('  $error');

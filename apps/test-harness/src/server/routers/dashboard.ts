@@ -15,15 +15,18 @@ const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
  * dashboard banner is read-only, no alerting infra).
  *
  * Keep these in sync with apps/api's lib/generate-content.ts dispatcher:
- *   - LLM_PROVIDER env var (default 'openrouter')
- *   - GEMINI_PRO_MODEL (default 'gemini-2.5-flash') / OPENROUTER_MODEL
+ *   - LLM_PROVIDER env var (bedrock | openrouter)
+ *   - BEDROCK_MODEL_ID (default 'amazon.nova-pro-v1:0') / OPENROUTER_MODEL
  *     (default 'meta-llama/llama-3.1-8b-instruct'), whichever is active
  *   - hardcoded `temperature: 0.7` in both providers' default generationConfig
  */
-const PROD_PROVIDER = resolveProvider();
+// Widened to `string` on purpose: the provider union belongs to apps/api and
+// narrows over time, and this banner must keep compiling against whichever
+// backends that module currently supports.
+const PROD_PROVIDER: string = resolveProvider();
 const PROD_MODEL_VERSION =
-  PROD_PROVIDER === 'gemini'
-    ? (process.env.GEMINI_PRO_MODEL ?? 'gemini-2.5-flash')
+  PROD_PROVIDER === 'bedrock'
+    ? (process.env.BEDROCK_MODEL_ID ?? 'amazon.nova-pro-v1:0')
     : (process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct');
 const PROD_TEMPERATURE = 0.7;
 

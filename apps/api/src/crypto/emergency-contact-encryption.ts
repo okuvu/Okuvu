@@ -61,11 +61,11 @@ export async function getEncryptionKey(): Promise<Buffer> {
     return key;
   }
 
-  // Provider seam: `OKUVU_SECRETS_PROVIDER` picks GCP Secret Manager (default,
-  // unchanged) or AWS Secrets Manager. The secret's *name* and payload format
-  // (base64, 32 bytes) are identical in both, so the key value can be copied
-  // across without touching this code — and EMERGENCY_CONTACT_ENCRYPTION_KEY
-  // above still wins over both, which is the zero-downtime cutover lever.
+  // Key material comes from AWS Secrets Manager (see secrets-provider.ts).
+  // EMERGENCY_CONTACT_ENCRYPTION_KEY above still wins over it, which is the
+  // zero-downtime rotation lever: set the env var, deploy, then update the
+  // secret and drop the env var. The secret's payload format (base64, 32
+  // bytes) is unchanged, so an existing key can be copied in as-is.
   const payload = await getSecretValue(SECRET_NAME);
   const key = Buffer.from(payload, 'base64');
   if (key.length !== 32) {

@@ -279,15 +279,12 @@ export const conversationRouter = router({
    * already established) does the *real* work of marking
    * `SessionLog.session_ended_at` — a genuine DB write, not a simulation.
    * It then internally calls `enqueueSummaryJob`
-   * (apps/api/src/lib/summary-enqueue.js), but that function only actually
-   * runs a summary in two cases: a real deployment with Cloud Tasks fully
-   * configured (CLOUD_TASKS_PROJECT_ID/QUEUE/LOCATION/WORKER_URL/
-   * WORKER_SERVICE_ACCOUNT_EMAIL), or NODE_ENV=development with
-   * CLOUD_TASKS_WORKER_URL set (a local-dev HTTP bypass). Neither is
-   * configured in this harness environment, so left alone,
-   * `enqueueSummaryJob` just warns and no-ops — `closeSession` would report
-   * `summaryEnqueued: true` (it doesn't throw) while nothing downstream
-   * actually ran.
+   * (apps/api/src/lib/summary-enqueue.js), which after the AWS cutover
+   * publishes the job onto the SQS summary queue (SQS_SUMMARY_QUEUE_URL) for
+   * a worker to consume. Nothing consumes that queue in this harness
+   * environment, so left alone, `enqueueSummaryJob` would only enqueue and
+   * `closeSession` would report `summaryEnqueued: true` (it doesn't throw)
+   * while nothing downstream actually ran.
    *
    * So this procedure explicitly triggers the real summary/memory pass
    * itself, synchronously, right after `closeSession` returns — by reusing
@@ -300,8 +297,8 @@ export const conversationRouter = router({
    * into a single call). This makes the harness's simulated session close a
    * harness-controlled, synchronous two-step: (1) real `closeSession` DB
    * write, (2) explicit worker-triggered summary/memory generation — rather
-   * than depending on `enqueueSummaryJob`'s production-only Cloud Tasks path,
-   * which this local/test environment cannot exercise.
+   * than depending on `enqueueSummaryJob`'s production-only SQS path, which
+   * this local/test environment cannot exercise.
    */
   simulateSessionClose: protectedProcedure
     .input(

@@ -1,4 +1,4 @@
-import { generateContent } from '@okuvu/api/src/lib/vertex-ai';
+import { generateContent } from '@okuvu/api/src/lib/generate-content';
 import type { CorpusCaseType } from '@okuvu/shared-types';
 
 /**
@@ -124,7 +124,6 @@ export async function generateVariation(
       responseMimeType: 'application/json',
       temperature: 0.0,
       maxOutputTokens: 300,
-      thinkingConfig: { thinkingBudget: 0 },
     },
   });
 

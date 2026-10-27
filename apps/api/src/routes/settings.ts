@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import {
   getEmergencyContact,
@@ -15,7 +15,7 @@ type PatchBody = EmergencyContactPatchBody;
 
 export async function settingsRoute(app: FastifyInstance): Promise<void> {
   app.get('/settings/emergency-contact', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const result = await getEmergencyContact(uid, request.log);
@@ -39,7 +39,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: PatchBody }>('/settings/emergency-contact', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const result = await saveOrClearEmergencyContact(uid, request.body, request.log);
@@ -95,12 +95,12 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   }
 
   app.get('/settings/voice', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -125,7 +125,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: VoiceModeBody }>('/settings/voice', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body;
@@ -140,7 +140,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -182,12 +182,12 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   }
 
   app.get('/settings/language', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { language_mode: true },
       });
 
@@ -207,7 +207,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: LanguageModeBody }>('/settings/language', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body;
@@ -222,7 +222,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -254,12 +254,12 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   }
 
   app.get('/settings/quote-of-day', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { quote_of_day_enabled: true },
       });
 
@@ -274,7 +274,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: QuoteOfDayBody }>('/settings/quote-of-day', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body;
@@ -286,7 +286,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -319,12 +319,12 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   }
 
   app.get('/settings/profile', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { full_name: true, email: true, date_of_birth: true, gender: true },
       });
 
@@ -344,13 +344,13 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: ProfileBody }>('/settings/profile', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body ?? {};
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -427,12 +427,12 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   }
 
   app.get('/settings/notifications', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { appointment_reminders_enabled: true, chat_nudges_enabled: true },
       });
 
@@ -450,7 +450,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: NotificationPreferencesBody }>('/settings/notifications', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body ?? {};
@@ -477,7 +477,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 

@@ -1,14 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const mockPredict = vi.hoisted(() => vi.fn());
 const mockBedrockGenerateEmbedding = vi.hoisted(() => vi.fn());
-
-vi.mock('@google-cloud/aiplatform', () => ({
-  v1beta1: {
-    PredictionServiceClient: vi.fn(() => ({ predict: mockPredict })),
-  },
-  protos: { google: { cloud: { aiplatform: { v1beta1: {} } } } },
-}));
 
 vi.mock('../lib/bedrock.js', () => ({
   generateEmbedding: mockBedrockGenerateEmbedding,
@@ -16,33 +8,25 @@ vi.mock('../lib/bedrock.js', () => ({
 
 import { generateEmbedding } from '../lib/embedding.js';
 
-function vertexResponse(values: number[]) {
-  return [
-    {
-      predictions: [
-        {
-          structValue: {
-            fields: {
-              embeddings: {
-                structValue: {
-                  fields: {
-                    values: {
-                      listValue: { values: values.map((numberValue) => ({ numberValue })) },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      ],
-    },
-  ];
-}
+/**
+ * Embeddings are Bedrock-only after the cutover: `embedding.ts` is a thin
+ * delegate to `bedrock.generateEmbedding` (still a lazy import so
+ * `@aws-sdk/client-bedrock-runtime` is not pulled into import-only consumers).
+ *
+ * The 768-dimension guard lives inside `bedrock.ts` and is tested there against
+ * the real Titan/Cohere response shapes. Here the property under test is that
+ * this seam neither re-implements that guard nor reshapes the vector: a
+ * Bedrock-supplied vector passes through untouched (identity, not a copy) and a
+ * Bedrock rejection surfaces unchanged.
+ */
+const ENV_KEYS = [
+  'OKUVU_LLM_PROVIDER',
+  'OKUVU_EMBEDDING_PROVIDER',
+  'BEDROCK_EMBEDDING_MODEL_ID',
+  'BEDROCK_EMBEDDING_DIMENSIONS',
+] as const;
 
-const ENV_KEYS = ['OKUVU_LLM_PROVIDER'] as const;
-
-describe('embedding provider seam', () => {
+describe('embedding seam (Bedrock only)', () => {
   const saved: Record<string, string | undefined> = {};
 
   beforeEach(() => {
@@ -51,7 +35,6 @@ describe('embedding provider seam', () => {
       saved[key] = process.env[key];
       delete process.env[key];
     }
-    mockPredict.mockResolvedValue(vertexResponse([0.1, 0.2, 0.3]));
     mockBedrockGenerateEmbedding.mockResolvedValue(new Array(768).fill(0.5));
   });
 
@@ -62,28 +45,59 @@ describe('embedding provider seam', () => {
     }
   });
 
-  it('uses Vertex by default and never loads the Bedrock module', async () => {
-    const result = await generateEmbedding('hello');
+  it('delegates to bedrock.generateEmbedding with the text', async () => {
+    await generateEmbedding('hello');
 
-    expect(result).toEqual([0.1, 0.2, 0.3]);
-    expect(mockPredict).toHaveBeenCalledTimes(1);
-    expect(mockBedrockGenerateEmbedding).not.toHaveBeenCalled();
+    expect(mockBedrockGenerateEmbedding).toHaveBeenCalledTimes(1);
+    expect(mockBedrockGenerateEmbedding).toHaveBeenCalledWith('hello');
   });
 
-  it('delegates to the Bedrock implementation when OKUVU_LLM_PROVIDER=bedrock', async () => {
-    process.env.OKUVU_LLM_PROVIDER = 'bedrock';
+  it('passes a 768-dim vector through unchanged', async () => {
+    const vector = new Array(768).fill(0).map((_, index) => index / 1000);
+    mockBedrockGenerateEmbedding.mockResolvedValue(vector);
 
     const result = await generateEmbedding('hello');
 
     expect(result).toHaveLength(768);
-    expect(mockBedrockGenerateEmbedding).toHaveBeenCalledWith('hello');
-    expect(mockPredict).not.toHaveBeenCalled();
+    expect(result).toBe(vector);
   });
 
-  it('propagates Bedrock errors unchanged (no silent empty vector)', async () => {
-    process.env.OKUVU_LLM_PROVIDER = 'bedrock';
-    mockBedrockGenerateEmbedding.mockRejectedValue(new Error('dimension mismatch'));
+  it('does not re-implement the dimension guard (bedrock owns it)', async () => {
+    // A vector of the wrong width is rejected inside bedrock.ts, before this
+    // seam ever sees it — so nothing here may silently pad, truncate or
+    // re-validate. Proxying the value verbatim is the contract.
+    const shortVector = [0.1, 0.2, 0.3];
+    mockBedrockGenerateEmbedding.mockResolvedValue(shortVector);
 
-    await expect(generateEmbedding('hello')).rejects.toThrow('dimension mismatch');
+    const result = await generateEmbedding('hello');
+
+    expect(result).toBe(shortVector);
+  });
+
+  it('propagates bedrock’s dimension error unchanged', async () => {
+    const dimensionError = new Error(
+      'Bedrock embedding model amazon.titan-embed-text-v2:0 returned 1024 dimensions but ' +
+        'BEDROCK_EMBEDDING_DIMENSIONS is 768 (SessionLog.summary_embedding is vector(768)).',
+    );
+    mockBedrockGenerateEmbedding.mockRejectedValue(dimensionError);
+
+    await expect(generateEmbedding('hello')).rejects.toThrow(/returned 1024 dimensions/);
+    expect(mockBedrockGenerateEmbedding).toHaveBeenCalledWith('hello');
+  });
+
+  it('propagates transport failures unchanged (no silent empty vector)', async () => {
+    mockBedrockGenerateEmbedding.mockRejectedValue(new Error('bedrock unreachable'));
+
+    await expect(generateEmbedding('hello')).rejects.toThrow('bedrock unreachable');
+  });
+
+  it('has no provider switch: retired OKUVU_* env vars cannot reroute embeddings', async () => {
+    process.env.OKUVU_LLM_PROVIDER = 'vertex';
+    process.env.OKUVU_EMBEDDING_PROVIDER = 'vertex';
+
+    const result = await generateEmbedding('hello');
+
+    expect(result).toHaveLength(768);
+    expect(mockBedrockGenerateEmbedding).toHaveBeenCalledTimes(1);
   });
 });

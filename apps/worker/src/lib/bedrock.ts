@@ -17,39 +17,35 @@ import {
   resolveBedrockModelId,
   resolveEmbeddingDimensions,
 } from './provider-config.js';
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS } from './llm-types.js';
+import type { GenerateContentParams, GenerateContentResult } from './llm-types.js';
 
-export type {
-  GenerateContentParams,
-  GenerateContentResult,
-} from './vertex-ai.js';
-import type {
-  GenerateContentParams,
-  GenerateContentResult,
-} from './vertex-ai.js';
-
-export const DEFAULT_MAX_OUTPUT_TOKENS = 1000;
-export const DEFAULT_TIMEOUT_MS = 25_000;
+export { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS };
+export type { GenerateContentParams, GenerateContentResult };
 
 /**
- * Worker's copy of `apps/api/src/lib/bedrock.ts` — same AWS Bedrock
- * implementation of the `vertex-ai.ts` contract, with the worker's own limits
- * (1000 output tokens / 25s, matching `apps/worker/src/lib/vertex-ai.ts`).
- * apps/api and apps/worker are separate deployables that only share
- * packages/prisma and packages/shared-types, so this cannot be a cross-app
- * import. Keep the two in step.
+ * Worker's copy of `apps/api/src/lib/bedrock.ts` — the worker's LLM and
+ * embedding implementation after the AWS cutover
+ * (docs/AWS-CUTOVER-SPEC.md): Amazon Nova Pro for completions, Titan Text
+ * Embeddings V2 (768 dims) for `SessionLog.summary_embedding`. The shared
+ * request/response contract and the worker's own limits (1000 output tokens /
+ * 25s) live in `llm-types.ts`. apps/api and apps/worker are separate
+ * deployables that only share packages/prisma and packages/shared-types, so
+ * this cannot be a cross-app import. Keep the two in step.
  *
- * Deliberate differences from the API copy:
+ * Deliberate behaviours:
  *
- *  • No canned-response short-circuit — the worker's `vertex-ai.ts` has none,
- *    and summary/memory jobs are never exercised in sandbox mode.
- *  • `safetySettings` is accepted (it is on the worker's param type) and
- *    ignored: Vertex per-category thresholds have no Converse equivalent.
- *    Bedrock Guardrails attach by id at the client/account level, not as
- *    per-request category thresholds.
- *  • An empty completion returns `{ text: '', fallbackUsed: false }` — exactly
- *    what the worker's `vertex-ai.ts` returns in that case. `summary.ts`
- *    treats unparseable text as a parse failure and stores `summary_text:
- *    null`, so this is the inherited (safe) behaviour, not a new choice.
+ *  • No canned-response short-circuit — summary/memory jobs are never
+ *    exercised in sandbox mode.
+ *  • Per-category content-safety thresholds are not part of the request
+ *    contract any more. The cutover removed them rather than pretending they
+ *    worked: Bedrock Guardrails attach by id at the account/agent level, so a
+ *    per-request category threshold was a no-op that every call logged.
+ *    `llm-types.ts` no longer carries the field, so a caller cannot believe a
+ *    policy travelled with the request when it did not.
+ *  • An empty completion returns `{ text: '', fallbackUsed: false }`.
+ *    `summary.ts` treats unparseable text as a parse failure and stores
+ *    `summary_text: null`, so this is the safe inherited behaviour.
  *
  * Structured output mapping matches the API copy: `responseSchema` becomes a
  * forced, `strict` tool (`emit_structured_json`) whose `input` object is
@@ -72,17 +68,8 @@ export function clearBedrockClient(): void {
   client = null;
 }
 
-/**
- * Compile-time drop-in assertion against the worker's `vertex-ai.ts` surface.
- * No runtime effect.
- */
-const _vertexAiContract: Pick<
-  typeof import('./vertex-ai.js'),
-  'generateContent' | 'DEFAULT_MAX_OUTPUT_TOKENS' | 'DEFAULT_TIMEOUT_MS'
-> = { generateContent, DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS };
-
-/** Vertex `Schema.Type` enum values → JSON Schema type names. */
-const VERTEX_TYPE_TO_JSON_SCHEMA: Record<string, string> = {
+/** Upper-case schema type names (as produced by the old schema dialect) → JSON Schema names. */
+const UPPERCASE_TYPE_TO_JSON_SCHEMA: Record<string, string> = {
   OBJECT: 'object',
   ARRAY: 'array',
   STRING: 'string',
@@ -93,10 +80,10 @@ const VERTEX_TYPE_TO_JSON_SCHEMA: Record<string, string> = {
 };
 
 /**
- * Convert a Vertex `responseSchema` (UPPERCASE type names, `nullable`,
- * `propertyOrdering`) into the JSON Schema a Bedrock tool spec needs. Bedrock
- * validates tool schemas strictly — leaving `type:"OBJECT"` in place fails
- * every call.
+ * Convert a schema written in the upper-case dialect (`type: 'OBJECT'`,
+ * `nullable`, `propertyOrdering`) into the JSON Schema a Bedrock tool spec
+ * needs. Bedrock validates tool schemas strictly — leaving `type:"OBJECT"` in
+ * place fails every call.
  */
 export function toBedrockJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
   const convert = (node: unknown): unknown => {
@@ -130,7 +117,7 @@ export function toBedrockJsonSchema(schema: Record<string, unknown>): Record<str
     }
 
     if (typeof input.type === 'string') {
-      const base = VERTEX_TYPE_TO_JSON_SCHEMA[input.type.toUpperCase()] ?? input.type.toLowerCase();
+      const base = UPPERCASE_TYPE_TO_JSON_SCHEMA[input.type.toUpperCase()] ?? input.type.toLowerCase();
       out.type = input.nullable === true && base !== 'null' ? [base, 'null'] : base;
     }
 
@@ -238,16 +225,6 @@ export async function generateContent(
     ...(toolConfig ? { toolConfig } : {}),
   };
 
-  if (params.safetySettings && params.safetySettings.length > 0) {
-    // No Converse field accepts per-category safety thresholds. Logged once
-    // per call so a reviewer can see the policy did not travel with the
-    // request, rather than assuming it did.
-    console.error(
-      { event: 'bedrock_safety_settings_ignored', categories: params.safetySettings.map((s) => s.category) },
-      'Bedrock has no per-request Vertex-style safetySettings; categories ignored',
-    );
-  }
-
   let timedOut = false;
   const controller = new AbortController();
   const timer = setTimeout(() => {
@@ -288,11 +265,11 @@ export async function generateContent(
 // model that can emit 768 dimensions; Cohere Embed (1024-dim) is supported but
 // trips the dimension guard until the column and stored rows are migrated.
 //
-// Semantic gap: Vertex's `text-embedding-004` is called with
-// `taskType: SEMANTIC_SIMILARITY`; Titan V2 has no task-type parameter and
+// Semantic gap: the previous provider was called with an explicit
+// similarity-oriented task type; Titan V2 has no task-type parameter and
 // Cohere's `input_type` hint cannot be expressed through a `text`-only
 // interface (sent as `search_document` both ways). Vectors from different
-// models are not comparable — switching providers requires re-embedding every
+// models are not comparable — switching models requires re-embedding every
 // stored summary (`src/scripts/backfill-embeddings.ts`).
 
 interface TitanEmbeddingRequest {

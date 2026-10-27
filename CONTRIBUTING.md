@@ -29,7 +29,7 @@ pnpm install
 
 ### 3. Set up your local database
 
-Follow [docs/neon-setup.md](docs/neon-setup.md) — it takes about 10 minutes and gets you a working local PostgreSQL database without needing GCP credentials.
+Follow [docs/neon-setup.md](docs/neon-setup.md) — it takes about 10 minutes and gets you a working local PostgreSQL database without needing any cloud account.
 
 ### 4. Configure your environment
 
@@ -39,9 +39,11 @@ cp .env.example .env
 
 Open `.env` and fill in at minimum:
 - `DATABASE_URL` — your Neon branch connection string (from the setup guide)
-- `FIREBASE_ADMIN_SDK_PATH` — path to your Firebase dev service account JSON (get from Senior Engineer)
-- `VERTEX_AI_SA_KEY_PATH` — path to your GCP dev service account JSON (get from Senior Engineer)
-- Set `LOCAL_DEV_BYPASS_AUTH="true"` for local development so you don't need real Firebase tokens
+- `AWS_REGION` — `ap-south-1` (the only region the stack is allowed to use)
+- `BEDROCK_MODEL_ID` / `BEDROCK_EMBEDDING_MODEL_ID` — optional overrides; the defaults are `amazon.nova-pro-v1:0` and `amazon.titan-embed-text-v2:0`
+- `COGNITO_THERAPIST_POOL_ID` / `COGNITO_THERAPIST_CLIENT_ID` / `COGNITO_THERAPIST_CLIENT_SECRET` — therapist pool app client (get from Senior Engineer)
+- Set `LOCAL_DEV_BYPASS_AUTH="true"` for local development so you don't need real Cognito tokens
+- AWS access for Bedrock/SQS: use your own profile (`aws configure` or `aws sso login`) — never a committed key file
 
 ### 5. Run the first migration
 
@@ -228,7 +230,7 @@ For Flutter stories, test evidence should include:
 
 Reviewers will specifically check:
 - The acceptance criteria from the ClickUp story spec are met
-- No `.env` values or GCP credentials committed
+- No `.env` values or AWS credentials committed
 - `LOCAL_DEV_BYPASS_AUTH` is not accidentally left `true` in production-bound code
 - The story's AI Coding Notes section constraints are followed (especially the ones marked "common mistakes")
 - New API endpoints have self-only authorization where required
@@ -259,7 +261,7 @@ Reviewers will specifically check:
 
 ### Security rules (non-negotiable)
 
-- GCP credentials: Secret Manager only, never environment variables in cloud environments
+- AWS credentials: Secrets Manager + IAM task roles only, never environment variables or key files in cloud environments
 - `.env` files: local only, never committed
 - `LOCAL_DEV_BYPASS_AUTH`: local only, must be `false` (or absent) in all cloud environments
 - Emergency contact data: AES-256-GCM encryption before any write, never logged

@@ -6,7 +6,7 @@ Internal web application for pipeline testing, deterministic verification, and S
 
 - **Framework:** Next.js 16 (App Router)
 - **API Layer:** tRPC v11 + TanStack Query
-- **Auth:** NextAuth v4 + Google OAuth
+- **Auth:** NextAuth v4 + Amazon Cognito (therapist pool)
 - **Styling:** Tailwind CSS v4
 - **Database:** Prisma (same Neon branch as staging)
 
@@ -72,37 +72,24 @@ list, grouped roughly by role:
 
 ## Deploy
 
-Per [ADR-014](../../docs/adr/014-test-harness-hosting-domain.md), this app deploys to a dedicated
-Firebase project (`evia-test-harness`) and is served at `test-harness.evia.ai`.
+Per [ADR-014](../../docs/adr/014-test-harness-hosting-domain.md) this app is served at
+`test-harness.evia.ai`. **The hosting target has since changed to Vercel** — the ADR's
+Firebase Hosting / Cloud Functions plan was retired with the rest of the Google Cloud
+stack in the AWS cutover, and `firebase.json` / `.firebaserc` are gone. Configuration
+now lives in `vercel.json` at this app's root; the deploy is Vercel's own build of the
+Next.js App Router app (which needs a server runtime for the tRPC and NextAuth route
+handlers — a static export is not an option here).
 
-**Hosting approach:** Firebase Hosting's web frameworks integration (`hosting.source` +
-`frameworksBackend` in `firebase.json`, backed by the `webframeworks` experiment). This app uses
-the Next.js App Router with tRPC route handlers
-(`src/app/api/trpc/[trpc]/route.ts`, `src/app/api/auth/[...nextauth]/route.ts`) and NextAuth
-callbacks, all of which require a server runtime — a plain static export (`public: "out"`) would
-not work here. The web frameworks integration builds the app and provisions a managed Cloud
-Function for SSR automatically, so it was chosen over hand-rolling a Dockerfile + Cloud Run
-pipeline (the pattern `apps/api` uses): it needs no new deploy pipeline, reuses the existing
-Firebase project/domain setup, and is the lowest-effort path for a Next.js app on Firebase
-Hosting.
+Environment variables for the deployed app (Cognito pool/client, `DATABASE_URL`,
+`NEXTAUTH_SECRET`, `AWS_REGION`, `BEDROCK_*`, `SQS_SUMMARY_QUEUE_URL`) are set in the
+Vercel project settings. The harness runs outside the beta VPC, so it reaches AWS through
+an identity with Bedrock invoke rights and an SQS queue URL it can publish to; the worker
+it calls for A13/A15 is only reachable from inside the VPC, so that stage degrades
+gracefully when deployed here.
 
-**Known gap:** the sibling app this story's spec pointed to for a reference SSR hosting config,
-`apps/therapist-portal`, does not have one — its `firebase.json` contains only emulator config
-(`auth`, `ui`) and there is no `Dockerfile` for it. The root `cloudbuild.yaml` only builds/deploys
-`apps/api`. In other words, no Next.js app in this monorepo has an established, working hosting
-pipeline yet to copy from. The config in `apps/test-harness/firebase.json` and `.firebaserc` here
-is therefore a best-effort, clearly-labeled starting point based on Firebase's documented web
-frameworks support, not a verified-working copy of an existing pattern.
-
-Before the first real deploy, someone with Firebase CLI access needs to run
-`firebase experiments:enable webframeworks` once against the `evia-test-harness` project (the
-experiment flag is a CLI/local setting, not something storable in `firebase.json`), and configure
-the `test-harness.evia.ai` custom domain and DNS CNAME per ADR-014.
-
-Actual deployment requires GCP/Firebase credentials this environment does not have — this config
-is prepared for the PI to run `firebase deploy --only hosting` (or trigger the equivalent Cloud
-Build) once credentials are provisioned. Verification of a live deploy is a manual PI step, not
-automatable here.
+Building and deploying is a manual step today (Vercel builds on push to the connected
+branch); there is no CI job for this app beyond the PR checks in
+`.github/workflows/ci.yml`.
 
 ## Scripts
 
@@ -117,8 +104,9 @@ Run these with `npx tsx <path>` from `apps/test-harness/` — none are currently
 
 ## Secrets
 
-Secrets (`GOOGLE_CLIENT_SECRET`, `DATABASE_URL`, `NEXTAUTH_SECRET`, and any GitHub token if ever
-needed for CI or API access) must be provisioned through GCP Secret Manager in production
-deployments of this app, never committed to or loaded from `.env` files. `.env` (and
-`.env.local`) are for local development only, are gitignored, and must never contain
-production-project credentials.
+Secrets (`COGNITO_THERAPIST_CLIENT_SECRET`, `DATABASE_URL`, `NEXTAUTH_SECRET`, and any GitHub
+token if ever needed for CI or API access) are set as Vercel project environment variables
+(encrypted at rest) for deployed instances, and must never be committed or loaded from a
+committed file. `.env` (and `.env.local`) are for local development only, are gitignored, and
+must never contain production credentials. AWS access uses an IAM identity/role with
+`bedrock:InvokeModel` — never a key pair pasted into this app's config.

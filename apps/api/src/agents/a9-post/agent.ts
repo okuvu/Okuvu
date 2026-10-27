@@ -38,7 +38,7 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
       timeoutMs: 20000,
       generationConfig: {
         // Real root cause of the empty-response failures (confirmed live via
-        // vertex-ai.ts's finishReason diagnostic): maxOutputTokens: 100 was
+        // provider client's finishReason diagnostic): maxOutputTokens: 100 was
         // too tight — Gemini 2.5's internal "thinking" tokens can consume
         // the entire budget before any visible output text is emitted,
         // producing finishReason: 'MAX_TOKENS' with zero output. A9-pre

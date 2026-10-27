@@ -1,6 +1,20 @@
 # Okuvu — AWS Migration and Android Release Plan
 
 **Version 3.0 · 27 October 2026**
+> **STATUS — 27 Oct 2026, later the same day: Track A is done in code, not just scaffolded.**
+> The provider seams described in §2 (`OKUVU_LLM_PROVIDER`, `OKUVU_QUEUE_PROVIDER`,
+> `OKUVU_SECRETS_PROVIDER`) have been **collapsed to single AWS implementations** and the
+> GCP branches deleted — see `docs/AWS-CUTOVER-SPEC.md` and ADR-016. Identity moved from
+> Firebase to two Cognito pools (`infrastructure/aws/evia-beta/cognito.tf`), the mobile app
+> talks to Cognito over plain HTTPS, the portal uses NextAuth's Cognito provider, and the
+> `firebase_uid` column is now `auth_subject`. Cloud Build became `buildspec.yml`.
+> Verified: api 1135 tests, worker 90, portal 91 (+`next build`), test-harness 302,
+> Flutter 231 + clean `flutter analyze`, `terraform validate` Success.
+> Still outside code (unchanged by the cutover): TRAI DLT registration for SMS,
+> Cognito therapist provisioning, Bedrock quota in the target account, and the
+> DPDP review of the AWS DPA.
+
+
 Supersedes the GCP-hosting assumption in the v2.0 delivery plan. Written after measuring the codebase, not before.
 
 ---

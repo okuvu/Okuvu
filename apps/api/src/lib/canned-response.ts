@@ -1,9 +1,9 @@
 /**
  * Provider-agnostic canned/test-hook short-circuit, shared by every real LLM
- * client (vertex-ai.ts, openrouter.ts). Sandbox/test behavior (no real model
- * call, deterministic reply) must be identical regardless of which provider
- * is actually configured — this logic used to live inline in vertex-ai.ts
- * only; extracted here so a second provider doesn't have to copy-paste it.
+ * client (bedrock.ts, openrouter.ts). Sandbox/test behavior (no real model
+ * call, deterministic reply) must be identical regardless of which provider is
+ * actually configured, so it lives here rather than being copy-pasted per
+ * provider.
  */
 
 export const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";

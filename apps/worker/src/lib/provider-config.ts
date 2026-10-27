@@ -1,25 +1,20 @@
 /**
- * Single place that decides which cloud backs the LLM + embedding seams in
- * the worker.
+ * AWS settings for the worker's LLM + embedding calls.
+ *
+ * The AWS cutover (docs/AWS-CUTOVER-SPEC.md) collapsed the provider seams: the
+ * `OKUVU_LLM_PROVIDER` / `OKUVU_QUEUE_PROVIDER` / `OKUVU_SECRETS_PROVIDER`
+ * switches and their non-AWS branches are deleted, not defaulted. What is left
+ * is a single implementation, so this module only resolves *its* settings —
+ * region, model ids, embedding width — and validates them loudly. There is no
+ * branch here to accidentally leave pointed at another cloud; rollback is a
+ * redeploy, not an env flip.
  *
  * Mirror of `apps/api/src/lib/provider-config.ts` (minus the queue and secrets
  * seams, which the worker does not own): apps/api and apps/worker are separate
  * deployable services that share only packages/prisma and
  * packages/shared-types, so this cannot be a cross-app import. Keep the two in
  * step — same env var names, same defaults, same validation.
- *
- * | seam      | env var              | values            | default |
- * |-----------|----------------------|-------------------|---------|
- * | LLM/embed | OKUVU_LLM_PROVIDER   | vertex \| bedrock | vertex  |
- *
- * `OKUVU_LLM_PROVIDER` picks which Vertex-family backend the worker's jobs
- * (session summary, memory extraction) use. The pre-existing `LLM_PROVIDER`
- * var (openrouter | gemini) still chooses the agent-facing provider and is
- * untouched; `bedrock` takes precedence over it, exactly as in the API.
  */
-
-export type LlmProviderName = 'vertex' | 'bedrock';
-export type ContentBackend = 'bedrock' | 'vertex' | 'openrouter';
 
 /** ap-south-1 (Mumbai) — the DPDP-compliant region the AWS stack pins. */
 export const DEFAULT_AWS_REGION = 'ap-south-1';
@@ -36,48 +31,6 @@ export const DEFAULT_BEDROCK_MODEL_ID = 'amazon.nova-pro-v1:0';
 /** Titan V2 is the only Bedrock embedding model that can emit 768 dims. */
 export const DEFAULT_BEDROCK_EMBEDDING_MODEL_ID = 'amazon.titan-embed-text-v2:0';
 export const DEFAULT_EMBEDDING_DIMENSIONS = 768;
-
-/**
- * Tri-state env read: unset/empty keeps the old behaviour, a known value
- * selects the provider, anything else is a hard error — silently falling back
- * to GCP because of a typo would send clinical text to a provider the operator
- * believes they turned off.
- */
-function readProvider<T extends string>(
-  envVar: string,
-  allowed: readonly T[],
-  fallback: T,
-): T {
-  const raw = process.env[envVar];
-  if (raw === undefined || raw.trim() === '') return fallback;
-
-  const normalized = raw.trim().toLowerCase();
-  const match = allowed.find((value) => value === normalized);
-  if (!match) {
-    throw new Error(
-      `${envVar}="${raw}" is not a recognised provider. Use one of: ${allowed.join(' | ')}.`,
-    );
-  }
-  return match;
-}
-
-export function resolveLlmProvider(): LlmProviderName {
-  return readProvider('OKUVU_LLM_PROVIDER', ['vertex', 'bedrock'] as const, 'vertex');
-}
-
-/**
- * OKUVU_LLM_PROVIDER=bedrock → Bedrock; LLM_PROVIDER=gemini → Vertex;
- * otherwise OpenRouter. Same composition rule as the API dispatcher.
- */
-export function resolveContentBackend(): ContentBackend {
-  if (resolveLlmProvider() === 'bedrock') return 'bedrock';
-  return process.env.LLM_PROVIDER === 'gemini' ? 'vertex' : 'openrouter';
-}
-
-/** Embeddings follow the LLM provider so one switch moves the whole worker. */
-export function resolveEmbeddingProvider(): LlmProviderName {
-  return resolveLlmProvider();
-}
 
 const REGION_PATTERN = /^[a-z]{2}(-[a-z]+)+-\d+$/;
 

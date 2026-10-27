@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { verifyOtpAndLinkPhone } from '../lib/auth-otp.js';
 
 interface VerifyOtpBody {
@@ -8,7 +8,7 @@ interface VerifyOtpBody {
 
 export async function authRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: VerifyOtpBody }>('/auth/verify-otp', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { phone_number } = (request.body ?? {}) as VerifyOtpBody;

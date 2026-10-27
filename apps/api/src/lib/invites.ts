@@ -9,7 +9,7 @@ export type RedeemInviteResult =
   | { status: 'account_already_linked' };
 
 export async function redeemInvite(
-  firebaseUid: string,
+  authSubject: string,
   token: string,
 ): Promise<RedeemInviteResult> {
   const invite = await prisma.inviteToken.findUnique({
@@ -30,7 +30,7 @@ export async function redeemInvite(
   }
 
   const existingForUid = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
   if (existingForUid && existingForUid.id !== invite.client_user_id) {
@@ -43,7 +43,7 @@ export async function redeemInvite(
   await prisma.$transaction([
     prisma.user.update({
       where: { id: invite.client_user_id },
-      data: { firebase_uid: firebaseUid },
+      data: { auth_subject: authSubject },
     }),
     prisma.inviteToken.update({
       where: { id: invite.id },

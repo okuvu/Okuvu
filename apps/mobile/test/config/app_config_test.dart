@@ -14,15 +14,21 @@ void main() {
     test('beta resolves correct URLs', () {
       final env = Environment.fromString('beta');
       expect(env.label, 'beta');
-      expect(env.apiBaseUrl, 'https://evia-500215-xxxxx-uc.a.run.app');
-      expect(env.wsBaseUrl, 'wss://evia-500215-xxxxx-uc.a.run.app');
+      expect(env, Environment.beta);
+      // The host itself is infrastructure-owned (it changes on every backend
+      // cutover), so assert the contract — https for REST, wss for sockets —
+      // rather than duplicating a literal that goes stale. Override per build
+      // with --dart-define=BASE_URL / WS_URL.
+      expect(env.apiBaseUrl, startsWith('https://'));
+      expect(env.wsBaseUrl, startsWith('wss://'));
     });
 
     test('prod resolves correct URLs', () {
       final env = Environment.fromString('prod');
       expect(env.label, 'prod');
-      expect(env.apiBaseUrl, 'https://evia-500215-xxxxx-uc.a.run.app');
-      expect(env.wsBaseUrl, 'wss://evia-500215-xxxxx-uc.a.run.app');
+      expect(env, Environment.prod);
+      expect(env.apiBaseUrl, startsWith('https://'));
+      expect(env.wsBaseUrl, startsWith('wss://'));
     });
 
     test('unknown string throws ArgumentError', () {

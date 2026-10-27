@@ -36,11 +36,11 @@ export type GetEmergencyContactResult =
   | { status: 'decryption_failed' };
 
 export async function getEmergencyContact(
-  firebaseUid: string,
+  authSubject: string,
   log?: { info: LogFn; error: LogFn },
 ): Promise<GetEmergencyContactResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
 
@@ -90,12 +90,12 @@ export type SaveEmergencyContactResult =
   | { status: 'invalid_body' };
 
 export async function saveOrClearEmergencyContact(
-  firebaseUid: string,
+  authSubject: string,
   body: EmergencyContactPatchBody | undefined,
   log?: { info: LogFn; error: LogFn },
 ): Promise<SaveEmergencyContactResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
 

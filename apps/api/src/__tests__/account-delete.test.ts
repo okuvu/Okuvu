@@ -39,7 +39,7 @@ vi.mock('../lib/prisma.js', () => ({
 }));
 
 const MOCK_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
-const MOCK_FIREBASE_UID = 'mock-firebase-uid-1';
+const MOCK_AUTH_SUBJECT = 'dev-bypass-subject-1';
 
 async function importMocks() {
   const { prisma } = await import('../lib/prisma.js');
@@ -160,7 +160,7 @@ describe('POST /account/delete', () => {
       expect(tx.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            firebase_uid: expect.stringMatching(/^deleted-/),
+            auth_subject: expect.stringMatching(/^deleted-/),
           }),
         }),
       );
@@ -221,7 +221,7 @@ describe('POST /account/delete', () => {
       app = buildApp();
     });
 
-    it('returns 401 when firebase_uid has no User row', async () => {
+    it('returns 401 when auth_subject has no User row', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/account/delete',

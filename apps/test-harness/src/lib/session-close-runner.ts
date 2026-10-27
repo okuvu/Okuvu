@@ -3,11 +3,11 @@
  *
  * `conversation.ts`'s `simulateSessionClose` already established the
  * two-step: real `closeSession` DB write, then an explicit worker-triggered
- * summary/memory pass via the A13 adapter (because `enqueueSummaryJob`'s
- * Cloud-Tasks path can't run in this environment). This module extracts the
- * same flow so the multi-session orchestrator can reuse it, and — per C1
- * (TH-S36) — verifies the outcome from DURABLE state (the SessionSummary +
- * UserMemory rows), not just from the HTTP response: a worker that claims
+ * summary/memory pass via the A13 adapter (because `enqueueSummaryJob`'s SQS
+ * path hands the job to a worker this environment cannot reach). This module
+ * extracts the same flow so the multi-session orchestrator can reuse it, and —
+ * per C1 (TH-S36) — verifies the outcome from DURABLE state (the SessionSummary
+ * + UserMemory rows), not just from the HTTP response: a worker that claims
  * success but wrote nothing is a C1 failure.
  */
 
@@ -49,7 +49,7 @@ export async function closeSessionDirect(sessionId: string, uid: string): Promis
   if (prisma) {
     const summaryRow = await prisma.sessionSummary.findFirst({ where: { session_id: sessionId } });
     summaryWritten = Boolean(summaryRow && summaryRow.summary_text);
-    const user = await prisma.user.findUnique({ where: { firebase_uid: uid }, select: { id: true } });
+    const user = await prisma.user.findUnique({ where: { auth_subject: uid }, select: { id: true } });
     if (user) {
       const memoryRow = await prisma.userMemory.findUnique({ where: { user_id: user.id } });
       memoryWritten = Boolean(memoryRow);

@@ -24,7 +24,7 @@ The portal is a Next.js 16 App Router application that lets therapists log in wi
 | Prisma schema | `packages/prisma/schema.prisma` | Data model (Therapist, TherapistClient, ClinicalConfig, TherapistNote, SafetyState, SessionLog, SessionSummary) |
 | Shared types | `packages/shared-types/index.ts` | `SafetyState`, `ClientCarePlan`, `ClientListItem`, labels |
 | Therapist seed guide | `docs/therapist-onboarding/therapist-seed-guide.md` | How to create test therapist accounts |
-| OAuth setup guide | `docs/therapist-portal-oauth-setup.md` | Auth test setup, unauthorized-account behavior |
+| OAuth setup guide | `docs/therapist-portal-signin-setup.md` | Auth test setup, unauthorized-account behavior |
 | Existing QA precedent | `docs/testing/QA_Test_Cases.md` | Existing test-case format for the mobile app |
 
 ---
@@ -170,7 +170,7 @@ SELECT id, email, created_at FROM "Therapist" WHERE email IN ('qa.therapist@exam
 
 ### 6.2 Assign clients to therapists
 
-Assignments live in `TherapistClient` (composite key `therapist_id` + `client_user_id`). Insert directly via SQL or a Prisma script. A client is a `User` row with `firebase_uid` and `phone_number`. Use distinct fake phone numbers like `+15550000001`.
+Assignments live in `TherapistClient` (composite key `therapist_id` + `client_user_id`). Insert directly via SQL or a Prisma script. A client is a `User` row with `auth_subject` (the Cognito user's `sub`) and `phone_number`. Use distinct fake phone numbers like `+15550000001`.
 
 Minimum data set:
 

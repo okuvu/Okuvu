@@ -1,7 +1,7 @@
-import type { GenerateContentParams, GenerateContentResult } from './vertex-ai.js';
+import type { GenerateContentParams, GenerateContentResult } from './llm-types.js';
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS } from './llm-types.js';
 
-export const DEFAULT_MAX_OUTPUT_TOKENS = 1000;
-export const DEFAULT_TIMEOUT_MS = 25_000;
+export { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS };
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -33,13 +33,17 @@ interface OpenRouterResponse {
 }
 
 /**
- * OpenRouter equivalent of vertex-ai.ts's `generateContent` — worker's own
- * copy of apps/api/src/lib/openrouter.ts's logic (see generate-content.ts's
- * doc comment for why apps/worker can't import it directly). Same contract
- * as vertex-ai.ts so summary.ts/memory-extraction.ts don't change at their
- * call sites. `safetySettings` (Vertex-only) has no OpenRouter/Llama
- * equivalent and is silently ignored, same as apps/api's version — the one
- * caller that sets it (memory-extraction.ts) already tolerates that.
+ * OpenRouter transport for the worker's LLM calls — worker's own copy of
+ * apps/api/src/lib/openrouter.ts's logic (see generate-content.ts's doc comment
+ * for why apps/worker can't import it directly). Same contract as the shared
+ * types in llm-types.ts so summary.ts/memory-extraction.ts don't change at
+ * their call sites.
+ *
+ * Not the default and not part of the AWS cutover: it is reachable only when
+ * `LLM_PROVIDER=openrouter` is set explicitly (and `OPENROUTER_API_KEY` is
+ * present). `responseMimeType:'application/json'` maps to
+ * `response_format:{type:'json_object'}`; there is no per-category content
+ * threshold concept here, and the request type no longer carries one.
  */
 export async function generateContent(params: GenerateContentParams): Promise<GenerateContentResult> {
   const model = resolveModelName(params.model);

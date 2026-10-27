@@ -8,11 +8,11 @@ export type VerifyOtpResult =
   | { status: 'no_account' };
 
 export async function verifyOtpAndLinkPhone(
-  firebaseUid: string,
+  authSubject: string,
   phoneNumber?: string,
 ): Promise<VerifyOtpResult> {
   const existingUser = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
 
@@ -22,18 +22,18 @@ export async function verifyOtpAndLinkPhone(
         return { status: 'invalid_phone_format' };
       }
       await prisma.user.update({
-        where: { firebase_uid: firebaseUid },
+        where: { auth_subject: authSubject },
         data: { phone_number: phoneNumber },
       });
     }
     return { status: 'existing_user', userId: existingUser.id };
   }
 
-  // No matching User for this firebase_uid — do NOT auto-provision. Every
+  // No matching User for this auth_subject — do NOT auto-provision. Every
   // real User is created by the therapist-portal's Add-Client wizard
   // (admin.createClientWithInvite) as a placeholder, then linked to a
-  // firebase_uid by POST /invites/redeem once the client completes Firebase
-  // phone-auth with a valid invite token. Verifying a phone number alone was
+  // auth_subject by POST /invites/redeem once the client completes Cognito
+  // phone-OTP sign-in with a valid invite token. Verifying a phone number alone was
   // never sufficient authorization to create an account — that bypassed the
   // whole therapist-assignment model.
   return { status: 'no_account' };

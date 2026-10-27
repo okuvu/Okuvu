@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyOidcToken } from '../middleware/oidc-auth.js';
+import { verifyInternalToken } from '../middleware/internal-auth.js';
 import { getPrisma } from '../lib/prisma.js';
 import { generateSessionSummary } from '../lib/summary.js';
 
@@ -11,7 +11,7 @@ interface SummaryReprocessBody {
 
 export async function cleanupRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: SummaryReprocessBody }>('/cleanup/summary-reprocess', {
-    preHandler: [verifyOidcToken],
+    preHandler: [verifyInternalToken],
     schema: {
       body: {
         type: 'object',

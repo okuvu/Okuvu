@@ -10,13 +10,13 @@ export type SubmitSrsResult =
   | { status: 'session_still_active' };
 
 export async function submitSrsScore(
-  firebaseUid: string,
+  authSubject: string,
   sessionId: string,
   srsScore: number,
   log?: { info: LogFn },
 ): Promise<SubmitSrsResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
 

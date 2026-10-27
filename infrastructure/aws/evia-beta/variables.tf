@@ -248,3 +248,27 @@ variable "alarm_notification_email" {
   type        = string
   default     = ""
 }
+
+variable "portal_callback_urls" {
+  description = "NextAuth OAuth callback URLs registered on the therapist Cognito app client"
+  type        = list(string)
+  default     = ["http://localhost:3001/api/auth/callback/cognito"]
+}
+
+variable "portal_logout_urls" {
+  description = "Post-sign-out redirect URLs registered on the therapist Cognito app client"
+  type        = list(string)
+  default     = ["http://localhost:3001/auth"]
+}
+
+variable "bedrock_model_id" {
+  description = "Bedrock model id for every pipeline LLM call (in-region only)"
+  type        = string
+  default     = "amazon.nova-pro-v1:0"
+}
+
+variable "bedrock_embedding_model_id" {
+  description = "Bedrock embedding model id; must emit the 768 dims the pgvector column pins"
+  type        = string
+  default     = "amazon.titan-embed-text-v2:0"
+}

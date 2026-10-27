@@ -4,7 +4,7 @@ import { initTRPC } from '@trpc/server';
 // ─── Mock the underlying apps/api agent functions ──────────────────────────
 // agent-adapter.ts imports these via relative paths into apps/api/src/agents.
 // We mock at those same specifiers so invokeAgent never actually calls
-// Vertex AI / does real work.
+// Bedrock / does real work.
 
 const mockClassifySafety = vi.hoisted(() => vi.fn());
 const mockClassifyGovernance = vi.hoisted(() => vi.fn());
@@ -148,11 +148,11 @@ describe('singleAgentRouter.invokeAgent', () => {
   });
 
   it('wraps an underlying agent error as an INTERNAL_SERVER_ERROR TRPCError', async () => {
-    mockClassifySafety.mockRejectedValue(new Error('vertex unavailable'));
+    mockClassifySafety.mockRejectedValue(new Error('bedrock unavailable'));
     const caller = createCaller(buildCtx());
 
     await expect(caller.invokeAgent({ agentId: 'A1', input: { message: 'hi' } })).rejects.toThrow(
-      'vertex unavailable',
+      'bedrock unavailable',
     );
   });
 });
@@ -165,7 +165,7 @@ describe('singleAgentRouter.mockSessionContext', () => {
   it('creates/reuses a synthetic test-user-* Prisma User row and returns the mock context', async () => {
     (prisma!.user.upsert as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'db-user-1',
-      firebase_uid: 'test-user-default',
+      auth_subject: 'test-user-default',
       phone_number: '+10000000000',
     });
     const caller = createCaller(buildCtx());
@@ -174,8 +174,8 @@ describe('singleAgentRouter.mockSessionContext', () => {
 
     expect(prisma!.user.upsert).toHaveBeenCalledTimes(1);
     const call = (prisma!.user.upsert as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.where.firebase_uid).toMatch(/^test-user-/);
-    expect(call.create.firebase_uid).toMatch(/^test-user-/);
+    expect(call.where.auth_subject).toMatch(/^test-user-/);
+    expect(call.create.auth_subject).toMatch(/^test-user-/);
     expect(result.userId).toBe('db-user-1');
     expect(result.safetyState).toBe('S0');
     expect(result.carePlan).toBe('CP1');
@@ -184,7 +184,7 @@ describe('singleAgentRouter.mockSessionContext', () => {
   it('merges overrides into the default mock context', async () => {
     (prisma!.user.upsert as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'db-user-2',
-      firebase_uid: 'test-user-default',
+      auth_subject: 'test-user-default',
       phone_number: '+10000000000',
     });
     const caller = createCaller(buildCtx());

@@ -71,7 +71,7 @@ describe('bedrock generateContent', () => {
     expect(result.canned).toBe(false);
   });
 
-  it('maps the Vertex request shape onto a Converse call', async () => {
+  it('maps the the legacy provider request shape onto a Converse call', async () => {
     mockSend.mockResolvedValue(textReply('ok'));
 
     await generateContent({
@@ -165,7 +165,7 @@ describe('bedrock generateContent', () => {
       expect(spec.strict).toBe(true);
       expect(toolConfig.toolChoice).toEqual({ tool: { name: 'emit_structured_json' } });
 
-      // Vertex's UPPERCASE types and Vertex-only keys must be gone.
+      // the legacy provider's UPPERCASE types and provider-specific keys must be gone.
       expect(spec.inputSchema.json.type).toBe('object');
       expect(spec.inputSchema.json.properties.safetyState.type).toBe('string');
       expect(spec.inputSchema.json.properties.crisis_language_detected.type).toBe('boolean');
@@ -310,7 +310,7 @@ describe('bedrock generateContent', () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it('honours the global USE_CANNED_LLM_RESPONSE flag like vertex-ai.ts', async () => {
+  it('honours the global USE_CANNED_LLM_RESPONSE flag', async () => {
     process.env.USE_CANNED_LLM_RESPONSE = 'true';
 
     const result = await generateContent({
@@ -414,7 +414,7 @@ describe('bedrock generateEmbedding', () => {
 });
 
 describe('toBedrockJsonSchema', () => {
-  it('converts nested object/array schemas and drops Vertex-only keys', () => {
+  it('converts nested object/array schemas and drops provider-specific keys', () => {
     const converted = toBedrockJsonSchema({
       type: 'OBJECT',
       properties: {

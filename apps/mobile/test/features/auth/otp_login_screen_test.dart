@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:okuvu/src/config/app_config.dart';
 import 'package:okuvu/src/features/auth/otp_login_screen.dart';
@@ -12,36 +11,7 @@ import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/core/auth_service.dart';
 import 'package:okuvu/src/router/router.dart';
 
-/// Firebase-free fake — otp_login_screen.dart's own tests (this file) hit
-/// the same Firebase-in-tests landmine documented elsewhere this session
-/// (Firebase.initializeApp() unavailable in the test harness). Mirrors
-/// consent_screen_test.dart's FakeAuthService exactly.
-class FakeAuthService implements AuthService {
-  @override
-  User? get currentUser => null;
-
-  @override
-  Future<String?> getIdToken() async => null;
-
-  @override
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
-    required void Function(FirebaseAuthException) onError,
-    int? forceResendingToken,
-  }) async {
-    onCodeSent('test-verification-id', null);
-  }
-
-  @override
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {}
-
-  @override
-  Future<void> signOut() async {}
-}
+import '../../support/fake_auth_service.dart';
 
 /// Responds per-path so the same adapter can drive both the invite-redeem
 /// and the normal verify-otp branches within one test.
@@ -70,7 +40,7 @@ class RoutedMockAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-Widget createTestApp(Dio dio) {
+Widget createTestApp(Dio dio, {FakeAuthService? authService}) {
   final testRouter = GoRouter(
     initialLocation: '/auth',
     routes: [
@@ -95,7 +65,7 @@ Widget createTestApp(Dio dio) {
   return ProviderScope(
     overrides: [
       dioClientProvider.overrideWithValue(dio),
-      authServiceProvider.overrideWithValue(FakeAuthService()),
+      authServiceProvider.overrideWithValue(authService ?? FakeAuthService()),
       routerProvider.overrideWithValue(testRouter),
     ],
     child: MaterialApp.router(routerConfig: testRouter),
@@ -262,6 +232,118 @@ void main() {
 
       final box = tester.widget<TextField>(find.byKey(const ValueKey('otp_0')));
       expect(box.controller?.text, '7');
+    });
+  });
+
+  group('OtpLoginScreen — Cognito OTP flow and failures', () {
+    late Dio dio;
+    late RoutedMockAdapter adapter;
+    late FakeAuthService authService;
+
+    setUp(() {
+      adapter = RoutedMockAdapter();
+      dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+      dio.httpClientAdapter = adapter;
+      authService = FakeAuthService();
+    });
+
+    testWidgets('phone → OTP → verify drives AuthService with the entered code',
+        (tester) async {
+      await tester.pumpWidget(createTestApp(dio, authService: authService));
+      await tester.pumpAndSettle();
+
+      await enterPhoneAndSendOtp(tester);
+
+      // Phone step normalized to E.164 before reaching AuthService.
+      expect(authService.verifyPhoneCallCount, 1);
+      expect(authService.lastPhoneNumber, '+919876543210');
+      expect(find.text('OTP Verification'), findsOneWidget);
+
+      await enterOtp(tester);
+
+      expect(authService.lastVerificationId, 'test-verification-id');
+      expect(authService.lastSmsCode, '111111');
+      expect(adapter.lastRequest?.path, contains('/auth/verify-otp'));
+      expect(find.text('COLDSTART_MARKER'), findsOneWidget);
+    });
+
+    testWidgets('resend: after the cooldown, "Resend code" asks AuthService again',
+        (tester) async {
+      await tester.pumpWidget(createTestApp(dio, authService: authService));
+      await tester.pumpAndSettle();
+      await enterPhoneAndSendOtp(tester);
+
+      // Cooldown is 30s — the button only appears once the timer runs out.
+      expect(find.text('Resend code'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Resend code'));
+      await tester.pumpAndSettle();
+
+      expect(authService.verifyPhoneCallCount, 2);
+      expect(authService.lastPhoneNumber, '+919876543210');
+      // Still on the OTP step, with a fresh cooldown running.
+      expect(find.text('OTP Verification'), findsOneWidget);
+    });
+
+    testWidgets('phone step shows the Cognito error message', (tester) async {
+      authService.verifyPhoneError = const AuthException(
+        'LimitExceededException',
+        'Too many attempts. Try again in a few minutes.',
+      );
+
+      await tester.pumpWidget(createTestApp(dio, authService: authService));
+      await tester.pumpAndSettle();
+      await enterPhoneAndSendOtp(tester);
+
+      expect(
+        find.text('Too many attempts. Try again in a few minutes.'),
+        findsOneWidget,
+      );
+      expect(find.text('OTP Verification'), findsNothing);
+    });
+
+    testWidgets('wrong code shows the mapped message and clears the boxes',
+        (tester) async {
+      authService.verifyOtpError = const AuthException(
+        'CodeMismatchException',
+        'That code is incorrect.',
+      );
+
+      await tester.pumpWidget(createTestApp(dio, authService: authService));
+      await tester.pumpAndSettle();
+      await enterPhoneAndSendOtp(tester);
+      await enterOtp(tester);
+
+      expect(find.text('That code is incorrect.'), findsOneWidget);
+      expect(find.text('COLDSTART_MARKER'), findsNothing);
+
+      final box = tester.widget<TextField>(find.byKey(const ValueKey('otp_0')));
+      expect(box.controller?.text, isEmpty);
+    });
+
+    testWidgets('failed resend surfaces its own error on the OTP step',
+        (tester) async {
+      await tester.pumpWidget(createTestApp(dio, authService: authService));
+      await tester.pumpAndSettle();
+      await enterPhoneAndSendOtp(tester);
+
+      authService.verifyPhoneError = const AuthException(
+        'ExpiredCodeException',
+        'That code has expired. Request a new one.',
+      );
+
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Resend code'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('That code has expired. Request a new one.'),
+        findsOneWidget,
+      );
     });
   });
 }

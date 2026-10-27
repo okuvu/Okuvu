@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { submitSrsScore } from '../lib/sessions.js';
 
 interface SrsBody {
@@ -8,7 +8,7 @@ interface SrsBody {
 
 export async function sessionRoute(app: FastifyInstance): Promise<void> {
   app.patch<{ Params: { id: string }; Body: SrsBody }>('/sessions/:id/srs', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { id } = request.params;

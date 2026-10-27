@@ -10,11 +10,11 @@ export type DeleteAccountResult =
   | { status: 'active_session' };
 
 export async function deleteAccount(
-  firebaseUid: string,
+  authSubject: string,
   log?: { info: LogFn },
 ): Promise<DeleteAccountResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true, deleted_at: true },
   });
 
@@ -48,7 +48,7 @@ export async function deleteAccount(
       where: { id: user.id },
       data: {
         phone_number: '',
-        firebase_uid: `deleted-${randomUUID()}`,
+        auth_subject: `deleted-${randomUUID()}`,
         deleted_at: new Date(),
       },
     });

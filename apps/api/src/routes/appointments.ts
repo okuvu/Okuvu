@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { toView } from '../lib/appointments.js';
 import type { AppointmentsResponse } from '@okuvu/shared-types';
@@ -28,7 +28,7 @@ interface AppointmentsQuery {
 // router. Split/ordering mirrors that router's listForClient exactly.
 export async function appointmentsRoute(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: AppointmentsQuery }>('/users/me/appointments', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
@@ -56,7 +56,7 @@ export async function appointmentsRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 

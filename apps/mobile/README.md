@@ -1,6 +1,6 @@
 # Evia — Mobile App
 
-Flutter app for the Evia platform. Built with Riverpod, Firebase Auth, and WebSocket-based AI conversation.
+Flutter app for the Evia platform. Built with Riverpod, Amazon Cognito phone-OTP auth, and WebSocket-based AI conversation.
 
 ## Prerequisites
 
@@ -49,7 +49,45 @@ flutter run --flavor dev --dart-define=FLAVOR=dev \
   --dart-define=WS_URL=ws://192.168.1.2:8080
 ```
 
-### Bypassing Firebase Auth (local dev)
+### Phone auth (Amazon Cognito)
+
+Sign-in is phone OTP issued by an Amazon Cognito user pool, called as plain HTTPS
+JSON from `lib/src/core/cognito_client.dart` over the existing `dio` dependency —
+no Amplify, no AWS SDK. The pool coordinates come from `--dart-define`:
+
+```bash
+flutter run --flavor dev --dart-define=FLAVOR=dev \
+  --dart-define=COGNITO_REGION=ap-south-1 \
+  --dart-define=COGNITO_USER_POOL_ID=ap-south-1_XXXXXXXX \
+  --dart-define=COGNITO_CLIENT_ID=<mobile app client id>
+```
+
+Without `COGNITO_CLIENT_ID` the app still runs; the login screen reports
+"Sign-in is not configured on this build." Use the bypass below for local work.
+
+Flow (`lib/src/core/auth_service.dart`):
+
+| Step | Cognito operation |
+|---|---|
+| New number | `SignUp` → SMS code |
+| Returning number (`UsernameExistsException`) | `ForgotPassword` → SMS code |
+| Verify new number | `ConfirmSignUp` → `InitiateAuth(USER_PASSWORD_AUTH)` |
+| Verify returning number | `ConfirmForgotPassword` → `InitiateAuth(USER_PASSWORD_AUTH)` |
+| Expired token | `InitiateAuth(REFRESH_TOKEN_AUTH)` |
+| Sign out | clear local tokens + best-effort `RevokeToken` |
+
+The per-device password is 32 random bytes (base64url) generated on the device and
+never shown to the user — the user only ever types the SMS code.
+
+### Token storage — hardening step
+
+Phone number, device password, refresh token and ID token are persisted with
+`shared_preferences` (`lib/src/core/token_store.dart`), which is plain-text app
+storage. **Moving `TokenStore` to `flutter_secure_storage`** (Keystore/Keychain
+backed) is the hardening step before a store release; nothing else has to change —
+`TokenStore` is the only seam.
+
+### Bypassing phone auth (local dev)
 
 Pass the backend's bypass token to skip phone OTP:
 

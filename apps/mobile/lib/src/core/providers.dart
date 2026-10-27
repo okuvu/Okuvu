@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'websocket_service.dart';
 import 'auth_service.dart';
@@ -41,8 +40,8 @@ final analyticsServiceProvider =
 final crisisOverlayProvider =
     NotifierProvider<CrisisOverlayNotifier, bool>(CrisisOverlayNotifier.new);
 
-final authStateProvider = StreamProvider<User?>((ref) {
-  return FirebaseAuth.instance.authStateChanges();
+final authStateProvider = StreamProvider<AuthUser?>((ref) {
+  return ref.watch(authServiceProvider).authStateChanges();
 });
 
 enum SessionState { initial, authenticated, unauthenticated }

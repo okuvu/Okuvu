@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyOidcToken } from '../middleware/oidc-auth.js';
+import { verifyInternalToken } from '../middleware/internal-auth.js';
 import { generateSessionSummary } from '../lib/summary.js';
 
 interface SummaryTaskPayload {
@@ -9,7 +9,7 @@ interface SummaryTaskPayload {
 
 export async function summaryTaskRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: SummaryTaskPayload }>('/tasks/summary', {
-    preHandler: [verifyOidcToken],
+    preHandler: [verifyInternalToken],
     schema: {
       body: {
         type: 'object',

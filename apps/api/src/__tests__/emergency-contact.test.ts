@@ -18,7 +18,7 @@ vi.mock('../lib/prisma.js', () => ({
 }));
 
 const MOCK_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
-const MOCK_FIREBASE_UID = 'mock-firebase-uid-1';
+const MOCK_AUTH_SUBJECT = 'dev-bypass-subject-1';
 
 const TEST_KEY = Buffer.alloc(32, 0x42);
 const TEST_KEY_BASE64 = TEST_KEY.toString('base64');

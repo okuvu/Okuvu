@@ -17,7 +17,7 @@ vi.mock('../lib/prisma.js', () => ({
   },
 }));
 
-const MOCK_FIREBASE_UID = 'mock-firebase-uid-1';
+const MOCK_AUTH_SUBJECT = 'dev-bypass-subject-1';
 
 async function importMocks() {
   const { prisma } = await import('../lib/prisma.js');
@@ -27,7 +27,7 @@ async function importMocks() {
 function buildFullUser() {
   return {
     id: 'user-1',
-    firebase_uid: MOCK_FIREBASE_UID,
+    auth_subject: MOCK_AUTH_SUBJECT,
     phone_number: '+15551234567',
     created_at: new Date('2026-01-01'),
     updated_at: new Date('2026-06-29'),
@@ -96,7 +96,7 @@ function buildFullUser() {
 function buildUserWithManySessions(count: number) {
   const user: Record<string, any> = {
     id: 'user-2',
-    firebase_uid: MOCK_FIREBASE_UID,
+    auth_subject: MOCK_AUTH_SUBJECT,
     phone_number: '+15559876543',
     created_at: new Date('2025-01-01'),
     updated_at: new Date('2026-06-29'),
@@ -140,7 +140,7 @@ function buildUserWithManySessions(count: number) {
 function buildUserWithNoRelations() {
   return {
     id: 'user-3',
-    firebase_uid: MOCK_FIREBASE_UID,
+    auth_subject: MOCK_AUTH_SUBJECT,
     phone_number: '+15551112222',
     created_at: new Date('2026-06-29'),
     updated_at: new Date('2026-06-29'),
@@ -219,7 +219,7 @@ describe('GET /users/me/context', () => {
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { firebase_uid: MOCK_FIREBASE_UID },
+          where: { auth_subject: MOCK_AUTH_SUBJECT },
           include: expect.objectContaining({
             safety_state: true,
             clinical_config: true,

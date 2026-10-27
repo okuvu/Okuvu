@@ -46,7 +46,7 @@ export const testConfigRouter = router({
           data: {
             environment: input.environment,
             model_version: input.model_version,
-            provider: input.provider ?? 'gemini',
+            provider: input.provider ?? 'bedrock',
             prompt_hash: input.prompt_hash,
             temperature: input.temperature,
             safety_settings: input.safety_settings,

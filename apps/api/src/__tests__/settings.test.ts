@@ -12,7 +12,7 @@ vi.mock('../lib/prisma.js', () => ({
   },
 }));
 
-const MOCK_FIREBASE_UID = 'mock-firebase-uid-1';
+const MOCK_AUTH_SUBJECT = 'dev-bypass-subject-1';
 
 async function importMocks() {
   const { prisma } = await import('../lib/prisma.js');

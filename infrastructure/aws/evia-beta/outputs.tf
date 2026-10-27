@@ -132,3 +132,34 @@ output "execution_role_arn" {
   description = "Shared ECS execution role ARN"
   value       = aws_iam_role.ecs_execution.arn
 }
+
+output "cognito_client_pool_id" {
+  description = "Cognito user pool id for mobile clients (COGNITO_USER_POOL_ID)"
+  value       = aws_cognito_user_pool.clients.id
+}
+
+output "cognito_client_app_client_id" {
+  description = "Cognito app client id the mobile app authenticates with (COGNITO_CLIENT_ID)"
+  value       = aws_cognito_user_pool_client.mobile.id
+}
+
+output "cognito_therapist_pool_id" {
+  description = "Cognito user pool id for therapists (COGNITO_THERAPIST_POOL_ID)"
+  value       = aws_cognito_user_pool.therapists.id
+}
+
+output "cognito_therapist_app_client_id" {
+  description = "Cognito app client id the therapist portal signs in with"
+  value       = aws_cognito_user_pool_client.portal.id
+}
+
+output "cognito_therapist_client_secret" {
+  description = "Cognito app client secret for the therapist portal (sensitive)"
+  value       = aws_cognito_user_pool_client.portal.client_secret
+  sensitive   = true
+}
+
+output "cognito_issuer" {
+  description = "OIDC issuer for the therapist pool (COGNITO_ISSUER / NEXTAUTH)"
+  value       = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.therapists.id}"
+}

@@ -46,11 +46,11 @@ function stageBudget(stage: string): number {
 
 async function setup(): Promise<void> {
   await prisma.user.upsert({
-    where: { firebase_uid: TEST_UID },
+    where: { auth_subject: TEST_UID },
     update: {},
     create: {
       id: TEST_UID,
-      firebase_uid: TEST_UID,
+      auth_subject: TEST_UID,
       phone_number: '+910000000000',
     },
   });

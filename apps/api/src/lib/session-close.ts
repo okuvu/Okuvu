@@ -31,7 +31,7 @@ export async function closeSession(
     return { alreadyClosed: true };
   }
 
-  const user = await prisma.user.findUnique({ where: { firebase_uid: userId } });
+  const user = await prisma.user.findUnique({ where: { auth_subject: userId } });
   const dbUserId = user?.id ?? userId;
 
   let summaryEnqueued = false;

@@ -13,19 +13,29 @@ Okuvu is an AI-powered mental wellness companion for Indian Gen Z, built on a su
 
 ---
 
+## Migration note (October 2026)
+
+The stack moved from Google Cloud to AWS. Cloud Run → ECS Fargate, Cloud SQL → RDS for PostgreSQL, Cloud Tasks → SQS, Memorystore → ElastiCache (Valkey), Secret Manager → AWS Secrets Manager, Cloud KMS/Storage → AWS KMS/S3, Cloud Build/Artifact Registry → CodeBuild/ECR, Vertex AI (Gemini) → Amazon Bedrock (Nova Pro + Titan Embeddings V2), and Firebase Auth → a Cognito user pool. Everything is pinned to **ap-south-1 (Mumbai)**.
+
+The authoritative contract for the cutover is [`docs/AWS-CUTOVER-SPEC.md`](docs/AWS-CUTOVER-SPEC.md); the phased plan is [`docs/AWS-MIGRATION-PLAN.md`](docs/AWS-MIGRATION-PLAN.md). Where older docs in `docs/` still describe the previous stack, the spec wins.
+
+---
+
 ## Repo Structure
 
 ```
 okuvu/
 ├── apps/
 │   ├── mobile/               Flutter app (Android-first MVP) — not an npm workspace member
- │   ├── api/                  Node.js/TypeScript backend (Cloud Run) — @okuvu/api
- │   └── therapist-portal/     Next.js therapist portal — @okuvu/therapist-portal (see apps/therapist-portal/README.md)
+│   ├── api/                  Node.js/TypeScript backend (ECS Fargate) — @okuvu/api
+│   ├── worker/               Background worker (ECS Fargate, SQS consumer) — @okuvu/worker
+│   └── therapist-portal/     Next.js therapist portal — @okuvu/therapist-portal (see apps/therapist-portal/README.md)
 ├── packages/
- │   ├── prisma/               Prisma schema + generated client (shared) — @okuvu/prisma
- │   └── shared-types/         TypeScript types shared across apps — @okuvu/shared-types
-├── scripts/                  Deploy and utility scripts
-├── infra/                    Cloud Build + Cloud Run configs
+│   ├── prisma/               Prisma schema + generated client (shared) — @okuvu/prisma
+│   └── shared-types/         TypeScript types shared across apps — @okuvu/shared-types
+├── infrastructure/aws/       Terraform for the beta stack (VPC, RDS, ElastiCache, ECS, ALB, SQS, S3, KMS, ECR)
+├── scripts/                  Deploy and utility scripts (ECR push + ECS rollout)
+├── buildspec.yml             CodeBuild pipeline: test → build → migrate → deploy
 ├── load-tests/               k6 WebSocket load test scripts
 └── docs/                     Architecture decisions, setup guides
 ```
@@ -34,19 +44,20 @@ okuvu/
 
 ## Tech Stack
 
-| Layer                     | Technology                                                                                                                 |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Mobile                    | Flutter (Android-first, iOS ready)                                                                                         |
-| Backend API               | Node.js + TypeScript + Fastify                                                                                             |
-| Background worker         | Node.js + TypeScript (Cloud Tasks consumer)                                                                                |
-| Therapist portal          | Next.js 14 (App Router) + tRPC + NextAuth                                                                                  |
-| Database                  | PostgreSQL via Prisma (Neon for dev, Cloud SQL for staging/prod)                                                           |
-| Auth                      | Firebase Authentication (OTP for users, Google OAuth for therapists)                                                       |
-| LLM — Clinical agents    | Gemini 3.1 Pro via Vertex AI (asia-south1)                                                                                 |
-| LLM — Governance/summary | Gemini 3.1 Flash-Lite via Vertex AI                                                                                        |
-| TTS                       | Sarvam Bulbul v2                                                                                                           |
-| Infrastructure            | GCP asia-south1 (Mumbai) — Cloud Run, Cloud SQL, Cloud Storage, Cloud KMS, Cloud Tasks, Secret Manager, Memorystore Redis |
-| CI/CD                     | Cloud Build + Artifact Registry                                                                                            |
+| Layer                     | Technology                                                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Mobile                    | Flutter (Android-first, iOS ready)                                                                                    |
+| Backend API               | Node.js + TypeScript + Fastify                                                                                        |
+| Background worker         | Node.js + TypeScript (SQS consumer)                                                                                   |
+| Therapist portal          | Next.js 16 (App Router) + tRPC + NextAuth (Cognito provider)                                                          |
+| Database                  | PostgreSQL via Prisma (Neon for dev, Amazon RDS for staging/prod)                                                     |
+| Auth                      | Amazon Cognito (phone OTP for users, therapist pool for portal sign-in)                                               |
+| LLM — Clinical agents     | Amazon Nova Pro (`amazon.nova-pro-v1:0`) via Bedrock, in-region ap-south-1                                           |
+| LLM — Embeddings          | Amazon Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`), 768-dim                                            |
+| LLM — Comparison path     | OpenRouter (LLM_PROVIDER=openrouter)                                                                                  |
+| TTS                       | Sarvam Bulbul v2                                                                                                      |
+| Infrastructure            | AWS ap-south-1 (Mumbai) — ECS Fargate, RDS, ElastiCache (Valkey), S3, KMS, SQS, Secrets Manager, CloudWatch           |
+| CI/CD                     | AWS CodeBuild + Amazon ECR (+ GitHub Actions for PR checks)                                                           |
 
 ---
 
@@ -57,8 +68,8 @@ Before you can run anything locally, you need:
 1. **Node.js 20+** and **pnpm 9+** — install pnpm with `npm install -g pnpm`, then check with `pnpm -v`
 2. **Flutter 3.x** (stable channel)
 3. **Access to the shared Neon workspace** — see [docs/neon-setup.md](docs/neon-setup.md)
-4. **GCP credentials** for evia-dev — ask the Senior Engineer
-5. **Firebase config** for evia-dev — ask the Senior Engineer
+4. **AWS CLI v2 credentials** for the dev account (`aws sts get-caller-identity` must succeed) with Bedrock model access enabled for Nova Pro and Titan Embeddings V2 in `ap-south-1` — ask the Senior Engineer
+5. **Cognito therapist app client** credentials for dev — ask the Senior Engineer (optional: the harness's local-dev bypass works without them)
 
 See [docs/neon-setup.md](docs/neon-setup.md) for the full local database setup guide.
 
@@ -95,18 +106,20 @@ cd apps/mobile && flutter run --flavor dev
 
 ## Environments
 
-| Environment       | GCP Project         | Deployed from                   | Purpose                                  |
-| ----------------- | ------------------- | ------------------------------- | ---------------------------------------- |
-| **dev**     | `evia-dev`        | Local machine                   | Individual story development             |
-| **staging** | `evia-500215`     | `main` branch (auto)          | Integration, dogfooding, supervised beta |
-| **prod**    | `evia-production` | Git tag`v*` (manual approval) | Live users                               |
+| Environment       | AWS account / region | Deployed from                   | Purpose                                  |
+| ----------------- | -------------------- | ------------------------------- | ---------------------------------------- |
+| **dev**           | developer's own, `ap-south-1` | Local machine         | Individual story development             |
+| **beta/staging**  | beta account, `ap-south-1`    | `main` branch (auto)  | Integration, dogfooding, supervised beta |
+| **prod**          | prod account, `ap-south-1`    | Git tag `v*` (manual approval) | Live users                     |
+
+Every environment runs in `ap-south-1` (Mumbai); `infrastructure/aws/evia-beta/variables.tf` rejects any other region.
 
 ---
 
 ## Branching
 
 ```
-main        ← always deployable to evia-500215 (staging)
+main        ← always deployable to the beta account (staging)
 develop     ← story branches merge here first
 story/*     ← one branch per ClickUp story (deleted after merge)
 hotfix/*    ← P0 fixes only, direct to main
@@ -133,9 +146,9 @@ All stories are tracked in ClickUp under the **Evia** folder.
 
 1. **A1 safety gate is non-negotiable** — it runs on every single user turn, no exceptions, no bypass in any environment other than the explicitly-documented local dev bypass.
 2. **Crisis endpoints are never rate-limited** — `safety_state = S3 or S4` bypasses all session/turn caps. Do not change this.
-3. **GCP credentials never go in the repo** — Secret Manager only, injected at Cloud Run deploy time.
+3. **AWS credentials never go in the repo** — Secrets Manager and IAM task roles only, injected into the ECS task definition at deploy time.
 4. **Therapist portal session notes (T-05) are never ingested into any agent** — this is a deliberate clinical boundary, not an oversight.
-5. **All user data stays in asia-south1 (Mumbai)** — single GCP DPA covers compute, DB, storage, auth, and LLM inference.
+5. **All user data stays in ap-south-1 (Mumbai)** — one AWS region covers compute, DB, storage, auth, and LLM inference (DPDP compliance).
 
 ---
 
@@ -143,7 +156,7 @@ All stories are tracked in ClickUp under the **Evia** folder.
 
 | Role                  | Responsibility                                                 |
 | --------------------- | -------------------------------------------------------------- |
-| Senior Engineer       | Backend, infra, GCP, PR reviews for all server-side code       |
+| Senior Engineer       | Backend, infra, AWS, PR reviews for all server-side code       |
 | Lead Developer        | Flutter, therapist portal, PR reviews for all client-side code |
 | Backend Interns (×4) | API endpoints, agents, DB queries                              |
 | Flutter Interns (×4) | Mobile screens, widgets, state management                      |

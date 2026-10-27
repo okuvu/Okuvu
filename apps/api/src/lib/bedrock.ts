@@ -22,30 +22,30 @@ import {
 export type {
   GenerateContentParams,
   GenerateContentResult,
-} from './vertex-ai.js';
+} from './llm-types.js';
 import type {
   GenerateContentParams,
   GenerateContentResult,
-} from './vertex-ai.js';
+} from './llm-types.js';
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
- * AWS Bedrock implementation of the `vertex-ai.ts` contract.
+ * AWS Bedrock implementation of the `GenerateContentParams` →
+ * `GenerateContentResult` contract in `llm-types.ts`.
  *
- * Drop-in for `vertex-ai.ts`: same `generateContent(params)` signature, same
- * argument shapes, same `GenerateContentResult` (including `model` and
- * `canned`). Agents never branch on provider — `generate-content.ts` picks a
- * backend and this module is only reached when
- * `OKUVU_LLM_PROVIDER=bedrock` (see `provider-config.ts`).
+ * Same `generateContent(params)` signature and argument shapes every agent
+ * already used. Agents never branch on provider — `generate-content.ts` picks a
+ * backend and this module is reached when `LLM_PROVIDER=bedrock` (see
+ * `provider-config.ts`).
  *
- * Mapping, and where Bedrock genuinely differs from Vertex:
+ * Mapping notes:
  *
  *  • Prompt          — `systemInstruction` → `system` blocks; `role:'model'`
  *                      → `role:'assistant'`; each `parts[].text` becomes its
  *                      own text content block.
- *  • Structured JSON — Vertex's `generationConfig.responseSchema` is enforced
+ *  • Structured JSON — the legacy provider's `generationConfig.responseSchema` is enforced
  *                      by the Gemini decoder itself. Bedrock's equivalent is
  *                      forced tool use with `toolSpec.strict: true`
  *                      (`emit_structured_json`), whose `inputSchema.json` is
@@ -61,7 +61,7 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  *                      (A2, A9, A9-post) maps to the same forced tool with a
  *                      permissive object schema — Bedrock has no JSON "mime
  *                      type" equivalent.
- *  • `safetySettings` — Vertex per-category thresholds have no Converse
+ *  • `safetySettings` — the legacy provider per-category thresholds have no Converse
  *                      equivalent; Bedrock Guardrails are attached by id at
  *                      the client/account level and cannot be expressed as
  *                      per-request category thresholds. Ignored (with a log)
@@ -71,7 +71,7 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  *                      passed through (supported by several Bedrock models)
  *                      and dropped by the service if the model rejects it.
  *  • Timeout         — implemented with an AbortController, so the in-flight
- *                      HTTP request is actually cancelled (the Vertex client
+ *                      HTTP request is actually cancelled (the the legacy provider client
  *                      only raced a timer and left the gRPC call running).
  */
 
@@ -90,18 +90,17 @@ export function clearBedrockClient(): void {
 }
 
 /**
- * Compile-time drop-in assertion. If `vertex-ai.ts`'s exported surface ever
- * changes shape (params, result, constants), this assignment stops compiling —
- * the migration cannot silently drift from the interface it claims to satisfy.
- * No runtime effect.
+ * Local constants must stay identical to the shared contract in `llm-types.ts`.
+ * If that module's constants change shape, this stops compiling — the two
+ * cannot silently drift. No runtime effect.
  */
-const _vertexAiContract: Pick<
-  typeof import('./vertex-ai.js'),
-  'generateContent' | 'DEFAULT_MAX_OUTPUT_TOKENS' | 'DEFAULT_TIMEOUT_MS'
-> = { generateContent, DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS };
+const _llmTypesContract: Pick<
+  typeof import('./llm-types.js'),
+  'DEFAULT_MAX_OUTPUT_TOKENS' | 'DEFAULT_TIMEOUT_MS'
+> = { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS };
 
-/** Vertex `Schema.Type` enum values → JSON Schema type names. */
-const VERTEX_TYPE_TO_JSON_SCHEMA: Record<string, string> = {
+/** Legacy uppercase schema-type tokens agents emit → JSON Schema type names. */
+const UPPERCASE_TYPE_TO_JSON_SCHEMA: Record<string, string> = {
   OBJECT: 'object',
   ARRAY: 'array',
   STRING: 'string',
@@ -112,13 +111,13 @@ const VERTEX_TYPE_TO_JSON_SCHEMA: Record<string, string> = {
 };
 
 /**
- * Convert a Vertex `responseSchema` (protobuf `Schema`: UPPERCASE type names,
+ * Convert a the legacy `responseSchema` (protobuf `Schema`: UPPERCASE type names,
  * `nullable`, `propertyOrdering`) into the JSON Schema the model-facing tool
  * spec needs. Bedrock validates tool schemas strictly — leaving
  * `type:"OBJECT"` in place makes every call fail — so this is not cosmetic.
  *
  * `nullable:true` becomes `type: ["string","null"]`; `propertyOrdering` (a
- * Vertex-only generation hint) is dropped; an empty `required: []` is dropped
+ * provider-specific generation hint) is dropped; an empty `required: []` is dropped
  * because several model providers reject it.
  */
 export function toBedrockJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
@@ -153,7 +152,7 @@ export function toBedrockJsonSchema(schema: Record<string, unknown>): Record<str
     }
 
     if (typeof input.type === 'string') {
-      const base = VERTEX_TYPE_TO_JSON_SCHEMA[input.type.toUpperCase()] ?? input.type.toLowerCase();
+      const base = UPPERCASE_TYPE_TO_JSON_SCHEMA[input.type.toUpperCase()] ?? input.type.toLowerCase();
       out.type =
         input.nullable === true && base !== 'null' ? [base, 'null'] : base;
     }
@@ -184,7 +183,7 @@ type BedrockJsonSchema = NonNullable<
 /**
  * JSON Schema used when the caller asked for JSON (`responseMimeType:
  * 'application/json'`) but supplied no `responseSchema` — the A2 / A9 /
- * A9-post case. Kept permissive on purpose: this replaces Vertex's
+ * A9-post case. Kept permissive on purpose: this replaces the legacy provider's
  * `responseMimeType` (valid JSON, no field guarantee), not `responseSchema`
  * (valid JSON *and* shape).
  */
@@ -325,7 +324,7 @@ export async function generateContent(
     const text = extractReplyText(content);
 
     if (!text) {
-      // Same failure surface as vertex-ai.ts: an empty candidate (safety
+      // Same failure surface as the OpenRouter path: an empty candidate (safety
       // block, MAX_TOKENS, toolUse without input) must read as a technical
       // failure, not as a silent empty answer.
       console.error(
@@ -361,7 +360,7 @@ export async function generateContent(
 // Cohere Embed (1024-dim) is supported for completeness; using it trips the
 // dimension guard below until the column and every stored row are migrated.
 //
-// Semantic gap worth stating plainly: Vertex's `text-embedding-004` was
+// Semantic gap worth stating plainly: the legacy provider's embedding model was
 // called with `taskType: SEMANTIC_SIMILARITY`, which shapes the vector for
 // symmetric similarity. Titan V2 has no task-type parameter at all, and
 // Cohere's `input_type` (search_document vs search_query) is a per-call hint

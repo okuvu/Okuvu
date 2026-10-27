@@ -29,6 +29,11 @@ locals {
       name      = "DATABASE_URL"
       valueFrom = "${aws_secretsmanager_secret.database.arn}:database_url::"
     },
+    {
+      # Shared HMAC key for API → worker task calls over the internal ALB.
+      name      = "WORKER_INTERNAL_AUTH_SECRET"
+      valueFrom = "${aws_secretsmanager_secret.worker_internal_auth.arn}:secret::"
+    },
   ]
 
   shared_environment = [
@@ -42,6 +47,20 @@ locals {
     # transit_encryption_enabled on the replication group.
     { name = "REDIS_URL", value = "rediss://${aws_elasticache_replication_group.main.primary_endpoint_address}:${var.redis_port}" },
     { name = "CONTACTS_KMS_KEY_ARN", value = aws_kms_key.contacts.arn },
+
+    # Models: Bedrock in-region. Nova Pro + Titan Embeddings V2 are the only
+    # pair that keeps inference inside ap-south-1 (DPDP residency).
+    # LLM_PROVIDER=bedrock is the production backend; leaving it unset would
+    # silently route clinical prompts to OpenRouter over the public internet.
+    { name = "LLM_PROVIDER", value = "bedrock" },
+    { name = "BEDROCK_MODEL_ID", value = var.bedrock_model_id },
+    { name = "BEDROCK_EMBEDDING_MODEL_ID", value = var.bedrock_embedding_model_id },
+
+    # Identity: the client pool the API verifies tokens against. The issuer is
+    # derived from region + pool id by the verifier, so it is not injected.
+    { name = "COGNITO_REGION", value = var.aws_region },
+    { name = "COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.clients.id },
+    { name = "COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.mobile.id },
   ]
 }
 

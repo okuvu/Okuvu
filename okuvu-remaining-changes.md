@@ -4,6 +4,15 @@
 **Sources:** `docs/okuvu-v2.0/{00-doc-map-and-parity-resolutions, 01-parity-audit-v1, 02-master-handoff}.md` + live verification of `OkuvuAI/okuvu` `develop` @ `b4ee3cd`.
 **Scope:** everything from the v2.0 parity work that is **still not done** in code/tests/docs.
 
+> **Migration note (28 Oct 2026).** This tracker was written while the stack ran on
+> Google Cloud. The platform has since been cut over to AWS
+> (`docs/AWS-CUTOVER-SPEC.md`): Cloud Run → ECS Fargate, Cloud SQL → RDS, Cloud
+> Tasks → SQS, Vertex AI → Bedrock, Firebase Auth → Cognito. Entries below are
+> kept as written — they are a dated log, not a description of the current
+> platform. Where an open item names a cloud service, read it as the AWS
+> equivalent; anything that depended on a bespoke cloud product (Cloud Scheduler,
+> FCM) is superseded rather than pending.
+
 ---
 
 ## 0. How to read this
@@ -166,7 +175,7 @@ Also confirmed already done (earlier): Audit 1.2 S3 deterministic grounding (A8 
 
 ### H. Ops / manual (outside a PR)
 
-1. 🔴 **Deprovision the retired Cloud Scheduler job** — still needs manual `gcloud scheduler jobs delete` by whoever holds GCP access. Unchanged — outside what I can do from here.
+1. ⚫ **Deprovision the retired scheduler job** — superseded by the AWS cutover: the job lived in the old cloud project and is decommissioned with it, so there is nothing left to delete from this repo. If scheduled work is reintroduced, it must be an AWS-side mechanism (EventBridge Scheduler), not a cloud-provider console job.
 2. 🔴 **Harness DB role** — acceptance-verification note, unchanged: deploy must use `test_harness_app`, not `neondb_owner`.
 3. ✅ **Therapist-portal production DB migration debt** — was 12 migrations behind since 6 Sep; fully caught up this session (see §1).
 4. ✅ **Vercel build-config drift** — dashboard-configured Build/Install commands still said `@evia/*`, silently no-oping every deploy; cleared so `vercel.json`'s correct commands take effect.

@@ -38,6 +38,8 @@ void main() {
     await tester.pump();
 
     final button = tester.widget<FilledButton>(find.byType(FilledButton));
+    // Deliberate debug probe in this scratch harness.
+    // ignore: avoid_print
     print('onPressed is null: ${button.onPressed == null}');
   });
 }

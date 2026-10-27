@@ -4,13 +4,13 @@ import { resolveAwsRegion, resolveSqsQueueUrl } from './provider-config.js';
 /**
  * AWS SQS implementation of the `summary-enqueue.ts` contract.
  *
- * Same shape as the Cloud Tasks producer: `enqueueSummaryJob(sessionId,
+ * Producer contract: `enqueueSummaryJob(sessionId,
  * userId, log)` resolving on success, throwing after all retries on failure,
  * no-op + warning when the queue is not configured, and the same
  * `NODE_ENV=development` direct-HTTP bypass so local dev keeps working without
  * any cloud queue at all.
  *
- * Differences from Cloud Tasks, all deliberate:
+ * Properties that are deliberate:
  *
  *  • Message body is the same JSON (`{session_id, user_id}`) but it is sent as
  *    `MessageBody`, not a base64 HTTP body — the worker consumer reads it
@@ -34,9 +34,10 @@ const BASE_DELAY_MS = 1000;
 let _client: SQSClient | undefined;
 
 /**
- * Lazy client construction: the SDK is only imported when SQS is actually the
- * active transport, so the default Cloud Tasks deployment never loads (or
- * bundles) `@aws-sdk/client-sqs`.
+ * Lazy client construction: the SDK is imported on first use rather than at
+ * module load, so importing this module (as `apps/test-harness` does when it
+ * bundles apps/api sources) never drags `@aws-sdk/client-sqs` into a build that
+ * only needs the type surface.
  */
 async function getClient(): Promise<SQSClient> {
   if (!_client) {
@@ -67,9 +68,8 @@ type Log = {
 };
 
 /**
- * Same contract as `validateCloudTasksConfig` but for the SQS seam: names of
- * required-but-unset variables, empty array when configured. `AWS_REGION` is
- * not listed because it has a safe default (`ap-south-1`).
+ * Names of required-but-unset queue variables, empty array when configured.
+ * `AWS_REGION` is not listed because it has a safe default (`ap-south-1`).
  */
 export function validateSqsConfig(): string[] {
   return resolveSqsQueueUrl() ? [] : ['SQS_QUEUE_URL'];

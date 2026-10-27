@@ -49,11 +49,12 @@ export default function TraceViewer({
 
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-      {/* IBM Plex Mono loaded here only — used exclusively for this monospace JSON display. */}
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-      />
+      {/* IBM Plex Mono loaded here only — used exclusively for this monospace JSON display.
+          Served from @fontsource on jsDelivr (same family name) rather than the
+          Google font CDN: no Google-hosted dependency after the AWS cutover. */}
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/400.css" />
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/500.css" />
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/600.css" />
       <div className="flex items-center justify-between border-b border-[var(--color-outline-variant)] px-[var(--spacing-md)] py-[var(--spacing-sm)]">
         <button
           type="button"

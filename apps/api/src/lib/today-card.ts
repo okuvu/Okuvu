@@ -12,9 +12,9 @@ export type GetTodayCardResult =
 // §D Today-card — pull-based homework + active reminders. Push/scheduler
 // delivery is a separate, out-of-scope-this-pass workstream; this is what
 // the mobile Home screen polls when the app is open.
-export async function getTodayCard(firebaseUid: string): Promise<GetTodayCardResult> {
+export async function getTodayCard(authSubject: string): Promise<GetTodayCardResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: {
       id: true,
       quote_of_day_enabled: true,

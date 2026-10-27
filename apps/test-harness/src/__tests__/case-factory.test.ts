@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
-vi.mock('../../../api/src/lib/vertex-ai.js', () => ({
+vi.mock('../../../api/src/lib/generate-content.js', () => ({
   generateContent: mockGenerateContent,
 }));
 

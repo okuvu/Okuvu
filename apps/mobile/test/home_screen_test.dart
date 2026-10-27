@@ -11,40 +11,11 @@ import 'package:okuvu/src/features/chat/chat_screen.dart';
 import 'package:okuvu/src/features/progress/progress_screen.dart';
 import 'package:okuvu/src/features/settings/settings_screen.dart';
 import 'package:okuvu/src/core/providers.dart';
-import 'package:okuvu/src/core/auth_service.dart';
 import 'package:okuvu/src/features/chat/models/agent_turn_frame.dart';
 import 'package:okuvu/src/core/websocket_service.dart';
 import 'package:okuvu/src/features/chat/models/grounding_result.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-/// AuthService's constructor eagerly touches FirebaseAuth.instance, which
-/// throws in a test environment with no real Firebase app — ChatScreen
-/// reads authServiceProvider directly (for the WS auth token), so it needs
-/// a Firebase-free fake here, same as otp_login_screen_test.dart's.
-class FakeAuthService implements AuthService {
-  @override
-  User? get currentUser => null;
-
-  @override
-  Future<String?> getIdToken() async => 'fake-id-token';
-
-  @override
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken) onCodeSent,
-    required void Function(FirebaseAuthException) onError,
-    int? forceResendingToken,
-  }) async {}
-
-  @override
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {}
-
-  @override
-  Future<void> signOut() async {}
-}
+import 'support/fake_auth_service.dart';
 
 class FakeWebSocketService implements WebSocketService {
   @override

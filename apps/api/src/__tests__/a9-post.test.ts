@@ -473,9 +473,9 @@ describe('A9-post content review agent', () => {
 
   describe('API errors', () => {
     it('throws on timeout for caller to handle failover', async () => {
-      mockGenerateContent.mockRejectedValue(new Error('Vertex AI timeout'));
+      mockGenerateContent.mockRejectedValue(new Error('LLM timeout'));
 
-      await expect(a9PostReview(makeInput())).rejects.toThrow('Vertex AI timeout');
+      await expect(a9PostReview(makeInput())).rejects.toThrow('LLM timeout');
     });
 
     it('throws on API failure for caller to handle failover', async () => {

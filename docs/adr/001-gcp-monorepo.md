@@ -1,3 +1,9 @@
+> **⚠️ PARTIALLY SUPERSEDED — 27 Oct 2026.** ADR-001a ("GCP Only, No AWS") no longer
+> holds: the stack was cut over to AWS ap-south-1 (Bedrock, Cognito, SQS, Secrets
+> Manager, ECS Fargate, RDS, ElastiCache, S3, CloudWatch). See ADR-016
+> (`docs/adr/016-aws-cutover.md`). ADR-001b — the pnpm-workspace monorepo
+> decision — is unaffected and still in force.
+
 # ADR-001 — GCP Full Consolidation + pnpm Workspaces Monorepo
 
 **Date:** June 2026

@@ -9,19 +9,24 @@ import {
   resolveBedrockModelId,
   resolveContentBackend,
   resolveEmbeddingDimensions,
-  resolveEmbeddingProvider,
-  resolveLlmProvider,
-  resolveQueueProvider,
   resolveSecretId,
-  resolveSecretsProvider,
   resolveSqsQueueUrl,
   validateAwsConfig,
 } from '../lib/provider-config.js';
 
+/**
+ * Post-cutover the module has exactly one implementation per seam, so there is
+ * no cloud-selecting provider switch left to assert on. What remains worth
+ * pinning is the AWS resolution itself: region default + validation, model ids,
+ * the pgvector embedding width, SQS URL parsing, Secrets Manager ids and the
+ * boot-time missing-variable report. A leftover `OKUVU_*_PROVIDER` env var must
+ * be inert.
+ */
 const ENV_KEYS = [
   'OKUVU_LLM_PROVIDER',
   'OKUVU_QUEUE_PROVIDER',
   'OKUVU_SECRETS_PROVIDER',
+  'OKUVU_EMBEDDING_PROVIDER',
   'LLM_PROVIDER',
   'AWS_REGION',
   'AWS_DEFAULT_REGION',
@@ -31,6 +36,8 @@ const ENV_KEYS = [
   'BEDROCK_EMBEDDING_DIMENSIONS',
   'SQS_QUEUE_URL',
   'SQS_SUMMARY_QUEUE_URL',
+  'COGNITO_USER_POOL_ID',
+  'COGNITO_CLIENT_ID',
 ] as const;
 
 describe('provider-config', () => {
@@ -50,46 +57,18 @@ describe('provider-config', () => {
     }
   });
 
-  describe('provider selection', () => {
-    it('defaults every seam to the pre-migration GCP provider', () => {
-      expect(resolveLlmProvider()).toBe('vertex');
-      expect(resolveQueueProvider()).toBe('cloudtasks');
-      expect(resolveSecretsProvider()).toBe('gcp');
-      expect(resolveEmbeddingProvider()).toBe('vertex');
-    });
+  describe('retired provider switches', () => {
+    it('is inert when a leftover OKUVU_*_PROVIDER env var is present', () => {
+      process.env.OKUVU_LLM_PROVIDER = 'vertex';
+      process.env.OKUVU_QUEUE_PROVIDER = 'cloudtasks';
+      process.env.OKUVU_SECRETS_PROVIDER = 'gcp';
+      process.env.OKUVU_EMBEDDING_PROVIDER = 'vertex';
 
-    it('treats an empty value as unset (so an empty env var cannot change behaviour)', () => {
-      process.env.OKUVU_LLM_PROVIDER = '';
-      process.env.OKUVU_QUEUE_PROVIDER = '   ';
-      process.env.OKUVU_SECRETS_PROVIDER = '';
-
-      expect(resolveLlmProvider()).toBe('vertex');
-      expect(resolveQueueProvider()).toBe('cloudtasks');
-      expect(resolveSecretsProvider()).toBe('gcp');
-    });
-
-    it('accepts the AWS providers, case-insensitively', () => {
-      process.env.OKUVU_LLM_PROVIDER = 'Bedrock';
-      process.env.OKUVU_QUEUE_PROVIDER = 'SQS';
-      process.env.OKUVU_SECRETS_PROVIDER = 'AWS';
-
-      expect(resolveLlmProvider()).toBe('bedrock');
-      expect(resolveQueueProvider()).toBe('sqs');
-      expect(resolveSecretsProvider()).toBe('aws');
-      expect(resolveEmbeddingProvider()).toBe('bedrock');
-    });
-
-    it('throws on an unrecognised provider rather than silently using GCP', () => {
-      process.env.OKUVU_LLM_PROVIDER = 'gemini';
-      expect(() => resolveLlmProvider()).toThrow(/OKUVU_LLM_PROVIDER="gemini"/);
-
-      delete process.env.OKUVU_LLM_PROVIDER;
-      process.env.OKUVU_QUEUE_PROVIDER = 'sqs-queue';
-      expect(() => resolveQueueProvider()).toThrow(/OKUVU_QUEUE_PROVIDER/);
-
-      delete process.env.OKUVU_QUEUE_PROVIDER;
-      process.env.OKUVU_SECRETS_PROVIDER = 'gcp-secret-manager';
-      expect(() => resolveSecretsProvider()).toThrow(/OKUVU_SECRETS_PROVIDER/);
+      // Nothing flips: there is one implementation per seam now.
+      expect(resolveAwsRegion()).toBe(DEFAULT_AWS_REGION);
+      expect(resolveContentBackend()).toBe('openrouter');
+      expect(resolveSqsQueueUrl()).toBeUndefined();
+      expect(resolveSecretId('emergency-contact-key')).toBe('emergency-contact-key');
     });
   });
 
@@ -98,21 +77,28 @@ describe('provider-config', () => {
       expect(resolveContentBackend()).toBe('openrouter');
     });
 
-    it('keeps the existing LLM_PROVIDER=gemini rollback on Vertex', () => {
-      process.env.LLM_PROVIDER = 'gemini';
-      expect(resolveContentBackend()).toBe('vertex');
-    });
-
-    it('lets OKUVU_LLM_PROVIDER=bedrock win over LLM_PROVIDER', () => {
-      process.env.OKUVU_LLM_PROVIDER = 'bedrock';
-      process.env.LLM_PROVIDER = 'gemini';
+    it('selects Bedrock when LLM_PROVIDER=bedrock', () => {
+      process.env.LLM_PROVIDER = 'bedrock';
       expect(resolveContentBackend()).toBe('bedrock');
     });
 
-    it('stays on OpenRouter when OKUVU_LLM_PROVIDER=vertex and LLM_PROVIDER is openrouter', () => {
-      process.env.OKUVU_LLM_PROVIDER = 'vertex';
-      process.env.LLM_PROVIDER = 'openrouter';
+    it('maps the retired LLM_PROVIDER=gemini value onto the OpenRouter default', () => {
+      process.env.LLM_PROVIDER = 'gemini';
       expect(resolveContentBackend()).toBe('openrouter');
+    });
+
+    it('treats any unrecognised value as OpenRouter', () => {
+      process.env.LLM_PROVIDER = 'something-unrecognized';
+      expect(resolveContentBackend()).toBe('openrouter');
+    });
+
+    it('is not affected by the retired OKUVU_LLM_PROVIDER switch', () => {
+      process.env.OKUVU_LLM_PROVIDER = 'bedrock';
+      expect(resolveContentBackend()).toBe('openrouter');
+
+      process.env.OKUVU_LLM_PROVIDER = 'vertex';
+      process.env.LLM_PROVIDER = 'bedrock';
+      expect(resolveContentBackend()).toBe('bedrock');
     });
   });
 
@@ -131,16 +117,26 @@ describe('provider-config', () => {
       expect(resolveAwsRegion()).toBe('us-east-1');
     });
 
+    it('treats an empty value as unset', () => {
+      process.env.AWS_REGION = '   ';
+      expect(resolveAwsRegion()).toBe(DEFAULT_AWS_REGION);
+    });
+
     it('rejects a malformed region', () => {
       process.env.AWS_REGION = 'mumbai';
+      expect(() => resolveAwsRegion()).toThrow(/not a valid AWS region/);
+
+      process.env.AWS_REGION = 'ap-south';
       expect(() => resolveAwsRegion()).toThrow(/not a valid AWS region/);
     });
   });
 
   describe('Bedrock model ids', () => {
-    it('defaults to an in-region model', () => {
+    it('defaults to in-region models', () => {
       expect(resolveBedrockModelId()).toBe(DEFAULT_BEDROCK_MODEL_ID);
+      expect(DEFAULT_BEDROCK_MODEL_ID).toBe('amazon.nova-pro-v1:0');
       expect(resolveBedrockEmbeddingModelId()).toBe(DEFAULT_BEDROCK_EMBEDDING_MODEL_ID);
+      expect(DEFAULT_BEDROCK_EMBEDDING_MODEL_ID).toBe('amazon.titan-embed-text-v2:0');
     });
 
     it('prefers the per-call model, then BEDROCK_MODEL_ID', () => {
@@ -151,12 +147,22 @@ describe('provider-config', () => {
       );
     });
 
+    it('honours BEDROCK_EMBEDDING_MODEL_ID for the embedding model', () => {
+      process.env.BEDROCK_EMBEDDING_MODEL_ID = 'cohere.embed-english-v3';
+      expect(resolveBedrockEmbeddingModelId()).toBe('cohere.embed-english-v3');
+    });
+
     it('rejects an explicitly empty model id', () => {
       process.env.BEDROCK_MODEL_ID = '   ';
       expect(() => resolveBedrockModelId()).toThrow(/BEDROCK_MODEL_ID/);
-    });
 
-    it('defaults embedding width to the pgvector column width', () => {
+      process.env.BEDROCK_EMBEDDING_MODEL_ID = '';
+      expect(() => resolveBedrockEmbeddingModelId()).toThrow(/BEDROCK_EMBEDDING_MODEL_ID/);
+    });
+  });
+
+  describe('embedding dimensions', () => {
+    it('defaults to the pgvector column width', () => {
       expect(resolveEmbeddingDimensions()).toBe(768);
       expect(DEFAULT_EMBEDDING_DIMENSIONS).toBe(768);
     });
@@ -170,23 +176,47 @@ describe('provider-config', () => {
 
       process.env.BEDROCK_EMBEDDING_DIMENSIONS = '0';
       expect(() => resolveEmbeddingDimensions()).toThrow(/positive integer/);
+
+      process.env.BEDROCK_EMBEDDING_DIMENSIONS = '-768';
+      expect(() => resolveEmbeddingDimensions()).toThrow(/positive integer/);
+
+      process.env.BEDROCK_EMBEDDING_DIMENSIONS = 'wide';
+      expect(() => resolveEmbeddingDimensions()).toThrow(/positive integer/);
+    });
+
+    it('treats an empty value as unset', () => {
+      process.env.BEDROCK_EMBEDDING_DIMENSIONS = '  ';
+      expect(resolveEmbeddingDimensions()).toBe(DEFAULT_EMBEDDING_DIMENSIONS);
     });
   });
 
   describe('SQS_QUEUE_URL', () => {
     const url = 'https://sqs.ap-south-1.amazonaws.com/123456789012/evia-beta-summary-jobs';
 
-    it('is undefined when unset (the default cloudtasks path never needs it)', () => {
+    it('is undefined when unset', () => {
       expect(resolveSqsQueueUrl()).toBeUndefined();
     });
 
-    it('accepts SQS_QUEUE_URL and the SQS_SUMMARY_QUEUE_URL alias', () => {
+    it('treats an empty value as unset', () => {
+      process.env.SQS_QUEUE_URL = '   ';
+      expect(resolveSqsQueueUrl()).toBeUndefined();
+    });
+
+    it('parses a good queue URL', () => {
+      process.env.SQS_QUEUE_URL = url;
+      expect(resolveSqsQueueUrl()).toBe(url);
+    });
+
+    it('accepts SQS_QUEUE_URL and the SQS_SUMMARY_QUEUE_URL alias, preferring SQS_QUEUE_URL', () => {
       process.env.SQS_QUEUE_URL = url;
       expect(resolveSqsQueueUrl()).toBe(url);
 
       delete process.env.SQS_QUEUE_URL;
       process.env.SQS_SUMMARY_QUEUE_URL = url;
       expect(resolveSqsQueueUrl()).toBe(url);
+
+      process.env.SQS_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com/123456789012/other';
+      expect(resolveSqsQueueUrl()).toBe('https://sqs.ap-south-1.amazonaws.com/123456789012/other');
     });
 
     it('allows http for LocalStack-style endpoints', () => {
@@ -194,17 +224,30 @@ describe('provider-config', () => {
       expect(resolveSqsQueueUrl()).toBe('http://localhost:4566/000000000000/summary');
     });
 
-    it('rejects a non-URL value and a URL with no queue name', () => {
+    it('rejects a non-URL value', () => {
       process.env.SQS_QUEUE_URL = 'not-a-url';
       expect(() => resolveSqsQueueUrl()).toThrow(/not a valid URL/);
+    });
 
+    it('rejects a non-http(s) scheme', () => {
+      process.env.SQS_QUEUE_URL = 'ftp://sqs.ap-south-1.amazonaws.com/123456789012/q';
+      expect(() => resolveSqsQueueUrl()).toThrow(/must be an http\(s\) URL/);
+    });
+
+    it('rejects a URL with no queue name path segment', () => {
       process.env.SQS_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com/';
+      expect(() => resolveSqsQueueUrl()).toThrow(/missing the queue name/);
+
+      process.env.SQS_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com';
       expect(() => resolveSqsQueueUrl()).toThrow(/missing the queue name/);
     });
   });
 
   describe('secret ids', () => {
-    it('uses the bare name by default (same name in both clouds)', () => {
+    it('uses the bare name when AWS_SECRETS_PREFIX is unset or empty', () => {
+      expect(resolveSecretId('emergency-contact-key')).toBe('emergency-contact-key');
+
+      process.env.AWS_SECRETS_PREFIX = '  ';
       expect(resolveSecretId('emergency-contact-key')).toBe('emergency-contact-key');
     });
 
@@ -214,20 +257,46 @@ describe('provider-config', () => {
 
       process.env.AWS_SECRETS_PREFIX = 'evia-beta';
       expect(resolveSecretId('emergency-contact-key')).toBe('evia-beta/emergency-contact-key');
+
+      process.env.AWS_SECRETS_PREFIX = ' evia-beta// ';
+      expect(resolveSecretId('emergency-contact-key')).toBe('evia-beta/emergency-contact-key');
     });
   });
 
   describe('validateAwsConfig', () => {
-    it('reports nothing on the default cloudtasks path', () => {
+    it('names every variable AWS cannot default', () => {
+      expect(validateAwsConfig()).toEqual([
+        'SQS_QUEUE_URL',
+        'COGNITO_USER_POOL_ID',
+        'COGNITO_CLIENT_ID',
+      ]);
+    });
+
+    it('drops the queue URL once a valid one is set', () => {
+      process.env.SQS_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com/123456789012/q';
+      expect(validateAwsConfig()).toEqual(['COGNITO_USER_POOL_ID', 'COGNITO_CLIENT_ID']);
+    });
+
+    it('accepts the SQS_SUMMARY_QUEUE_URL alias as configured', () => {
+      process.env.SQS_SUMMARY_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com/1/q';
+      expect(validateAwsConfig()).not.toContain('SQS_QUEUE_URL');
+    });
+
+    it('names the missing Cognito variables and is empty when everything is set', () => {
+      process.env.SQS_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com/123456789012/q';
+      process.env.COGNITO_USER_POOL_ID = 'ap-south-1_abc123';
+      expect(validateAwsConfig()).toEqual(['COGNITO_CLIENT_ID']);
+
+      process.env.COGNITO_CLIENT_ID = 'client123';
       expect(validateAwsConfig()).toEqual([]);
     });
 
-    it('reports the missing queue URL when SQS is selected', () => {
-      process.env.OKUVU_QUEUE_PROVIDER = 'sqs';
-      expect(validateAwsConfig()).toEqual(['SQS_QUEUE_URL']);
+    it('treats a blank Cognito value as missing', () => {
+      process.env.SQS_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com/123456789012/q';
+      process.env.COGNITO_USER_POOL_ID = '   ';
+      process.env.COGNITO_CLIENT_ID = 'client123';
 
-      process.env.SQS_QUEUE_URL = 'https://sqs.ap-south-1.amazonaws.com/1/q';
-      expect(validateAwsConfig()).toEqual([]);
+      expect(validateAwsConfig()).toEqual(['COGNITO_USER_POOL_ID']);
     });
   });
 });

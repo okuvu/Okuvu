@@ -1,6 +1,7 @@
 # evia beta — AWS stack (ap-south-1)
 
-AWS mirror of `infrastructure/gcp/evia-beta`. One root module, no child modules.
+The evia beta target stack (post cutover). One root module, no child modules.
+Local state unless the S3 backend block in `providers.tf` is enabled.
 
 ## Prerequisites
 

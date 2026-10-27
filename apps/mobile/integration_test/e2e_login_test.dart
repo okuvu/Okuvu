@@ -23,13 +23,15 @@ void main() {
       await $('OTP Verification').waitUntilVisible();
       await $.pumpAndSettle();
 
-      // Firebase test phone accepts the known code without real SMS
+      // Cognito sends the real SMS. For an automated run, the code has to come
+      // from the device or a test SMS gateway and be passed as
+      // --dart-define=E2E_TEST_OTP; there is no provider-side fixed code.
       final otpDigits = _testOtp.split('');
       for (int i = 0; i < otpDigits.length; i++) {
         await $(ValueKey('otp_$i')).enterText(otpDigits[i]);
       }
 
-      // After OTP entry, auto-submit fires → Firebase sign-in → POST /auth/verify-otp
+      // After OTP entry, auto-submit fires → Cognito sign-in → POST /auth/verify-otp
       await $.pumpAndSettle();
       await Future.delayed(const Duration(seconds: 3));
       await $.pumpAndSettle();
