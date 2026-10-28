@@ -113,7 +113,37 @@ export interface AgentTurnFrame {
     tool_card?: ToolCardConfig
     /** OKUVU v2.0 — chat→journal handoff (okuvu-remaining-changes.md §C.4). */
     journal_prompt_suggested?: string | null
+    /**
+     * E17-S6 — present only when `message` is the governed budget notice rather
+     * than model output (the turn was refused before any model call).
+     *
+     * It rides AGENT_TURN, not an ERROR frame, on purpose: every client already
+     * renders AGENT_TURN's `message` as an assistant message, so the user sees a
+     * warm, safe line instead of a generic error or (as the current client does
+     * with ERROR) nothing at all. The machine-readable code travels alongside.
+     */
+    budget?: BudgetNotice
   }
+}
+
+/**
+ * E17-S6 — the structured form of a budget refusal.
+ *
+ * `status` is the HTTP status the same refusal carries on an HTTP surface (429).
+ * A WebSocket turn has no HTTP response, so the value travels here so a client
+ * can apply identical policy (back off, surface a quota banner) without
+ * inferring it from the code.
+ */
+export type BudgetNoticeCode = 'BUDGET_EXCEEDED_SESSION' | 'BUDGET_EXCEEDED_DAY'
+
+export interface BudgetNotice {
+  code: BudgetNoticeCode
+  status: 429
+  /** User-facing copy (governed constant, never an error string). */
+  message: string
+  used: { session_tokens: number; daily_cost_usd: number }
+  limits: { session_tokens: number | null; daily_cost_usd: number | null }
+  retry_after_seconds: number
 }
 
 // ─── Tool Card Types ──────────────────────────────────────────────

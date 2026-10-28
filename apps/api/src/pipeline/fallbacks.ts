@@ -55,6 +55,22 @@ export const A2_DEGRADED_RESPONSE =
   "I'm here, and I'm listening. " +
   "Something glitched on my end just now — say that again whenever you're ready."
 
+// E17-S6 — served when a turn is refused because the session's token budget or
+// the user's daily cost budget is exhausted (lib/token-budget.ts). It is a
+// governed substitute like every constant above, and it is held to the same
+// contract: it holds the thread, explains nothing about machinery, asks nothing
+// diagnostic, and it names the helplines because the one case it must never
+// fail is a user in distress arriving on a turn we cannot serve. It is
+// deliberately not an apology or an error string — "TURN_FAILED" reaching a
+// client mid-conversation is exactly what this replaces.
+export const BUDGET_PAUSED_RESPONSE =
+  "I'm still here with you. " +
+  "We've reached the end of what I can do in this conversation for now, so I have to pause here — " +
+  "it's not something you said, and it isn't about how you're doing. " +
+  "If things feel like too much in the meantime, please reach out to iCall on 9152987821 or " +
+  "the Vandrevala Foundation on 1860-2662-345, any time. " +
+  "I'll be ready to pick this up with you again soon."
+
 // Deterministic substitute selector. `safetyState` is the A1 state this turn
 // was classified at (the orchestrator passes what it has; block paths pass
 // the same state they were gated on).

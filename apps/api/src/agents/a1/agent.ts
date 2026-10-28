@@ -1,6 +1,7 @@
 import { generateContent } from '../../lib/generate-content.js';
 import type { SafetyState } from '@okuvu/shared-types';
 import { buildSafetyPrompt } from './prompts.js';
+import { hasCrisisLanguage } from './crisis-keywords.js';
 import type { A1Basis, A1Input, A1Output, A1SignalStrength } from './types.js';
 
 const A1_FALLBACK_STATE: SafetyState = 'S2';
@@ -42,10 +43,13 @@ function fallbackOutput(reason: string): A1Output {
  * back the same generic prose the safety classifier can't parse, so sandbox
  * always fell back to a fixed S2. A cheap keyword heuristic keeps the
  * classification at least responsive to what the tester actually typed.
+ *
+ * E17-S6: the S4 branch reads `crisis-keywords.ts`, the one keyword list the
+ * budget gate also uses — see that module for why a shared list matters.
  */
 function buildCannedSafetyState(message: string): SafetyState {
   const lower = message.toLowerCase();
-  if (/\b(kill myself|suicide|end my life|want to die|end it all)\b/.test(lower)) return 'S4';
+  if (hasCrisisLanguage(message)) return 'S4';
   if (/\b(harm myself|self[- ]harm|hurt myself|cutting)\b/.test(lower)) return 'S3';
   if (/\b(angry|furious|rage|hate|pissed)\b/.test(lower)) return 'S1';
   if (/\b(anxious|worried|scared|stressed|overwhelmed|nervous)\b/.test(lower)) return 'S1';

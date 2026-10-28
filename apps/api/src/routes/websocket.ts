@@ -6,9 +6,17 @@ import { handleSessionOpen, type SendFrame } from '../lib/session-handler.js';
 import { closeSession } from '../lib/session-close.js';
 import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@okuvu/shared-types';
 import { processTurn } from '../pipeline/orchestrator.js';
+import { BUDGET_PAUSED_RESPONSE } from '../pipeline/fallbacks.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { checkRateLimit } from '../lib/rate-limit.js';
+import {
+  admitTurn,
+  microUsdToUsd,
+  readBudgetCounters,
+  toBudgetNotice,
+  withUsageMetering,
+} from '../lib/token-budget.js';
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 export const MAX_MESSAGE_LENGTH = 4000;
@@ -224,10 +232,99 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           return;
         }
 
+        // E17-S6 — the cost gate. The rate limit above bounds request *volume*;
+        // this bounds *spend*, which is a different failure: 20 turns a minute
+        // of long conversation is still an unbounded bill. Checked before any
+        // model call, so a refused turn costs nothing and cannot half-run.
+        //
+        // A check that throws is not a budget refusal — it is an accounting
+        // fault, and the module already absorbs Redis being down. Logging it
+        // loudly and serving the turn (rather than silently dropping a therapy
+        // message on a bug in the meter) is the only failure this gate allows,
+        // and it is bounded by the rate limit that ran above.
+        let admission: Awaited<ReturnType<typeof admitTurn>> | null = null;
+        try {
+          admission = await admitTurn({ userId: uid, sessionId: session_id, message: message.trim() });
+        } catch (err) {
+          req.log.error({ event: 'budget_check', request_id: requestId, user_id: uid, session_id, err }, 'Budget check failed — serving the turn unmetered');
+        }
+
+        if (admission?.action === 'refuse') {
+          const notice = toBudgetNotice(admission.budget, BUDGET_PAUSED_RESPONSE);
+          // Carried on AGENT_TURN, not on an ERROR frame: the deployed client
+          // renders AGENT_TURN.message as an assistant message and drops ERROR
+          // frames silently (apps/mobile/lib/src/core/websocket_service.dart),
+          // so an ERROR-only refusal would show the user *nothing*. The
+          // structured code travels in `budget` for any client that wants it.
+          send({
+            type: 'AGENT_TURN',
+            payload: {
+              session_id,
+              message: BUDGET_PAUSED_RESPONSE,
+              turn_count: activeSessions.get(session_id)?.turnNumber ?? 0,
+              turn_id: null,
+              tts_url: null,
+              budget: notice,
+            },
+          });
+          req.log.warn({
+            event: 'user_turn',
+            request_id: requestId,
+            user_id: uid,
+            session_id,
+            outcome: 'budget_exceeded',
+            code: notice.code,
+            status: notice.status,
+            used_session_tokens: notice.used.session_tokens,
+            used_daily_cost_usd: notice.used.daily_cost_usd,
+            retry_after_seconds: notice.retry_after_seconds,
+          }, 'USER_TURN refused: budget exhausted');
+          return;
+        }
+
+        if (admission?.action === 'crisis_bypass') {
+          // Over budget, but this message carries explicit crisis language.
+          // Admitting it is the one thing that outranks a cost ceiling.
+          req.log.warn({
+            event: 'budget_bypass',
+            request_id: requestId,
+            user_id: uid,
+            session_id,
+            reason: admission.reason,
+            code: admission.budget.code,
+          }, 'Turn over budget but crisis language detected — admitting the turn');
+        }
+
         try {
           const activeSession = activeSessions.get(session_id);
           const perceivedIntensity = activeSession?.perceivedIntensity ?? null;
-          const result = await processTurn(uid, session_id, message.trim(), perceivedIntensity);
+          // E17-S6: every Converse call this turn makes (A1, A9-pre, A2,
+          // A9-post) records its own `usage` into this context; the measured
+          // total is persisted to the session and day counters afterwards.
+          const { result, usage } = await withUsageMetering(
+            { userId: uid, sessionId: session_id },
+            () => processTurn(uid, session_id, message.trim(), perceivedIntensity),
+          );
+
+          if (usage.calls > 0) {
+            const { counters, store } = await readBudgetCounters(uid, session_id);
+            req.log.info({
+              event: 'budget_usage',
+              request_id: requestId,
+              user_id: uid,
+              session_id,
+              model_calls: usage.calls,
+              input_tokens: usage.inputTokens,
+              output_tokens: usage.outputTokens,
+              total_tokens: usage.totalTokens,
+              turn_cost_usd: Number(usage.costUsd.toFixed(6)),
+              session_cost_usd: Number(microUsdToUsd(counters.sessionCostMicroUsd).toFixed(6)),
+              session_tokens: counters.sessionTokens,
+              day_cost_usd: Number(microUsdToUsd(counters.dayCostMicroUsd).toFixed(6)),
+              counter_store: store,
+              budget_bypass: admission?.action === 'crisis_bypass' ? admission.reason : null,
+            }, 'Measured turn usage');
+          }
 
           if (result.type === 'error') {
             send({
