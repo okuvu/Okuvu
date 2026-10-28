@@ -1,5 +1,5 @@
 id|epic|title|owner|deps|status|assigned|branch|commit|evidence|verified_at|verified_by|notes
-E15-S1|E15|Merge the working branch into develop so develop is deployable|build|-|in_review|A-ci|develop|41c5a5a|evidence/E15-S1.md|||develop merged and pushed (41c5a5a). Local gate 1335 tests green. CodeBuild a5ffe726 running on develop to satisfy the AC.
+E15-S1|E15|Merge the working branch into develop so develop is deployable|build|-|verified|A-ci|develop|41c5a5a|evidence/E15-S1.md|2026-10-28T16:02Z|orchestrator|develop=41c5a5a pushed. Build a5ffe726 on develop SUCCEEDED end-to-end; ECR tags 41c5a5a9862b on all three repos; all three services rolled to that SHA, 1/1 each, COMPLETED; api and portal health 200.
 E15-S2|E15|Push to develop starts a build with no manual step|build|E15-S1|not_started|||||||
 E15-S3|E15|Green build deploys to ECS automatically with a tested rollback|build|E15-S2,E15-S4|not_started|||||||
 E15-S4|E15|The api service is healthy behind the load balancer|build|E15-S1|not_started|||||||
