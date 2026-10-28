@@ -82,6 +82,12 @@ phases:
       - cd apps/api && npx vitest run && cd -
       - cd apps/worker && npx vitest run && cd -
       - cd apps/therapist-portal && npx vitest run && cd -
+      - echo "=== Dependency audit gate (production deps) ==="
+      # pnpm audit exits non-zero whenever it finds any advisory; the severity
+      # policy lives in security-gate.py, not in this file. `|| true` keeps the
+      # audit report flowing into the gate instead of aborting the phase first.
+      - pnpm audit --prod --json > /tmp/audit.json || true
+      - python3 scripts/security-gate.py audit /tmp/audit.json
       - echo "=== ECR login ==="
       - aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
@@ -100,6 +106,17 @@ phases:
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/worker:latest"
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/portal:${IMAGE_TAG}"
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/portal:latest"
+      - echo "=== ECR image scan gate ==="
+      # Images are pushed but not yet rolled out: a CRITICAL CVE here fails the
+      # build before post_build touches ECS, so a vulnerable image never
+      # reaches a running service. The scan runs on push (ecr.tf scan_on_push).
+      - |
+        python3 scripts/security-gate.py ecr \
+          --repo "${NAME_PREFIX}/api" \
+          --repo "${NAME_PREFIX}/worker" \
+          --repo "${NAME_PREFIX}/portal" \
+          --tag "${IMAGE_TAG}" \
+          --timeout "${SCAN_GATE_TIMEOUT:-600}"
 
   post_build:
     commands:

@@ -164,6 +164,33 @@ resource "aws_cloudwatch_metric_alarm" "api_unhealthy_hosts" {
   })
 }
 
+# Portal had no alarm at all: it could lose its only task and return 503 with
+# nothing firing. Same ALB metrics as api, so this closes the gap for free.
+resource "aws_cloudwatch_metric_alarm" "portal_unhealthy_hosts" {
+  alarm_name          = "${var.name_prefix}-portal-unhealthy-hosts"
+  alarm_description   = "No healthy portal task is registered with the target group"
+  namespace           = "AWS/ApplicationELB"
+  metric_name         = "UnHealthyHostCount"
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 2
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    LoadBalancer = aws_lb.api.arn_suffix
+    TargetGroup  = aws_lb_target_group.portal.arn_suffix
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-portal-unhealthy-hosts"
+  })
+}
+
 # ---------------------------------------------------------------------------
 # Budget alarm
 # ---------------------------------------------------------------------------

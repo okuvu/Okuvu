@@ -187,6 +187,14 @@ resource "aws_ecs_service" "api" {
   deployment_maximum_percent         = 200
   enable_execute_command             = false
 
+  # Roll back instead of leaving the service at zero healthy tasks. Without
+  # this a bad image replaces a good one and the service simply sits red —
+  # which is exactly how api stayed down for a day.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   network_configuration {
     subnets          = local.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
@@ -223,6 +231,14 @@ resource "aws_ecs_service" "worker" {
   deployment_minimum_healthy_percent = 0
   deployment_maximum_percent         = 100
   enable_execute_command             = false
+
+  # minimumHealthyPercent=0 means the old task can be stopped first, so a bad
+  # worker image leaves nothing running. The circuit breaker is what notices
+  # and puts the previous revision back.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   network_configuration {
     subnets          = local.private_subnet_ids

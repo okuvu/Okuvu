@@ -161,6 +161,11 @@ resource "aws_ecs_service" "portal" {
   deployment_maximum_percent         = 200
   enable_execute_command             = false
 
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   network_configuration {
     subnets          = local.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
