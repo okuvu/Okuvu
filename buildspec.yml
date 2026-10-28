@@ -37,6 +37,10 @@
 version: 0.2
 
 env:
+  # aws/codebuild/standard is Ubuntu-based and runs each command through
+  # /bin/sh (dash). The build below uses bash-only expansions (${VAR:0:12}),
+  # and dash aborts PRE_BUILD with "exit status 2" on them.
+  shell: bash
   variables:
     # Must match variables.tf. ap-south-1 is a hard requirement (DPDP residency).
     AWS_REGION: ap-south-1
