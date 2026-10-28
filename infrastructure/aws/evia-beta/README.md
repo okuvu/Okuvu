@@ -36,6 +36,7 @@ No credentials are needed for `terraform init -backend=false` / `terraform valid
 | Compute | ECS Fargate cluster + `api` (2 tasks, behind ALB) and `worker` (1 task, no LB) services; execution role separate from per-workload task roles |
 | Messaging | SQS `evia-beta-summary-jobs` with DLQ redrive after 3 receives |
 | Observability | CloudWatch log groups for both services, VPC flow logs, 2 ALB alarms, monthly budget alarm at 150 USD |
+| CI/CD | CodeBuild project `evia-beta-build` (VPC-attached, builds `buildspec.yml`) plus a webhook that starts it on every push to `develop` and reports the result as a GitHub commit status |
 
 ## Image deployment
 
@@ -51,6 +52,54 @@ docker push "$AWS_ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/evia-beta/api:late
 ```
 
 Until an image exists at `var.image_tag`, the ECS tasks cannot start.
+
+## Continuous deployment (push to develop)
+
+A push to `develop` now builds and deploys by itself. Terraform owns a
+CodeBuild webhook (`aws_codebuild_webhook.main` in `pipeline.tf`) filtered to
+`EVENT = PUSH` and `HEAD_REF = ^refs/heads/develop$`, so:
+
+1. the push fires a GitHub webhook, which CodeBuild receives on its payload URL;
+2. `evia-beta-build` starts with no human step — nobody runs
+   `aws codebuild start-build`;
+3. `buildspec.yml` builds the three images, pushes them to ECR, rolls the ECS
+   services, and CodeBuild reports the result back to GitHub as a **commit
+   status** on the pushed commit (`report_build_status = true` on the project
+   source, which is why a red build shows on the commit rather than only in
+   CloudWatch).
+
+Other branches, tags and pull-request refs do **not** start builds: the filter
+is a single branch pattern, not a wildcard.
+
+Check the trigger from the CLI:
+
+```bash
+aws codebuild batch-get-projects --names evia-beta-build --region ap-south-1 \
+  --query 'projects[0].webhook.{status:status,filterGroups:filterGroups,buildType:buildType}'
+```
+
+`status` must be `ACTIVE` and the filter group must contain
+`{"type":"HEAD_REF","pattern":"^refs/heads/develop$"}`. `webhook: null` means the
+trigger is gone and pushes are silently doing nothing.
+
+### Pausing the trigger
+
+If a bad change lands on `develop`, stop the bleeding first and diagnose second:
+
+```bash
+# Immediate: removes the GitHub hook and the trigger. The project, its role and
+# its manual path are untouched, so a fixed commit can still be built by hand.
+aws codebuild delete-webhook --project-name evia-beta-build --region ap-south-1
+
+# Or keep it reproducible in code (preferred — state stays honest):
+#   enable_webhook = false   in terraform.tfvars
+terraform apply
+```
+
+Turning it back on is the same lever in reverse: `enable_webhook = true` and
+apply, or re-apply after a manual `delete-webhook` (Terraform sees the drift and
+recreates it). Never re-create the hook by hand in the GitHub UI — CodeBuild
+needs its own secret and payload URL, and a hand-made hook silently fails.
 
 ## Verify
 

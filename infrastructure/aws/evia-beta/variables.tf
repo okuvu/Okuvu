@@ -398,6 +398,12 @@ variable "codebuild_compute_type" {
   default     = "BUILD_GENERAL1_MEDIUM"
 }
 
+variable "enable_webhook" {
+  description = "Create the CodeBuild GitHub webhook that starts a build on every push to develop. false leaves the project intact but removes the push trigger."
+  type        = bool
+  default     = true
+}
+
 variable "bedrock_model_id" {
   description = "Bedrock model id for every pipeline LLM call (in-region only)"
   type        = string

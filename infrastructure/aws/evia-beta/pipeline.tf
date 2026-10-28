@@ -333,6 +333,43 @@ resource "aws_codebuild_project" "main" {
   depends_on = [aws_iam_role_policy.codebuild]
 }
 
+# Push-to-develop trigger.
+#
+# Before this resource the project had no webhook at all (`webhook: null`), so a
+# push to develop started nothing: the only way to run a build was
+# `aws codebuild start-build` by hand, which is the manual step this story
+# removes. The filter group is deliberately narrow — EVENT PUSH on
+# `^refs/heads/develop$` — so feature branches, tags and pull-request refs do
+# not start deployments.
+#
+# The commit status on the GitHub commit is not set by this resource: it comes
+# from `report_build_status = true` on the project source above, which CodeBuild
+# uses to write STARTED/SUCCEEDED/FAILED back through the same CodeConnections
+# connection.
+#
+# Pausing it: `aws codebuild delete-webhook --project-name evia-beta-build`
+# stops all automatic builds without touching the project (the GitHub side is
+# removed by the same call); set `enable_webhook = false` and apply to do it
+# from code, which also keeps the state honest.
+resource "aws_codebuild_webhook" "main" {
+  count = var.codestar_connection_arn == "" || !var.enable_webhook ? 0 : 1
+
+  project_name = aws_codebuild_project.main[0].name
+  build_type   = "BUILD"
+
+  filter_group {
+    filter {
+      type    = "EVENT"
+      pattern = "PUSH"
+    }
+
+    filter {
+      type    = "HEAD_REF"
+      pattern = "^refs/heads/develop$"
+    }
+  }
+}
+
 resource "aws_cloudwatch_log_group" "codebuild" {
   count = var.codestar_connection_arn == "" ? 0 : 1
 
