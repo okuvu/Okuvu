@@ -1,0 +1,186 @@
+# AWS CodeBuild buildspec — replaces the retired cloudbuild.yaml (GCP Cloud Build).
+#
+# What it does, in order:
+#   1. install   — pnpm workspace dependencies (frozen lockfile)
+#   2. pre_build — Prisma client, typecheck, unit tests, ECR login
+#   3. build     — docker build + push the api, worker and therapist-portal
+#                  images to ECR
+#   4. post_build— prisma migrate deploy against RDS, then roll all three ECS
+#                  services onto a new task-definition revision and wait for
+#                  the deployment to stabilise
+#
+# Every name and port here mirrors infrastructure/aws/evia-beta:
+#   ecr.tf    → ${NAME_PREFIX}/{api,worker,portal} repositories
+#   ecs.tf    → cluster ${NAME_PREFIX}, services ${NAME_PREFIX}-api / -worker,
+#               containers "api" (port 8080) and "worker"
+#   portal.tf → service ${NAME_PREFIX}-portal, container "portal" (port 3000),
+#               target group polling /api/health
+#   alb.tf    → the api target group polls /health on the container port
+#
+# Requirements on the CodeBuild project itself (set these in Terraform/console,
+# not here):
+#   - image: aws/codebuild/standard:8.0, privileged mode ON (docker build)
+#   - VPC configuration: private subnets + the ECS security group, so the
+#     migrate phase can reach RDS and the build can reach ECR/S3:
+#       vpc_id           = the evia-beta VPC
+#       subnets          = the private subnets
+#       security_groups  = the ECS security group (or one that allows 5432)
+#   - service role: ECR push/pull, ecs:RegisterTaskDefinition,
+#     ecs:UpdateService, ecs:Describe*, iam:PassRole on the task roles,
+#     secretsmanager:GetSecretValue on ${NAME_PREFIX}/database
+#
+# Migrations need DATABASE_URL. It is read from Secrets Manager
+# (${NAME_PREFIX}/database, written by infrastructure/aws/evia-beta/secrets.tf)
+# and is only reachable from inside the VPC. Set RUN_MIGRATIONS=false for a
+# build that only produces images (e.g. a PR build without VPC config).
+
+version: 0.2
+
+env:
+  # aws/codebuild/standard is Ubuntu-based and runs each command through
+  # /bin/sh (dash). The build below uses bash-only expansions (${VAR:0:12}),
+  # and dash aborts PRE_BUILD with "exit status 2" on them.
+  shell: bash
+  variables:
+    # Must match variables.tf. ap-south-1 is a hard requirement (DPDP residency).
+    AWS_REGION: ap-south-1
+    NAME_PREFIX: evia-beta
+    PNPM_VERSION: 11.8.0
+    RUN_MIGRATIONS: "true"
+  secrets-manager:
+    # JSON secret; the build phase extracts .database_url with jq.
+    DB_SECRET_JSON: evia-beta/database
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - echo "=== pnpm ${PNPM_VERSION} ==="
+      - corepack enable
+      - corepack prepare "pnpm@${PNPM_VERSION}" --activate
+      - pnpm --version
+      - echo "=== Installing workspace dependencies ==="
+      - pnpm install --frozen-lockfile
+
+  pre_build:
+    commands:
+      - echo "=== Resolving build identity ==="
+      - AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+      - ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - IMAGE_TAG="${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}"
+      - IMAGE_TAG="${IMAGE_TAG:0:12}"
+      - export AWS_ACCOUNT_ID ECR_REGISTRY IMAGE_TAG
+      - echo "registry=${ECR_REGISTRY} tag=${IMAGE_TAG}"
+      - echo "=== Prisma client ==="
+      - cd packages/prisma && npx prisma generate && cd -
+      - echo "=== Typecheck ==="
+      - cd apps/api && npx tsc --noEmit && cd -
+      - cd apps/worker && npx tsc --noEmit && cd -
+      - cd apps/therapist-portal && npx tsc --noEmit && cd -
+      - echo "=== Unit tests (api + worker + portal) ==="
+      - cd apps/api && npx vitest run && cd -
+      - cd apps/worker && npx vitest run && cd -
+      - cd apps/therapist-portal && npx vitest run && cd -
+      - echo "=== ECR login ==="
+      - aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+  build:
+    commands:
+      - echo "=== Building apps/api image ==="
+      - docker build -t "${ECR_REGISTRY}/${NAME_PREFIX}/api:${IMAGE_TAG}" -t "${ECR_REGISTRY}/${NAME_PREFIX}/api:latest" -f apps/api/Dockerfile .
+      - echo "=== Building apps/worker image ==="
+      - docker build -t "${ECR_REGISTRY}/${NAME_PREFIX}/worker:${IMAGE_TAG}" -t "${ECR_REGISTRY}/${NAME_PREFIX}/worker:latest" -f apps/worker/Dockerfile .
+      - echo "=== Building apps/therapist-portal image ==="
+      - docker build -t "${ECR_REGISTRY}/${NAME_PREFIX}/portal:${IMAGE_TAG}" -t "${ECR_REGISTRY}/${NAME_PREFIX}/portal:latest" -f apps/therapist-portal/Dockerfile .
+      - echo "=== Pushing to ECR ==="
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/api:${IMAGE_TAG}"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/api:latest"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/worker:${IMAGE_TAG}"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/worker:latest"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/portal:${IMAGE_TAG}"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/portal:latest"
+
+  post_build:
+    commands:
+      - |
+        if [ "${RUN_MIGRATIONS}" = "true" ]; then
+          echo "=== Running Prisma migrations (in-VPC, against RDS) ==="
+          # ${NAME_PREFIX}/database is a JSON payload (see secrets.tf). It
+          # stores a password-redacted database_url by design, so recompose the
+          # URI from the stored parts instead of trusting that field.
+          DATABASE_URL="$(printf '%s' "${DB_SECRET_JSON}" | python3 -c "import json,sys,urllib.parse; s=json.load(sys.stdin); q=lambda v: urllib.parse.quote(str(v), safe=''); print('postgresql://%s:%s@%s:%s/%s?sslmode=require' % (q(s['username']), q(s['password']), s['host'], s['port'], s['dbname']))")"
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "FATAL: could not compose DATABASE_URL from ${NAME_PREFIX}/database."
+            exit 1
+          fi
+          # Beta-only bootstrap escape hatch. The database is empty and the
+          # migration history is what is being repaired, so a clean re-apply
+          # occasionally has to start from an empty schema. Never set this
+          # against a database with data in it.
+          if [ "${RESET_DATABASE:-false}" = "true" ]; then
+            echo "=== RESET_DATABASE=true — dropping and recreating the public schema ==="
+            # prisma 7's `db execute` has no --url flag: the datasource comes
+            # from prisma.config.ts, which reads process.env.DATABASE_URL.
+            ( cd packages/prisma && printf 'DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n' \
+                | DATABASE_URL="${DATABASE_URL}" npx prisma db execute --stdin )
+          fi
+          ( cd packages/prisma && DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy )
+        else
+          echo "RUN_MIGRATIONS=false — skipping prisma migrate deploy."
+        fi
+      - |
+        # Task-definition rewrite is the same helper the deploy scripts use, so
+        # the CI rollout and a manual deploy pin images identically.
+        deploy_service() {
+          service="$1"
+          workload="$2"
+          image="${ECR_REGISTRY}/${NAME_PREFIX}/${workload}:${IMAGE_TAG}"
+
+          echo "=== Registering a new task definition for ${service} (${image}) ==="
+          aws ecs describe-task-definition \
+            --task-definition "${service}" \
+            --region "${AWS_REGION}" \
+            --query 'taskDefinition' --output json > /tmp/taskdef.json
+          python3 scripts/ecs-image-pin.py /tmp/taskdef.json /tmp/taskdef.pinned.json "${image}"
+          new_arn="$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/taskdef.pinned.json \
+            --region "${AWS_REGION}" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)"
+          echo "registered ${new_arn}"
+
+          echo "=== Updating ${service} ==="
+          aws ecs update-service \
+            --cluster "${NAME_PREFIX}" \
+            --service "${service}" \
+            --task-definition "${new_arn}" \
+            --force-new-deployment \
+            --region "${AWS_REGION}" >/dev/null
+        }
+
+        deploy_service "${NAME_PREFIX}-api" api
+        deploy_service "${NAME_PREFIX}-worker" worker
+        deploy_service "${NAME_PREFIX}-portal" portal
+
+        echo "=== Waiting for all three services to stabilise (up to ~25 min) ==="
+        aws ecs wait services-stable \
+          --cluster "${NAME_PREFIX}" \
+          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
+          --region "${AWS_REGION}"
+
+        echo "=== Deployment complete ==="
+        aws ecs describe-services \
+          --cluster "${NAME_PREFIX}" \
+          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
+          --region "${AWS_REGION}" \
+          --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,taskDefinition:taskDefinition}' \
+          --output table
+
+# The api health endpoint the ALB target group polls; surfaced in the build log
+# so a failed deployment can be triaged without opening the console.
+reports:
+  api-tests:
+    files:
+      - 'apps/api/**/junit.xml'
+    base-directory: '.'
+    file-format: JUNITXML
