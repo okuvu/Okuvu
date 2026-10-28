@@ -52,9 +52,18 @@ Dockerfile, no Terraform, no hostname. It is now a first-class AWS service:
 - `buildspec.yml` builds and pushes the portal image and rolls
   `evia-beta-portal` in the same deploy as api and worker.
 
-Still manual, and not because of missing code: the CodeStar (CodeConnections)
-GitHub OAuth handshake (`codestar_connection_arn`), the NS delegation for
-`okuvu.in` at Spaceship, and Cognito therapist provisioning.
+Still manual, and not because of missing code: the NS delegation for `okuvu.in` at
+Spaceship, the GitHub App grant that lets the CodeConnections connection read
+`yashraj-ops/Okuvu`, and Cognito therapist provisioning.
+
+The CodeConnections half is wired as of 28 Oct 2026: connection "Okuvu",
+`arn:aws:codeconnections:ap-south-1:562654496378:connection/ffdce79a-c709-4d53-b7fe-756d93a032a6`,
+status AVAILABLE, passed in as `codestar_connection_arn` in the gitignored
+`terraform.tfvars`. `evia-beta-build` now sources from GitHub instead of an
+uploaded S3 zip. What is still missing is repository access: with the current
+grant CodeBuild fails DOWNLOAD_SOURCE with "repository not found for primary
+source". Open the connection in the console and grant the `yashraj-ops`
+organisation (GitHub App installation or OAuth repo grant) access to `Okuvu`.
 
 ## Decisions already made (do not re-litigate)
 

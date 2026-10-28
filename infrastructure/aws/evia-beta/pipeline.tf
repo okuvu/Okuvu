@@ -12,10 +12,10 @@
 # codestar_connection_arn. Until that variable is set this resource is not
 # created and nothing else changes.
 #
-# Facts learned wiring the beta connection (2026-10-28):
-#   - The connection lives in eu-north-1 (Stockholm) while the stack is in
-#     ap-south-1; CodeBuild accepts a cross-region connection ARN, so it does
-#     not have to be recreated in Mumbai.
+# Facts learned wiring the connection (2026-10-28):
+#   - The live connection is "Okuvu" in ap-south-1, the stack's own region. An
+#     earlier eu-north-1 connection also worked (CodeBuild accepts a cross-region
+#     connection ARN), but in-region removes a variable.
 #   - source.location for a CODECONNECTIONS source must be a clone URL
 #     ("https://github.com/<org>/<repo>.git"), not "org/repo" — the API rejects
 #     the short form with "source location must be a valid GitHub repository URL".
@@ -23,6 +23,14 @@
 #     but required) and the List* actions on "*" (they refuse ARN scoping).
 #     Without them CreateProject/UpdateProject fails with the misleading
 #     "OAuthProviderException: User is not authorized to access connection".
+#     That error also persists ~30s after the policy is written: IAM eventual
+#     consistency, not a wrong policy — retry before debugging it.
+#   - CodeBuild VPC provisioning needs more EC2 than the documented set:
+#     ec2:DescribeDhcpOptions ("error while getting DHCP options for VPC") and
+#     ec2:CreateNetworkInterfacePermission ("UnauthorizedOperation"), both of
+#     which fail before the build container ever starts.
+#   - The project was first created outside Terraform with an S3 source (a zipped
+#     upload). It is imported now, so switching to GITHUB is an in-place update.
 # =============================================================================
 
 resource "aws_iam_role" "codebuild" {
@@ -177,14 +185,46 @@ data "aws_iam_policy_document" "codebuild" {
 
     actions = [
       "ec2:CreateNetworkInterface",
+      "ec2:CreateNetworkInterfacePermission",
+      "ec2:DescribeNetworkInterfacePermissions",
+      "ec2:ModifyNetworkInterfaceAttribute",
+      "ec2:CreateTags",
+      "ec2:DeleteTags",
       "ec2:DescribeNetworkInterfaces",
       "ec2:DeleteNetworkInterface",
       "ec2:DescribeSubnets",
       "ec2:DescribeSecurityGroups",
       "ec2:DescribeVpcs",
+      # CodeBuild resolves the VPC's DHCP option set while provisioning the
+      # build environment; without this the build fails in PROVISIONING with
+      # "VPC_CLIENT_ERROR Unexpected EC2 error: error while getting DHCP
+      # options for VPC".
+      "ec2:DescribeDhcpOptions",
+      "ec2:DescribeRouteTables",
+      "ec2:DescribeInternetGateways",
+      "ec2:DescribeVpcEndpoints",
+      "ec2:DescribeAvailabilityZones",
     ]
 
     resources = ["*"]
+  }
+
+  # buildspec.yml declares a `reports:` block (api-tests, JUnit XML). Uploading
+  # it is its own permission set; without these the build passes every phase and
+  # then fails in UPLOAD_ARTIFACTS with codebuild:CreateReportGroup AccessDenied.
+  statement {
+    sid    = "BuildReports"
+    effect = "Allow"
+
+    actions = [
+      "codebuild:CreateReportGroup",
+      "codebuild:CreateReport",
+      "codebuild:UpdateReport",
+      "codebuild:BatchPutTestCases",
+      "codebuild:BatchPutCodeCoverages",
+    ]
+
+    resources = ["arn:aws:codebuild:${var.aws_region}:${data.aws_caller_identity.current.account_id}:report-group/${var.name_prefix}-build-*"]
   }
 }
 
