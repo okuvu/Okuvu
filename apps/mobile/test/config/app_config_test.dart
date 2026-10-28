@@ -54,5 +54,15 @@ void main() {
     test('init with dev flavor sets flavor string', () {
       expect(AppConfig.flavor, 'dev');
     });
+
+    // E19-S2: the privacy policy lives on the apex domain (served by the
+    // therapist portal) and the same URL is declared in the Play Store
+    // listing. Pinned as a literal on purpose — this one is a contract with
+    // Google Play and with the policy text, not an infrastructure detail that
+    // moves when a backend is cut over.
+    test('privacy policy URL points at the hosted policy on okuvu.in', () {
+      expect(AppConfig.privacyPolicyUrl, 'https://okuvu.in/privacy');
+      expect(Uri.parse(AppConfig.privacyPolicyUrl).scheme, 'https');
+    });
   });
 }

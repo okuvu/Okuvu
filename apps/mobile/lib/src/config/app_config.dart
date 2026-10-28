@@ -6,7 +6,14 @@ class AppConfig {
   static late final String wsBaseUrl;
   static late final String flavor;
 
-  static const String privacyPolicyUrl = 'https://docs.google.com/document/d/e/2PACX-1vQgv2bJgSDak1iNPiO698VBHQ9fn8IOK9GoBjLU--HRGBHLn3rS-hS8gKhnT6uDh_havhWeVBexEEDx/pub';
+  /// E19-S2 — the canonical privacy policy, served by the therapist portal at
+  /// `/privacy` and reachable over TLS at okuvu.in/privacy (the 443 listener's
+  /// host rule forwards okuvu.in/www.okuvu.in to the portal target group).
+  ///
+  /// This URL is also the one declared in the Play Store listing, so the app,
+  /// the store listing and the policy text cannot drift apart. It replaced a
+  /// Google Docs "pub" link, which was never a stable legal record.
+  static const String privacyPolicyUrl = 'https://okuvu.in/privacy';
 
   @Deprecated('Use apiBaseUrl instead')
   static String get baseUrl => apiBaseUrl;
