@@ -6,10 +6,10 @@ async function main() {
   for (let i = 1; i <= 50; i++) {
     const uid = `load-test-vu-${i}`;
     await prisma.user.upsert({
-      where: { firebase_uid: uid },
+      where: { auth_subject: uid },
       update: {},
       create: {
-        firebase_uid: uid,
+        auth_subject: uid,
         phone_number: `+155590${String(i).padStart(4, '0')}`,
         clinical_config: {
           create: { care_plan_id: 'CP1' },

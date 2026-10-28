@@ -728,7 +728,7 @@ describe('generateSessionSummary', () => {
       mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
       mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
       mockUpsert.mockResolvedValue({ id: 'sum-1' });
-      mockGenerateEmbedding.mockRejectedValue(new Error('Vertex AI embedding error'));
+      mockGenerateEmbedding.mockRejectedValue(new Error('Bedrock embedding error'));
 
       const { generateSessionSummary } = await import('../lib/summary.js');
       const logger = mockLogger();
@@ -736,7 +736,7 @@ describe('generateSessionSummary', () => {
 
       expect(result.status).toBe('completed');
       expect(logger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ event: 'embedding_failed', err: 'Vertex AI embedding error', session_id: 'sess-1' }),
+        expect.objectContaining({ event: 'embedding_failed', err: 'Bedrock embedding error', session_id: 'sess-1' }),
         expect.stringContaining('Failed to generate or store embedding'),
       );
     });
@@ -757,7 +757,7 @@ describe('generateSessionSummary', () => {
       mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 8 }));
       mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
       mockUpsert.mockResolvedValue({ id: 'sum-1' });
-      mockGenerateEmbedding.mockRejectedValue(new Error('Vertex AI embedding error'));
+      mockGenerateEmbedding.mockRejectedValue(new Error('Bedrock embedding error'));
       mockCount.mockResolvedValue(3);
       mockUserMemoryFind.mockResolvedValue(null);
       mockUserMemoryUpsert.mockResolvedValue({ id: 'mem-1' });

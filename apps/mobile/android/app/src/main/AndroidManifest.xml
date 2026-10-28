@@ -10,6 +10,13 @@
         <intent>
             <action android:name="android.intent.action.DIAL" />
         </intent>
+        <!-- Android 11+ package visibility: without this the app cannot see
+             the device's speech recognizer, so speech_to_text reports "not
+             available" even when the phone has one. Required by the plugin's
+             own setup notes. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
     </queries>
 
     <application

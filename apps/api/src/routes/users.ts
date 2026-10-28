@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { getTodayCard } from '../lib/today-card.js';
@@ -22,7 +22,7 @@ const MAX_REASONING_NOTE_LENGTH = 5000;
 
 export async function userRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: UserConsent }>('/users/me/consent', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body;
@@ -50,7 +50,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -87,7 +87,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/users/me/context', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const bundle = await getAgentContextBundle(uid);
@@ -99,7 +99,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   // delivery is a separate, out-of-scope-this-pass workstream; this route
   // is what the mobile Home screen polls when the app is open.
   app.get('/users/me/today', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const result = await getTodayCard(uid);
@@ -120,7 +120,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   // clamped to the safe band in application code (mobile's
   // breathing_presets.dart), not stored as raw seconds here.
   app.patch<{ Body: { tool_id: string; pace_preset: string } }>('/users/me/tool-preference', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { tool_id, pace_preset } = request.body ?? {};
@@ -138,7 +138,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -169,7 +169,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   // the client actually grant or deny a therapist's "Request chat access"
   // themselves, closing the consent-model gap flagged earlier this session.
   app.patch<{ Body: ChatAccessBody }>('/users/me/chat-access', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body;
@@ -181,7 +181,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -226,13 +226,13 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   // (Worker 05's homework_progress) — therapist-side markCompleted
   // (therapist-portal homework.ts) remains the separate therapist path.
   app.post<{ Params: { id: string } }>('/users/me/homework/:id/complete', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { id } = request.params;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -255,7 +255,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Params: { id: string }; Body: CarePlanBody }>('/users/:id/care-plan', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { id } = request.params;
@@ -354,12 +354,12 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   // client) reads the therapist's welcome note here, and the client's
   // editable display_abbreviation. Both live on ClinicalConfig.
   app.get('/users/me/welcome', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { clinical_config: { select: { welcome_note: true, display_abbreviation: true } } },
       });
 
@@ -380,7 +380,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
   // one and only client-facing write to ClinicalConfig; every other field
   // on it is therapist/portal/worker-authored.
   app.patch<{ Body: WelcomeAbbreviationBody }>('/users/me/welcome', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const body = request.body;
@@ -392,7 +392,7 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true, clinical_config: { select: { id: true } } },
       });
 

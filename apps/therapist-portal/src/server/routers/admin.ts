@@ -217,7 +217,7 @@ export const adminRouter = router({
   // Therapist-portal wireframes C-01..C-06 — the Add-Client wizard. A
   // second, additive provisioning path alongside assignClient above:
   // this one creates a brand-new client (placeholder User, no
-  // firebase_uid yet) and invites them, rather than attaching an
+  // auth_subject yet) and invites them, rather than attaching an
   // already-self-signed-up one. Steps 2 (history)/4 (welcome note +
   // abbreviation)/5 (tools/reminders) are all optional per the wireframe
   // ("fill it now, later, or never") — step 5's tool/reminder setup is

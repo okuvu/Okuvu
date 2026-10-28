@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { getSecretValue } from './secrets-provider.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
@@ -6,7 +7,6 @@ const TAG_LENGTH = 16;
 
 const ENCODED_SEPARATOR = ':';
 const SECRET_NAME = 'emergency-contact-key';
-const SECRET_PROJECT_ID = process.env.VERTEX_AI_PROJECT_ID ?? 'okuvu-dev';
 
 let cachedKey: Buffer | null = null;
 
@@ -61,16 +61,12 @@ export async function getEncryptionKey(): Promise<Buffer> {
     return key;
   }
 
-  const { SecretManagerServiceClient } = await import(
-    '@google-cloud/secret-manager'
-  );
-  const client = new SecretManagerServiceClient();
-  const name = `projects/${SECRET_PROJECT_ID}/secrets/${SECRET_NAME}/versions/latest`;
-  const [version] = await client.accessSecretVersion({ name });
-  const payload = version.payload?.data?.toString();
-  if (!payload) {
-    throw new Error('Secret Manager returned empty payload');
-  }
+  // Key material comes from AWS Secrets Manager (see secrets-provider.ts).
+  // EMERGENCY_CONTACT_ENCRYPTION_KEY above still wins over it, which is the
+  // zero-downtime rotation lever: set the env var, deploy, then update the
+  // secret and drop the env var. The secret's payload format (base64, 32
+  // bytes) is unchanged, so an existing key can be copied in as-is.
+  const payload = await getSecretValue(SECRET_NAME);
   const key = Buffer.from(payload, 'base64');
   if (key.length !== 32) {
     throw new Error(

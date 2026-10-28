@@ -17,7 +17,7 @@ const mockUuid = '550e8400-e29b-41d4-a716-446655440000';
 
 type MockUser = {
   id: string;
-  firebase_uid: string;
+  auth_subject: string;
   phone_number: string;
   created_at: Date;
   updated_at: Date;
@@ -26,7 +26,7 @@ type MockUser = {
 function mockUser(overrides?: Partial<MockUser>): MockUser {
   return {
     id: mockUuid,
-    firebase_uid: 'mock-firebase-uid-1',
+    auth_subject: 'dev-bypass-subject-1',
     phone_number: '+15550000001',
     created_at: new Date(),
     updated_at: new Date(),

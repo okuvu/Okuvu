@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../config/app_config.dart';
 import '../../config/flavor_config.dart';
 import '../../core/logger.dart';
 import '../../core/providers.dart';
+import '../../core/speech_service.dart';
 import '../../core/websocket_service.dart';
 import 'models/chat_message.dart';
 import 'models/chat_state.dart';
@@ -45,9 +47,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isAgentTyping = false;
   Timer? _typingTimer;
 
+  late final SpeechService _speech;
+  bool _isListening = false;
+  // Text already in the field when the mic was tapped — a transcript is
+  // appended to it rather than replacing what the user typed by hand.
+  String _voiceBaseText = '';
+  // Set when a dictation session is being torn down without wanting its
+  // transcript (message sent, session closed). Without it the recognizer's
+  // final result arrives after _textController.clear() and puts the words
+  // the user just sent back into the empty field.
+  bool _discardTranscript = false;
+
   @override
   void initState() {
     super.initState();
+    _speech = ref.read(speechServiceProvider);
     _connectWebSocket();
   }
 
@@ -65,9 +79,83 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void dispose() {
     _typingTimer?.cancel();
+    _speech.dispose();
     _scrollController.dispose();
     _textController.dispose();
     super.dispose();
+  }
+
+  // Talk-instead-of-typing. Tap to start, tap again to stop; the recognizer
+  // also ends the session itself after a few seconds of silence, so the
+  // common case is "say it, then send". Nothing is auto-sent: a
+  // mis-transcription in a mental-health conversation must be visible in the
+  // field, editable, and only sent when the user chooses to.
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+
+    _discardTranscript = false;
+    _voiceBaseText = _textController.text.trimRight();
+
+    final outcome = await _speech.start(
+      onWords: (words, _) {
+        if (!mounted || _discardTranscript) return;
+        final combined = _voiceBaseText.isEmpty || words.isEmpty
+            ? '$_voiceBaseText$words'
+            : '$_voiceBaseText $words';
+        _textController.value = TextEditingValue(
+          text: combined,
+          selection: TextSelection.collapsed(offset: combined.length),
+        );
+      },
+      onEnded: () {
+        if (mounted && _isListening) setState(() => _isListening = false);
+      },
+    );
+
+    if (!mounted) return;
+
+    switch (outcome) {
+      case SpeechStartOutcome.listening:
+        setState(() => _isListening = true);
+        break;
+      case SpeechStartOutcome.permissionDenied:
+        _showVoiceSnack('Microphone access is needed to talk instead of type.');
+        break;
+      case SpeechStartOutcome.permissionBlocked:
+        _showVoiceSnack(
+          'Microphone access is off for Okuvu. Turn it on in Settings to talk instead of type.',
+          action: SnackBarAction(
+            label: 'Settings',
+            onPressed: () => openAppSettings(),
+          ),
+        );
+        break;
+      case SpeechStartOutcome.unavailable:
+        _showVoiceSnack("Voice input isn't available on this device.");
+        break;
+      case SpeechStartOutcome.error:
+        _showVoiceSnack("Couldn't start voice input. Please try again.");
+        break;
+    }
+  }
+
+  /// Ends dictation without letting the final transcript land anywhere.
+  void _stopVoiceInput({bool discard = true}) {
+    if (!_isListening && !discard) return;
+    _discardTranscript = discard;
+    _speech.cancel();
+    if (mounted && _isListening) setState(() => _isListening = false);
+  }
+
+  void _showVoiceSnack(String message, {SnackBarAction? action}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), action: action),
+    );
   }
 
   void _scrollToBottom() {
@@ -140,6 +228,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
+    // Sending ends dictation: the spoken words are already in the field, and
+    // a late final transcript must not reappear in the box just cleared.
+    if (_isListening) _stopVoiceInput();
+
     Logger.debug('[ChatScreen] _sendMessage: "${text.length > 100 ? '${text.substring(0, 100)}...' : text}"');
 
     final wsState = ref.read(wsConnectionStateProvider);
@@ -201,6 +293,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
         if (mounted) {
           _typingTimer?.cancel();
+          // The input bar (mic included) is replaced by the read-only footer
+          // the moment this lands — stop the microphone rather than leave it
+          // recording behind a screen with no way to see or stop it.
+          _stopVoiceInput();
           setState(() => _isAgentTyping = false);
         }
         Future.delayed(const Duration(milliseconds: 400), () async {
@@ -419,13 +515,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               maxLengthEnforcement: MaxLengthEnforcement.enforced,
               minLines: 1,
               maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Type a message...',
+              decoration: InputDecoration(
+                hintText: _isListening
+                    ? 'Listening… tap the mic to stop'
+                    : 'Type a message...',
                 border: InputBorder.none,
                 counterText: '',
                 contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('chat_mic'),
+            tooltip: _isListening ? 'Stop listening' : 'Talk instead of typing',
+            onPressed: isInputDisabled ? null : _toggleListening,
+            icon: const Icon(LucideIcons.mic),
+            style: IconButton.styleFrom(
+              backgroundColor: _isListening
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+              foregroundColor: _isListening
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           ValueListenableBuilder<TextEditingValue>(

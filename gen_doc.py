@@ -26,11 +26,13 @@ def add_para(text, bold=False, italic=False):
 
 add_title("Okuvu - Complete Technology Stack & Tech Inventory", 20)
 add_para("Suvok Systems LLP · Bengaluru · Confidential", italic=True)
+add_para("Version 2.0 (AWS stack)", italic=True)
 add_para("Prepared for: learning the full codebase technology landscape")
 doc.add_paragraph()
 
 add_heading("1. Project Overview", 1)
 add_para("Okuvu is an AI-powered mental wellness companion for Indian Gen Z, built on a supervised therapist-led model. Users interact with an AI agent (A2) in bounded daily sessions; a licensed therapist oversees care plans and session notes via a separate portal. This document inventories every technology, library, framework, and service used in the project.")
+add_para("Migration note (October 2026): this inventory now describes the AWS stack, which replaced a Google Cloud stack. Cloud Run -> ECS Fargate, Cloud SQL -> RDS for PostgreSQL, Cloud Tasks -> SQS, Memorystore -> ElastiCache (Valkey), Secret Manager -> AWS Secrets Manager, Cloud KMS/Storage -> AWS KMS/S3, Cloud Build/Artifact Registry -> CodeBuild/ECR, Vertex AI (Gemini) -> Amazon Bedrock (Nova Pro + Titan Embeddings V2), Firebase Auth -> a Cognito user pool. Everything is pinned to ap-south-1 (Mumbai). The authoritative contract is docs/AWS-CUTOVER-SPEC.md.", italic=True)
 
 add_heading("2. Repo Structure (Monorepo)", 1)
 code = [
@@ -39,19 +41,20 @@ code = [
     "    mobile/              Flutter app (Android-first MVP)",
     "    api/                 Node.js/TypeScript backend — @okuvu/api",
     "    therapist-portal/    Next.js therapist portal — @okuvu/therapist-portal",
+    "    worker/              Background worker (SQS consumer) — @okuvu/worker",
     "    test-harness/        Next.js test/evaluation harness — @okuvu/test-harness",
     "  packages/",
     "    prisma/              Prisma schema + client — @okuvu/prisma",
     "    shared-types/        TS types shared across apps — @okuvu/shared-types",
     "  scripts/               Deployment & utility scripts",
-    "  infra/                 Cloud Build + Cloud Run configs",
+    "  infrastructure/aws/    Terraform for the beta stack (VPC, RDS, ECS, ALB, SQS, S3, KMS, ECR)",
     "  load-tests/            k6 WebSocket load test scripts",
     "  docs/                  Architecture decisions, setup guides",
 ]
 for line in code:
     p = doc.add_paragraph(line)
     p.paragraph_format.left_indent = Inches(0.25)
-add_para("Package manager: pnpm@11.8.0. Node.js >=20. Strict pnpm per-package isolation (packageExtensions for @google-cloud/aiplatform -> protobufjs).", italic=True)
+add_para("Package manager: pnpm@11.8.0. Node.js >=20. Strict pnpm per-package isolation.", italic=True)
 
 add_heading("3. Mobile App — Flutter", 1)
 add_para("Framework: Flutter (Android-first MVP, iOS-ready). SDK >=3.0.0 <4.0.0. Android min SDK 21. Material Design.")
@@ -66,11 +69,7 @@ packages = [
     ("flutter_tts", "^4.2.5", "Text-to-speech (device TTS)"),
     ("flutter_riverpod", "^3.3.2", "Reactive state management"),
     ("go_router", "^17.3.0", "Declarative navigation / routing"),
-    ("firebase_core", "^4.11.0", "Firebase Flutter SDK"),
-    ("firebase_auth", "^6.5.4", "Firebase Authentication (OTP)"),
-    ("firebase_crashlytics", "^5.2.6", "Crash reporting"),
-    ("firebase_analytics", "^12.4.5", "App analytics"),
-    ("dio", "^5.9.2", "HTTP client (API calls to backend)"),
+    ("dio", "^5.9.2", "HTTP client (API calls + Cognito OTP form posts)"),
     ("web_socket_channel", "^3.0.1", "WebSocket client for live chat sessions"),
     ("connectivity_plus", "^7.2.0", "Network connectivity monitoring"),
     ("url_launcher", "^6.3.0", "Open URLs (links, emergency resources)"),
@@ -127,14 +126,14 @@ api_deps = [
     ("@prisma/adapter-pg", "^7.8.0", "Prisma adapter for PostgreSQL"),
     ("@prisma/client", "^7.8.0", "Prisma ORM client"),
     ("prisma", "^7.8.0", "DB migration/client tooling"),
-    ("firebase-admin", "^14.1.0", "Firebase Admin SDK (auth)"),
     ("ioredis", "^5.4.1", "Redis client (caching, session state)"),
     ("pg", "^8.22.0", "PostgreSQL driver"),
     ("dotenv", "^16.4.7", "Environment configuration"),
-    ("@google-cloud/aiplatform", "^6.8.1", "Vertex AI / Gemini client"),
-    ("@google-cloud/secret-manager", "^6.0.1", "GCP Secret Manager (credential injection)"),
-    ("@google-cloud/tasks", "^6.2.3", "Cloud Tasks queue (background jobs)"),
-    ("google-auth-library", "^10.5.0", "GCP auth (worker/service accounts)"),
+    ("@aws-sdk/client-bedrock-runtime", "^3", "Bedrock (Nova Pro chat, Titan Embeddings V2)"),
+    ("@aws-sdk/client-sqs", "^3", "Summary/memory job queue"),
+    ("@aws-sdk/client-s3", "^3", "Uploads, cached TTS audio, presigned URLs"),
+    ("@aws-sdk/client-secrets-manager", "^3", "Runtime secret retrieval"),
+    ("@aws-sdk/client-kms", "^3", "Envelope encryption (emergency contacts)"),
     ("@okuvu/prisma", "workspace", "Shared Prisma layer"),
     ("@okuvu/shared-types", "workspace", "Shared TypeScript types"),
 ]
@@ -162,8 +161,8 @@ for a, d in agents:
 libs4 = [
     "embedding.ts (vector embeddings)",
     "openrouter.ts (OpenRouter fallback)",
-    "vertex-ai.ts",
-    "llm-provider.ts (dispatcher)",
+    "bedrock.ts (Bedrock client - Nova Pro / Titan Embeddings V2)",
+    "generate-content.ts (single dispatcher: Bedrock or OpenRouter)",
     "memory-retrieval.ts",
     "retrieved-context-cache.ts (Redis)",
     "quote-of-day.ts",
@@ -176,7 +175,7 @@ libs4 = [
     "appointments.ts",
     "invites.ts",
     "auth-otp.ts",
-    "firebase-auth.ts",
+    "cognito-auth.ts (Cognito JWT verification)",
     "rate-limit.ts",
     "redis.ts",
     "session-open/close.ts",
@@ -191,12 +190,12 @@ add_heading("4.4 Routes", 2)
 for r in ["account", "appointments", "auth", "health", "invites", "journal", "progress", "sessions", "settings", "users", "waitlist", "websocket"]:
     add_para(r)
 add_heading("4.5 Tests", 2)
-add_para("Many unit tests under src/__tests__/ (a1, a2, a8-router, a9, a9-post, account-delete, agent-context, appointments, auth, auth-verify-otp, care-plan, email, emergency-contact, error-handler, generate-content, health, invite-token-hash, invites, journal, journal-prompt-agent, llm-provider, mood-checkin, openrouter, orchestrator, orchestrator modes/latency, production-bypass, progress-mood, quote-of-day, rate-limit, session-close/open, sessions-srs, settings, users-consent, users-today-and-tool, vertex-ai, waitlist, websocket-session-idor, welcome).")
+add_para("Many unit tests under src/__tests__/ (a1, a2, a8-router, a9, a9-post, account-delete, agent-context, appointments, auth, auth-verify-otp, care-plan, email, emergency-contact, error-handler, generate-content, health, invite-token-hash, invites, journal, journal-prompt-agent, llm-provider, mood-checkin, openrouter, orchestrator, orchestrator modes/latency, production-bypass, progress-mood, quote-of-day, rate-limit, session-close/open, sessions-srs, settings, users-consent, users-today-and-tool, waitlist, websocket-session-idor, welcome).")
 
 add_heading("5. Background Worker — Node.js / TypeScript", 1)
-add_para("Purpose: Cloud Tasks consumer - drains background jobs (session summarization, memory extraction, embedding backfill, etc.).")
+add_para("Purpose: SQS consumer - drains background jobs (session summarization, memory extraction, embedding backfill, retention cleanup) from evia-beta-summary-jobs (DLQ after 3 receives). Runs as ECS Fargate service evia-beta-worker in the private subnets, no load balancer, no public ingress.")
 add_heading("5.1 Key Dependencies", 2)
-for d in ["@okuvu/prisma", "@okuvu/shared-types", "@google-cloud/aiplatform ^6.8.1 (Gemini)", "@prisma/adapter-pg, @prisma/client, pg", "fastify ^5.3.2", "google-auth-library ^10.5.0 (OIDC auth)", "dotenv, pg"]:
+for d in ["@okuvu/prisma", "@okuvu/shared-types", "@aws-sdk/client-bedrock-runtime (Nova Pro + Titan Embeddings V2)", "@aws-sdk/client-sqs (job consumption)", "@prisma/adapter-pg, @prisma/client, pg", "fastify ^5.3.2", "dotenv"]:
     add_para(d)
 add_heading("5.2 Routes / Jobs", 2)
 for r in ["health.ts", "summary.ts (session summarization)", "beta-retention.ts (beta cleanup job)", "cleanup.ts"]:
@@ -208,7 +207,7 @@ libs5 = [
     "openrouter.ts",
     "prisma.ts",
     "summary.ts",
-    "vertex-ai.ts",
+    "bedrock.ts",
     "scripts/backfill-embeddings.ts",
 ]
 for lib in libs5:
@@ -227,8 +226,8 @@ portal_deps = [
     ("next", "^16.2.10", "React framework"),
     ("react / react-dom", "^19.2.7", "UI"),
     ("@trpc/*", "^11.18.0", "tRPC RPC (type-safe API)"),
-    ("next-auth", "^4.24.14", "Authentication (Google OAuth for therapists)"),
-    ("firebase / firebase-admin", "^12.15.0 / ^14.1.0", "Firebase (client auth, admin)"),
+    ("next-auth", "^4.24.14", "Authentication - CognitoProvider (therapist user pool)"),
+    ("jose", "^5", "Cognito id-token verification in the NextAuth callback"),
     ("@prisma/*", "^7.8.0", "DB access"),
     ("@okuvu/prisma", "workspace", "Shared"),
     ("@okuvu/shared-types", "workspace", "Shared"),
@@ -259,7 +258,7 @@ for r in ["trpc routers: _app, admin, appointments, clients, homework, notes, re
 add_heading("7. Test Harness — Next.js", 1)
 add_para("Purpose: Automated eval / A/B / regression harness for the A-pipeline. Runs on port 3002. Deployed to Vercel.")
 add_heading("7.1 Key Dependencies", 2)
-for d in ["Next.js, React 19, tRPC, Vitest, @tanstack/react-query", "@google-cloud/aiplatform, @google-cloud/tasks (externalized in webpack)", "xlsx ^0.18.5 (Excel export)", "zod, next-auth, pg", "@okuvu/api, @okuvu/prisma, @okuvu/shared-types (workspaces)"]:
+for d in ["Next.js, React 19, tRPC, Vitest, @tanstack/react-query", "@aws-sdk/client-bedrock-runtime (inherited via the @okuvu/api modules it direct-imports)", "xlsx ^0.18.5 (Excel export)", "zod, next-auth (CognitoProvider), pg", "@okuvu/api, @okuvu/prisma, @okuvu/shared-types (workspaces)"]:
     add_para(d)
 add_heading("7.2 Build Configuration Highlights", 2)
 add_para("The harness direct-imports @okuvu/api source files (which use ESM .js -> .ts imports). Workarounds in next.config.ts:")
@@ -267,7 +266,7 @@ for c in [
     "outputFileTracingRoot + outputFileTracingIncludes to ship prompt files",
     "webpack extensionAlias: '.js' -> '.ts' + '.tsx'",
     "NormalModuleReplacementPlugin: ../prompts/index.js -> generated prompt-shim.ts",
-    "config.externals for @google-cloud/tasks, @google-cloud/aiplatform, google-gax, next-auth (server-only libs marked external)",
+    "config.externals for @aws-sdk/client-bedrock-runtime, @aws-sdk/client-sqs, next-auth (server-only libs marked external)",
 ]:
     add_para(c)
 add_heading("7.3 Pages / Features", 2)
@@ -290,7 +289,7 @@ add_heading("7.5 Tests", 2)
 add_para("Hundreds of vitest tests under src/__tests__/ (pipeline, determinism, fault-injection, review, kappa, simulator, corpus, canned-mode, continuity-asserts, dependency-graph, judge, run-diff, scorecard, etc.).")
 
 add_heading("8. Database & ORM", 1)
-add_para("Database: PostgreSQL (Neon for local dev; Cloud SQL for staging/prod).")
+add_para("Database: PostgreSQL (Neon for local dev; Amazon RDS for PostgreSQL 16 for staging/beta/prod, private subnets, 7-day backups, credentials in Secrets Manager as evia-beta/database).")
 add_para("ORM: Prisma 7.x — @prisma/client, @prisma/adapter-pg, prisma (CLI)")
 add_heading("8.1 Models", 2)
 for m in ["User", "Therapist", "ClinicalConfig", "EmergencyContact", "EngagementProfile", "UserMemory", "MoodLog", "SafetyState", "SessionLog", "SessionSummary", "TherapistClient", "TherapistNote", "Homework", "Reminder", "Appointment", "InviteToken", "WaitlistEntry", "NotificationPreference", "Turn", "JournalEntry", "ClinicalAccessLog", "TestRun", "CorpusCase", "GateSignOff", "PromptRegistryEntry", "ModelConfigPin", "BaselineArchive"]:
@@ -309,10 +308,11 @@ hdr[0].text = 'Layer'
 hdr[1].text = 'Provider'
 hdr[2].text = 'Details'
 auth_rows = [
-    ("Mobile users", "Firebase Authentication", "OTP login; Firebase UID / phone number stored in DB"),
-    ("Therapist portal", "NextAuth (Auth.js) + Google OAuth", "Google OAuth for therapists; NextAuth session"),
-    ("Internal / worker-to-worker", "OIDC + google-auth-library", "Service-account auth for background jobs"),
-    ("Local dev bypass", "LOCAL_DEV_BYPASS_AUTH", "Allows API calls without a real Firebase token (dev only, never in Cloud Run)"),
+    ("Mobile users", "Amazon Cognito user pool (phone OTP)", "OTP login via plain HTTPS form posts from Flutter; the pool sub is stored in User.auth_subject"),
+    ("Therapist portal", "Cognito therapist pool + NextAuth CognitoProvider", "Portal session is NextAuth (JWT); identity comes from Cognito, not Google federation"),
+    ("API token verification", "Cognito JWKS + node:crypto", "RS256, iss/exp/token_use/audience checks in apps/api/src/lib/cognito-auth.ts"),
+    ("Internal / worker-to-worker", "VPC-internal (no public ingress)", "Tasks reach the worker over the private subnets; the old OIDC verifier is gone"),
+    ("Local dev bypass", "LOCAL_DEV_BYPASS_AUTH", "Allows API calls without a real Cognito token (dev only, never in a deployed task)"),
 ]
 for l, p, d in auth_rows:
     row = table.add_row().cells
@@ -320,7 +320,7 @@ for l, p, d in auth_rows:
     row[1].text = p
     row[2].text = d
 add_heading("9.1 Never-Committed Secrets", 2)
-for s in ["FIREBASE_ADMIN_SDK_PATH (local Firebase service account JSON)", "VERTEX_AI_SA_KEY_PATH (local GCP service account JSON)", "EMERGENCY_CONTACT_ENCRYPTION_KEY (base64 32-byte AES-256-GCM key, or from GCP Secret Manager)", "OPENROUTER_API_KEY", "SARVAM_API_KEY", "NEXTAUTH_SECRET, Google OAuth client ID/secret", "GCP credentials via Secret Manager + Workload Identity (never in repo)"]:
+for s in ["COGNITO_THERAPIST_CLIENT_SECRET (therapist app client secret; Secrets Manager when deployed)", "EMERGENCY_CONTACT_ENCRYPTION_KEY (base64 32-byte AES-256-GCM key, or via CONTACTS_KMS_KEY_ARN)", "OPENROUTER_API_KEY", "SARVAM_API_KEY", "NEXTAUTH_SECRET", "AWS credentials: IAM task roles in deployed environments, never in the repo"]:
     add_para(s)
 
 add_heading("10. AI / LLM Integration", 1)
@@ -332,18 +332,18 @@ hdr[0].text = 'Provider'
 hdr[1].text = 'Models'
 hdr[2].text = 'Used by'
 for l, p, d in [
-    ("Vertex AI (Google)", "gemini-2.5-flash (pro & flash-lite), gemini-3.1-pro/flash-lite", "Clinical agents A1/A2/A9-pre/A9-post via @google-cloud/aiplatform"),
-    ("OpenRouter (fallback)", "meta-llama/llama-3.1-8b-instruct", "Fallback / comparison; test harness default (LLM_PROVIDER=openrouter)"),
+    ("Amazon Bedrock (ap-south-1, in-region)", "amazon.nova-pro-v1:0 (chat), amazon.titan-embed-text-v2:0 (768-dim embeddings)", "Clinical agents A1/A2/A9-pre/A9-post, summaries, memory extraction, harness judge/case-factory"),
+    ("OpenRouter (comparison / escape hatch)", "meta-llama/llama-3.1-8b-instruct (default)", "A/B comparison runs; harness LLM_PROVIDER=openrouter path"),
 ]:
     row = table.add_row().cells
     row[0].text = l
     row[1].text = p
     row[2].text = d
 add_heading("10.2 LLM Architecture", 2)
-for d in ["llm-provider.ts — dispatcher; resolves Gemini vs OpenRouter at runtime from env", "vertex-ai.ts, openrouter.ts — provider-specific clients", "embedding.ts — vector embeddings (memory & recall)", "generate-content.ts — central generateContent entry point", "agents/ — A1 safety gate, A2 companion, A9 pre/post governance, journal-prompt, a8-router, orchestrator"]:
+for d in ["generate-content.ts — single generateContent dispatcher (Bedrock or OpenRouter)", "provider-config.ts — resolves region, model ids, embedding width and queue URL from env", "bedrock.ts, openrouter.ts — provider-specific clients", "embedding.ts — vector embeddings (Titan Embeddings V2 -> pgvector, memory & recall)", "agents/ — A1 safety gate, A2 companion, A9 pre/post governance, journal-prompt, a8-router, orchestrator", "Pricing used by harness cost estimates (ap-south-1, on-demand, AWS Price List API): Nova Pro $0.94/1M input and $3.76/1M output tokens; Titan Embeddings V2 $0.024/1M input tokens"]:
     add_para(d)
 add_heading("10.3 Text-to-Speech", 2)
-for d in ["Sarvam TTS (Bulbul v2) — SARVAM_TTS_MODEL='bulbul:v2', SARVAM_DEFAULT_LANGUAGE='en-IN'", "Flutter TTS wrapper (tts_service.dart)", "GCP Cloud Storage buckets (evia-tts-audio-dev, evia-assets-dev) + signed URLs for cached TTS audio", "GCP Cloud KMS for encryption"]:
+for d in ["Sarvam TTS (Bulbul v2) — SARVAM_TTS_MODEL='bulbul:v2', SARVAM_DEFAULT_LANGUAGE='en-IN'", "Flutter TTS wrapper (tts_service.dart)", "Amazon S3 bucket (S3_UPLOADS_BUCKET) + presigned URLs for cached TTS audio and assets", "AWS KMS customer-managed keys (contacts, data, secrets) for encryption"]:
     add_para(d)
 add_heading("10.4 Voice Mode", 2)
 for d in ["voice toggle widget + voice_settings_notifier.dart (settings)", "tts_service.dart + voice_toggle.dart widgets"]:
@@ -353,23 +353,23 @@ add_heading("11. Real-Time / WebSocket", 1)
 add_para("Libraries: @fastify/websocket (API) + web_socket_channel (Flutter mobile client)")
 add_para("API route: websocket.ts (live chat sessions). Session lifecycle: SESSION_OPEN -> USER_TURN -> AGENT_TURN -> SESSION_CLOSE. Frame types defined in @okuvu/shared-types.")
 
-add_heading("12. Caching & Queueing (GCP Services)", 1)
+add_heading("12. Caching & Queueing (AWS Services)", 1)
 table = doc.add_table(rows=1, cols=3)
 table.style = 'Light Grid Accent 1'
 hdr = table.rows[0].cells
-hdr[0].text = 'GCP Service'
+hdr[0].text = 'AWS Service'
 hdr[1].text = 'Purpose'
 hdr[2].text = 'Used in'
 for l, p, d in [
-    ("Memorystore Redis", "Caching (retrieved-context-cache), session coordination", "API"),
+    ("ElastiCache for Valkey", "Caching (retrieved-context-cache), session coordination; TLS via rediss://", "API"),
     ("ioredis", "Redis client in API", "API"),
-    ("Cloud Tasks", "Background job queue (summary, memory extraction, cleanup)", "API + Worker"),
-    ("@google-cloud/tasks", "Node client for enqueueing tasks", "API"),
-    ("Cloud Storage", "TTS audio + assets; signed URLs", "API + Mobile"),
-    ("Secret Manager", "Credential injection at deploy time", "API + Worker"),
-    ("Cloud KMS", "Encryption keys (AES-256-GCM for emergency contacts)", "API"),
-    ("Cloud Run", "Hosts apps/api (backend) + apps/worker", "Deployment"),
-    ("Cloud Build + Artifact Registry", "CI/CD builds", "Deployment"),
+    ("Amazon SQS", "Background job queue evia-beta-summary-jobs + DLQ, 3-receive redrive", "API + Worker"),
+    ("@aws-sdk/client-sqs", "Node client for enqueueing and consuming jobs", "API + Worker"),
+    ("Amazon S3", "Uploads, TTS audio + assets; presigned URLs", "API + Mobile"),
+    ("AWS Secrets Manager", "DB credentials + runtime secrets, injected into ECS task definitions", "API + Worker"),
+    ("AWS KMS", "CMKs: contacts (envelope AES-256-GCM), data, secrets", "API"),
+    ("Amazon ECS on Fargate", "Hosts api (behind the ALB) + worker (queue consumer)", "Deployment"),
+    ("Amazon ECR + AWS CodeBuild", "Image registry + CI/CD builds", "Deployment"),
 ]:
     row = table.add_row().cells
     row[0].text = l
@@ -382,26 +382,26 @@ table = doc.add_table(rows=1, cols=3)
 table.style = 'Light Grid Accent 1'
 hdr = table.rows[0].cells
 hdr[0].text = 'Environment'
-hdr[1].text = 'GCP Project'
+hdr[1].text = 'AWS account / region'
 hdr[2].text = 'Provisioned by'
 for l, p, d in [
-    ("Dev", "evia-dev", "Local machine (Neon DB)"),
-    ("Staging", "evia-500215", "Git main branch (auto)"),
-    ("Prod", "evia-production", "Git tag v* (manual)"),
+    ("Dev", "developer's own, ap-south-1", "Local machine (Neon DB)"),
+    ("Beta / Staging", "beta account, ap-south-1", "CodeBuild on main (auto)"),
+    ("Prod", "prod account, ap-south-1", "Git tag v* (manual approval)"),
 ]:
     row = table.add_row().cells
     row[0].text = l
     row[1].text = p
     row[2].text = d
 add_heading("13.2 Terraform (IaC)", 2)
-for f in ["infrastructure/gcp/evia-beta/: main.tf, providers.tf, variables.tf, outputs.tf, terraform.tfvars.example", "cloud-sql/: Cloud SQL (Postgres) backend + variables, secrets, outputs, deploy/verify scripts"]:
+for f in ["infrastructure/aws/evia-beta/: providers.tf, variables.tf, outputs.tf, locals.tf, terraform.tfvars.example", "vpc.tf, rds.tf, elasticache.tf, s3.tf, kms.tf, secrets.tf (data layer)", "ecr.tf, ecs.tf, alb.tf, iam.tf, sqs.tf, observability.tf (compute, registry, queue, monitoring)"]:
     add_para(f)
 add_heading("13.3 Deploy & Build Scripts", 2)
-for s in ["scripts/deploy-beta.sh (apps/api -> Cloud Run, Cloud SQL proxy, prisma migrate, Secret Manager injection)", "scripts/deploy-worker.sh (apps/worker -> Cloud Run)", "infrastructure/gcp/evia-beta/verify.sh / verify.ps1 (GCP project verification)", "cloudbuild.yaml (Cloud Build: Docker build -> Cloud SQL proxy -> prisma migrate deploy -> Artifact Registry push)", "apps/api/Dockerfile, apps/worker/Dockerfile (multi-stage Node 22 Alpine, pnpm)"]:
+for s in ["scripts/deploy-beta.sh (apps/api -> docker build -> ECR push -> new task-definition revision -> update evia-beta-api -> wait services-stable)", "scripts/deploy-worker.sh (same flow for evia-beta/worker -> evia-beta-worker)", "buildspec.yml (CodeBuild: pnpm install -> prisma generate -> typecheck -> vitest -> docker build + ECR push -> prisma migrate deploy (in-VPC) -> ECS rollout)", ".github/workflows/ci.yml (PR checks; on merge to main an OIDC-authenticated ECR image push)", "apps/api/Dockerfile, apps/worker/Dockerfile (multi-stage Node 22 Alpine, pnpm)"]:
     add_para(s)
 
 add_heading("14. CI/CD & DevOps", 1)
-for d in ["Cloud Build — automated builds on main -> stage", "Artifact Registry — container image storage", "Cloud Run — API + worker runtime", "Vercel — test-harness hosting (vercel.json in apps/test-harness)", "GitHub Actions — regression workflow (referenced by test-harness CI router + GITHUB_TOKEN)", "pnpm workspaces — monorepo dependency management"]:
+for d in ["AWS CodeBuild — builds, tests, migrates and rolls out on main (buildspec.yml)", "Amazon ECR — container image storage (evia-beta/api, evia-beta/worker; scan-on-push, lifecycle retention)", "Amazon ECS Fargate — API + worker runtime behind an ALB (/health target-group checks)", "Vercel — test-harness hosting (vercel.json in apps/test-harness)", "GitHub Actions — PR CI + regression workflow (referenced by test-harness CI router + GITHUB_TOKEN)", "pnpm workspaces — monorepo dependency management"]:
     add_para(d)
 
 add_heading("15. Build & Test Tools", 1)
@@ -422,7 +422,8 @@ for l, p, d in [
     ("Prisma", "DB migrations + ORM", "All apps (via packages/prisma)"),
     ("tRPC", "Type-safe RPC", "Portal, harness"),
     ("NextAuth", "Auth", "Portal, harness"),
-    ("PostgreSQL", "Database", "Local (Neon) + Cloud SQL (stage/prod)"),
+    ("PostgreSQL", "Database", "Local (Neon) + RDS (beta/prod)"),
+    ("Terraform >= 1.9", "Infrastructure as code", "infrastructure/aws/evia-beta/"),
 ]:
     row = table.add_row().cells
     row[0].text = l
@@ -438,10 +439,10 @@ for s in [
     "Node.js 20+ + pnpm 9+",
     "Flutter 3.x (stable)",
     "Neon dev DB (local) — docs/neon-setup.md",
-    "GCP CLI (gcloud) — for Cloud Run verification/Deploy",
-    "Firebase — dev service account JSON for Firebase Admin SDK",
-    "GCP service account — for Vertex AI",
-    "Copy .env.example -> .env and fill: DATABASE_URL, FIREBASE_ADMIN_SDK_PATH, VERTEX_AI_SA_KEY_PATH, LOCAL_DEV_BYPASS_AUTH, LLM keys, Sarvam key, GCP bucket/KMS values",
+    "AWS CLI v2 — for ECR/ECS inspection and deploys (aws sts get-caller-identity must work)",
+    "Bedrock model access in ap-south-1 — Nova Pro + Titan Embeddings V2 (bedrock:InvokeModel)",
+    "Cognito therapist app client — only for real sign-in; otherwise HARD_HARNESS_LOCAL_DEV_BYPASS_AUTH",
+    "Copy .env.example -> .env and fill: DATABASE_URL, LOCAL_DEV_BYPASS_AUTH, AWS_REGION, BEDROCK_MODEL_ID, SQS_SUMMARY_QUEUE_URL, Cognito pool/client vars, Sarvam key",
     "pnpm install (root) -> pnpm --filter @okuvu/prisma exec prisma generate -> prisma migrate dev",
     "Start backend + portal; run Flutter with --flavor dev --dart-define=FLAVOR=dev",
 ]:
@@ -451,9 +452,9 @@ add_heading("18. Key Constraints (from README)", 1)
 for c in [
     "A1 safety gate is non-negotiable — runs on every user turn.",
     "Crisis endpoints are never rate-limited (S3/S4 bypasses caps).",
-    "GCP credentials never go in the repo — Secret Manager only.",
+    "AWS credentials never go in the repo — Secrets Manager + IAM task roles only.",
     "Therapist portal session notes (T-05) are never ingested into any agent (clinical boundary).",
-    "All user data stays in asia-south1 (Mumbai) — single GCP DPA (DPDP compliance).",
+    "All user data stays in ap-south-1 (Mumbai) — one region covers compute, DB, storage, auth and LLM inference (DPDP compliance).",
 ]:
     add_para(c)
 
@@ -465,7 +466,8 @@ hdr[0].text = 'Doc'
 hdr[1].text = 'Covers'
 docs_refs = [
     ("docs/architecture.md", "High-level architecture"),
-    ("docs/ADR/", "Architecture Decision Records (GCP monorepo, WebSocket auth, harness isolation, etc.)"),
+    ("docs/adr/", "Architecture Decision Records (monorepo, WebSocket auth, harness isolation, etc.)"),
+    ("docs/AWS-CUTOVER-SPEC.md", "Authoritative cutover contract (env vars, replacements)"),
     ("docs/branching.md", "Git branching strategy"),
     ("docs/neon-setup.md", "Local Neon dev DB"),
     ("docs/fastify_healthCheck_JWT.md", "Fastify auth details"),

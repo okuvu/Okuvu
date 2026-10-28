@@ -73,7 +73,7 @@ export async function processTurn(
   }
 
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: uid },
+    where: { auth_subject: uid },
     select: { id: true },
   });
   if (!user) {

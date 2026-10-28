@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 
 // Route handlers
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { recordMoodCheckin, getMoodHistory } from '../lib/progress.js';
 
 const MOOD_MIN = 1;
@@ -20,7 +20,7 @@ interface MoodQuery {
 
 export async function progressRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: MoodCheckinBody }>('/progress/mood/checkin', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { mood_value } = request.body;
@@ -56,7 +56,7 @@ export async function progressRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get<{ Querystring: MoodQuery }>('/progress/mood', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const daysParam = request.query.days;

@@ -1,5 +1,5 @@
 import { isCannedRequested, buildCannedResult, SAFE_FALLBACK } from './canned-response.js';
-import type { GenerateContentParams, GenerateContentResult } from './vertex-ai.js';
+import type { GenerateContentParams, GenerateContentResult } from './llm-types.js';
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -34,9 +34,9 @@ interface OpenRouterResponse {
 }
 
 /**
- * OpenRouter equivalent of vertex-ai.ts's `generateContent`, same contract
+ * OpenRouter implementation of `generateContent`, same contract
  * so the four agents can dispatch to either without changing call sites.
- * `generationConfig.responseSchema` (Vertex structured-output enforcement)
+ * `generationConfig.responseSchema` (the legacy provider structured-output enforcement)
  * and `thinkingConfig` (Gemini-2.5 "thinking budget" workaround) have no
  * OpenRouter/Llama equivalent and are silently ignored — every caller that
  * sets them already tolerates a plain JSON-object reply without schema

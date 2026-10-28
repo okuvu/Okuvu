@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { redeemInvite } from '../lib/invites.js';
 
 interface RedeemInviteBody {
@@ -8,14 +8,14 @@ interface RedeemInviteBody {
 
 // Therapist-portal wireframes C-06 — the client-side half of the
 // Add-Client wizard's provisioning flow. Runs AFTER the mobile app's own
-// Firebase phone-auth has already completed (this route is behind
-// verifyFirebaseJWT like every other authenticated route — there's no
-// separate OTP-dispatch logic here, Firebase already owns that), so
-// request.user.uid is the real, just-verified firebase uid to link onto
+// Cognito phone-OTP sign-in has already completed (this route is behind
+// verifyCognitoJWT like every other authenticated route — there's no
+// separate OTP-dispatch logic here, Cognito already owns that), so
+// request.user.uid is the real, just-verified Cognito `sub` to link onto
 // the placeholder User row the portal created at wizard-submit time.
 export async function invitesRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: RedeemInviteBody }>('/invites/redeem', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     // Tighter than the app-wide default (app.ts) — this endpoint takes a
     // secret token as input, so it's brute-forceable in a way most other
     // routes aren't. 10/minute per source IP is generous for a real user

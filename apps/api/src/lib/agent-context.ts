@@ -15,9 +15,9 @@ export function summariesToConversationTurns(summaries: SessionSummaryView[]): C
 
 const FALLBACK_TURN_LIMIT = 20;
 
-export async function getAgentContextBundle(firebaseUid: string): Promise<AgentContextBundle> {
+export async function getAgentContextBundle(authSubject: string): Promise<AgentContextBundle> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     include: {
       safety_state: true,
       clinical_config: true,

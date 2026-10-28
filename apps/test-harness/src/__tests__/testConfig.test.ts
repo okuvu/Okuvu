@@ -178,7 +178,7 @@ describe('testConfigRouter.pinModelVersion — append-only immutability', () => 
     expect(prisma!.modelConfigPin.delete).not.toHaveBeenCalled();
   });
 
-  it('defaults provider to "gemini" when omitted, and forwards an explicit provider', async () => {
+  it('defaults provider to "bedrock" when omitted, and forwards an explicit provider', async () => {
     vi.mocked(prisma!.modelConfigPin.create).mockResolvedValue({} as any);
     const caller = testConfigRouter.createCaller(buildCtx({ role: 'PI' }));
 
@@ -193,7 +193,7 @@ describe('testConfigRouter.pinModelVersion — append-only immutability', () => 
 
     await caller.pinModelVersion(pinInput);
     expect(prisma!.modelConfigPin.create).toHaveBeenLastCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ provider: 'gemini' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ provider: 'bedrock' }) }),
     );
 
     await caller.pinModelVersion({ ...pinInput, provider: 'openrouter' });

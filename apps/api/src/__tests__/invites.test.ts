@@ -127,7 +127,7 @@ describe('POST /invites/redeem (therapist-portal wireframes C-06)', () => {
     expect(JSON.stringify(callArgs)).not.toContain('AB12CD34');
   });
 
-  it('links firebase_uid and marks redeemed_at on success', async () => {
+  it('links auth_subject and marks redeemed_at on success', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.inviteToken.findUnique).mockResolvedValue({
       id: 'inv_1',
@@ -149,7 +149,7 @@ describe('POST /invites/redeem (therapist-portal wireframes C-06)', () => {
     expect(response.json()).toEqual({ success: true, user_id: 'user_1' });
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user_1' },
-      data: { firebase_uid: 'mock-firebase-uid-1' },
+      data: { auth_subject: 'dev-bypass-subject-1' },
     });
     expect(prisma.inviteToken.update).toHaveBeenCalledWith({
       where: { id: 'inv_1' },

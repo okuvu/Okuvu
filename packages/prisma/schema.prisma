@@ -12,10 +12,10 @@ model User {
   /// placeholder User row (email/phone from intake) BEFORE the client has
   /// ever opened the app — every prior User was mobile-signup-first, where
   /// this was always known immediately. Populated by POST /invites/redeem
-  /// once the client completes Firebase phone-auth for the first time.
+  /// once the client completes Cognito phone-OTP sign-in for the first time.
   /// Still unique — Postgres treats multiple NULLs as distinct, so this
   /// doesn't weaken the constraint for rows that do have one.
-  firebase_uid        String?             @unique
+  auth_subject        String?             @unique
   phone_number        String
   /// Therapist-portal wireframes C-01 — dual-channel OTP invite (phone +
   /// email both required at wizard step 1). Null for pre-wizard users.
@@ -381,7 +381,7 @@ model Appointment {
 /// flow: therapist submits → placeholder User + ClinicalConfig +
 /// TherapistClient(pending) + this token → Brevo email (+ manual
 /// SMS/WhatsApp share of the same link) → client OTP-activates via
-/// POST /invites/redeem, which populates User.firebase_uid and sets
+/// POST /invites/redeem, which populates User.auth_subject and sets
 /// redeemed_at.
 /// token_hash, not the plaintext code — the invite code is randomly
 /// generated (8 chars, 33-char alphabet), one-directionally hashed

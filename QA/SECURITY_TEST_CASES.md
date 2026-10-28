@@ -10,7 +10,7 @@
 - `apps/therapist-portal/src/server/routers/notes.ts` — therapist lookup + assignment check.
 - `apps/api/src/lib/check-production-bypass.ts` — production guard against bypass flags.
 - `apps/api/src/middleware/auth.ts` — Fastify middleware (for the mobile backend; referenced for completeness).
-- `docs/therapist-portal-oauth-setup.md`, `docs/therapist-onboarding/therapist-seed-guide.md` — allowlist setup.
+- `docs/therapist-portal-signin-setup.md`, `docs/therapist-onboarding/therapist-seed-guide.md` — allowlist setup.
 
 **Hard security facts verified from code (record these as baseline before executing):**
 

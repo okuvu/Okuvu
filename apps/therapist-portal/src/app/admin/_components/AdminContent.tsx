@@ -154,7 +154,7 @@ export function AdminContent() {
           >
             <div className="flex-1">
               <label htmlFor="therapist-email" className="mb-1 block text-xs font-medium text-gray-500">
-                Google account email
+                Sign-in email
               </label>
               <input
                 id="therapist-email"

@@ -7,7 +7,7 @@
  * Two first-class requirements (spec TH-S35):
  *   - Idempotent: a re-POST with the same idempotencyKey returns the
  *     EXISTING group (unique constraint on idempotency_key) — no double-run,
- *     no double-charge. A Cloud Tasks retry is a no-op.
+ *     no double-charge. An SQS redelivery is a no-op.
  *   - Resumable: creation only plans; the /advance tick processes one step
  *     at a time from durable state.
  *

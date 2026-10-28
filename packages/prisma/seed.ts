@@ -26,7 +26,7 @@ async function main() {
       // 1. Create the mock user
       const user = await tx.user.create({
         data: {
-          firebase_uid: `mock-firebase-uid-${i + 1}`,
+          auth_subject: `dev-seed-subject-${i + 1}`,
           phone_number: `+1555000000${i + 1}`,
         },
       });

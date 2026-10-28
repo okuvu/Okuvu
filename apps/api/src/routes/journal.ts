@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import type { CreateJournalEntryBody } from '@okuvu/shared-types';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { generateJournalPrompt } from '../agents/journal-prompt/agent.js';
 
@@ -12,7 +12,7 @@ const MAX_CONTENT_LENGTH = 10000;
 
 export async function journalRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateJournalEntryBody }>('/journal', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { emotion, intensity, content } = request.body;
@@ -54,7 +54,7 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
       }
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -87,12 +87,12 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/journal', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true },
       });
 
@@ -136,12 +136,12 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
   // UserMemory themes when available. See agents/journal-prompt/agent.ts
   // for the fail-closed fallback behavior.
   app.post('/journal/prompt', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
 
       const user = await prisma.user.findUnique({
-        where: { firebase_uid: uid },
+        where: { auth_subject: uid },
         select: { id: true, user_memory: true },
       });
 

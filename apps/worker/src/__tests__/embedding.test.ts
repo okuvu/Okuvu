@@ -1,124 +1,93 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const mockPredict = vi.fn();
+const mockSend = vi.hoisted(() => vi.fn());
 
-vi.mock('@google-cloud/aiplatform', () => {
-  const mockValue = {
-    structValue: {
-      fields: {
-        content: { stringValue: '' },
-      },
-    },
-  };
+vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
+  BedrockRuntimeClient: vi.fn(() => ({ send: mockSend })),
+  ConverseCommand: vi.fn((input: unknown) => ({ __type: 'ConverseCommand', input })),
+  InvokeModelCommand: vi.fn((input: unknown) => ({ __type: 'InvokeModelCommand', input })),
+}));
 
-  return {
-    v1beta1: {
-      PredictionServiceClient: vi.fn(() => ({
-        predict: mockPredict,
-      })),
-    },
-    protos: {
-      google: {
-        protobuf: {
-          Value: {
-            fromObject: vi.fn(() => mockValue),
-          },
-        },
-      },
-    },
-  };
-});
+import { generateEmbedding } from '../lib/embedding.js';
+import { clearBedrockClient } from '../lib/bedrock.js';
 
-function makeEmbeddingValues(count: number) {
-  return Array.from({ length: count }, (_, i) => ({
-    numberValue: (i + 1) / 1000,
-  }));
+// Same behaviour classes the deleted cloud-SDK embedding tests asserted, now on
+// the AWS path: a 768-dimension vector comes back, a malformed/empty response
+// throws instead of returning a partial vector, a width mismatch against the
+// pgvector column is refused, and SDK failures propagate to the caller.
+
+const ENV_KEYS = [
+  'BEDROCK_EMBEDDING_MODEL_ID',
+  'BEDROCK_EMBEDDING_DIMENSIONS',
+  'AWS_REGION',
+] as const;
+
+function vectorOf(length: number): number[] {
+  return Array.from({ length }, (_, i) => (i + 1) / 1000);
 }
 
-function makeValidPredictResponse(embeddingDimensions: number) {
-  return [
-    {
-      predictions: [
-        {
-          structValue: {
-            fields: {
-              embeddings: {
-                structValue: {
-                  fields: {
-                    values: {
-                      listValue: {
-                        values: makeEmbeddingValues(embeddingDimensions),
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      ],
-    },
-  ];
+function bodyOf(payload: unknown) {
+  return { body: { transformToString: async () => JSON.stringify(payload) } };
 }
 
-describe('generateEmbedding', () => {
+describe('generateEmbedding (Bedrock Titan V2)', () => {
+  const saved: Record<string, string | undefined> = {};
+
   beforeEach(() => {
     vi.clearAllMocks();
+    clearBedrockClient();
+    for (const key of ENV_KEYS) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
   });
 
-  it('returns a 768-dimensional float array on successful API call', async () => {
-    mockPredict.mockResolvedValue(makeValidPredictResponse(768));
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
 
-    const { generateEmbedding } = await import('../lib/embedding.js');
+  it('returns a 768-dimensional float array from Titan V2', async () => {
+    mockSend.mockResolvedValue(bodyOf({ embedding: vectorOf(768) }));
+
     const result = await generateEmbedding('Test text to embed');
 
     expect(result).toHaveLength(768);
     expect(result[0]).toBeCloseTo(0.001, 5);
     expect(result[767]).toBeCloseTo(0.768, 3);
-    expect(mockPredict).toHaveBeenCalledTimes(1);
+
+    const input = mockSend.mock.calls[0][0].input;
+    expect(input.modelId).toBe('amazon.titan-embed-text-v2:0');
+    expect(JSON.parse(input.body)).toEqual({
+      inputText: 'Test text to embed',
+      dimensions: 768,
+      normalize: true,
+    });
   });
 
-  it('throws when Vertex AI returns no predictions', async () => {
-    mockPredict.mockResolvedValue([{ predictions: [] }]);
+  it('throws when the model returns an empty body', async () => {
+    mockSend.mockResolvedValue({ body: { transformToString: async () => '' } });
 
-    const { generateEmbedding } = await import('../lib/embedding.js');
-    await expect(generateEmbedding('Test text')).rejects.toThrow(
-      'Vertex AI embedding returned no predictions',
-    );
+    await expect(generateEmbedding('Test text')).rejects.toThrow(/returned an empty body/);
   });
 
-  it('throws when Vertex AI returns null predictions', async () => {
-    mockPredict.mockResolvedValue([{ predictions: null }]);
+  it('throws when the response carries no numeric vector', async () => {
+    mockSend.mockResolvedValue(bodyOf({ embeddings: [] }));
 
-    const { generateEmbedding } = await import('../lib/embedding.js');
-    await expect(generateEmbedding('Test text')).rejects.toThrow(
-      'Vertex AI embedding returned no predictions',
-    );
+    await expect(generateEmbedding('Test text')).rejects.toThrow(/contained no numeric vector/);
   });
 
-  it('throws when embedding response is missing embeddings.values', async () => {
-    mockPredict.mockResolvedValue([
-      {
-        predictions: [
-          {
-            structValue: {
-              fields: {},
-            },
-          },
-        ],
-      },
-    ]);
+  it('refuses a vector whose width does not match the pgvector column', async () => {
+    mockSend.mockResolvedValue(bodyOf({ embedding: vectorOf(1536) }));
 
-    const { generateEmbedding } = await import('../lib/embedding.js');
-    await expect(generateEmbedding('Test text')).rejects.toThrow(
-      'Vertex AI embedding response missing embeddings.values',
-    );
+    await expect(generateEmbedding('Test text')).rejects.toThrow(/1536 dimensions/);
   });
 
-  it('throws when Vertex AI API call fails', async () => {
-    mockPredict.mockRejectedValue(new Error('Vertex AI API error'));
+  it('propagates SDK failures to the caller', async () => {
+    mockSend.mockRejectedValue(new Error('AccessDeniedException'));
 
-    const { generateEmbedding } = await import('../lib/embedding.js');
-    await expect(generateEmbedding('Test text')).rejects.toThrow('Vertex AI API error');
+    await expect(generateEmbedding('Test text')).rejects.toThrow('AccessDeniedException');
   });
 });

@@ -155,7 +155,7 @@ export const stochasticRouter = router({
         targetMetric: z.string().min(1),
         threshold: z.number().min(0).max(1),
         environment: testEnvironmentSchema,
-        model: z.string().default('gemini-2.5-flash'),
+        model: z.string().default('amazon.nova-pro-v1:0'),
         avgInputTokens: z.number().int().min(0).default(DEFAULT_AVG_INPUT_TOKENS),
         avgOutputTokens: z.number().int().min(0).default(DEFAULT_AVG_OUTPUT_TOKENS),
       }),

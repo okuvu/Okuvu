@@ -1,0 +1,36 @@
+id|epic|title|owner|deps|status|assigned|branch|commit|evidence|verified_at|verified_by|notes
+E15-S1|E15|Merge the working branch into develop so develop is deployable|build|-|not_started|||||||
+E15-S2|E15|Push to develop starts a build with no manual step|build|E15-S1|not_started|||||||
+E15-S3|E15|Green build deploys to ECS automatically with a tested rollback|build|E15-S2,E15-S4|not_started|||||||
+E15-S4|E15|The api service is healthy behind the load balancer|build|E15-S1|not_started|||||||
+E15-S5|E15|Terraform owns every beta resource|build|E15-S4|not_started|||||||
+E15-S6|E15|Logs, alarms and cost guard are real|ops|E15-S4|not_started|||||||
+E16-S1|E16|okuvu.in and www.okuvu.in resolve to the load balancer|build|E15-S4|not_started|||||||
+E16-S2|E16|Apex and www route to the therapist portal|build|E16-S1|not_started|||||||
+E16-S3|E16|Production Cognito pool with real therapist accounts|build|E15-S4|not_started|||||||
+E16-S4|E16|Production schema migrated from empty with a pre-migration snapshot|build|E15-S4|not_started|||||||
+E16-S5|E16|The therapist journey runs end to end three times consecutively|build|E16-S3,E16-S4,E17-S4|not_started|||||||
+E16-S6|E16|A restore from snapshot is proven|ops|E16-S4|not_started|||||||
+E16-S7|E16|Security and DPDP checklist signed off|ops|E16-S3|not_started|||||||
+E17-S1|E17|The agent runtime calls Bedrock through the Converse API|build|E15-S4|not_started|||||||
+E17-S2|E17|Model access and quotas are verified from the task role|ops|-|not_started|||||||
+E17-S3|E17|The agent roster is merged and self-registering|build|E15-S1,E17-S1|not_started|||||||
+E17-S4|E17|The safety core fails closed|build|E17-S3|not_started|||||||
+E17-S5|E17|An evaluation gate is passed and recorded|build|E17-S4|not_started|||||||
+E17-S6|E17|Token and cost budgets are enforced|build|E17-S1|not_started|||||||
+E17-S7|E17|Clinical sign-off on agent copy and technique list|clinical|E17-S5|not_started|||||||
+E18-S1|E18|A real upload keystore replaces the placeholder|decision|-|not_started|||||||
+E18-S2|E18|Version bumped and signing switched to the real key|build|E18-S1|not_started|||||||
+E18-S3|E18|Prod app bundle built against the live API|build|E18-S2,E15-S4,E16-S1|not_started|||||||
+E18-S4|E18|Real-device smoke test of the release build|build|E18-S3|not_started|||||||
+E18-S5|E18|Side-loadable signed release APK produced|build|E18-S3|not_started|||||||
+E19-S1|E19|Play Console account exists and its type is recorded|decision|-|not_started|||||||
+E19-S2|E19|Privacy policy hosted on okuvu.in|build|E16-S2|not_started|||||||
+E19-S3|E19|Store listing assets complete|build|E16-S5|not_started|||||||
+E19-S4|E19|App content declarations submitted|build|E19-S2,E19-S1|not_started|||||||
+E19-S5|E19|Closed test window satisfied if the account is personal|external|E18-S4,E19-S4|not_started|||||||
+E19-S6|E19|Production submission|external|E19-S3,E19-S4,E19-S5|not_started|||||||
+E19-S7|E19|Approval and staged rollout|external|E19-S6|not_started|||||||
+E20-S1|E20|Pilot acceptance run with real therapists|ops|E16-S5,E17-S5,E19-S7|not_started|||||||
+E20-S2|E20|On-call runbook and escalation path|ops|E16-S6,E17-S4|not_started|||||||
+E20-S3|E20|Launch claims approved in writing|clinical|E17-S7,E20-S2|not_started|||||||

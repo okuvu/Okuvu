@@ -8,17 +8,17 @@ import { withCannedMode } from './canned-mode';
 // TH-S09 spec: "Try direct import first." We did — `pnpm tsc --noEmit`
 // succeeds with these relative imports into apps/api/src/agents/*, and none
 // of the imported modules perform module-scope side effects that require
-// credentials (the Vertex AI client in apps/api/src/lib/vertex-ai.ts is
-// lazily constructed inside a function, not at import time), so importing
-// these files does not itself crash a test-harness process without GCP
-// credentials configured — an actual agent invocation that reaches Vertex AI
+// credentials (the Bedrock runtime client in apps/api/src/lib/bedrock.ts is
+// constructed lazily inside a function, not at import time), so importing
+// these files does not itself crash a test-harness process without AWS
+// credentials configured — an actual agent invocation that reaches Bedrock
 // will fail at call time instead, which is caught and surfaced below.
 //
 // apps/api is NOT declared as a workspace dependency of @okuvu/test-harness
 // (its package.json has no "@okuvu/api" entry), so these are plain relative
 // filesystem imports rather than a package import. Node/TS resolves the
-// imported files' own dependencies (e.g. @google-cloud/aiplatform) starting
-// from apps/api/node_modules, which pnpm populates independently of
+// imported files' own dependencies (e.g. @aws-sdk/client-bedrock-runtime)
+// starting from apps/api/node_modules, which pnpm populates independently of
 // apps/test-harness/node_modules, so resolution works without adding
 // apps/api to `transpilePackages`.
 import { classifySafety } from '@okuvu/api/src/agents/a1/agent';
@@ -89,10 +89,11 @@ async function invokeWorkerSummaryTask(
     });
 
     if (!res.ok) {
-      // Most likely cause in local/test environments: the route is
-      // OIDC-protected (verifyOidcToken) and we have no valid ID token to
-      // present, so this is expected to fail outside of a fully
-      // credentialed deployment. Surface it as a result, not a throw.
+      // Most likely cause in local/test environments: the worker is only
+      // reachable inside the VPC (its Cloud Run OIDC verifier was dropped in
+      // the AWS cutover — the task now has no public ingress and is reached
+      // over the internal network), so this is expected to fail outside of a
+      // fully networked deployment. Surface it as a result, not a throw.
       const body = await res.text().catch(() => '');
       return {
         processed: false,
@@ -173,7 +174,7 @@ function toA9PostInput(ctx: MockSessionContext, overrides: Record<string, unknow
  * session context defaults for any fields the caller did not supply.
  *
  * A8 (router) is synchronous and pure — no LLM call, no await, no timeout
- * wrapper. Everything else is async and calls out to Vertex AI (A1, A2, A9,
+ * wrapper. Everything else is async and calls out to Bedrock (A1, A2, A9,
  * A9-post) or the worker service (A13/A15).
  */
 export async function invokeAgent(

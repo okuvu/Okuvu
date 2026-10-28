@@ -1,52 +1,17 @@
-import { v1beta1, protos } from '@google-cloud/aiplatform';
-
-let client: v1beta1.PredictionServiceClient | null = null;
-
-function getClient(): v1beta1.PredictionServiceClient {
-  if (!client) {
-    const location = process.env.VERTEX_AI_LOCATION ?? 'asia-south1';
-    client = new v1beta1.PredictionServiceClient({
-      apiEndpoint: `${location}-aiplatform.googleapis.com`,
-    });
-  }
-  return client;
-}
-
-function getModelResource(): string {
-  const project = process.env.VERTEX_AI_PROJECT_ID ?? 'okuvu-dev';
-  const location = process.env.VERTEX_AI_LOCATION ?? 'asia-south1';
-  return `projects/${project}/locations/${location}/publishers/google/models/text-embedding-004`;
-}
-
+/**
+ * Embedding seam for the worker: `generateEmbedding(text) => number[]`.
+ *
+ * Amazon Bedrock Titan Text Embeddings V2 (768 dims, matching the
+ * `SessionLog.summary_embedding vector(768)` column) is the only
+ * implementation after the AWS cutover (docs/AWS-CUTOVER-SPEC.md) — the cloud
+ * SDK client this file used to hold, and the switch that chose between them,
+ * are gone. Callers (`summary.ts`, `scripts/backfill-embeddings.ts`) keep
+ * importing this seam so the model/dimension guard stays in one place.
+ *
+ * The Bedrock module is imported lazily: `@aws-sdk/client-bedrock-runtime` only
+ * loads when an embedding is actually requested.
+ */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const endpoint = getModelResource();
-  const instances = [{ structValue: { fields: { content: { stringValue: text } } } }];
-  const parameters = { structValue: { fields: { taskType: { stringValue: 'SEMANTIC_SIMILARITY' } } } };
-
-  const result = await getClient().predict({
-    endpoint,
-    instances,
-    parameters,
-  });
-
-  const response = Array.isArray(result) ? result[0] : result;
-  const predictions = response.predictions as protos.google.protobuf.IValue[] | null | undefined;
-
-  if (!predictions || predictions.length === 0) {
-    throw new Error('Vertex AI embedding returned no predictions');
-  }
-
-  const prediction = predictions[0];
-  const structValue = prediction.structValue?.fields;
-
-  if (!structValue?.embeddings?.structValue?.fields?.values?.listValue?.values) {
-    throw new Error('Vertex AI embedding response missing embeddings.values');
-  }
-
-  const values = structValue.embeddings.structValue.fields.values.listValue.values;
-  const embedding = values
-    .map((v: protos.google.protobuf.IValue) => v.numberValue)
-    .filter((v): v is number => v !== null && v !== undefined);
-
-  return embedding;
+  const { generateEmbedding: generateBedrockEmbedding } = await import('./bedrock.js');
+  return generateBedrockEmbedding(text);
 }

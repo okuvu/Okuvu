@@ -8,12 +8,12 @@ export type MoodCheckinResult =
   | { status: 'user_not_found' };
 
 export async function recordMoodCheckin(
-  firebaseUid: string,
+  authSubject: string,
   moodValue: number,
   log?: { info: LogFn },
 ): Promise<MoodCheckinResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
 
@@ -62,11 +62,11 @@ export type MoodHistoryResult =
   | { status: 'user_not_found' };
 
 export async function getMoodHistory(
-  firebaseUid: string,
+  authSubject: string,
   days: number,
 ): Promise<MoodHistoryResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
 

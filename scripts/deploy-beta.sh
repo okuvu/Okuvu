@@ -2,17 +2,32 @@
 set -euo pipefail
 
 # =========================================================
-# deploy-beta.sh - Build and deploy apps/api to Cloud Run
-# Usage: ./scripts/deploy-beta.sh
+# deploy-beta.sh — build apps/api, push it to ECR, and roll the
+# `evia-beta-api` ECS Fargate service onto the new image.
+#
+# Mirrors infrastructure/aws/evia-beta:
+#   ecr.tf → repository `evia-beta/api`
+#   ecs.tf → cluster `evia-beta`, service `evia-beta-api`, container `api`,
+#            container port 8080
+#   alb.tf → the target group polls /health on that port
+#
+# Usage: ./scripts/deploy-beta.sh [--load-test]
+#
+# Environment:
+#   AWS_REGION    (default ap-south-1 — the only region DPDP allows)
+#   NAME_PREFIX   (default evia-beta, must match variables.tf)
+#   IMAGE_TAG     (default: git short SHA)
+#   DATABASE_URL  (optional; when set, `prisma migrate deploy` runs first)
 # =========================================================
 
-readonly PROJECT_ID="evia-500215"
-readonly REGION="asia-south1"
-readonly SERVICE_NAME="backend"
-readonly SERVICE_ACCOUNT="evia-app@${PROJECT_ID}.iam.gserviceaccount.com"
-readonly IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/backend/${SERVICE_NAME}"
+readonly AWS_REGION="${AWS_REGION:-ap-south-1}"
+readonly NAME_PREFIX="${NAME_PREFIX:-evia-beta}"
+readonly CLUSTER="${NAME_PREFIX}"
+readonly SERVICE="${NAME_PREFIX}-api"
+readonly WORKLOAD="api"
+readonly ECR_REPO="${NAME_PREFIX}/api"
 readonly BACKEND_SOURCE="apps/api"
-readonly SECRETS="DATABASE_URL=DATABASE_URL:latest,SARVAM_API_KEY=SARVAM_API_KEY:latest"
+readonly DOCKERFILE="${BACKEND_SOURCE}/Dockerfile"
 
 LOAD_TEST_MODE=false
 
@@ -24,10 +39,22 @@ cd "${PROJECT_ROOT}"
 # Colors
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[0;33m'
 readonly NC='\033[0m'
 
 fail() { echo -e "${RED}[FAIL]${NC} $*" >&2; exit 1; }
 info() { echo -e "${GREEN}[INFO]${NC} $*"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
+
+# Parse optional --load-test flag
+if [[ "${1:-}" == "--load-test" ]]; then
+  LOAD_TEST_MODE=true
+  shift
+fi
+
+TASK_DEF_JSON="$(mktemp)"
+NEW_TASK_DEF="${TASK_DEF_JSON}.new"
+trap 'rm -f "${TASK_DEF_JSON}" "${NEW_TASK_DEF}"' EXIT
 
 # --- Pre-flight checks -----------------------------------
 info "Running pre-flight checks..."
@@ -36,62 +63,114 @@ if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
   fail "Uncommitted changes detected. Commit or stash before deploying."
 fi
 
-if ! command -v gcloud &>/dev/null; then
-  fail "gcloud CLI not found. Install from https://cloud.google.com/sdk"
+for bin in aws docker python3 git; do
+  command -v "${bin}" >/dev/null 2>&1 || fail "${bin} not found on PATH."
+done
+
+if ! aws sts get-caller-identity >/dev/null 2>&1; then
+  fail "AWS credentials not available. Run: aws configure (or aws sso login)."
 fi
 
-if ! gcloud auth print-access-token &>/dev/null; then
-  fail "Not authenticated. Run: gcloud auth login && gcloud auth application-default login"
-fi
+AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+IMAGE="${ECR_REGISTRY}/${ECR_REPO}"
+IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short=12 HEAD)}"
 
-current_project="$(gcloud config get-value project 2>/dev/null || true)"
-if [[ "${current_project}" != "${PROJECT_ID}" ]]; then
-  fail "Active gcloud project is '${current_project}', expected '${PROJECT_ID}'.
-Run: gcloud config set project ${PROJECT_ID}"
-fi
+[[ -f "${DOCKERFILE}" ]] || fail "Dockerfile not found at ${DOCKERFILE}"
+[[ -n "${AWS_ACCOUNT_ID}" ]] || fail "Could not resolve the AWS account id."
 
-if [[ ! -f "${BACKEND_SOURCE}/Dockerfile" ]]; then
-  fail "Dockerfile not found at ${BACKEND_SOURCE}/Dockerfile"
-fi
-
+info "Account ${AWS_ACCOUNT_ID} · region ${AWS_REGION} · cluster ${CLUSTER} · service ${SERVICE}"
+info "Image ${IMAGE}:${IMAGE_TAG}"
 info "All checks passed."
 
-# Parse optional --load-test flag
-if [[ "${1:-}" == "--load-test" ]]; then
-  LOAD_TEST_MODE=true
-  shift
+# --- Database migrations (optional) ------------------------
+# The CodeBuild pipeline runs `prisma migrate deploy` from inside the VPC
+# (buildspec.yml). RDS is not publicly reachable, so this only runs here when
+# the operator has already opened a tunnel and exported DATABASE_URL.
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  info "Running Prisma migrations against the supplied DATABASE_URL..."
+  ( cd packages/prisma && DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy )
+  info "Migrations applied."
+else
+  warn "DATABASE_URL unset — skipping migrations. They run in the CodeBuild"
+  warn "pipeline (buildspec.yml, in-VPC). Export DATABASE_URL via a tunnel to run them here."
 fi
 
-# --- Build image + run migrations via Cloud Build ---------
-info "Submitting build to Cloud Build (includes prisma migrate deploy)..."
-gcloud builds submit --config cloudbuild.yaml --project "${PROJECT_ID}" .
-info "Image built, migrations applied, image pushed."
+# --- Build and push to ECR --------------------------------
+info "Logging in to ECR..."
+aws ecr get-login-password --region "${AWS_REGION}" \
+  | docker login --username AWS --password-stdin "${ECR_REGISTRY}" >/dev/null
 
-# --- Deploy to Cloud Run ---------------------------------
-info "Deploying to Cloud Run..."
+info "Building ${WORKLOAD} image..."
+docker build \
+  --platform linux/amd64 \
+  -t "${IMAGE}:${IMAGE_TAG}" \
+  -t "${IMAGE}:latest" \
+  -f "${DOCKERFILE}" .
 
-DEPLOY_ARGS=(
-  --image "${IMAGE}"
-  --region "${REGION}"
-  --project "${PROJECT_ID}"
-  --service-account "${SERVICE_ACCOUNT}"
-  --port 8080
-  --add-cloudsql-instances evia-500215:asia-south1:evia-db
-  --set-secrets "${SECRETS}"
-  --set-env-vars "FIREBASE_PROJECT_ID=evia-500215,VERTEX_AI_PROJECT_ID=evia-500215,VERTEX_AI_LOCATION=asia-south1,GEMINI_PRO_MODEL=gemini-2.5-flash,GEMINI_FLASH_LITE_MODEL=gemini-2.5-flash"
-  --min-instances 1
-  --max-instances 4
-  --allow-unauthenticated
-)
+info "Pushing ${WORKLOAD} image to ECR..."
+docker push "${IMAGE}:${IMAGE_TAG}"
+docker push "${IMAGE}:latest"
+info "Image pushed: ${IMAGE}:${IMAGE_TAG}"
+
+# --- Register a new task definition revision --------------
+info "Registering a new task definition revision for ${SERVICE}..."
+aws ecs describe-task-definition \
+  --task-definition "${SERVICE}" \
+  --region "${AWS_REGION}" \
+  --query 'taskDefinition' \
+  --output json >"${TASK_DEF_JSON}"
+
+PIN_ARGS=()
+if [[ "${LOAD_TEST_MODE}" == "true" ]]; then
+  PIN_ARGS+=(--load-test --region "${AWS_REGION}" --account "${AWS_ACCOUNT_ID}")
+fi
+
+# One shared implementation of the task-definition rewrite (also used by
+# scripts/deploy-worker.sh and buildspec.yml).
+python3 "${SCRIPT_DIR}/ecs-image-pin.py" \
+  "${TASK_DEF_JSON}" "${NEW_TASK_DEF}" "${IMAGE}:${IMAGE_TAG}" \
+  ${PIN_ARGS[@]+"${PIN_ARGS[@]}"}
 
 if [[ "${LOAD_TEST_MODE}" == "true" ]]; then
-  DEPLOY_ARGS+=(
-    --set-env-vars "LOAD_TEST_MODE=true"
-    --update-secrets "LOAD_TEST_KEY=LOAD_TEST_KEY:latest"
-  )
-  info "Load test mode enabled — LOAD_TEST_MODE=true, LOAD_TEST_KEY from Secret Manager"
+  warn "Load test mode: LOAD_TEST_MODE=true, LOAD_TEST_KEY from Secrets Manager."
 fi
 
-gcloud run deploy "${SERVICE_NAME}" "${DEPLOY_ARGS[@]}"
+NEW_TASK_DEF_ARN="$(aws ecs register-task-definition \
+  --cli-input-json "file://${NEW_TASK_DEF}" \
+  --region "${AWS_REGION}" \
+  --query 'taskDefinition.taskDefinitionArn' \
+  --output text)"
+info "Registered ${NEW_TASK_DEF_ARN}"
 
-info "Deploy successful!"
+# --- Roll the service -------------------------------------
+info "Updating ${SERVICE} (force new deployment)..."
+aws ecs update-service \
+  --cluster "${CLUSTER}" \
+  --service "${SERVICE}" \
+  --task-definition "${NEW_TASK_DEF_ARN}" \
+  --force-new-deployment \
+  --region "${AWS_REGION}" >/dev/null
+
+info "Waiting for ${SERVICE} to stabilise (this can take a few minutes)..."
+if ! aws ecs wait services-stable \
+  --cluster "${CLUSTER}" \
+  --services "${SERVICE}" \
+  --region "${AWS_REGION}"; then
+  aws ecs describe-services \
+    --cluster "${CLUSTER}" \
+    --services "${SERVICE}" \
+    --region "${AWS_REGION}" \
+    --query 'services[0].events[:10].[createdAt,message]' \
+    --output table || true
+  fail "${SERVICE} did not stabilise — see the events above."
+fi
+
+aws ecs describe-services \
+  --cluster "${CLUSTER}" \
+  --services "${SERVICE}" \
+  --region "${AWS_REGION}" \
+  --query 'services[0].{service:serviceName,desired:desiredCount,running:runningCount,taskDefinition:taskDefinition}' \
+  --output table
+
+info "Deploy successful."

@@ -18,7 +18,7 @@ const faultTypeSchema = z.enum(['timeout', 'api_error']);
 const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 
 type PrismaLike = {
-  user: { upsert: (args: unknown) => Promise<{ id: string; firebase_uid: string }> };
+  user: { upsert: (args: unknown) => Promise<{ id: string; auth_subject: string }> };
   sessionLog: {
     create: (args: unknown) => Promise<{ id: string }>;
   };
@@ -35,7 +35,7 @@ type PrismaLike = {
 /**
  * Create a fresh synthetic `test-user-*` User row plus a brand-new
  * SessionLog row so `processTurn` has both rows it requires
- * (`prisma.user.findUnique({ where: { firebase_uid } })` and
+ * (`prisma.user.findUnique({ where: { auth_subject } })` and
  * `prisma.sessionLog.findUnique({ where: { id: sessionId } })`).
  *
  * A new SessionLog is created per call (not reused) so fault-injection runs
@@ -45,19 +45,19 @@ async function setupSyntheticSession(
   prisma: PrismaLike,
   label: string,
 ): Promise<{ uid: string; sessionId: string; userId: string }> {
-  const firebaseUid = `${TEST_USER_PREFIX}fault-${label}-${randomUUID()}`;
+  const authSubject = `${TEST_USER_PREFIX}fault-${label}-${randomUUID()}`;
 
   const user = await prisma.user.upsert({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     update: {},
-    create: { firebase_uid: firebaseUid, phone_number: '+10000000000' },
+    create: { auth_subject: authSubject, phone_number: '+10000000000' },
   });
 
   const sessionLog = await prisma.sessionLog.create({
     data: { user_id: user.id, turn_count: 0 },
   });
 
-  return { uid: firebaseUid, sessionId: sessionLog.id, userId: user.id };
+  return { uid: authSubject, sessionId: sessionLog.id, userId: user.id };
 }
 
 function statusForResult(result: { type: string; fallbackUsed?: boolean }): 'pass' | 'warning' | 'error' {

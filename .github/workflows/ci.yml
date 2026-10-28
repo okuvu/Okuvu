@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - develop
+  # Image publishing (see the `images` job) only runs on a merge to main.
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -109,16 +113,25 @@ jobs:
 
       - name: Check for committed .env files
         run: |
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.env$|\.env\.' | grep -v '\.env\.example'; then
+          set -euo pipefail
+          # On a push (no base ref) diff against the previous commit instead.
+          BASE="origin/${{ github.base_ref }}"
+          if [ -z "${{ github.base_ref }}" ]; then BASE="HEAD~1"; fi
+          if git diff --name-only "$BASE"...HEAD | grep -E '\.env$|\.env\.' | grep -v '\.env\.example'; then
             echo "ERROR: .env file committed. Remove it and check .gitignore."
             exit 1
           fi
 
-      - name: Check for GCP credential files
+      - name: Check for cloud credential files
         run: |
-          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E 'service-account\.json|keyfile\.json|firebase-admin|adminsdk'; then
-            echo "ERROR: GCP service account or Firebase credentials file committed."
-            echo "These files must NEVER be committed. Remove from git history if accidentally added."
+          set -euo pipefail
+          BASE="origin/${{ github.base_ref }}"
+          if [ -z "${{ github.base_ref }}" ]; then BASE="HEAD~1"; fi
+          if git diff --name-only "$BASE"...HEAD | grep -E 'credentials(\.json)?$|\.pem$|service-account\.json|keyfile\.json|adminsdk'; then
+            echo "ERROR: A cloud credential file is committed."
+            echo "These files must NEVER be committed. AWS access uses the OIDC role in the"
+            echo "'images' job; runtime secrets live in AWS Secrets Manager. Remove from git history"
+            echo "if accidentally added."
             exit 1
           fi
 
@@ -129,3 +142,63 @@ jobs:
             echo "This must only be set via .env for local development, never in source code."
             exit 1
           fi
+
+  # ─────────────────────────────────────────────
+  # Container images — build + push to ECR on a merge to main.
+  #
+  # Replaces the retired Cloud Build pipeline (which pushed to Artifact
+  # Registry). Tests and deploys are separate concerns here: this job only
+  # publishes images to the ECR repositories
+  # infrastructure/aws/evia-beta/ecr.tf creates, and the CodeBuild pipeline
+  # (buildspec.yml) owns migrations + the ECS rollout.
+  #
+  # Auth is OIDC — no long-lived AWS keys in repo secrets. The role must trust
+  # token.actions.githubusercontent.com for this repo's main branch and may
+  # push to evia-beta/api and evia-beta/worker.
+  # ─────────────────────────────────────────────
+  images:
+    name: Images — build + push to ECR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - backend
+      - security
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: ap-south-1
+      NAME_PREFIX: evia-beta
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-ci-images
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push api and worker images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_SHA:0:12}"
+          for workload in api worker; do
+            repo="${REGISTRY}/${NAME_PREFIX}/${workload}"
+            docker build \
+              --platform linux/amd64 \
+              -t "${repo}:${TAG}" \
+              -t "${repo}:latest" \
+              -f "apps/${workload}/Dockerfile" .
+            docker push "${repo}:${TAG}"
+            docker push "${repo}:latest"
+            echo "pushed ${repo}:${TAG}"
+          done

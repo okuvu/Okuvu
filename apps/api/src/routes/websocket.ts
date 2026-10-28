@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from 'ws';
 import websocketPlugin from '@fastify/websocket';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { handleSessionOpen, type SendFrame } from '../lib/session-handler.js';
 import { closeSession } from '../lib/session-close.js';
 import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@okuvu/shared-types';
@@ -98,7 +98,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
 
   app.get('/ws', {
     websocket: true,
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
   }, (socket: WebSocket, req: FastifyRequest) => {
     const connectionStart = Date.now();
     const { uid } = req.user;

@@ -133,7 +133,7 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
     );
   });
 
-  it('returns 401 when firebase_uid has no User row', async () => {
+  it('returns 401 when auth_subject has no User row', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
     app = buildApp();
@@ -248,7 +248,7 @@ describe('PATCH /users/me/tool-preference', () => {
     expect(response.json().error.code).toBe('INVALID_BODY');
   });
 
-  it('returns 401 when firebase_uid has no User row', async () => {
+  it('returns 401 when auth_subject has no User row', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
 

@@ -8,7 +8,7 @@ import { listCasesAction, versionCaseAction, generateVariationsAction } from '..
 import BadgeChip from '@/app/components/BadgeChip';
 
 // Kept as a local, presentation-only list rather than importing from
-// case-factory.ts — that module pulls in vertex-ai.ts (Node-only GCP client
+// case-factory.ts — that module pulls in the Bedrock client (Node-only AWS SDK
 // libraries), which must never end up in a 'use client' bundle.
 const VARIATION_KINDS = [
   'rephrasing',

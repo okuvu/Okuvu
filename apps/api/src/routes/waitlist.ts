@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { sendWaitlistConfirmationEmail } from '../lib/email.js';
 
@@ -12,12 +12,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 
 // S6 (waitlist) — reached when /auth/verify-otp returns NO_ACCOUNT (a
-// verified Firebase phone number with no matching OKUVU User/invite).
-// Gated behind verifyFirebaseJWT like verify-otp itself: Firebase auth
-// alone is enough to reach this, no OKUVU account required.
+// Cognito-verified phone number with no matching OKUVU User/invite).
+// Gated behind verifyCognitoJWT like verify-otp itself: a valid Cognito
+// identity alone is enough to reach this, no OKUVU account required.
 export async function waitlistRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: WaitlistBody }>('/waitlist', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { email, phone_number } = request.body ?? {};
 

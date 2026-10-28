@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'websocket_service.dart';
 import 'auth_service.dart';
 import 'dio_client.dart';
 import 'auth_interceptor.dart';
 import 'tts_service.dart';
+import 'speech_service.dart';
 import 'analytics_service.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
@@ -36,13 +36,14 @@ class CrisisOverlayNotifier extends Notifier<bool> {
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final ttsServiceProvider = Provider<TtsService>((ref) => TtsService());
+final speechServiceProvider = Provider<SpeechService>((ref) => SpeechService());
 final analyticsServiceProvider =
     Provider<AnalyticsService>((ref) => AnalyticsService());
 final crisisOverlayProvider =
     NotifierProvider<CrisisOverlayNotifier, bool>(CrisisOverlayNotifier.new);
 
-final authStateProvider = StreamProvider<User?>((ref) {
-  return FirebaseAuth.instance.authStateChanges();
+final authStateProvider = StreamProvider<AuthUser?>((ref) {
+  return ref.watch(authServiceProvider).authStateChanges();
 });
 
 enum SessionState { initial, authenticated, unauthenticated }

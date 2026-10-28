@@ -4,7 +4,7 @@ import { initTRPC } from '@trpc/server';
 // ─── Mock apps/api's orchestrator + fallbacks ───────────────────────────────
 // faultInjection.ts imports these via relative paths into apps/api/src/pipeline.
 // We mock at those same specifiers (resolved to the same absolute files) so
-// no real pipeline/Vertex AI call ever happens in this test file.
+// no real pipeline/Bedrock call ever happens in this test file.
 
 const mockProcessTurn = vi.hoisted(() => vi.fn());
 
@@ -70,7 +70,7 @@ function buildCtx() {
 function mockUserAndSession(userId = 'db-user-1', sessionId = 'session-1') {
   (prisma!.user.upsert as ReturnType<typeof vi.fn>).mockResolvedValue({
     id: userId,
-    firebase_uid: `test-user-fault-x-${userId}`,
+    auth_subject: `test-user-fault-x-${userId}`,
   });
   (prisma!.sessionLog.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: sessionId });
   (prisma!.testRun.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'run-1' });

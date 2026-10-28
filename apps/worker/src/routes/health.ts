@@ -11,7 +11,7 @@ import { getPrisma } from '../lib/prisma.js';
  * This route is the reachable, unauthenticated health surface the API and the
  * test harness assert against at startup (see apps/api/src/lib/worker-health.ts
  * and apps/test-harness/src/lib/worker-health.ts). Unlike /tasks/summary it
- * needs no OIDC — its whole job is to answer "is the worker up" cheaply. It
+ * needs no signature header — its whole job is to answer "is the worker up" cheaply. It
  * also reports DB reachability so a caller can distinguish "worker process up
  * but database down" (also unusable for summary generation).
  */

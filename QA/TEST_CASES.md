@@ -53,7 +53,7 @@
 | Priority | P0 |
 | Severity | Critical |
 | Objective | Confirm a Google account NOT in the `therapist` table is rejected after successful Google OAuth. |
-| Requirement Reference | E10-S01 FR-4, AC-2, Edge case; `docs/therapist-portal-oauth-setup.md` |
+| Requirement Reference | E10-S01 FR-4, AC-2, Edge case; `docs/therapist-portal-signin-setup.md` |
 | Preconditions | `LOCAL_DEV_BYPASS_AUTH` not `true`. `unauthorized@gmail.com` is NOT in `therapist` table. |
 | Test Data | Google account `unauthorized@gmail.com` |
 | Environment | Local dev |

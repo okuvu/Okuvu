@@ -1,17 +1,55 @@
 import NextAuth, { type NextAuthOptions, type Session } from 'next-auth';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
-import GoogleProvider from 'next-auth/providers/google';
+import CognitoProvider from 'next-auth/providers/cognito';
 import type { HarnessRole, TestEnvironment } from '@okuvu/shared-types';
+
+/**
+ * Cognito therapist pool used for harness operator sign-in.
+ *
+ * The therapist-facing identity provider is an Amazon Cognito user pool (see
+ * docs/AWS-CUTOVER-SPEC.md). The harness signs in against the same pool the
+ * therapist portal uses, so the `testHarnessAccess` allow-list keeps working
+ * unchanged — only the token issuer moved.
+ */
+export interface CognitoHarnessConfig {
+  region: string;
+  poolId: string;
+  clientId: string;
+  clientSecret: string;
+  issuer: string;
+}
+
+/**
+ * Resolve the pool from env. Returns `null` (→ no provider, sign-in disabled)
+ * when the client id/secret pair is absent, which is the normal state for
+ * local development — use HARD_HARNESS_LOCAL_DEV_BYPASS_AUTH there instead.
+ */
+export function resolveCognitoConfig(env: NodeJS.ProcessEnv = process.env): CognitoHarnessConfig | null {
+  const poolId = env.COGNITO_THERAPIST_POOL_ID?.trim();
+  const clientId = env.COGNITO_THERAPIST_CLIENT_ID?.trim();
+  const clientSecret = env.COGNITO_THERAPIST_CLIENT_SECRET?.trim();
+
+  if (!poolId || !clientId || !clientSecret) {
+    return null;
+  }
+
+  const region = env.COGNITO_REGION?.trim() || env.AWS_REGION?.trim() || 'ap-south-1';
+  const issuer = env.COGNITO_ISSUER?.trim() || `https://cognito-idp.${region}.amazonaws.com/${poolId}`;
+
+  return { region, poolId, clientId, clientSecret, issuer };
+}
 
 function buildProviders(): NextAuthOptions['providers'] {
   const providers: NextAuthOptions['providers'] = [];
+  const cognito = resolveCognitoConfig();
 
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  if (cognito) {
     providers.push(
-      GoogleProvider({
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      CognitoProvider({
+        clientId: cognito.clientId,
+        clientSecret: cognito.clientSecret,
+        issuer: cognito.issuer,
       }),
     );
   }
@@ -24,7 +62,7 @@ export const authConfig: NextAuthOptions = {
   session: { strategy: 'jwt' },
   callbacks: {
     async signIn({ account, profile }) {
-      if (account?.provider === 'google' && profile?.email) {
+      if (account?.provider === 'cognito' && profile?.email) {
         try {
           const { prisma } = await import('@/lib/prisma');
           if (!prisma) {
@@ -88,10 +126,11 @@ export const handlers = { GET: nextAuth, POST: nextAuth };
 export async function auth() {
   // Local-dev bypass (mirror of LOCAL_DEV_BYPASS_AUTH in apps/api + apps/worker):
   // HARD_HARNESS_LOCAL_DEV_BYPASS_AUTH=true issues a synthetic PI session so the
-  // harness is usable without Google OAuth (e.g. redirect_uri not registered).
+  // harness is usable without Cognito (e.g. no pool/client configured locally).
   // Guardrails: production refuses to boot with it set (below); every bypassed
   // request is loudly logged; and the synthetic session is scoped to sandbox
-  // environments only — real OAuth remains the only path to staging/beta.
+  // environments only — a real Cognito sign-in remains the only path to
+  // staging/beta.
   if (process.env.HARD_HARNESS_LOCAL_DEV_BYPASS_AUTH === 'true') {
     if (process.env.NODE_ENV === 'production') {
       throw new Error(

@@ -105,14 +105,14 @@ export async function createSyntheticThread(suffix = 'pipeline'): Promise<{ uid:
     throw new Error('Database not configured — DATABASE_URL is unset.');
   }
 
-  const firebaseUid = `${TEST_USER_PREFIX}${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const authSubject = `${TEST_USER_PREFIX}${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const user = await prisma.user.upsert({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     update: {},
-    create: { firebase_uid: firebaseUid, phone_number: '+10000000000' },
+    create: { auth_subject: authSubject, phone_number: '+10000000000' },
   });
 
-  return { uid: firebaseUid, userId: user.id };
+  return { uid: authSubject, userId: user.id };
 }
 
 /**
@@ -127,9 +127,9 @@ export async function openSyntheticSession(uid: string, userId?: string): Promis
 
   let resolvedUserId = userId;
   if (!resolvedUserId) {
-    const user = await prisma.user.findUnique({ where: { firebase_uid: uid } });
+    const user = await prisma.user.findUnique({ where: { auth_subject: uid } });
     if (!user) {
-      throw new Error(`No synthetic user with firebase_uid '${uid}' — the thread must be created first (createSyntheticThread).`);
+      throw new Error(`No synthetic user with auth_subject '${uid}' — the thread must be created first (createSyntheticThread).`);
     }
     resolvedUserId = user.id;
   }

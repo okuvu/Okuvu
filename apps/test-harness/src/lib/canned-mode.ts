@@ -2,7 +2,7 @@ import type { TestEnvironment } from '@okuvu/shared-types';
 
 /**
  * TH-S17 — sandbox runs should be free/deterministic by default: no live
- * Vertex AI spend, no LLM nondeterminism, when a user is just exploring the
+ * Bedrock spend, no LLM nondeterminism, when a user is just exploring the
  * harness against the sandbox environment. Staging and beta are expected to
  * exercise the real model.
  */
@@ -17,11 +17,11 @@ export function shouldUseCanned(environment: TestEnvironment): boolean {
  * Why this exists: `apps/api/src/agents/a2/agent.ts`'s `handleTurn` (and the
  * other therapy-pipeline agents reached via
  * `apps/test-harness/src/lib/agent-adapter.ts`) call
- * `apps/api/src/lib/vertex-ai.ts`'s `generateContent()` internally and do
+ * `apps/api/src/lib/generate-content.ts`'s `generateContent()` internally and do
  * NOT expose a `useCanned` passthrough parameter on their own input types
  * (`A2Input`, `A1Input`, `GovernanceInput`, `A9PostInput` have no such
  * field). Even though `generateContent` itself now accepts an optional
- * `useCanned` param (TH-S17's change to vertex-ai.ts), there is no wiring
+ * `useCanned` param, there is no wiring
  * from `invokeAgent`'s caller down through `handleTurn` etc. to pass it —
  * doing that "properly" would mean adding a `useCanned` field to every
  * agent's input type and threading it through every internal

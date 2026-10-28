@@ -180,7 +180,7 @@ describe('POST /progress/mood/checkin', () => {
       app = buildApp();
     });
 
-    it('returns 401 when firebase_uid has no User row', async () => {
+    it('returns 401 when auth_subject has no User row', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/progress/mood/checkin',

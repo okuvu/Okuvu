@@ -1,11 +1,11 @@
 import { FastifyInstance } from 'fastify';
-import { verifyOidcToken } from '../middleware/oidc-auth.js';
+import { verifyInternalToken } from '../middleware/internal-auth.js';
 import { getPrisma } from '../lib/prisma.js';
 
 /**
  * TH-S31 — beta environment data retention cleanup job.
  *
- * Mirrors `cleanup.ts`'s structure (OIDC-protected via `verifyOidcToken`,
+ * Mirrors `cleanup.ts`'s structure (signature-protected via `verifyInternalToken`,
  * Fastify route registration pattern, `retention_days` querystring). Per
  * ADR-013 (docs/adr/013-test-harness-beta-retention.md): beta-scoped
  * `TestRun` and `CorpusCase` rows older than `BETA_RETENTION_DAYS`
@@ -57,7 +57,7 @@ function resolveDryRun(queryValue: string | undefined): boolean {
 
 export async function betaRetentionRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Querystring: BetaRetentionQuery }>('/cleanup/beta-retention', {
-    preHandler: [verifyOidcToken],
+    preHandler: [verifyInternalToken],
     schema: {
       querystring: {
         type: 'object',

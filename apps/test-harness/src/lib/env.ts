@@ -3,20 +3,27 @@ import { z } from 'zod';
 const envSchema = z.object({
   TEST_HARNESS_ENV: z.enum(['sandbox', 'staging', 'beta']).default('sandbox'),
   DATABASE_URL: z.string().url().optional(),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Cognito therapist pool (the harness's operator sign-in). An id/secret
+  // pair is only needed when you want the hosted-UI login rather than the
+  // local-dev bypass.
+  COGNITO_REGION: z.string().optional(),
+  COGNITO_THERAPIST_POOL_ID: z.string().optional(),
+  COGNITO_THERAPIST_CLIENT_ID: z.string().optional(),
+  COGNITO_THERAPIST_CLIENT_SECRET: z.string().optional(),
+  COGNITO_ISSUER: z.string().url().optional(),
   TEST_HARNESS_API_SANDBOX: z.string().url().optional(),
   TEST_HARNESS_API_STAGING: z.string().url().optional(),
   TEST_HARNESS_API_BETA: z.string().url().optional(),
   // TH-S09 — apps/worker base URL, used to invoke the combined A13
-  // (summary) + A15 (memory) task at POST /tasks/summary. That route is
-  // OIDC-protected, so calls from local/test environments without valid
-  // credentials are expected to fail — handled gracefully in agent-adapter.ts.
+  // (summary) + A15 (memory) task at POST /tasks/summary. That service has no
+  // public ingress (it runs in the private subnets and polls SQS), so calls
+  // from local/test environments are expected to fail — handled gracefully in
+  // agent-adapter.ts.
   WORKER_URL: z.string().url().optional(),
-  // TH-S17 — optional live Vertex AI pricing endpoint. When unset,
+  // TH-S17 — optional live Bedrock pricing endpoint. When unset,
   // pricing-live.ts's fetchLivePricing() always returns null and callers
   // fall back to the static table in lib/pricing.ts (TH-S15).
-  VERTEX_AI_PRICE_API_URL: z.string().url().optional(),
+  BEDROCK_PRICE_API_URL: z.string().url().optional(),
   // TH-S31 — beta environment data retention window, in days. Read by
   // apps/beta/page.tsx (display only) and by the worker's
   // POST /cleanup/beta-retention job (apps/worker/src/routes/beta-retention.ts,
@@ -36,7 +43,7 @@ const envSchema = z.object({
   // Audit-bot API bypass (server/trpc.ts's auditBypassSession) — unset by
   // default (bypass fully disabled). When set, a request carrying a
   // matching `x-audit-token` header authenticates as a PI-role session
-  // with no Google OAuth. Rotate/unset when the audit is done.
+  // with no Cognito login. Rotate/unset when the audit is done.
   AUDIT_BYPASS_TOKEN: z.string().optional(),
 });
 

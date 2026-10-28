@@ -18,13 +18,13 @@ export type UpdateCarePlanResult =
   | { status: 'stale_turns_evaluated'; current: number };
 
 export async function updateCarePlan(
-  firebaseUid: string,
+  authSubject: string,
   targetUserId: string,
   body: CarePlanBody,
   log?: { info: LogFn },
 ): Promise<UpdateCarePlanResult> {
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: firebaseUid },
+    where: { auth_subject: authSubject },
     select: { id: true },
   });
 

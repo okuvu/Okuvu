@@ -28,7 +28,7 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
   } = ctx;
 
   const user = await prisma.user.findUnique({
-    where: { firebase_uid: uid },
+    where: { auth_subject: uid },
     select: { id: true },
   });
 

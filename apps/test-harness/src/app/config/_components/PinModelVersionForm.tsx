@@ -14,7 +14,7 @@ export default function PinModelVersionForm() {
   const { environment } = useEnvironment();
   const utils = trpc.useUtils();
 
-  const [provider, setProvider] = useState<'openrouter' | 'gemini'>('openrouter');
+  const [provider, setProvider] = useState<'openrouter' | 'bedrock'>('bedrock');
   const [modelVersion, setModelVersion] = useState('meta-llama/llama-3.1-8b-instruct');
   const [promptHash, setPromptHash] = useState('');
   const [temperature, setTemperature] = useState('0.7');
@@ -60,11 +60,11 @@ export default function PinModelVersionForm() {
         Provider
         <select
           value={provider}
-          onChange={(e) => setProvider(e.target.value as 'openrouter' | 'gemini')}
+          onChange={(e) => setProvider(e.target.value as 'openrouter' | 'bedrock')}
           className="rounded-[var(--radius-lg)] border border-[var(--color-outline-variant)] px-2 py-1"
         >
+          <option value="bedrock">bedrock</option>
           <option value="openrouter">openrouter</option>
-          <option value="gemini">gemini</option>
         </select>
       </label>
 

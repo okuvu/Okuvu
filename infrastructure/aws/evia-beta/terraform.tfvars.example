@@ -1,0 +1,84 @@
+# AWS profile to use if you do not rely on the default credential chain.
+# aws_profile = "okuvu-beta"
+
+aws_region  = "ap-south-1"
+environment = "beta"
+
+# Optional alerting destinations. Left empty, no SNS email subscription is created.
+# budget_notification_email = "finops@example.com"
+# alarm_notification_email  = "oncall@example.com"
+
+# Set once an ACM certificate exists for the api hostname; adds an HTTPS listener.
+# alb_certificate_arn = "arn:aws:acm:ap-south-1:123456789012:certificate/..."
+
+# -----------------------------------------------------------------------------
+# DNS + TLS (dns.tf). manage_dns = true (the default) creates the Route53 zone,
+# the ACM certificate and the api / beta.api / portal alias records.
+#
+# FIRST APPLY, in this order — ACM cannot validate until the zone is delegated,
+# and a full apply sits on the validation resource until it times out:
+#
+#   1. terraform apply -target=aws_route53_zone.main
+#   2. copy the `route53_zone_nameservers` output into Spaceship
+#      (okuvu.in → Nameservers). Delegation propagates in minutes.
+#   3. terraform apply
+#
+# Set manage_dns = false if DNS lives elsewhere, and supply alb_certificate_arn.
+# -----------------------------------------------------------------------------
+# dns_zone_name = "okuvu.in"
+# manage_dns    = true
+
+# Therapist portal hostname (must be covered by the certificate).
+# portal_hostname = "portal.okuvu.in"
+
+# Comma-separated therapist emails allowed into /admin. Empty disables the admin
+# console entirely (audit F-07).
+# admin_emails = "therapist@okuvu.in"
+
+# Brevo key for the Add-Client wizard's invite emails. Empty leaves emails off
+# and the invite code is shown on screen instead.
+# brevo_api_key = ""
+
+# -----------------------------------------------------------------------------
+# Build pipeline (pipeline.tf). Create the GitHub connection once in the console
+# (Developer Tools → Connections → GitHub) and paste its ARN; until then the
+# CodeBuild project is not created.
+#
+# A cross-region connection ARN is accepted, but keep the connection in
+# ap-south-1 with the stack. The connection must also be granted read access to
+# the repository — without it the build fails DOWNLOAD_SOURCE with
+# "repository not found for primary source". github_repository is the "org/repo"
+# short form; pipeline.tf turns it into the clone URL the API requires.
+# -----------------------------------------------------------------------------
+# codestar_connection_arn = "arn:aws:codeconnections:ap-south-1:562654496378:connection/ffdce79a-c709-4d53-b7fe-756d93a032a6"
+# github_repository       = "yashraj-ops/Okuvu"
+
+# -----------------------------------------------------------------------------
+# Sizing and release pinning.
+#
+# The bill is fixed per stack, not per user: NAT, ALB, RDS, cache, IPv4, KMS and
+# secrets cost the same at 10 users as at 10,000. The only worthwhile levers are
+# task count, task size and instance class — together worth ~$63/month here.
+# Lean beta values (one task each, no in-flight redundancy) are below; revert
+# desired_count to 2 per service before a public launch.
+# -----------------------------------------------------------------------------
+# api_desired_count    = 1
+# portal_desired_count = 1
+# portal_cpu           = 256   # 0.25 vCPU; must pair with 512/1024/2048 MiB
+# portal_memory        = 512   # fallback to 1024 if the portal starts OOMKilling
+# db_instance_class    = "db.t4g.micro"
+
+# A class change reboots the instance. true applies it now; false waits for the
+# maintenance window (rds.tf sets the window to Sunday 20:45-21:15).
+# db_apply_immediately = true
+
+# Reproducible deploys: pin to a commit SHA that exists in ECR. The default
+# "latest" is not maintained for api and worker, so leaving this unset lets a
+# terraform task-definition change roll a service onto an unpullable image.
+# image_tag = "05b259fc307a"
+
+# Cost guardrail. Size it above the stack's own baseline or the 80% alarm fires
+# permanently: the lean beta runs at ~$164/month. Empty email = no subscriber,
+# and the budget then notifies nobody.
+# monthly_budget_limit_usd = 250
+# budget_notification_email = "owner@example.com"

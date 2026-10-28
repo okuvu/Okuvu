@@ -249,7 +249,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
   });
 
   describe('Gemini timeout / failure fallback', () => {
-    it('passes through fallback response from Vertex AI wrapper on timeout', async () => {
+    it('passes through fallback response from LLM wrapper on timeout', async () => {
       mockGenerateContent.mockResolvedValue({
         text: "I'm here to support you. Could you tell me more about how you're feeling?",
         fallbackUsed: true,
@@ -261,7 +261,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
       expect(result.fallbackUsed).toBe(true);
     });
 
-    it('passes through fallback response from Vertex AI wrapper on API error', async () => {
+    it('passes through fallback response from LLM wrapper on API error', async () => {
       mockGenerateContent.mockResolvedValue({
         text: "I'm here to support you. Could you tell me more about how you're feeling?",
         fallbackUsed: true,
@@ -273,7 +273,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
       expect(result.fallbackUsed).toBe(true);
     });
 
-    it('does not throw when Vertex AI wrapper returns fallback', async () => {
+    it('does not throw when LLM wrapper returns fallback', async () => {
       mockGenerateContent.mockResolvedValue({
         text: "I'm here to support you.",
         fallbackUsed: true,
@@ -282,7 +282,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
       await expect(handleTurn(makeInput())).resolves.toBeDefined();
     });
 
-    it('passes through failureReason from the Vertex AI wrapper', async () => {
+    it('passes through failureReason from the LLM wrapper', async () => {
       mockGenerateContent.mockResolvedValue({
         text: "I'm here to support you. Could you tell me more about how you're feeling?",
         fallbackUsed: true,
@@ -304,7 +304,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
   });
 
   describe('model/prompt version attribution', () => {
-    it('propagates the resolved model from the Vertex AI wrapper as modelVersion', async () => {
+    it('propagates the resolved model from the LLM wrapper as modelVersion', async () => {
       mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false, model: 'gemini-2.5-flash' });
 
       const result = await handleTurn(makeInput());
@@ -320,7 +320,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
       expect(result.promptVersion).toBe('v2.1');
     });
 
-    it('propagates canned:true from the Vertex AI wrapper', async () => {
+    it('propagates canned:true from the LLM wrapper', async () => {
       mockGenerateContent.mockResolvedValue({
         text: 'a canned reply',
         fallbackUsed: false,

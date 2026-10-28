@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { verifyFirebaseJWT } from '../middleware/auth.js';
+import { verifyCognitoJWT } from '../middleware/auth.js';
 import { deleteAccount } from '../lib/account.js';
 
 interface DeleteAccountBody {
@@ -8,7 +8,7 @@ interface DeleteAccountBody {
 
 export async function accountRoute(app: FastifyInstance): Promise<void> {
   app.post<{ Body: DeleteAccountBody }>('/account/delete', {
-    preHandler: [verifyFirebaseJWT],
+    preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
       const { confirm } = request.body ?? {};
