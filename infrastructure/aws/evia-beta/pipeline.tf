@@ -11,6 +11,18 @@
 # console (Developer Tools → Connections → GitHub), then pass its ARN as
 # codestar_connection_arn. Until that variable is set this resource is not
 # created and nothing else changes.
+#
+# Facts learned wiring the beta connection (2026-10-28):
+#   - The connection lives in eu-north-1 (Stockholm) while the stack is in
+#     ap-south-1; CodeBuild accepts a cross-region connection ARN, so it does
+#     not have to be recreated in Mumbai.
+#   - source.location for a CODECONNECTIONS source must be a clone URL
+#     ("https://github.com/<org>/<repo>.git"), not "org/repo" — the API rejects
+#     the short form with "source location must be a valid GitHub repository URL".
+#   - The service role needs codeconnections:GetConnectionToken (undocumented
+#     but required) and the List* actions on "*" (they refuse ARN scoping).
+#     Without them CreateProject/UpdateProject fails with the misleading
+#     "OAuthProviderException: User is not authorized to access connection".
 # =============================================================================
 
 resource "aws_iam_role" "codebuild" {
@@ -60,6 +72,45 @@ data "aws_iam_policy_document" "codebuild" {
     ]
 
     resources = ["arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/codebuild/*"]
+  }
+
+  # List* on CodeConnections refuses ARN scoping: scoping it to the connection
+  # silently denies the action and CreateProject reports it as "User is not
+  # authorized to access connection".
+  statement {
+    sid    = "CodeConnectionsListLevel"
+    effect = "Allow"
+
+    actions = [
+      "codeconnections:ListConnections",
+      "codeconnections:ListInstallationTargets",
+      "codeconnections:ListTagsForResource",
+      "codestar-connections:ListConnections",
+      "codestar-connections:ListInstallationTargets",
+      "codestar-connections:ListTagsForResource",
+    ]
+
+    resources = ["*"]
+  }
+
+  # GetConnectionToken is required by CreateProject/UpdateProject validation but
+  # is absent from the AWS IAM examples.
+  statement {
+    sid    = "CodeConnectionsUse"
+    effect = "Allow"
+
+    actions = [
+      "codeconnections:GetConnection",
+      "codeconnections:GetConnectionToken",
+      "codeconnections:PassConnection",
+      "codeconnections:UseConnection",
+      "codestar-connections:GetConnection",
+      "codestar-connections:GetConnectionToken",
+      "codestar-connections:PassConnection",
+      "codestar-connections:UseConnection",
+    ]
+
+    resources = [var.codestar_connection_arn]
   }
 
   statement {
@@ -178,9 +229,11 @@ resource "aws_codebuild_project" "main" {
 
   source {
     type            = "GITHUB"
-    location        = var.github_repository
+    location        = "https://github.com/${var.github_repository}.git"
     buildspec       = "buildspec.yml"
     git_clone_depth = 1
+
+    report_build_status = true
 
     auth {
       type     = "CODECONNECTIONS"

@@ -43,6 +43,10 @@ environment = "beta"
 # Build pipeline (pipeline.tf). Create the GitHub connection once in the console
 # (Developer Tools → Connections → GitHub) and paste its ARN; until then the
 # CodeBuild project is not created.
+#
+# The connection may live in another region (beta uses eu-north-1) — CodeBuild
+# accepts a cross-region connection ARN. github_repository is the "org/repo"
+# short form; pipeline.tf turns it into the clone URL the API requires.
 # -----------------------------------------------------------------------------
-# codestar_connection_arn = "arn:aws:codeconnections:ap-south-1:123456789012:connection/..."
+# codestar_connection_arn = "arn:aws:codeconnections:eu-north-1:562654496378:connection/86ea5fc1-3231-447b-a601-bce1fe497fcc"
 # github_repository       = "yashraj-ops/Okuvu"
