@@ -8,6 +8,7 @@ import 'auth_service.dart';
 import 'dio_client.dart';
 import 'auth_interceptor.dart';
 import 'tts_service.dart';
+import 'speech_service.dart';
 import 'analytics_service.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
@@ -35,6 +36,7 @@ class CrisisOverlayNotifier extends Notifier<bool> {
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final ttsServiceProvider = Provider<TtsService>((ref) => TtsService());
+final speechServiceProvider = Provider<SpeechService>((ref) => SpeechService());
 final analyticsServiceProvider =
     Provider<AnalyticsService>((ref) => AnalyticsService());
 final crisisOverlayProvider =
