@@ -6,6 +6,29 @@ resource "aws_vpc" "main" {
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-vpc"
   })
+
+  # The IPv6 block is attached by aws_vpc_ipv6_cidr_block_association below, not
+  # by this resource. The provider still reports the association on the VPC and
+  # would otherwise plan to strip it (which would break the dualstack ALB), so
+  # those computed attributes are ignored here.
+  lifecycle {
+    ignore_changes = [
+      assign_generated_ipv6_cidr_block,
+      ipv6_cidr_block,
+    ]
+  }
+}
+
+# Amazon-provided /56. Needed only so the ALB can be dualstack: an ALB refuses
+# ip_address_type = "dualstack" unless its VPC and each of its subnets carry an
+# IPv6 CIDR. Without IPv6 the apex AAAA alias records are stored in Route53 but
+# resolve to NODATA, i.e. ipv6 clients get nothing at all.
+resource "aws_vpc_ipv6_cidr_block_association" "main" {
+  vpc_id = aws_vpc.main.id
+
+  # Ask AWS for an Amazon-provided block; without it AssociateVpcCidrBlock is
+  # rejected with InvalidParameterCombination.
+  assign_generated_ipv6_cidr_block = true
 }
 
 resource "aws_internet_gateway" "main" {
@@ -23,6 +46,11 @@ resource "aws_subnet" "public" {
   cidr_block              = element(var.public_subnet_cidrs, each.value)
   availability_zone       = each.key
   map_public_ip_on_launch = true
+
+  # One /64 per public subnet out of the VPC's /56; the ALB picks these up when
+  # it becomes dualstack. Public subnets only — the tasks stay IPv4.
+  ipv6_cidr_block                 = cidrsubnet(aws_vpc_ipv6_cidr_block_association.main.ipv6_cidr_block, 8, each.value)
+  assign_ipv6_address_on_creation = true
 
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-public-${each.key}"
@@ -80,6 +108,13 @@ resource "aws_route" "public_internet" {
   gateway_id             = aws_internet_gateway.main.id
 }
 
+# IPv6 egress for the dualstack ALB's addresses in the public subnets.
+resource "aws_route" "public_internet_ipv6" {
+  route_table_id              = aws_route_table.public.id
+  destination_ipv6_cidr_block = "::/0"
+  gateway_id                  = aws_internet_gateway.main.id
+}
+
 resource "aws_route_table_association" "public" {
   for_each = aws_subnet.public
 
@@ -127,19 +162,21 @@ resource "aws_security_group" "alb" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "HTTP from anywhere"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description      = "HTTP from anywhere"
+    from_port        = 80
+    to_port          = 80
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
   }
 
   ingress {
-    description = "HTTPS from anywhere (requires an ACM certificate to be attached)"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description      = "HTTPS from anywhere (requires an ACM certificate to be attached)"
+    from_port        = 443
+    to_port          = 443
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
   }
 
   egress {

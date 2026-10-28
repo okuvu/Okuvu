@@ -17,6 +17,21 @@ locals {
     "portal.${var.dns_zone_name}",   # therapist portal
   ]
 
+  # The bare brand domain and its www alias. Kept out of local.alb_hostnames on
+  # purpose: that list also feeds the certificate's subject_alternative_names,
+  # and adding to it would replace the (already ISSUED, already in use) cert.
+  # Both names are already covered — the apex as domain_name, www as an
+  # explicit SAN — so these only need DNS records.
+  apex_hostnames = [
+    var.dns_zone_name,
+    "www.${var.dns_zone_name}",
+  ]
+
+  # What actually gets an A/AAAA alias record: the API/portal names plus the
+  # apex and www. Adding entries here is purely additive for_each growth.
+  alb_record_names = concat(local.alb_hostnames, local.apex_hostnames)
+
+
   # Plan-time boolean: counts and for_each cannot depend on the certificate ARN
   # itself (it is only known after the ACM validation resource applies), so they
   # key off this instead.
@@ -94,12 +109,19 @@ resource "aws_acm_certificate_validation" "main" {
 
 # Alias records (not CNAMEs): free to resolve, and they survive the ALB being
 # replaced on a rebuild.
+#
+# allow_overwrite = false is deliberate: these names must never silently
+# replace a record somebody else created. The zone also holds Google Workspace
+# mail records (MX/SPF/DKIM/DMARC) — a head-on collision there would break
+# email, so we want the apply to fail loudly instead.
 resource "aws_route53_record" "alb" {
-  for_each = var.manage_dns ? toset(local.alb_hostnames) : toset([])
+  for_each = var.manage_dns ? toset(local.alb_record_names) : toset([])
 
   zone_id = aws_route53_zone.main[0].zone_id
   name    = each.value
   type    = "A"
+
+  allow_overwrite = false
 
   alias {
     name                   = aws_lb.api.dns_name
@@ -109,11 +131,13 @@ resource "aws_route53_record" "alb" {
 }
 
 resource "aws_route53_record" "alb_ipv6" {
-  for_each = var.manage_dns ? toset(local.alb_hostnames) : toset([])
+  for_each = var.manage_dns ? toset(local.alb_record_names) : toset([])
 
   zone_id = aws_route53_zone.main[0].zone_id
   name    = each.value
   type    = "AAAA"
+
+  allow_overwrite = false
 
   alias {
     name                   = aws_lb.api.dns_name
