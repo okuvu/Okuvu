@@ -184,3 +184,8 @@ output "cognito_issuer" {
   description = "OIDC issuer for the therapist pool (COGNITO_ISSUER / NEXTAUTH)"
   value       = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.therapists.id}"
 }
+
+output "cognito_therapist_hosted_domain" {
+  description = "Hosted domain serving the therapist pool's OAuth endpoints (the portal's sign-in page redirects here)"
+  value       = "https://${aws_cognito_user_pool_domain.therapists.domain}.auth.${var.aws_region}.amazoncognito.com"
+}

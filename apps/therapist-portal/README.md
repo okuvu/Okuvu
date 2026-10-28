@@ -40,7 +40,7 @@ cp apps/therapist-portal/.env.example apps/therapist-portal/.env
 |---|---|---|
 | `DATABASE_URL` | Yes | Your Neon branch connection string (same as the API) |
 | `NEXTAUTH_SECRET` | Yes | Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` or `openssl rand -base64 32` |
-| `NEXTAUTH_URL` | Yes | `http://localhost:3001` |
+| `NEXTAUTH_URL` | Local yes | `http://localhost:3001`. In ECS it is unset on purpose: NextAuth then derives the origin from the request's `Host` (with `AUTH_TRUST_HOST=true`), so `okuvu.in`, `www.okuvu.in` and `portal.okuvu.in` all complete sign-in |
 | `COGNITO_THERAPIST_CLIENT_ID` | Yes | Therapist app client id from the Cognito user pool |
 | `COGNITO_THERAPIST_CLIENT_SECRET` | Yes | Therapist app client secret |
 | `COGNITO_ISSUER` | Yes | `https://cognito-idp.<region>.amazonaws.com/<COGNITO_THERAPIST_POOL_ID>` |

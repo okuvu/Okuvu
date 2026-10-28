@@ -53,14 +53,27 @@ resource "aws_lb_target_group" "portal" {
 locals {
   portal_url = "https://${var.portal_hostname}"
 
-  portal_environment = [
+  # NextAuth takes its origin from NEXTAUTH_URL when that is set, and otherwise
+  # from the request's Host header (next-auth v4 only trusts that header when
+  # AUTH_TRUST_HOST is set). Deriving the origin is what lets one deployment
+  # complete the OAuth round-trip on okuvu.in, www.okuvu.in and
+  # portal.okuvu.in alike; pin var.portal_nextauth_url to force a single
+  # canonical origin instead. Either way the origin must be a hostname
+  # registered on the app client, so a forged Host header cannot be used to
+  # build a redirect_uri Cognito would accept.
+  portal_auth_environment = (
+    var.portal_nextauth_url == ""
+    ? [{ name = "AUTH_TRUST_HOST", value = "true" }]
+    : [{ name = "NEXTAUTH_URL", value = var.portal_nextauth_url }]
+  )
+
+  portal_environment = concat([
     { name = "NODE_ENV", value = "production" },
     { name = "PORT", value = tostring(var.portal_container_port) },
     { name = "HOSTNAME", value = "0.0.0.0" },
     { name = "NEXT_TELEMETRY_DISABLED", value = "1" },
     { name = "AWS_REGION", value = var.aws_region },
     { name = "COGNITO_REGION", value = var.aws_region },
-    { name = "NEXTAUTH_URL", value = local.portal_url },
 
     # Identity: the therapist pool, never the client pool. MFA is enforced by
     # the pool (see cognito.tf), not by the app.
@@ -74,7 +87,7 @@ locals {
 
     { name = "BREVO_FROM_EMAIL", value = var.brevo_from_email },
     { name = "BREVO_FROM_NAME", value = var.brevo_from_name },
-  ]
+  ], local.portal_auth_environment)
 
   portal_secrets = [
     {
@@ -207,7 +220,7 @@ resource "aws_lb_listener_rule" "portal_https" {
 
   condition {
     host_header {
-      values = [var.portal_hostname]
+      values = local.portal_public_hostnames
     }
   }
 
@@ -230,7 +243,7 @@ resource "aws_lb_listener_rule" "portal_http" {
 
   condition {
     host_header {
-      values = [var.portal_hostname]
+      values = local.portal_public_hostnames
     }
   }
 
