@@ -120,8 +120,10 @@ phases:
           # against a database with data in it.
           if [ "${RESET_DATABASE:-false}" = "true" ]; then
             echo "=== RESET_DATABASE=true — dropping and recreating the public schema ==="
+            # prisma 7's `db execute` has no --url flag: the datasource comes
+            # from prisma.config.ts, which reads process.env.DATABASE_URL.
             ( cd packages/prisma && printf 'DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n' \
-                | npx prisma db execute --stdin --url "${DATABASE_URL}" )
+                | DATABASE_URL="${DATABASE_URL}" npx prisma db execute --stdin )
           fi
           ( cd packages/prisma && DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy )
         else

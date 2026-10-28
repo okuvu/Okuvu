@@ -209,6 +209,28 @@ data "aws_iam_policy_document" "codebuild" {
     resources = ["*"]
   }
 
+  # S3 source fallback. CodeBuild can start a build with
+  # `--source-type-override S3 --source-location-override <bucket>/<key>`, which
+  # is how a build runs when the CodeConnections app has not been granted access
+  # to the repository ("repository not found for primary source"). The role only
+  # needs read on the build prefix of the uploads bucket.
+  statement {
+    sid    = "S3SourceFallback"
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+    ]
+
+    resources = [
+      aws_s3_bucket.uploads.arn,
+      "${aws_s3_bucket.uploads.arn}/builds/*",
+    ]
+  }
+
   # buildspec.yml declares a `reports:` block (api-tests, JUnit XML). Uploading
   # it is its own permission set; without these the build passes every phase and
   # then fails in UPLOAD_ARTIFACTS with codebuild:CreateReportGroup AccessDenied.
