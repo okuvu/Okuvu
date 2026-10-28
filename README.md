@@ -64,7 +64,7 @@ okuvu/
 | Therapist portal          | Next.js 16 (App Router) + tRPC + NextAuth (Cognito provider)                                                          |
 | Database                  | PostgreSQL via Prisma (Neon for dev, Amazon RDS for staging/prod)                                                     |
 | Auth                      | Amazon Cognito (phone OTP for users, therapist pool for portal sign-in)                                               |
-| LLM — Clinical agents     | Amazon Nova Pro (`amazon.nova-pro-v1:0`) via Bedrock, in-region ap-south-1                                           |
+| LLM — Clinical agents     | Qwen3 32B (`qwen.qwen3-32b-v1:0`) via Bedrock, in-region ap-south-1                                                  |
 | LLM — Embeddings          | Amazon Titan Text Embeddings V2 (`amazon.titan-embed-text-v2:0`), 768-dim                                            |
 | LLM — Comparison path     | OpenRouter (LLM_PROVIDER=openrouter)                                                                                  |
 | TTS                       | Sarvam Bulbul v2                                                                                                      |

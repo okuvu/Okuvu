@@ -25,14 +25,23 @@ export type ContentBackend = 'bedrock' | 'openrouter';
 export const DEFAULT_AWS_REGION = 'ap-south-1';
 
 /**
- * Amazon Nova Pro is served *in-region* in ap-south-1 and supports Bedrock
- * tool use (which `bedrock.ts` relies on for schema-constrained JSON). Claude
- * on Bedrock in ap-south-1 is only reachable through an APAC cross-region
- * inference profile (`apac.anthropic.…`), which moves prompt data outside
- * India — a DPDP question, not a code one. Override per environment with
- * BEDROCK_MODEL_ID rather than editing this constant.
+ * Qwen3 32B (dense, 32K context, 8K output) is served *in-region* in
+ * ap-south-1 and supports client-side tool use with `toolSpec.strict`, which is
+ * the mechanism `bedrock.ts` relies on for schema-constrained JSON. It replaced
+ * Nova Pro as the default on 28 Oct 2026 after the A1/A9-post case set was run
+ * against the live in-region endpoint (16/16 intake labels, 15/15 reply
+ * reviews, no dangerous under-escalations, three consecutive runs).
+ *
+ * Thinking is off by default for this model on Converse — no reasoning tokens
+ * are emitted unless the prompt asks for them — so the 2048-token cap is spent
+ * on the answer rather than on a scratchpad.
+ *
+ * Claude on Bedrock in ap-south-1 is only reachable through an APAC
+ * cross-region inference profile (`apac.anthropic.…`), which moves prompt data
+ * outside India — a DPDP question, not a code one. Override per environment
+ * with BEDROCK_MODEL_ID rather than editing this constant.
  */
-export const DEFAULT_BEDROCK_MODEL_ID = 'amazon.nova-pro-v1:0';
+export const DEFAULT_BEDROCK_MODEL_ID = 'qwen.qwen3-32b-v1:0';
 
 /**
  * Titan Text Embeddings V2 is the one Bedrock embedding model that can emit the

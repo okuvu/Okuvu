@@ -134,7 +134,7 @@ describe('provider-config', () => {
   describe('Bedrock model ids', () => {
     it('defaults to in-region models', () => {
       expect(resolveBedrockModelId()).toBe(DEFAULT_BEDROCK_MODEL_ID);
-      expect(DEFAULT_BEDROCK_MODEL_ID).toBe('amazon.nova-pro-v1:0');
+      expect(DEFAULT_BEDROCK_MODEL_ID).toBe('qwen.qwen3-32b-v1:0');
       expect(resolveBedrockEmbeddingModelId()).toBe(DEFAULT_BEDROCK_EMBEDDING_MODEL_ID);
       expect(DEFAULT_BEDROCK_EMBEDDING_MODEL_ID).toBe('amazon.titan-embed-text-v2:0');
     });

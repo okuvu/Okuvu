@@ -20,13 +20,16 @@
 export const DEFAULT_AWS_REGION = 'ap-south-1';
 
 /**
- * Amazon Nova Pro is served in-region in ap-south-1 and supports Bedrock tool
- * use, which `bedrock.ts` relies on for schema-constrained JSON. Claude on
- * Bedrock in ap-south-1 requires an APAC cross-region inference profile
- * (`apac.anthropic.…`), which moves data outside India — override with
+ * Qwen3 32B is served in-region in ap-south-1 and supports client-side tool
+ * use with `toolSpec.strict`, which `bedrock.ts` relies on for
+ * schema-constrained JSON. Default since 28 Oct 2026 (was Nova Pro), matching
+ * the API app — keep the two in step.
+ *
+ * Claude on Bedrock in ap-south-1 requires an APAC cross-region inference
+ * profile (`apac.anthropic.…`), which moves data outside India — override with
  * BEDROCK_MODEL_ID per environment rather than editing this constant.
  */
-export const DEFAULT_BEDROCK_MODEL_ID = 'amazon.nova-pro-v1:0';
+export const DEFAULT_BEDROCK_MODEL_ID = 'qwen.qwen3-32b-v1:0';
 
 /** Titan V2 is the only Bedrock embedding model that can emit 768 dims. */
 export const DEFAULT_BEDROCK_EMBEDDING_MODEL_ID = 'amazon.titan-embed-text-v2:0';

@@ -76,7 +76,7 @@ describe('worker bedrock generateContent', () => {
     });
 
     const input = mockSend.mock.calls[0][0].input;
-    expect(input.modelId).toBe('amazon.nova-pro-v1:0');
+    expect(input.modelId).toBe('qwen.qwen3-32b-v1:0');
     expect(input.system).toEqual([{ text: 'SYSTEM' }]);
     expect(input.messages).toEqual([
       { role: 'user', content: [{ text: 'transcript' }] },

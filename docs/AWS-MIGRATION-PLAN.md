@@ -64,61 +64,80 @@ The Android APK path was also proven end-to-end with a temporary placeholder Fir
 
 These came from checking AWS's own documentation rather than from memory, and each one changes a decision.
 
-### 3.1 The AI layer, revised: DeepSeek is in-region and credit-eligible
+### 3.1 The AI layer, revised: Qwen3 32B is in-region, credit-eligible and measured
 
-**Superseded 27 Oct 2026.** The original version of this section assumed a Claude or Gemini-class model was required and that no frontier model sat in-region. That premise is obsolete: the product standard is now DeepSeek, and DeepSeek is the one model family that is *both* in-region in Mumbai *and* billed by AWS directly.
+**Superseded 28 Oct 2026** (DeepSeek V3.2, 27 Oct). Two things moved the decision. First, **forced strict tool use works on Qwen3 32B**, so `bedrock.ts` constrains schema exactly as it does today — DeepSeek would have forced a rewrite of the JSON mechanism *on the safety path*. Second, the A1/A9-post case set has now been run **against the live in-region endpoint** and came back clean (§3.1.1). The original version of this section assumed a Claude- or Gemini-class model was required; that premise is long gone.
 
-Verified against the Bedrock region-compatibility matrix and the AWS Price List API (`AmazonBedrock`, ap-south-1, publication date **2026-10-16T21:08:06Z**):
+Verified against the Bedrock region-compatibility matrix, the AWS Price List API (`AmazonBedrock`, ap-south-1, publication date **2026-10-28T03:41:18Z**), `bedrock list-foundation-models` and a live `converse` call from account 562654496378:
 
 | Model | In-Region `bedrock-runtime` | In-Region `bedrock-mantle` | Context / max output | Mumbai price (per 1M tokens) |
 |---|---|---|---|---|
-| **DeepSeek V3.2** (`deepseek.v3.2`) | **Yes** | **Yes** | 164K / 8K | **$0.74 in · $2.22 out** |
-| DeepSeek V3.1 (`deepseek.v3.1`) | Yes | Yes | — | $0.68 in · $1.98 out |
-| DeepSeek R1 | No | No | — | US regions only (us-east-1/2, us-west-2) |
+| **Qwen3 32B** (`qwen.qwen3-32b-v1:0`) | **Yes** | **Yes** | 32K / 8K | **$0.18 in · $0.71 out** |
+| Qwen3 Next 80B A3B (`qwen.qwen3-next-80b-a3b`) | Yes | Yes | — | $0.17 in · $1.44 out |
+| Qwen3 235B A22B 2507 (`qwen.qwen3-235b-a22b-2507-v1:0`) | Yes | Yes | — | $0.26 in · $1.04 out |
+| Qwen3 Coder 480B A35B / 30B A3B, Qwen3 VL 235B | Yes | Yes | — | coder / vision SKUs, wrong shape for clinical classification |
 
-Geo and Global inference profiles are *not* offered for these models, which is the good outcome: there is no cross-region path to accidentally use, so traffic cannot silently leave India.
+Geo and Global inference profiles are *not* offered for any Qwen3 model here, which is the good outcome: there is no cross-region path to accidentally use, so traffic cannot silently leave India.
 
-Service tiers, same region: **flex and batch are 50% of standard** ($0.37 / $1.11), **priority is 1.75×** ($1.295 / $3.885). Standard is the default and what the figures below assume.
+Service tiers, same region: **flex and batch are 50% of standard**, **priority is 1.75×**. Standard is the default and what the figures below assume.
 
-**Credit eligibility — the decisive point.** DeepSeek rows sit in `AmazonBedrock/ap-south-1/index.csv` with `serviceCode: AmazonBedrock` and `serviceName: Amazon Bedrock`, alongside Mistral, Qwen, OpenAI, Moonshot, Google and xAI. Anthropic Claude has **zero** rows in that file. That distinction is the whole answer:
+**The trap in this swap, recorded so it is not re-learned.** The arm that scored perfectly on OpenRouter was `qwen/qwen3.5-9b` — a 9B model that **does not exist on Bedrock**. Mumbai's smallest Qwen3 is 32B. So the OpenRouter result is evidence about a model we cannot buy, and the SKU that ships here had to be measured separately. It was (§3.1.1).
 
-- DeepSeek is an ordinary AWS service charge, so promotional credit applies to it like RDS or Fargate, subject only to the credit's own "Applicable products" list.
+**Credit eligibility — the decisive point.** Qwen rows sit in `AmazonBedrock/ap-south-1/index.csv` with `serviceCode: AmazonBedrock` and `serviceName: Amazon Bedrock`, alongside Mistral, OpenAI, Moonshot, Google and xAI. Anthropic Claude has **zero** rows in that file. That distinction is the whole answer:
+
+- Qwen is an ordinary AWS service charge, so promotional credit applies to it like RDS or Fargate, subject only to the credit's own "Applicable products" list.
 - Claude is Marketplace-billed, and the AWS Promotional Credit Terms (last updated 24 Sep 2026) put AWS Marketplace among the Ineligible Services "unless authorized by us."
 
-**Correction to what this document previously said.** It claimed credits could never cover Claude. That was too strong. **AWS Activate** terms (last updated 22 Jan 2026) explicitly authorise promotional credit against "fees and charges for AWS Marketplace incurred for the use of third-party foundation models available on Amazon Bedrock" — Bedrock 3P Model Spend. So if these credits are Activate credits, they would have covered Claude too. If they are ordinary promotional credits, they would not. DeepSeek is covered under *either* reading, which is precisely why it removes the risk instead of shifting it.
+**Correction to what this document previously said.** It claimed credits could never cover Claude. That was too strong. **AWS Activate** terms (last updated 22 Jan 2026) explicitly authorise promotional credit against "fees and charges for AWS Marketplace incurred for the use of third-party foundation models available on Amazon Bedrock" — Bedrock 3P Model Spend. So if these credits are Activate credits, they would have covered Claude too. If they are ordinary promotional credits, they would not. Qwen is covered under *either* reading, which is precisely why it removes the risk instead of shifting it.
 
 The remaining check is administrative, not technical: the **Credits** page in the AWS Billing console shows each credit's Credit type, Expiration date and Applicable products. That page decides it in writing.
 
-### 3.1.1 What DeepSeek costs at Okuvu's shape
+### 3.1.1 What it measured, on the endpoint that will serve it
+
+The 31-case set (16 A1 intake classifications + 15 A9-post reply reviews, ground truth quoted from the rubric inside the prompt) was run against `qwen.qwen3-32b-v1:0` in ap-south-1 through **Converse with a forced strict tool use** — the same mechanism `bedrock.ts` uses, so the harness measured the production call shape rather than a lookalike.
+
+| Run | A1 exact | A1 dangerous under-escalations | A1 over-escalations | A9-post correct | A9 dangerous approvals | A9 fail-closed |
+|---|---|---|---|---|---|---|
+| 1 | 16/16 | 0 | 0 | 15/15 | 0 | 0 |
+| 2 | 16/16 | 0 | 0 | 15/15 | 0 | 0 |
+| 3 | 16/16 | 0 | 0 | 15/15 | 0 | 0 |
+
+Every one of the 93 calls came back `stopReason: tool_use`, never `length` — i.e. the 2048-token cap was never consumed by a hidden thinking trace. Schema-valid rate was 16/16 in all runs because the tool schema constrains it, not because the model was asked nicely. Latency: 280 ms per Converse call as reported by Bedrock (`metrics.latencyMs`); 1.78 s median end-to-end in the harness, which includes an AWS CLI process spawn per call.
+
+This is the same result the OpenRouter 9B arm produced on the same answer key — with the difference that this SKU exists in Mumbai and can be bought.
+
+**What it does not prove.** 31 cases with three Indian-language items shows feasibility, not clinical readiness: the set has to widen to ~60 weighted to Hinglish/Devanagari before a clinician reads it, and A2 (the live conversational turn) is not in this set at all. Both leaders are level on 30 of 31 cases, so "Qwen beats DeepSeek" is not a claim this evidence supports — the claim it supports is "Qwen3 32B is not worse than the bar we already accepted, and it needs no code change to serve."
+
+### 3.1.2 What Qwen3 32B costs at Okuvu's shape
 
 Modelled per client turn as four model calls — A1 classify, A2 converse, A9 pre-gate, A9-post review — at roughly 7,700 input and 1,250 output tokens:
 
 | Volume (turns/month) | Model cost | + infra ~$200 | Total | $5,000 of credits lasts |
 |---|---|---|---|---|
-| 5,000 | $42 | $242 | $242 | 20.6 months |
-| 10,000 | $85 | $285 | $285 | 17.6 months |
-| 25,000 | $212 | $412 | $412 | 12.1 months |
-| 50,000 | $424 | $624 | $624 | 8.0 months |
-| 100,000 | $847 | $1,047 | $1,047 | 4.8 months |
-| 250,000 | $2,118 | $2,318 | $2,318 | 2.2 months |
+| 5,000 | $11 | $211 | $211 | 23.7 months |
+| 10,000 | $23 | $223 | $223 | 22.4 months |
+| 25,000 | $57 | $257 | $257 | 19.5 months |
+| 50,000 | $114 | $314 | $314 | 15.9 months |
+| 100,000 | $227 | $427 | $427 | 11.7 months |
+| 250,000 | $568 | $768 | $768 | 6.5 months |
 
-Cost per turn at standard tier is **$0.0085**. The crisis path stays on standard or priority; A10 insights, A11 learning and session summarisation can run on batch/flex at half price because nothing waits on them.
+Cost per turn at standard tier is **$0.00227** — 3.7× cheaper than DeepSeek V3.2, and ~26× cheaper than Nova Pro, which was the previous default. The crisis path stays on standard or priority; A10 insights, A11 learning and session summarisation can run on batch/flex at half price because nothing waits on them.
 
-Consequence for the programme: **the model line no longer has to sit outside the credits**, so the two-track split in §4 is no longer a cost necessity. Track B's model comparison survives only as a quality check between DeepSeek V3.2 and V3.1, not as a Gemini-versus-Claude decision.
+Consequence for the programme: **the model line does not sit outside the credits**, so the two-track split in §4 is not a cost necessity. Track B's model comparison survives only as a quality gate, not as a vendor decision.
 
-### 3.1.2 Three engineering constraints that come with DeepSeek
+### 3.1.3 Three engineering constraints that come with Qwen3 32B
 
-1. **Structured outputs, not forced tool use.** DeepSeek V3.2 lists *Structured outputs* as supported on `bedrock-runtime`, but *client-side tool calling* appears only under `bedrock-mantle`. The repo's `bedrock.ts` currently enforces schema by forced tool use with `toolSpec.strict: true`. For DeepSeek the correct mechanism is `outputConfig.textFormat` (Converse) or `response_format` (InvokeModel on open-weight models). This is a code change, and it sits directly on the safety path — A1's JSON contract — so it needs its own tests, not a config flip.
-2. **First call with a new schema compiles a grammar for up to ~90 seconds.** Set the client read timeout to at least 120s and pre-warm every schema at deploy. On a crisis path, an un-warmed A1 schema is a 90-second stall.
-3. **Schema limits:** max 12 optional properties across all nested objects, max 16 union-typed properties. Exceeding either returns `ValidationException` ("Schema is too complex"). The A1 response schema must be authored within that budget — put nullable fields in `required` with `type: ["string","null"]`.
+1. **Forced tool use is the schema mechanism, and it works — no code change.** Qwen3 32B lists both *client-side tool calling* and *structured outputs* as supported on `bedrock-runtime`, and a live `converse` call with `toolSpec.strict: true` returned a conforming tool input on all 93 calls of the three runs above. This is the constraint DeepSeek would have broken (tool calling only on `bedrock-mantle`), and the reason the swap is a config change rather than a safety-path rewrite.
+2. **Thinking is off by default — do not turn it on casually.** On Converse this model spends nothing on a reasoning trace unless asked. If a future prompt does enable reasoning, it must get its own token budget: with the production 2048-token cap, a thinking model can burn the whole budget before emitting JSON, return `finish_reason: length`, and be failed closed to S2 by the validator — which is exactly how `qwen3.5-9b` silently downgraded four suicide-risk messages to moderate in the OpenRouter eval.
+3. **32K context / 8K max output.** The A1 system prompt plus conversation history must stay under 32K tokens; only three models in this family reach 164K-class context and none of them are the cheap one. Production `max_tokens` of 2048 is far inside the 8K output limit.
 
-DeepSeek has **no embedding model**, so Titan Text Embeddings V2 at 768 dimensions remains the embedding target, unchanged from the original plan.
+Qwen has **no embedding model**, so Titan Text Embeddings V2 at 768 dimensions remains the embedding target, unchanged.
 
-### 3.1.3 The repo does not use DeepSeek yet
+### 3.1.4 Code state
 
-Grep across `apps/` and `packages/` (excluding `node_modules` and `dist`) returns **zero** DeepSeek references. The live default is `OPENROUTER_MODEL` falling back to `meta-llama/llama-3.1-8b-instruct`, with `LLM_PROVIDER` defaulting to `openrouter`. The harness dashboard separately names `gemini-2.5-flash`.
+Done on 28 Oct 2026, on `feat/aws-migration`: `DEFAULT_BEDROCK_MODEL_ID = 'qwen.qwen3-32b-v1:0'` in both `apps/api/src/lib/provider-config.ts` and `apps/worker/src/lib/provider-config.ts`, the same default in the Terraform `bedrock_model_id` variable, `BEDROCK_MODEL_ID` in the harness `.env.example`, and the harness pricing table now carries the Qwen rate ($0.18/$0.71) alongside Nova Pro for historical runs. Unit tests that pinned the old literal were updated with it.
 
-So "we use only DeepSeek" is a decision, not yet a fact in code. Making it true requires: a DeepSeek Bedrock model id in `provider-config.ts`, the structured-outputs path in `bedrock.ts`, an `OPENROUTER_MODEL`/provider change for the bridge period, and one live call to prove the schema actually constrains. Until that last step, the claim is unverified.
+Still open: nothing on the IAM side is required for the swap. The ECS task roles already allow `bedrock:InvokeModel` on `arn:aws:bedrock:ap-south-1::foundation-model/*` (`iam.tf`, two statements), and model access for the Qwen models is already enabled on account 562654496378 — proven by 93 successful `converse` calls on 28 Oct. The deploy role had no Bedrock permission at all, so a test-scoped inline policy (`keel-deploy-bedrock-qwen`, `bedrock:InvokeModel` on `arn:aws:bedrock:ap-south-1::foundation-model/qwen.*`) was added to run the eval from this workstation; drop it if the deploy role is meant to stay out of the data plane.
 
 
 ### 3.2 Firebase users cannot be moved to Cognito without forcing password resets
@@ -136,7 +155,7 @@ Cognito's import tool accepts BCRYPT, SCRYPT, ARGON2ID and PBKDF2_SHA256 in fixe
 
 ## 4. The bridge that gets you off GCP without gambling on models
 
-**Revised 27 Oct 2026.** The original rationale for this bridge was that no credit-eligible in-region model existed, so the model decision had to be deferred while infrastructure moved. DeepSeek removes that constraint (§3.1): the model is now in-region *and* credit-eligible, so there is no longer any reason to keep an external API key in the loop. What survives from the bridge is only its **sequencing** principle — do not change infrastructure and the safety-path model in the same week.
+**Revised 27 Oct 2026.** The original rationale for this bridge was that no credit-eligible in-region model existed, so the model decision had to be deferred while infrastructure moved. Qwen removes that constraint (§3.1): the model is now in-region *and* credit-eligible, so there is no longer any reason to keep an external API key in the loop. What survives from the bridge is only its **sequencing** principle — do not change infrastructure and the safety-path model in the same week.
 
 There is a way to leave GCP infrastructure entirely in about three weeks. It works because **the LLM call today goes through an API-key path, not through GCP infrastructure.** The repo already supports a non-Vertex provider (`LLM_PROVIDER=openrouter|gemini`).
 
@@ -145,7 +164,7 @@ So:
 - **Move compute, database, cache, storage, queue, secrets and encryption to AWS now.** These are the billable, residency-relevant, lock-in parts.
 - **Keep the LLM call on an API key for the bridge week only** (existing OpenRouter key), so the infra cutover is not also a model cutover.
 - **Move embeddings to Titan on Bedrock** (§3.1), because embedding quality risk is low and it is in-region and credit-eligible.
-- **Then flip to DeepSeek V3.2 on Bedrock** once D2 measures it against the current baseline. This is now a one-week step, not a vendor negotiation.
+- **Then flip to Qwen3 32B on Bedrock** once D2 signs the bar off. The model id is already the default in code (§3.1.4), so the flip is `LLM_PROVIDER=bedrock` plus model access in the account, not a code change.
 
 That gives two tracks: Track A gets you hosted on AWS and unblocks the Play Store; Track B swaps the model behind a measured gate. Neither blocks the other, and both are now inside the credits.
 
@@ -155,7 +174,7 @@ That gives two tracks: Track A gets you hosted on AWS and unblocks the Play Stor
 
 | GCP today | AWS target | In ap-south-1 | Effort (dev-days) | Risk |
 |---|---|---|---|---|
-| Vertex AI · Gemini structured JSON | Bedrock Converse + structured outputs on **DeepSeek V3.2** (`deepseek.v3.2`), in-region Mumbai | Yes — In-Region, no Geo/Global profile exists | 12–20 | MEDIUM |
+| Vertex AI · Gemini structured JSON | Bedrock Converse + forced strict tool use on **Qwen3 32B** (`qwen.qwen3-32b-v1:0`), in-region Mumbai | Yes — In-Region, no Geo/Global profile exists | 2–3 | LOW |
 | Vertex AI embeddings | Titan Text Embeddings V2 | Yes | 3–5 + full re-index | LOW |
 | Firebase Auth (token verify) | Cognito user pools + `aws-jwt-verify` | Yes | 10–15 | **HIGH** |
 | Firebase Cloud Messaging | Keep FCM (independent of auth) or SNS push | n/a | 0–3 | LOW |
@@ -207,9 +226,9 @@ That gives two tracks: Track A gets you hosted on AWS and unblocks the Play Stor
 | ID | Story | dd |
 |---|---|---|
 | D1 | Eval harness: replay the 3 safety-critical prompts across candidates | 5 |
-| D2 | Run comparison: current baseline (Llama 3.1 8B via OpenRouter) vs **DeepSeek V3.2** vs DeepSeek V3.1, in-region on Bedrock | 3 |
+| D2 | Run comparison: current baseline (Llama 3.1 8B via OpenRouter) vs **Qwen3 32B** vs Qwen3 Next 80B A3B, in-region on Bedrock, against the widened (~60 case) set | 3 |
 | D3 | **Clinical acceptance decision** — Shubhangi signs the quality bar | 2 (external) |
-| D4 | Bedrock hardening: structured outputs (`outputConfig.textFormat`), guardrails, `data_retention_mode: none`, schema pre-warm at deploy | 6 |
+| D4 | Bedrock hardening: guardrails, `data_retention_mode: none`, timeout/p95 tuning on the forced-tool path | 6 |
 | D5 | Flip `OKUVU_LLM_PROVIDER=bedrock` in production | 3 |
 
 ### Phase 5 — Identity (19 dev-days) · Track B, only if you want off Google entirely
@@ -252,12 +271,12 @@ That gives two tracks: Track A gets you hosted on AWS and unblocks the Play Stor
 | KMS CMK × 3 | ~$3 |
 | S3 + CloudWatch + SQS | ~$10–20 |
 | **Infrastructure subtotal** | **~$175–210/month** |
-| Inference — **DeepSeek V3.2 in ap-south-1**, 10k turns/month | **~$85** |
-| Inference — same, at 50k turns/month | ~$424 |
+| Inference — **Qwen3 32B in ap-south-1**, 10k turns/month | **~$23** |
+| Inference — same, at 50k turns/month | ~$114 |
 
-**Credit position, corrected.** DeepSeek on Bedrock is billed as `serviceCode: AmazonBedrock` — an ordinary AWS charge, not a Marketplace charge — so promotional credit applies to the model line as well as the infrastructure. At beta volumes the whole stack (infra + model) runs **under $300/month**, so $5,000 of credits covers roughly 17 months at 10k turns/month.
+**Credit position, corrected.** Qwen on Bedrock is billed as `serviceCode: AmazonBedrock` — an ordinary AWS charge, not a Marketplace charge — so promotional credit applies to the model line as well as the infrastructure. At beta volumes the whole stack (infra + model) runs **under $240/month**, so $5,000 of credits covers roughly 22 months at 10k turns/month.
 
-What was previously described here as "the single most important commercial fact" — that credits could not cover the model — is no longer true under DeepSeek. The one caveat that remains is administrative: confirm the credit's **Applicable products** on the Billing console Credits page, because a credit can be narrowed by the programme that issued it. See §3.1.
+What was previously described here as "the single most important commercial fact" — that credits could not cover the model — is no longer true under Qwen. The one caveat that remains is administrative: confirm the credit's **Applicable products** on the Billing console Credits page, because a credit can be narrowed by the programme that issued it. See §3.1.
 
 ---
 
@@ -276,12 +295,12 @@ Ordered by what blocks first. Nothing in Phase 1 starts without item 1.
 8. **Domain/DNS access** for `okuvu.in` at Spaceship, for the cutover.
 
 ### From Dr Shubhangi Goswami — blocking Track B only
-9. **The model acceptance bar** in writing: what quality threshold the safety-critical prompts must clear before DeepSeek V3.2 replaces the current Llama 3.1 8B baseline. Without a signed threshold, D2 has no pass/fail criterion and the migration stalls at the last gate.
+9. **The model acceptance bar** in writing: what quality threshold the safety-critical prompts must clear before Qwen3 32B replaces the current Llama 3.1 8B baseline. Without a signed threshold, D2 has no pass/fail criterion and the migration stalls at the last gate.
 10. **Sign-off on the crisis copy and helpline numbers**, still outstanding from the clinical packet. This gates what the app may display in the store listing and in the crisis overlay.
 
 ### From you — needed later, not blocking week 1
-11. **LLM route for the bridge**: either keep the existing OpenRouter key for the bridge period, or go straight to Bedrock DeepSeek V3.2. The direct Bedrock route is now the better choice — it removes a third-party sub-processor from the DPDP chain and is credit-eligible, so there is no cost reason to keep an external API key. One of the two must exist before the app can serve a real turn on AWS.
-12. **Residency: resolved, not a choice.** DeepSeek V3.2 on Bedrock has no Geo or Global inference profile — only In-Region. Inference stays in Mumbai, so the README's residency claim translates to "ap-south-1 only" without weakening. No written residency decision is needed while DeepSeek is the model. This reverses the earlier §9.12 item, which assumed Claude's India-geo profile would be unavoidable.
+11. **LLM route for the bridge**: either keep the existing OpenRouter key for the bridge period, or go straight to Bedrock Qwen3 32B. The direct Bedrock route is now the better choice — it removes a third-party sub-processor from the DPDP chain and is credit-eligible, so there is no cost reason to keep an external API key. One of the two must exist before the app can serve a real turn on AWS.
+12. **Residency: resolved, not a choice.** Qwen3 32B on Bedrock has no Geo or Global inference profile — only In-Region. Inference stays in Mumbai, so the README's residency claim translates to "ap-south-1 only" without weakening. No written residency decision is needed while Qwen is the model. This reverses the earlier §9.12 item, which assumed Claude's India-geo profile would be unavoidable.
 13. **Invite-email sender** (SES or Brevo) so the API can send therapist invites.
 14. **Voice vendor** (Sarvam key) if A13 voice ships in this release — otherwise it stays unavailable, as it is today.
 
@@ -311,13 +330,13 @@ Verified today, from Google's own documentation:
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | R1 | No AWS credentials → nothing can be applied | High | Blocks everything | Terraform is written and validated; needs only credentials |
-| R2 | DeepSeek V3.2 fails the clinical bar on crisis classification | Medium | If it fails there is no credit-eligible in-region fallback of comparable class | Measure V3.2 against V3.1 and the current baseline in D2 before the flip; keep the API-key path one env var away |
+| R2 | Qwen3 32B fails the clinical bar on crisis classification | Medium | If it fails there is no credit-eligible in-region fallback of comparable class | First pass is clean (16/16 A1, 15/15 A9-post, three runs — §3.1.1), but it is 31 cases: run D2 on the widened set before the flip; keep the API-key path one env var away |
 | R3 | Credits are a narrowed programme that excludes Bedrock inference | Low | Model line bills outside the credit | Check Applicable products on the Billing console Credits page before Phase 1; infra is only ~$200/mo worst case |
 | R4 | 14-day Play clock means store release cannot be pulled forward | Certain | ~4 weeks minimum | Start the clock the day staging is live |
 | R5 | Forced password resets if Cognito migration happens post-launch | Certain if deferred | Churn | Do identity migration before public launch, or never |
 | R6 | Model-quality regression is invisible because recall is unmeasured | High | Safety | D1/D2 require an eval set; this is the same gap flagged in the agent evaluation |
 
-**Kill criteria.** Stop the migration and revert to GCP if: AWS credits turn out to exclude Bedrock inference (ruled unlikely — DeepSeek is billed as an ordinary AWS service charge) *and* DeepSeek V3.2 fails the clinical bar *and* you decline to fund the model line outside the credits. With DeepSeek those three conditions now have to fail together, which is a materially weaker case for abandoning the migration than this document originally described — the model line at beta volume is under $100/month.
+**Kill criteria.** Stop the migration and revert to GCP if: AWS credits turn out to exclude Bedrock inference (ruled unlikely — Qwen is billed as an ordinary AWS service charge) *and* Qwen3 32B fails the clinical bar *and* you decline to fund the model line outside the credits. With Qwen those three conditions now have to fail together, which is a materially weaker case for abandoning the migration than this document originally described — the model line at beta volume is under $25/month.
 
 ---
 

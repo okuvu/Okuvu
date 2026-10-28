@@ -26,7 +26,7 @@ const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 const PROD_PROVIDER: string = resolveProvider();
 const PROD_MODEL_VERSION =
   PROD_PROVIDER === 'bedrock'
-    ? (process.env.BEDROCK_MODEL_ID ?? 'amazon.nova-pro-v1:0')
+    ? (process.env.BEDROCK_MODEL_ID ?? 'qwen.qwen3-32b-v1:0')
     : (process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct');
 const PROD_TEMPERATURE = 0.7;
 

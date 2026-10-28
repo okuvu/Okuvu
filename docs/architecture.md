@@ -32,7 +32,7 @@ Everything runs on AWS ap-south-1 (Mumbai). There is no GCP, and no Firebase. De
 | Database | RDS PostgreSQL (staging/prod), Neon (local dev, branch per developer) | Single-AZ in beta, Multi-AZ in prod |
 | Auth — end users | **Amazon Cognito** user pool, phone number + SMS OTP | `infrastructure/aws/evia-beta/cognito.tf`; API verifies the JWT offline against the pool JWKS |
 | Auth — therapists | **Amazon Cognito** user pool, email + password + optional TOTP MFA | Federated into NextAuth via `CognitoProvider` |
-| LLM — live chat pipeline (A1/A2/A9-pre/A9-post) | **Amazon Bedrock — `amazon.nova-pro-v1:0`** (`LLM_PROVIDER=bedrock` in the task definition) | OpenRouter remains selectable for load tests and A/B comparison — see "LLM provider" below |
+| LLM — live chat pipeline (A1/A2/A9-pre/A9-post) | **Amazon Bedrock — `qwen.qwen3-32b-v1:0`** (`LLM_PROVIDER=bedrock` in the task definition) | OpenRouter remains selectable for load tests and A/B comparison — see "LLM provider" below |
 | LLM — worker jobs (session summary, memory extraction) | **Amazon Bedrock** via `apps/worker/src/lib/generate-content.ts` | Same dispatcher shape as the API, same env contract |
 | Embeddings | **Bedrock Titan Text Embeddings V2**, 768 dims | Must stay 768 to match the pgvector column |
 | TTS | **Client-side**, `flutter_tts` in the mobile app | Not a backend call — see "Text-to-speech" below |

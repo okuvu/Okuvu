@@ -367,7 +367,7 @@ variable "codebuild_compute_type" {
 variable "bedrock_model_id" {
   description = "Bedrock model id for every pipeline LLM call (in-region only)"
   type        = string
-  default     = "amazon.nova-pro-v1:0"
+  default     = "qwen.qwen3-32b-v1:0"
 }
 
 variable "bedrock_embedding_model_id" {

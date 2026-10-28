@@ -42,11 +42,16 @@ function inrPer1k(usdPer1M: number): number {
 }
 
 // Keys match the model_version values the pipeline actually resolves to —
-// BEDROCK_MODEL_ID (default 'amazon.nova-pro-v1:0') on the Bedrock path, or
+// BEDROCK_MODEL_ID (default 'qwen.qwen3-32b-v1:0') on the Bedrock path, or
 // OPENROUTER_MODEL (default 'meta-llama/llama-3.1-8b-instruct') on the
 // OpenRouter path (see apps/api/src/lib/generate-content.ts and
 // apps/api/src/lib/provider-config.ts).
 export const MODEL_PRICING_INR: Record<string, ModelPricing> = {
+  // $0.18 / 1M in, $0.71 / 1M out (ap-south-1, on-demand, standard tier;
+  // AmazonBedrock offer file publication date 2026-10-28).
+  'qwen.qwen3-32b-v1:0': { inputPer1k: inrPer1k(0.18), outputPer1k: inrPer1k(0.71) },
+  // Retired as the default on 28 Oct 2026 but kept in the table so historical
+  // runs recorded against it still price correctly.
   // $0.94 / 1M in, $3.76 / 1M out (ap-south-1, on-demand).
   'amazon.nova-pro-v1:0': { inputPer1k: inrPer1k(0.94), outputPer1k: inrPer1k(3.76) },
   // Embeddings are input-only; the model emits a fixed 768-dim vector, so
@@ -63,9 +68,9 @@ export const BEDROCK_PRICING_INR = MODEL_PRICING_INR;
 
 /**
  * Fallback pricing for a model name not present in the table above: the Nova
- * Pro rate, i.e. the most expensive model the pipeline runs by default, so an
- * unknown model degrades to a conservative (over-)estimate rather than
- * under-counting budget spend.
+ * Pro rate, i.e. the most expensive Bedrock model the pipeline has ever run by
+ * default, so an unknown model degrades to a conservative (over-)estimate
+ * rather than under-counting budget spend.
  */
 const DEFAULT_PRICING: ModelPricing = MODEL_PRICING_INR['amazon.nova-pro-v1:0'] as ModelPricing;
 

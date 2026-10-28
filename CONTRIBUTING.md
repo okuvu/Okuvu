@@ -40,7 +40,7 @@ cp .env.example .env
 Open `.env` and fill in at minimum:
 - `DATABASE_URL` — your Neon branch connection string (from the setup guide)
 - `AWS_REGION` — `ap-south-1` (the only region the stack is allowed to use)
-- `BEDROCK_MODEL_ID` / `BEDROCK_EMBEDDING_MODEL_ID` — optional overrides; the defaults are `amazon.nova-pro-v1:0` and `amazon.titan-embed-text-v2:0`
+- `BEDROCK_MODEL_ID` / `BEDROCK_EMBEDDING_MODEL_ID` — optional overrides; the defaults are `qwen.qwen3-32b-v1:0` and `amazon.titan-embed-text-v2:0`
 - `COGNITO_THERAPIST_POOL_ID` / `COGNITO_THERAPIST_CLIENT_ID` / `COGNITO_THERAPIST_CLIENT_SECRET` — therapist pool app client (get from Senior Engineer)
 - Set `LOCAL_DEV_BYPASS_AUTH="true"` for local development so you don't need real Cognito tokens
 - AWS access for Bedrock/SQS: use your own profile (`aws configure` or `aws sso login`) — never a committed key file

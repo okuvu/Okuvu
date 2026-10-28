@@ -67,7 +67,7 @@ describe('bedrock generateContent', () => {
     expect(result.text).toBe('I hear you. Tell me more.');
     expect(result.fallbackUsed).toBe(false);
     expect(result.failureReason).toBeUndefined();
-    expect(result.model).toBe('amazon.nova-pro-v1:0');
+    expect(result.model).toBe('qwen.qwen3-32b-v1:0');
     expect(result.canned).toBe(false);
   });
 
@@ -86,7 +86,7 @@ describe('bedrock generateContent', () => {
 
     const input = mockSend.mock.calls[0][0].input;
 
-    expect(input.modelId).toBe('amazon.nova-pro-v1:0');
+    expect(input.modelId).toBe('qwen.qwen3-32b-v1:0');
     expect(input.system).toEqual([{ text: 'SYSTEM' }]);
     expect(input.messages).toEqual([
       { role: 'user', content: [{ text: 'first' }] },
@@ -263,7 +263,7 @@ describe('bedrock generateContent', () => {
     expect(result.text).toBe(SAFE_FALLBACK);
     expect(result.fallbackUsed).toBe(true);
     expect(result.failureReason).toBe('api_error');
-    expect(result.model).toBe('amazon.nova-pro-v1:0');
+    expect(result.model).toBe('qwen.qwen3-32b-v1:0');
   });
 
   it('aborts the in-flight call and reports a timeout', async () => {
@@ -306,7 +306,7 @@ describe('bedrock generateContent', () => {
     expect(result.text).toBe('a canned reply');
     expect(result.canned).toBe(true);
     expect(result.fallbackUsed).toBe(false);
-    expect(result.model).toBe('amazon.nova-pro-v1:0');
+    expect(result.model).toBe('qwen.qwen3-32b-v1:0');
     expect(mockSend).not.toHaveBeenCalled();
   });
 

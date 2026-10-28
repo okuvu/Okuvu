@@ -145,11 +145,11 @@ describe('worker provider seams — removed', () => {
   });
 
   describe('AWS settings resolve with documented defaults', () => {
-    it('pins ap-south-1 and the Nova Pro / Titan V2 models', () => {
+    it('pins ap-south-1 and the Qwen3 32B / Titan V2 models', () => {
       expect(resolveAwsRegion()).toBe('ap-south-1');
       expect(DEFAULT_AWS_REGION).toBe('ap-south-1');
-      expect(resolveBedrockModelId()).toBe('amazon.nova-pro-v1:0');
-      expect(DEFAULT_BEDROCK_MODEL_ID).toBe('amazon.nova-pro-v1:0');
+      expect(resolveBedrockModelId()).toBe('qwen.qwen3-32b-v1:0');
+      expect(DEFAULT_BEDROCK_MODEL_ID).toBe('qwen.qwen3-32b-v1:0');
       expect(resolveBedrockEmbeddingModelId()).toBe('amazon.titan-embed-text-v2:0');
       expect(DEFAULT_BEDROCK_EMBEDDING_MODEL_ID).toBe('amazon.titan-embed-text-v2:0');
       expect(resolveEmbeddingDimensions()).toBe(768);
