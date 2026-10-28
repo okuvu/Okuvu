@@ -146,6 +146,22 @@ data "aws_iam_policy_document" "codebuild" {
     resources = [for repo in aws_ecr_repository.main : repo.arn]
   }
 
+  # The ECR scan gate in buildspec.yml reads scan findings before post_build
+  # rolls images out. Without these the gate could not see any scan state and
+  # failed the build after its timeout — the gate was blind, not the scans slow.
+  statement {
+    sid    = "EcrScanRead"
+    effect = "Allow"
+
+    actions = [
+      "ecr:DescribeImageScanFindings",
+      "ecr:DescribeImages",
+      "ecr:BatchGetRepositoryScanningConfiguration",
+    ]
+
+    resources = [for repo in aws_ecr_repository.main : repo.arn]
+  }
+
   statement {
     sid    = "EcsRollout"
     effect = "Allow"
