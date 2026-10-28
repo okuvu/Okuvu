@@ -5,6 +5,11 @@ resource "aws_lb" "api" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = local.public_subnet_ids
 
+  # Dualstack so the apex and www AAAA alias records actually answer. An
+  # IPv4-only ALB makes Route53 return NODATA for AAAA aliases even though the
+  # record exists. Requires the VPC /56 and per-subnet /64 in vpc.tf.
+  ip_address_type = "dualstack"
+
   idle_timeout                     = 60
   enable_deletion_protection       = false
   enable_cross_zone_load_balancing = true
