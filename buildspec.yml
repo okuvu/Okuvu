@@ -114,6 +114,15 @@ phases:
             echo "FATAL: could not compose DATABASE_URL from ${NAME_PREFIX}/database."
             exit 1
           fi
+          # Beta-only bootstrap escape hatch. The database is empty and the
+          # migration history is what is being repaired, so a clean re-apply
+          # occasionally has to start from an empty schema. Never set this
+          # against a database with data in it.
+          if [ "${RESET_DATABASE:-false}" = "true" ]; then
+            echo "=== RESET_DATABASE=true — dropping and recreating the public schema ==="
+            ( cd packages/prisma && printf 'DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n' \
+                | npx prisma db execute --stdin --url "${DATABASE_URL}" )
+          fi
           ( cd packages/prisma && DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy )
         else
           echo "RUN_MIGRATIONS=false — skipping prisma migrate deploy."
