@@ -256,15 +256,43 @@ variable "alarm_notification_email" {
 }
 
 variable "portal_callback_urls" {
-  description = "NextAuth OAuth callback URLs registered on the therapist Cognito app client (portal_url is appended automatically)"
+  description = "Extra NextAuth OAuth callback URLs registered on the therapist Cognito app client, on top of the ones derived from portal_hostname and portal_alias_hostnames (default: local development)"
   type        = list(string)
   default     = ["http://localhost:3001/api/auth/callback/cognito"]
 }
 
 variable "portal_logout_urls" {
-  description = "Post-sign-out redirect URLs registered on the therapist Cognito app client (portal_url is appended automatically)"
+  description = "Extra post-sign-out redirect URLs registered on the therapist Cognito app client, on top of the ones derived from portal_hostname and portal_alias_hostnames (default: local development)"
   type        = list(string)
   default     = ["http://localhost:3001/auth"]
+}
+
+variable "portal_alias_hostnames" {
+  description = "Additional public hostnames the therapist portal answers on (apex and www). Each one gets an ALB host rule and a registered Cognito callback, so sign-in completes on whichever host the therapist typed."
+  type        = list(string)
+  default     = ["okuvu.in", "www.okuvu.in"]
+}
+
+variable "portal_nextauth_url" {
+  description = "Pin NextAuth to one canonical origin (e.g. https://okuvu.in). Empty (default) derives the origin from the request Host, which is what lets a single deployment serve sign-in on every hostname in portal_alias_hostnames."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.portal_nextauth_url == "" || can(regex("^https://[a-z0-9.-]+$", var.portal_nextauth_url))
+    error_message = "portal_nextauth_url must be empty or an https origin with no path or trailing slash."
+  }
+}
+
+variable "cognito_therapist_domain_prefix" {
+  description = "Cognito prefix domain for the therapist pool (becomes <prefix>.auth.<region>.amazoncognito.com). The OAuth authorize/token endpoints the portal needs exist only once a domain is attached. Prefixes are globally unique per region; if apply reports the prefix is taken, change this value (e.g. okuvu-therapists-auth)."
+  type        = string
+  default     = "okuvu-therapists"
+
+  validation {
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.cognito_therapist_domain_prefix))
+    error_message = "cognito_therapist_domain_prefix must be lowercase alphanumeric or hyphen, 1-63 characters."
+  }
 }
 
 # -----------------------------------------------------------------------------
