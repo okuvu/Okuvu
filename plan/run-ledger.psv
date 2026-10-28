@@ -19,7 +19,7 @@ E17-S4|E17|The safety core fails closed|build|E17-S3|not_started|||||||
 E17-S5|E17|An evaluation gate is passed and recorded|build|E17-S4|not_started|||||||
 E17-S6|E17|Token and cost budgets are enforced|build|E17-S1|not_started|||||||
 E17-S7|E17|Clinical sign-off on agent copy and technique list|clinical|E17-S5|not_started|||||||
-E18-S1|E18|A real upload keystore replaces the placeholder|decision|-|verified|A-android|feat/E18-S1-keystore|78baf46|evidence/E18-S1.md|2026-10-28T15:20Z|orchestrator|keytool re-read: CN=Okuvu OU=Mobile, 4096-bit RSA, SHA256 54:54:26:...:1A:39 matches agent. Secret evia-beta/android-upload-keystore exists. OUTSTANDING human step: offline backup of keys/okuvu-upload.p12 + password.
+E18-S1|E18|A real upload keystore replaces the placeholder|decision|-|verified|A-android|feat/E18-S1-keystore|78baf46|evidence/E18-S1.md|2026-10-28T18:35Z|orchestrator|keytool re-read by orchestrator from the artefact: CN=Okuvu OU=Mobile O=Okuvu Technologies, 4096-bit RSA, SHA256 54:54:26:...:1A:39, valid to 2054-03-15. Secret evia-beta/android-upload-keystore exists. Evidence re-derived and placed on the orchestrator branch because the child's copy sat on an unmerged branch and was invisible. OUTSTANDING human step: offline backup of keys/okuvu-upload.p12 + password.
 E18-S2|E18|Version bumped and signing switched to the real key|build|E18-S1|not_started|||||||
 E18-S3|E18|Prod app bundle built against the live API|build|E18-S2,E15-S4,E16-S1|not_started|||||||
 E18-S4|E18|Real-device smoke test of the release build|build|E18-S3|not_started|||||||
