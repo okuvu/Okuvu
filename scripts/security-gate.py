@@ -7,7 +7,7 @@ Two independent checks, both fail-closed on CRITICAL severity:
       Parses `pnpm audit --prod --json` output and fails if any production
       dependency has a CRITICAL advisory. HIGH is reported but does not fail.
 
-  ecr --repo <name> --tag <tag> [--repo ... --tag ...] [--timeout 600]
+  ecr --repo <name> --tag <tag> [--repo ... --tag ...] [--timeout 1800]
       Waits for the ECR basic scan of each pushed image to reach COMPLETE and
       fails if any image has a CRITICAL finding. A scan that never completes
       is treated as a failure: "unknown" is not "clean".
@@ -86,7 +86,13 @@ def cmd_audit(path: str) -> int:
 
 
 def _scan_once(repo: str, tag: str) -> tuple[str, dict]:
-    """Return (status, findings-json) for one image."""
+    """Return (status, payload) for one image.
+
+    status is one of COMPLETE, PENDING, FAILED. Only the scan's own
+    imageScanStatus is trusted: a successful API call that reports
+    IN_PROGRESS has NOT been checked yet, and scoring it clean because its
+    findings array is currently empty is how a real CVE reaches production.
+    """
     proc = subprocess.run(
         [
             "aws", "ecr", "describe-image-scan-findings",
@@ -101,16 +107,25 @@ def _scan_once(repo: str, tag: str) -> tuple[str, dict]:
         # push is still settling, so report it as retryable.
         return "PENDING", {"error": proc.stderr.strip()[:200]}
     try:
-        return "COMPLETE", json.loads(proc.stdout)
+        payload = json.loads(proc.stdout)
     except json.JSONDecodeError:
         return "PENDING", {"error": "unparseable describe-image-scan-findings"}
+
+    status = str((payload.get("imageScanStatus") or {}).get("status", "")).upper()
+    if status == "COMPLETE":
+        return "COMPLETE", payload
+    if status in ("FAILED", "UNSUPPORTED", "SCAN_ELIGIBILITY_EXPIRED"):
+        return "FAILED", payload
+    return "PENDING", payload
 
 
 def cmd_ecr(pairs: list[tuple[str, str]], timeout_s: int) -> int:
     pending = list(pairs)
     results: dict[tuple[str, str], dict] = {}
+    failures: dict[tuple[str, str], str] = {}
     deadline = time.time() + timeout_s
     poll = 10
+    last_status: dict[tuple[str, str], str] = {}
 
     while pending and time.time() < deadline:
         still: list[tuple[str, str]] = []
@@ -118,20 +133,32 @@ def cmd_ecr(pairs: list[tuple[str, str]], timeout_s: int) -> int:
             status, payload = _scan_once(repo, tag)
             if status == "COMPLETE":
                 results[(repo, tag)] = payload
+            elif status == "FAILED":
+                failures[(repo, tag)] = str(
+                    (payload.get("imageScanStatus") or {}).get("description", "scan failed")
+                )[:200]
             else:
+                err = str(payload.get("error", "")).strip()
+                st = str((payload.get("imageScanStatus") or {}).get("status", "")).upper()
+                last_status[(repo, tag)] = st or err[:80] or "not listed"
                 still.append((repo, tag))
         pending = still
         if pending:
-            print(f"waiting on {len(pending)} image scan(s)...")
+            detail = ", ".join(f"{r}:{t}={last_status.get((r, t), '?')}" for r, t in pending)
+            print(f"waiting on {len(pending)} image scan(s) ({detail}); {int(deadline - time.time())}s left")
             time.sleep(poll)
+            poll = min(poll + 5, 30)
 
     breached = False
     for repo, tag in pairs:
         payload = results.get((repo, tag))
         if payload is None:
             breached = True
-            print(f"{repo}:{tag} — scan did not complete within {timeout_s}s",
-                  file=sys.stderr)
+            reason = failures.get((repo, tag)) or (
+                f"scan did not complete within {timeout_s}s "
+                f"(last state: {last_status.get((repo, tag), 'unknown')})"
+            )
+            print(f"{repo}:{tag} — {reason}", file=sys.stderr)
             continue
         findings = (payload.get("imageScanFindings") or {}).get("findings") or []
         counts: dict[str, int] = {}
@@ -165,7 +192,7 @@ def main(argv: list[str]) -> int:
     p_ecr = sub.add_parser("ecr")
     p_ecr.add_argument("--repo", action="append", required=True)
     p_ecr.add_argument("--tag", action="append", required=True)
-    p_ecr.add_argument("--timeout", type=int, default=600)
+    p_ecr.add_argument("--timeout", type=int, default=1800)
 
     args = parser.parse_args(argv)
 

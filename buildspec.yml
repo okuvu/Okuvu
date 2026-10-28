@@ -116,7 +116,7 @@ phases:
           --repo "${NAME_PREFIX}/worker" \
           --repo "${NAME_PREFIX}/portal" \
           --tag "${IMAGE_TAG}" \
-          --timeout "${SCAN_GATE_TIMEOUT:-600}"
+          --timeout "${SCAN_GATE_TIMEOUT:-1800}"
 
   post_build:
     commands:
