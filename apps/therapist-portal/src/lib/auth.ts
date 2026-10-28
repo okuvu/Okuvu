@@ -2,29 +2,28 @@ import NextAuth, { type NextAuthOptions } from 'next-auth';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import CognitoProvider from 'next-auth/providers/cognito';
+import { cognitoPortalConfig } from '@/lib/cognito-config';
 
 // Cognito replaced Google OAuth for therapist sign-in (see
 // docs/AWS-CUTOVER-SPEC.md). Google federation inside the pool is off: an
 // OAuth client id is a GCP resource, so relying on it would keep a GCP
 // dependency alive.
+//
+// The only provider is the real therapist pool. When its configuration is
+// absent there is no provider at all — never a credentials stub — and the
+// sign-in page says so instead of offering a button that cannot work.
 export function buildProviders(): NextAuthOptions['providers'] {
-  const clientId = process.env.COGNITO_THERAPIST_CLIENT_ID;
-  const clientSecret = process.env.COGNITO_THERAPIST_CLIENT_SECRET;
-  const issuer = process.env.COGNITO_ISSUER;
-
-  // The provider's discovery document is derived from `issuer`, so a partial
-  // config is as unusable as no config at all — render no provider rather than
-  // a broken one.
-  if (clientId && clientSecret && issuer) {
-    return [
-      CognitoProvider({
-        clientId,
-        clientSecret,
-        issuer,
-      }),
-    ];
+  const config = cognitoPortalConfig();
+  if (!config) {
+    return [];
   }
-  return [];
+  return [
+    CognitoProvider({
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      issuer: config.issuer,
+    }),
+  ];
 }
 
 export const authConfig: NextAuthOptions = {
