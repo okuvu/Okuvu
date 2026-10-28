@@ -1,5 +1,6 @@
 import { isCannedRequested, buildCannedResult, SAFE_FALLBACK } from './canned-response.js';
-import type { GenerateContentParams, GenerateContentResult } from './llm-types.js';
+import { recordModelUsage } from './token-budget.js';
+import type { GenerateContentParams, GenerateContentResult, TokenUsage } from './llm-types.js';
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -31,6 +32,27 @@ interface OpenRouterResponse {
     finish_reason?: string;
   }>;
   error?: { message?: string; code?: string | number };
+  /** OpenAI-compatible usage block; present unless the upstream provider omits it. */
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+function toOpenRouterUsage(usage: OpenRouterResponse['usage']): TokenUsage | undefined {
+  if (!usage) return undefined;
+
+  const hasSplit =
+    typeof usage.prompt_tokens === 'number' || typeof usage.completion_tokens === 'number';
+  // Same fail-closed attribution as the Bedrock path: a bare total is priced as
+  // output, which over-states cost rather than under-stating it.
+  const inputTokens = hasSplit ? usage.prompt_tokens ?? 0 : 0;
+  const outputTokens = hasSplit ? usage.completion_tokens ?? 0 : usage.total_tokens ?? 0;
+
+  if (inputTokens === 0 && outputTokens === 0) return undefined;
+
+  return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
 }
 
 /**
@@ -94,15 +116,21 @@ export async function generateContent(params: GenerateContentParams): Promise<Ge
 
     const text = json.choices?.[0]?.message?.content ?? '';
 
+    // E17-S6: metered on the same terms as the Bedrock path. OpenRouter prices
+    // are not ap-south-1 Bedrock prices, so this is only meaningful for the
+    // dev/default provider — production runs LLM_PROVIDER=bedrock.
+    const usage = toOpenRouterUsage(json.usage);
+    recordModelUsage(usage);
+
     if (!text) {
       console.error(
         { finishReason: json.choices?.[0]?.finish_reason, model },
         'OpenRouter returned an empty completion',
       );
-      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', model, canned: false };
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', model, canned: false, usage };
     }
 
-    return { text, fallbackUsed: false, model, canned: false };
+    return { text, fallbackUsed: false, model, canned: false, usage };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';

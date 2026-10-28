@@ -61,6 +61,21 @@ export interface GenerateContentParams {
   cannedResponse?: string;
 }
 
+/**
+ * Token counts as the provider itself reported them for one call.
+ *
+ * E17-S6: these are measured numbers, not estimates — Converse returns
+ * `usage.inputTokens` / `usage.outputTokens` on every response, and cost is
+ * priced from them (`lib/token-budget.ts`). A backend that cannot report usage
+ * leaves the field absent rather than filling it with a guess, so an absent
+ * `usage` reads unambiguously as "unknown", never as "zero tokens were spent".
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens?: number;
+}
+
 export interface GenerateContentResult {
   text: string;
   fallbackUsed: boolean;
@@ -74,4 +89,10 @@ export interface GenerateContentResult {
   model: string;
   /** True when this result came from canned/test-hook text, not a real model call. */
   canned: boolean;
+  /**
+   * Provider-reported token usage for this call, when the provider reports it
+   * (Converse does, on success and on an empty candidate; a thrown call bills
+   * nothing here). E17-S6 meters budget from this field and from nothing else.
+   */
+  usage?: TokenUsage;
 }
