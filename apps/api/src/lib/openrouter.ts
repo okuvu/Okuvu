@@ -1,4 +1,5 @@
 import { isCannedRequested, buildCannedResult, SAFE_FALLBACK } from './canned-response.js';
+import { classifyLlmFailure } from './llm-failure.js';
 import { recordModelUsage } from './token-budget.js';
 import type { GenerateContentParams, GenerateContentResult, TokenUsage } from './llm-types.js';
 
@@ -111,7 +112,8 @@ export async function generateContent(params: GenerateContentParams): Promise<Ge
 
     if (!res.ok) {
       console.error({ status: res.status, error: json?.error, model }, 'OpenRouter call failed');
-      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', model, canned: false };
+      const failureKind = classifyLlmFailure({ statusCode: res.status });
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', failureKind, model, canned: false };
     }
 
     const text = json.choices?.[0]?.message?.content ?? '';
@@ -127,14 +129,15 @@ export async function generateContent(params: GenerateContentParams): Promise<Ge
         { finishReason: json.choices?.[0]?.finish_reason, model },
         'OpenRouter returned an empty completion',
       );
-      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', model, canned: false, usage };
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', failureKind: 'unavailable', model, canned: false, usage };
     }
 
     return { text, fallbackUsed: false, model, canned: false, usage };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
-    console.error({ reason: failureReason, err: message }, 'OpenRouter call failed');
-    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason, model, canned: false };
+    const failureKind = classifyLlmFailure(err, timedOut);
+    console.error({ reason: failureReason, failureKind, err: message }, 'OpenRouter call failed');
+    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason, failureKind, model, canned: false };
   }
 }

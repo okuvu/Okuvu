@@ -38,17 +38,24 @@ vi.mock('../pipeline/session.js', () => ({
   getSessionConversationTurns: vi.fn(),
 }));
 
-vi.mock('../lib/prisma.js', () => ({
-  prisma: {
-    sessionLog: { findUnique: vi.fn(), update: vi.fn() },
-    turn: { create: vi.fn() },
-    safetyState: { upsert: vi.fn() },
-    clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
-    governanceLog: { create: vi.fn() },
-    user: { findUnique: vi.fn() },
-    $transaction: vi.fn(() => Promise.resolve([{ id: 'user-turn-1' }, { id: 'assistant-turn-1' }])),
-  },
-}));
+// E17-S4: the pipeline appends one row to the audit chain per turn
+// (`lib/audit-log.ts`). Without a delegate here every turn would log
+// `audit_append_failed` and the chain path would go untested in this suite.
+vi.mock('../lib/prisma.js', async () => {
+  const { makeAuditEventDelegate } = await import('./helpers/in-memory-audit-event.js');
+  return {
+    prisma: {
+      sessionLog: { findUnique: vi.fn(), update: vi.fn() },
+      turn: { create: vi.fn() },
+      safetyState: { upsert: vi.fn() },
+      clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
+      governanceLog: { create: vi.fn() },
+      user: { findUnique: vi.fn() },
+      $transaction: vi.fn(() => Promise.resolve([{ id: 'user-turn-1' }, { id: 'assistant-turn-1' }])),
+      auditEvent: makeAuditEventDelegate(),
+    },
+  };
+});
 
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
@@ -59,7 +66,7 @@ import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
-import { A9_POST_DEGRADED_RESPONSE, A9_POST_S2_FALLBACK } from '../pipeline/fallbacks.js';
+import { A9_POST_DEGRADED_RESPONSE, A9_POST_S2_FALLBACK, SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { setRetrievedContext, clearRetrievedContext } from '../lib/retrieved-context-cache.js';
@@ -795,7 +802,13 @@ describe('processTurn — deterministic grounding (A8 agent="deterministic-groun
 });
 
 describe('processTurn — A1 timeout', () => {
-  it('uses A1 fallback S2 when A1 throws and continues pipeline', async () => {
+  // E17-S4 changed this contract on purpose. When A1 throws, the turn has no
+  // safety assessment at all; it used to be pushed through A2 as if the
+  // classifier had said S2, which is how an unreachable classifier answered a
+  // crisis disclosure with chat (E17-S1 §7). Now the turn is still routed on S2
+  // (recorded for the review queue) but served as the governed
+  // `safety_unavailable` substitute, and A2 is never called.
+  it('serves the governed safety-unavailable fallback when A1 throws, and never calls A2', async () => {
     vi.mocked(classifySafety).mockRejectedValue(new Error('A1 timeout'));
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
@@ -807,7 +820,33 @@ describe('processTurn — A1 timeout', () => {
     expect(routeTurn).toHaveBeenCalledWith(
       expect.objectContaining({ safety_state: 'S2' }),
     );
-    expect(handleTurn).toHaveBeenCalledTimes(1);
+    expect(handleTurn).not.toHaveBeenCalled();
+    if (result.type === 'agent_turn') {
+      expect(result.message).toBe(SAFETY_UNAVAILABLE_RESPONSE);
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.fallbackSource).toBe('safety_unavailable');
+      expect(result.safety).toEqual({ code: 'SAFETY_UNAVAILABLE', reason: 'llm_exception' });
+    }
+  });
+
+  it('takes the crisis path when A1 throws on an explicit disclosure', async () => {
+    vi.mocked(classifySafety).mockRejectedValue(new Error('A1 timeout'));
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis' });
+
+    const result = await processTurn(UID, SESSION_ID, 'I want to die');
+
+    // The floor raises the state the router sees, so the real router
+    // (routeTurn, unmocked in production) takes its crisis branch.
+    expect(routeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ safety_state: 'S4' }),
+    );
+    expect(result.type).toBe('crisis');
+    if (result.type === 'crisis') {
+      expect(result.message).toBe(CRISIS_RESPONSE);
+      expect(result.safety).toEqual({ code: 'CRISIS_FLOOR', reason: 'llm_exception', crisis_floor: true });
+    }
+    expect(handleTurn).not.toHaveBeenCalled();
   });
 });
 

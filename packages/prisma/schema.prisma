@@ -448,6 +448,30 @@ model GovernanceLog {
   created_at      DateTime @default(now())
 }
 
+/// E17-S4 — append-only, tamper-evident audit chain (`apps/api/src/lib/
+/// audit-chain.ts`, ported from `reference/python-core/okuvu/audit.py`).
+///
+/// One row per safety-relevant event. `body` is the exact canonical JSON that
+/// was hashed, stored as text rather than JSONB on purpose: jsonb reorders keys
+/// and rewrites numbers, and the bytes that were sealed must be the bytes that
+/// are verified. `hash = sha256(prev_hash + body)`; `prev_hash` is UNIQUE, so a
+/// concurrent append behind the same head is an insert conflict (retried),
+/// never a forked chain. `seq` is app-assigned and contiguous from 1 —
+/// gap-freeness is part of the verification.
+model AuditEvent {
+  seq       Int    @id
+  actor     String
+  action    String
+  object    String
+  at        String
+  body      String
+  prev_hash String @unique
+  hash      String @unique
+
+  @@index([at])
+  @@index([action])
+}
+
 enum CarePlan {
   CP1
   CP2

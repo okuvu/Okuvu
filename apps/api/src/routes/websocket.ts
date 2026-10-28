@@ -338,9 +338,19 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
           if (result.type === 'crisis') {
             send({
               type: 'CRISIS_SIGNAL',
-              payload: { session_id, message: result.message },
+              payload: { session_id, message: result.message, ...(result.safety ? { safety: result.safety } : {}) },
             });
             req.log.info({ event: 'user_turn', request_id: requestId, user_id: uid, session_id, outcome: 'crisis' }, 'Crisis detected, sent CRISIS_SIGNAL');
+            // E17-S4: a crisis reached through the deterministic floor is a
+            // crisis the model never saw. Same frame, same helplines — but the
+            // log line has to say which, or "why did this user get a crisis card
+            // for a message A1 never scored" has no answer at 3am.
+            if (result.safety) {
+              req.log.warn({
+                event: 'safety_path', request_id: requestId, user_id: uid, session_id,
+                code: result.safety.code, reason: result.safety.reason, crisis_floor: result.safety.crisis_floor ?? false,
+              }, 'Crisis path served through the deterministic floor');
+            }
             return;
           }
 
@@ -362,6 +372,7 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
               tts_url: null,
               tool_card: result.toolCard,
               journal_prompt_suggested: result.journalPromptSuggested,
+              ...(result.safety ? { safety: result.safety } : {}),
             },
           });
           req.log.info({
@@ -373,6 +384,8 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             turn_count: result.turnCount,
             fallback_used: result.fallbackUsed,
             fallback_source: result.fallbackSource ?? null,
+            safety_code: result.safety?.code ?? null,
+            safety_reason: result.safety?.reason ?? null,
             timing: result.timing,
           }, 'Turn completed');
 

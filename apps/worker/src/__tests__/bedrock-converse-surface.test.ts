@@ -127,9 +127,13 @@ describe('E17-S1: the worker calls bedrock-runtime Converse', () => {
     });
 
     expect(stub?.paths).toEqual(['POST /model/qwen.qwen3-missing-v1%3A0/converse']);
-    // Worker contract today: empty text + fallbackUsed, never a thrown error.
+    // E17-S4 closed the asymmetry E17-S1 §7 recorded: the worker now returns the
+    // same curated sentence as the api instead of '' — fallbackUsed on every
+    // technical failure, never a thrown error, and never an empty text a caller
+    // could mistake for a summary.
     expect(result.fallbackUsed).toBe(true);
     expect(result.failureReason).toBe('api_error');
-    expect(result.text).not.toBe(SAFE_FALLBACK);
+    expect(result.failureKind).toBe('unavailable');
+    expect(result.text).toBe(SAFE_FALLBACK);
   });
 });

@@ -1,3 +1,5 @@
+import type { LlmFailureKind } from '../../lib/llm-failure.js';
+
 export type CarePlan = 'CP1' | 'CP2' | 'CP3';
 export type LanguageMode = 'english' | 'mirror';
 
@@ -38,6 +40,8 @@ export interface A2Output {
   signal: S07Signal | null;
   fallbackUsed: boolean;
   failureReason?: 'timeout' | 'api_error';
+  /** E17-S4 — see GenerateContentResult.failureKind: 'timeout' | 'throttled' | 'unavailable'. */
+  failureKind?: LlmFailureKind;
   /** The model that would produce/produced `response` (e.g. 'gemini-2.5-flash') — see `canned` before treating this as real provenance. */
   modelVersion: string;
   /** The A2 conversational prompt's version (see prompts/index.ts's A2_PROMPT_VERSION). */
