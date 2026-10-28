@@ -1,6 +1,15 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+overrides:
+  # fast-uri 3.1.3 carries 7 HIGH advisories (host confusion / SSRF / port
+  # injection) and is reachable through fastify -> @fastify/ajv-compiler at
+  # request-validation time. 3.1.7 is the first version clear of all seven and
+  # still satisfies ajv's ^3 range.
+  fast-uri@>=3.0.0 <3.1.7: 3.1.7
+  # find-my-way <=9.6.0 has an HTTP/2 DDoS advisory. We do not enable HTTP/2,
+  # but the router is on every request path, so take the patch anyway.
+  find-my-way@<=9.6.0: 9.10.0
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': false
