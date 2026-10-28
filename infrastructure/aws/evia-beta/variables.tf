@@ -125,6 +125,12 @@ variable "db_deletion_protection" {
   default     = true
 }
 
+variable "db_apply_immediately" {
+  description = "Apply DB modifications now instead of in the maintenance window. A class change reboots the instance, so leave false when users exist."
+  type        = bool
+  default     = false
+}
+
 variable "redis_node_type" {
   description = "ElastiCache node type"
   type        = string

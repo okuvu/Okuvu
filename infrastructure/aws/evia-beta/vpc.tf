@@ -223,6 +223,20 @@ resource "aws_security_group" "ecs" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # Symmetric to the self-ingress above. A security group is stateful but still
+  # evaluates the outbound SYN, so the api's boot-time assertion
+  # (assertWorkerReachable → http://worker.<ns>:8080/health) times out with an
+  # AbortError while the handshake is silently dropped. The failure is
+  # indistinguishable from "worker is down" in the api logs, which is what made
+  # this look like a worker bug: the task exits 1 on a healthy worker.
+  egress {
+    description = "worker HTTP to sibling tasks"
+    from_port   = var.api_container_port
+    to_port     = var.api_container_port
+    protocol    = "tcp"
+    self        = true
+  }
+
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-ecs-sg"
   })

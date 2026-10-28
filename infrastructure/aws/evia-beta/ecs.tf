@@ -51,6 +51,10 @@ locals {
     # apps/api hard-fails at boot if the summary/memory worker is unreachable
     # (assertWorkerReachable). Cloud Map gives the worker a stable VPC-only name.
     { name = "WORKER_URL", value = "http://worker.${aws_service_discovery_private_dns_namespace.main.name}:${var.api_container_port}" },
+    # apps/worker listens on WORKER_PORT, defaulting to 3002 — not the port the
+    # Cloud Map record, the SG rule and WORKER_URL all point at. Pin it to the
+    # api container port so all four agree.
+    { name = "WORKER_PORT", value = tostring(var.api_container_port) },
 
     # Models: Bedrock in-region. Nova Pro + Titan Embeddings V2 are the only
     # pair that keeps inference inside ap-south-1 (DPDP residency).
