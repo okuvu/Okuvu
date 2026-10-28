@@ -150,6 +150,8 @@ lerna-debug.log*
 *.key
 *.cert
 *.p12
+*.jks
+keystore.properties
 .cache/
 tmp/
 temp/

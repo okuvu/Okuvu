@@ -44,11 +44,15 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Release signing (NEVER commit — contains secrets)
+# Release signing (NEVER commit — contains secrets / key material)
+# keystore.properties holds the upload-key password; *.jks / *.p12 are the keys themselves.
 /android/keystore.properties
 /android/upload-keystore.jks
 /android/*.jks
 /android/**/*.jks
+keystore.properties
+*.jks
+*.p12
 
 # Build/release evidence (logs, .aab artifacts, memory traces) — not source, can be large
 /android/play-release-evidence/
