@@ -52,3 +52,33 @@ environment = "beta"
 # -----------------------------------------------------------------------------
 # codestar_connection_arn = "arn:aws:codeconnections:ap-south-1:562654496378:connection/ffdce79a-c709-4d53-b7fe-756d93a032a6"
 # github_repository       = "yashraj-ops/Okuvu"
+
+# -----------------------------------------------------------------------------
+# Sizing and release pinning.
+#
+# The bill is fixed per stack, not per user: NAT, ALB, RDS, cache, IPv4, KMS and
+# secrets cost the same at 10 users as at 10,000. The only worthwhile levers are
+# task count, task size and instance class — together worth ~$63/month here.
+# Lean beta values (one task each, no in-flight redundancy) are below; revert
+# desired_count to 2 per service before a public launch.
+# -----------------------------------------------------------------------------
+# api_desired_count    = 1
+# portal_desired_count = 1
+# portal_cpu           = 256   # 0.25 vCPU; must pair with 512/1024/2048 MiB
+# portal_memory        = 512   # fallback to 1024 if the portal starts OOMKilling
+# db_instance_class    = "db.t4g.micro"
+
+# A class change reboots the instance. true applies it now; false waits for the
+# maintenance window (rds.tf sets the window to Sunday 20:45-21:15).
+# db_apply_immediately = true
+
+# Reproducible deploys: pin to a commit SHA that exists in ECR. The default
+# "latest" is not maintained for api and worker, so leaving this unset lets a
+# terraform task-definition change roll a service onto an unpullable image.
+# image_tag = "05b259fc307a"
+
+# Cost guardrail. Size it above the stack's own baseline or the 80% alarm fires
+# permanently: the lean beta runs at ~$164/month. Empty email = no subscriber,
+# and the budget then notifies nobody.
+# monthly_budget_limit_usd = 250
+# budget_notification_email = "owner@example.com"
