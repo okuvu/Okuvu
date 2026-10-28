@@ -141,6 +141,25 @@ memory item retrieved months later.
    accuracy has no number attached to it. Adding 11 agents does not make the
    pipeline safer; only measurement does.
 
+## The roster, over HTTP
+
+`GET /agents/roster` (`apps/api/src/routes/agents.ts`) serves `roster.ts` as JSON: one entry per
+roster member with its stable identifier (`A1`…`A15`), name, group, purpose, `writes`,
+`inTurnLoop`, `clientFacing`, `canVeto`, `canSelect`, `maySignalSeverity`.
+
+It is a **view of `roster.ts`, not a second registry** — the same reason `validateRoster()` exists.
+Adding an agent to `ROSTER` is the only edit needed for it to appear; there is no list here to fall
+out of step. A9-post and J2 are absent by construction: they have no `ROSTER` entry, and
+`validateRoster()` reports any id outside `ROSTER_IDS` as `roster_incomplete` (`unexpected: [...]`),
+so adding one is a failing test rather than a silent widening of the roster.
+
+The route is behind `verifyCognitoJWT` like every non-health route. If the roster breaks one of its
+own rules the endpoint answers **503 `ROSTER_INVALID`** with the violated rule codes instead of
+serving an authority model it cannot honour.
+
+Tests: `apps/api/src/__tests__/roster-endpoint.test.ts` (real `buildApp()` + `app.inject()`, plus a
+filesystem check that every listed id has code and a test file with at least one test).
+
 ## Reproducing the evidence
 
 ```bash

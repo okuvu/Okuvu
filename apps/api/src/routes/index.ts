@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { healthRoute } from './health.js';
+import { agentsRoute } from './agents.js';
 import { authRoute } from './auth.js';
 import { userRoute } from './users.js';
 import { accountRoute } from './account.js';
@@ -14,6 +15,7 @@ import { waitlistRoute } from './waitlist.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(healthRoute);
+  await app.register(agentsRoute);
   await app.register(authRoute);
   await app.register(userRoute);
   await app.register(accountRoute);
