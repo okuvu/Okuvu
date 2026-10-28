@@ -150,6 +150,18 @@ resource "aws_security_group" "alb" {
     cidr_blocks = [var.vpc_cidr]
   }
 
+  # The portal listens on portal_container_port (3000), not the api port. Without
+  # this rule the ALB accepted the connection and then dropped the health check
+  # packets: both portal targets sat unhealthy with Target.Timeout and every
+  # portal.okuvu.in request ended in 504.
+  egress {
+    description = "ALB to therapist-portal tasks"
+    from_port   = var.portal_container_port
+    to_port     = var.portal_container_port
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-alb-sg"
   })
@@ -174,6 +186,17 @@ resource "aws_security_group" "ecs" {
     to_port         = var.portal_container_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
+  }
+
+  # The api asserts the worker's /health at boot (A1) and the two services find
+  # each other through Cloud Map, so task-to-task traffic has to be allowed
+  # inside this group rather than only from the ALB.
+  ingress {
+    description = "worker HTTP from sibling tasks"
+    from_port   = var.api_container_port
+    to_port     = var.api_container_port
+    protocol    = "tcp"
+    self        = true
   }
 
   egress {

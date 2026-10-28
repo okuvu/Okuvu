@@ -54,11 +54,11 @@ resource "aws_lb_listener" "http" {
     for_each = [1]
 
     content {
-      type             = local.alb_certificate_arn == "" ? "forward" : "redirect"
-      target_group_arn = local.alb_certificate_arn == "" ? aws_lb_target_group.api.arn : null
+      type             = local.https_enabled ? "redirect" : "forward"
+      target_group_arn = local.https_enabled ? null : aws_lb_target_group.api.arn
 
       dynamic "redirect" {
-        for_each = local.alb_certificate_arn == "" ? [] : [1]
+        for_each = local.https_enabled ? [1] : []
 
         content {
           port        = "443"
@@ -77,7 +77,7 @@ resource "aws_lb_listener" "http" {
 # HTTPS is created once a certificate exists — either the ACM certificate issued
 # in dns.tf, or one supplied through var.alb_certificate_arn.
 resource "aws_lb_listener" "https" {
-  count = local.alb_certificate_arn == "" ? 0 : 1
+  count = local.https_enabled ? 1 : 0
 
   load_balancer_arn = aws_lb.api.arn
   port              = 443

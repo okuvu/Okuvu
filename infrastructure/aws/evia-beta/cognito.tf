@@ -82,6 +82,12 @@ resource "aws_cognito_user_pool" "clients" {
     Name               = "${var.name_prefix}-clients"
     DataClassification = "personal"
   })
+
+  # Cognito validates the SMS role's sns:Publish permission at CreateUserPool
+  # time. Referencing only the role ARN lets Terraform create the pool before
+  # aws_iam_role_policy.cognito_sms_publish exists, which is then rejected with
+  # InvalidSmsRoleAccessPolicyException. Order the policy first, explicitly.
+  depends_on = [aws_iam_role_policy.cognito_sms_publish]
 }
 
 resource "aws_cognito_user_pool_client" "mobile" {
@@ -245,12 +251,12 @@ data "aws_iam_policy_document" "cognito_sms_publish" {
     actions   = ["sns:Publish"]
     resources = ["*"]
 
-    # Restrict to SMS, not arbitrary SNS topics.
-    condition {
-      test     = "StringEquals"
-      variable = "sns:Protocol"
-      values   = ["sms"]
-    }
+    # No sns:Protocol condition here on purpose. Cognito statically validates
+    # this policy at CreateUserPool and refuses the pool with
+    # InvalidSmsRoleAccessPolicyException when the grant carries a condition
+    # it cannot evaluate. The role is already assumable only by
+    # cognito-idp.amazonaws.com for user pools in this account (see
+    # cognito_sms_assume), so the blast radius is our own pools sending SMS.
   }
 }
 

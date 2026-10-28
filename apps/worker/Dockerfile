@@ -29,4 +29,8 @@ COPY --from=builder /app/package.json ./
 
 EXPOSE 8080
 
-CMD ["node", "apps/worker/dist/index.js"]
+# dist/index.js only re-exports buildApp (see src/index.ts) — it starts nothing,
+# so the process exited 0 immediately and the API's startup assertion
+# (assertWorkerReachable, A1) then killed the api task. The worker's own start
+# script is `node dist/server.js`.
+CMD ["node", "apps/worker/dist/server.js"]

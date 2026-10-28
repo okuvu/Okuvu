@@ -190,7 +190,7 @@ resource "aws_ecs_service" "portal" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lb_listener_rule" "portal_https" {
-  count = local.alb_certificate_arn == "" ? 0 : 1
+  count = local.https_enabled ? 1 : 0
 
   listener_arn = aws_lb_listener.https[0].arn
   priority     = 10
@@ -213,7 +213,7 @@ resource "aws_lb_listener_rule" "portal_https" {
 }
 
 resource "aws_lb_listener_rule" "portal_http" {
-  count = local.alb_certificate_arn == "" ? 1 : 0
+  count = local.https_enabled ? 0 : 1
 
   listener_arn = aws_lb_listener.http.arn
   priority     = 10

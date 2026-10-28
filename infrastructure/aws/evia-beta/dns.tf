@@ -17,6 +17,11 @@ locals {
     "portal.${var.dns_zone_name}",   # therapist portal
   ]
 
+  # Plan-time boolean: counts and for_each cannot depend on the certificate ARN
+  # itself (it is only known after the ACM validation resource applies), so they
+  # key off this instead.
+  https_enabled = var.alb_certificate_arn != "" || var.manage_dns
+
   # Prefer an explicitly supplied certificate; otherwise use the one issued here.
   alb_certificate_arn = (
     var.alb_certificate_arn != ""

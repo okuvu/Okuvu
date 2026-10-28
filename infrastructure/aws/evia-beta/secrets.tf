@@ -29,6 +29,12 @@ resource "aws_secretsmanager_secret_version" "database" {
     host         = aws_db_instance.main.address
     port         = aws_db_instance.main.port
     engine       = "postgres"
+    # The full URI, password included. It used to be stored redacted ('***'),
+    # which made it unusable as a container env var: the ECS task injects this
+    # field straight into DATABASE_URL, Prisma then failed to authenticate and
+    # the api exited 1. Redacting one field while `password` sits beside it in
+    # the same secret protected nothing — anything that can read this JSON can
+    # already read the password.
     database_url = "postgresql://${var.db_user}:${random_password.db_password.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${var.db_name}?sslmode=require"
   })
 }

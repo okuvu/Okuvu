@@ -48,6 +48,10 @@ locals {
     { name = "REDIS_URL", value = "rediss://${aws_elasticache_replication_group.main.primary_endpoint_address}:${var.redis_port}" },
     { name = "CONTACTS_KMS_KEY_ARN", value = aws_kms_key.contacts.arn },
 
+    # apps/api hard-fails at boot if the summary/memory worker is unreachable
+    # (assertWorkerReachable). Cloud Map gives the worker a stable VPC-only name.
+    { name = "WORKER_URL", value = "http://worker.${aws_service_discovery_private_dns_namespace.main.name}:${var.api_container_port}" },
+
     # Models: Bedrock in-region. Nova Pro + Titan Embeddings V2 are the only
     # pair that keeps inference inside ap-south-1 (DPDP residency).
     # LLM_PROVIDER=bedrock is the production backend; leaving it unset would
@@ -138,6 +142,16 @@ resource "aws_ecs_task_definition" "worker" {
       environment = local.shared_environment
       secrets     = local.api_secrets
 
+      # The worker serves /health on the same container port as the api. Without
+      # a declared port it cannot be reached by name (Cloud Map A record + SG).
+      portMappings = [
+        {
+          containerPort = var.api_container_port
+          hostPort      = var.api_container_port
+          protocol      = "tcp"
+        },
+      ]
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -210,6 +224,11 @@ resource "aws_ecs_service" "worker" {
     subnets          = local.private_subnet_ids
     security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = false
+  }
+
+  # Publishes each worker task as worker.<namespace> so the api can resolve it.
+  service_registries {
+    registry_arn = aws_service_discovery_service.worker.arn
   }
 
   tags = merge(local.common_tags, {

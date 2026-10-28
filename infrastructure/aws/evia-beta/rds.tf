@@ -13,14 +13,24 @@ resource "aws_db_parameter_group" "main" {
   family      = "postgres16"
   description = "evia beta PostgreSQL 16 parameters"
 
+  # max_connections is dynamic, but apply_method defaults to "immediate" and
+  # the provider sends every parameter to ModifyDBParameterGroup in ONE call.
+  # A single immediate parameter makes that batch immediate, which then
+  # rejects the static log_min_duration_statement below. Both must say
+  # pending-reboot or the create fails with InvalidParameterCombination.
   parameter {
-    name  = "max_connections"
-    value = "100"
+    name         = "max_connections"
+    value        = "100"
+    apply_method = "pending-reboot"
   }
 
+  # log_min_duration_statement is a *static* parameter in PostgreSQL: it can
+  # only be set with apply_method = pending-reboot. The default (immediate)
+  # is rejected by ModifyDBParameterGroup with InvalidParameterCombination.
   parameter {
-    name  = "log_min_duration_statement"
-    value = "1000"
+    name         = "log_min_duration_statement"
+    value        = "1000"
+    apply_method = "pending-reboot"
   }
 
   tags = merge(local.common_tags, {

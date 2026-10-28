@@ -47,10 +47,11 @@ data "aws_iam_policy_document" "ecs_execution" {
       "secretsmanager:DescribeSecret",
     ]
 
-    # The portal's secrets are read by the same execution role: NextAuth's
-    # signing key, its Cognito client secret, and the optional Brevo key.
+    # Every secret any container injects must be listed here: the worker fails
+    # to start with AccessDenied on worker-internal-auth otherwise.
     resources = [
       aws_secretsmanager_secret.database.arn,
+      aws_secretsmanager_secret.worker_internal_auth.arn,
       aws_secretsmanager_secret.nextauth_secret.arn,
       aws_secretsmanager_secret.portal_cognito_client.arn,
       aws_secretsmanager_secret.brevo.arn,
