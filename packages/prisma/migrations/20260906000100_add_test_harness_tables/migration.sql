@@ -3,9 +3,9 @@
 -- never committed as migrations. `prisma migrate deploy` on a clean database
 -- therefore failed at 20260906120000_add_test_run_canned_flag with
 --   42P01 relation "TestRun" does not exist
--- This migration creates exactly those tables, immediately before the first
--- migration that references them, so the history applies cleanly from empty.
--- DDL is generated from schema.prisma, not hand-written.
+-- The DDL is generated from schema.prisma and then rewound to the shape these
+-- tables had at this point in history: every column, index and constraint that
+-- a LATER migration adds is stripped out here, so those migrations still apply.
 
 -- CreateEnum
 CREATE TYPE "TestEnvironment" AS ENUM ('sandbox', 'staging', 'beta');
@@ -30,7 +30,6 @@ CREATE TABLE "ModelConfigPin" (
     "id" TEXT NOT NULL,
     "environment" "TestEnvironment" NOT NULL,
     "model_version" TEXT NOT NULL,
-    "provider" TEXT NOT NULL DEFAULT 'gemini',
     "prompt_hash" TEXT NOT NULL,
     "temperature" DOUBLE PRECISION NOT NULL,
     "safety_settings" TEXT NOT NULL,
@@ -64,16 +63,6 @@ CREATE TABLE "TestRun" (
     "status" "TestRunStatus" NOT NULL,
     "frozen_triple" JSONB NOT NULL,
     "results" JSONB NOT NULL,
-    "canned" BOOLEAN NOT NULL DEFAULT false,
-    "build_sha" TEXT,
-    "corpus_version" TEXT,
-    "run_mode" TEXT,
-    "persona_id" TEXT,
-    "persona_version" TEXT,
-    "simulator_model" TEXT,
-    "session_index" INTEGER,
-    "turn_in_session" INTEGER,
-    "gap_before_ms" INTEGER,
     "activated_agents" TEXT[],
     "manually_selected_agents" TEXT[],
     "dependency_graph" JSONB NOT NULL,
@@ -110,14 +99,6 @@ CREATE TABLE "CorpusCase" (
     "tags" TEXT[],
     "supersedes_id" TEXT,
     "data_origin" "CorpusDataOrigin" NOT NULL DEFAULT 'synthetic',
-    "seed_id" TEXT,
-    "adjudication_required" BOOLEAN NOT NULL DEFAULT false,
-    "language_mode" TEXT,
-    "homework_context" TEXT,
-    "toolkit" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "therapist_name" TEXT,
-    "turns" JSONB,
-    "persona_meta" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -210,9 +191,6 @@ CREATE INDEX "TestResultRow_run_id_idx" ON "TestResultRow"("run_id");
 
 -- CreateIndex
 CREATE INDEX "CorpusCase_type_created_at_idx" ON "CorpusCase"("type", "created_at" DESC);
-
--- CreateIndex
-CREATE INDEX "CorpusCase_seed_id_idx" ON "CorpusCase"("seed_id");
 
 -- CreateIndex
 CREATE INDEX "BlindedReviewItem_run_id_idx" ON "BlindedReviewItem"("run_id");
