@@ -103,6 +103,12 @@ resource "aws_ecs_task_definition" "api" {
 
       environment = concat(local.shared_environment, [
         { name = "PORT", value = tostring(var.api_container_port) },
+        # E15-S4: images are tagged with the git commit SHA, so var.image_tag
+        # *is* the deployed commit. Exposing it lets GET /health prove which
+        # build the ALB is serving without opening the console. The build
+        # pipeline rewrites task definitions with scripts/ecs-image-pin.py,
+        # which keeps this value in step with the tag it pins.
+        { name = "GIT_COMMIT", value = var.image_tag },
       ])
       secrets = local.api_secrets
 
