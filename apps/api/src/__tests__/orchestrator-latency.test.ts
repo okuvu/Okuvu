@@ -34,21 +34,28 @@ vi.mock('../pipeline/session.js', () => ({
   getSessionConversationTurns: vi.fn(),
 }));
 
-vi.mock('../lib/prisma.js', () => ({
-  prisma: {
-    sessionLog: { findUnique: vi.fn(), update: vi.fn() },
-    turn: {
-      createMany: vi.fn(),
-      findFirst: vi.fn(),
-      create: vi.fn(),
+// E17-S4: the pipeline appends one row to the audit chain per turn
+// (`lib/audit-log.ts`). Without a delegate here every turn would log
+// `audit_append_failed` and the chain path would go untested in this suite.
+vi.mock('../lib/prisma.js', async () => {
+  const { makeAuditEventDelegate } = await import('./helpers/in-memory-audit-event.js');
+  return {
+    prisma: {
+      sessionLog: { findUnique: vi.fn(), update: vi.fn() },
+      turn: {
+        createMany: vi.fn(),
+        findFirst: vi.fn(),
+        create: vi.fn(),
+      },
+      safetyState: { upsert: vi.fn() },
+      clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
+      governanceLog: { create: vi.fn() },
+      user: { findUnique: vi.fn() },
+      $transaction: vi.fn(() => Promise.resolve([{ id: 'user-turn-1' }, { id: 'assistant-turn-1' }])),
+      auditEvent: makeAuditEventDelegate(),
     },
-    safetyState: { upsert: vi.fn() },
-    clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
-    governanceLog: { create: vi.fn() },
-    user: { findUnique: vi.fn() },
-    $transaction: vi.fn(() => Promise.resolve([{ id: 'user-turn-1' }, { id: 'assistant-turn-1' }])),
-  },
-}));
+  };
+});
 
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';

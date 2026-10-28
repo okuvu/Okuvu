@@ -71,11 +71,64 @@ export const BUDGET_PAUSED_RESPONSE =
   "the Vandrevala Foundation on 1860-2662-345, any time. " +
   "I'll be ready to pick this up with you again soon."
 
+// ─── E17-S4 — the two paths a technical failure must land on ────────────────
+//
+// The pipeline can lose its model in two different places, and until now both
+// collapsed into the same generic supportive sentence ("I'm here to support
+// you. Could you tell me more about how you're feeling?" — `SAFE_FALLBACK` in
+// lib/canned-response.ts). E17-S1 §7 and E17-S2 §465 logged that as the gap
+// this story closes: the user could not tell a served turn from an unserved
+// one, and a crisis disclosure that arrived while the classifier was down was
+// answered with chat.
+//
+// Both constants below are held to the same block-response contract as every
+// other substitute in this file (hold the thread, no machinery talk, no
+// micro-technique, ask nothing diagnostic), and both name the approved
+// helplines, because the one case a degraded turn must never fail is a user in
+// distress arriving on a turn we cannot fully serve. Clinical sign-off on the
+// words is the same open item noted above and at CRISIS_RESPONSE.
+
+// A1 could not classify AND the deterministic screen found no crisis phrasing.
+// We are therefore about to answer a turn whose risk we never assessed. The
+// only honest answer is a static one: no model prose, no therapy, and a door
+// held open. Skipping A2 entirely is the point — an ungated model reply is the
+// fail-open outcome this constant exists to prevent.
+export const SAFETY_UNAVAILABLE_RESPONSE =
+  "I'm still here with you. " +
+  "I can't check in on how you're doing the way I usually do right now, and I'd rather say that " +
+  "plainly than answer you without knowing. " +
+  "If things are feeling like too much in the meantime, please reach out to iCall on 9152987821 " +
+  "or the Vandrevala Foundation on 1860-2662-345, any time. " +
+  "I'm not going anywhere."
+
+// A1 classified the turn fine, but the model that writes the reply is
+// unreachable (throttled, timed out, or erroring). The safety decision was
+// made; only the reply is missing, so this copy does not re-open the safety
+// question — it stops short of pretending to have answered.
+export const MODEL_UNAVAILABLE_RESPONSE =
+  "I'm here with you, and I'm listening. " +
+  "Something on my side isn't working properly just now, so I don't want to answer you with " +
+  "words I can't stand behind. " +
+  "If it's feeling heavy in the meantime, iCall on 9152987821 or the Vandrevala Foundation on " +
+  "1860-2662-345 are there any time. " +
+  "Say it again whenever you're ready — I'll still be here."
+
+
 // Deterministic substitute selector. `safetyState` is the A1 state this turn
 // was classified at (the orchestrator passes what it has; block paths pass
 // the same state they were gated on).
 export function getSafeFallback(safetyState: string): string {
   return safetyState === 'S2' ? A9_POST_S2_FALLBACK : A9_POST_DEGRADED_RESPONSE
+}
+
+/**
+ * E17-S4 — what the user gets when A1 made its decision but the model that
+ * writes the reply did not answer. At S2 (elevated risk) the steadier
+ * `A9_POST_S2_FALLBACK` still wins: an elevated-risk turn whose reply failed
+ * should ask even less of the user, not more.
+ */
+export function getModelUnavailableFallback(safetyState: string): string {
+  return safetyState === 'S2' ? A9_POST_S2_FALLBACK : MODEL_UNAVAILABLE_RESPONSE
 }
 
 // OKUVU v2.0: A1 classified this turn S3 (elevated risk — hopelessness,

@@ -81,6 +81,15 @@ export interface GenerateContentResult {
   fallbackUsed: boolean;
   failureReason?: 'timeout' | 'api_error';
   /**
+   * E17-S4 — *why* the call failed, at the granularity that changes behaviour:
+   * 'timeout' (no answer in time), 'throttled' (Bedrock is rate limiting this
+   * account — transient) or 'unavailable' (anything else: missing model,
+   * malformed request, service error). All three fail closed the same way; this
+   * field is what makes the difference visible in the reply's fallback source
+   * and in the logs, which neither E17-S1 nor E17-S2 could do.
+   */
+  failureKind?: import('./llm-failure.js').LlmFailureKind;
+  /**
    * The bare model id this call resolved to (e.g. 'amazon.nova-pro-v1:0') —
    * present even in canned mode, reporting what *would* have been used.
    * Callers persisting this as provenance (e.g. Turn.model_version) must check

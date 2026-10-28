@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateContent } from '../lib/openrouter.js';
+import { SAFE_FALLBACK } from '../lib/llm-types.js';
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return {
@@ -70,12 +71,13 @@ describe('openrouter generateContent (worker)', () => {
       contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
     });
 
-    expect(result.text).toBe('');
+    // E17-S4: the curated sentence, not '' — see lib/llm-types.ts SAFE_FALLBACK.
+    expect(result.text).toBe(SAFE_FALLBACK);
     expect(result.fallbackUsed).toBe(true);
     expect(result.failureReason).toBe('api_error');
   });
 
-  it('returns an empty, fallback result when choices/message content is empty', async () => {
+  it('returns a fallback result when choices/message content is empty', async () => {
     global.fetch = vi.fn().mockResolvedValue(jsonResponse({ choices: [{ finish_reason: 'content_filter' }] }));
 
     const result = await generateContent({
@@ -83,7 +85,7 @@ describe('openrouter generateContent (worker)', () => {
       contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
     });
 
-    expect(result.text).toBe('');
+    expect(result.text).toBe(SAFE_FALLBACK);
     expect(result.fallbackUsed).toBe(true);
     expect(result.failureReason).toBe('api_error');
   });
@@ -97,7 +99,7 @@ describe('openrouter generateContent (worker)', () => {
       timeoutMs: 5,
     });
 
-    expect(result.text).toBe('');
+    expect(result.text).toBe(SAFE_FALLBACK);
     expect(result.fallbackUsed).toBe(true);
     expect(result.failureReason).toBe('timeout');
   });

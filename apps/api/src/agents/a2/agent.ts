@@ -94,6 +94,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     signal: parsed.signal,
     fallbackUsed: result.fallbackUsed,
     failureReason: result.failureReason,
+    failureKind: result.failureKind,
     modelVersion: result.model,
     promptVersion: A2_PROMPT_VERSION,
     canned: result.canned,

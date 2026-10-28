@@ -123,7 +123,48 @@ export interface AgentTurnFrame {
      * with ERROR) nothing at all. The machine-readable code travels alongside.
      */
     budget?: BudgetNotice
+    /**
+     * E17-S4 — present only when `message` is a governed safety substitute
+     * rather than model output: the classifier was unreachable
+     * (`SAFETY_UNAVAILABLE`) or the reply model was (`MODEL_UNAVAILABLE` /
+     * `MODEL_THROTTLED`).
+     *
+     * Same reasoning as `budget`: the warm, safe line rides `message` so the
+     * client renders it, and the machine-readable code travels here so a
+     * client, a runbook or a test can tell a served turn from a degraded one
+     * without parsing English.
+     */
+    safety?: SafetyNotice
   }
+}
+
+/**
+ * E17-S4 — the structured form of a fail-closed turn.
+ *
+ * Before this, both technical failures reached the user as the same generic
+ * supportive sentence, and nothing on the wire distinguished them from a real
+ * reply (E17-S1 §7, E17-S2 §465). `code` is the machine answer to "what did the
+ * user actually get?"; `reason` is the classifier/model failure underneath it.
+ */
+export type SafetyNoticeCode =
+  | 'CRISIS_FLOOR'
+  | 'SAFETY_UNAVAILABLE'
+  | 'MODEL_UNAVAILABLE'
+  | 'MODEL_THROTTLED'
+
+export interface SafetyNotice {
+  code: SafetyNoticeCode
+  /**
+   * Why the model/classifier call failed: `llm_timeout`, `llm_throttled`,
+   * `llm_api_error` or `llm_parse_failure`. Never model output or message text.
+   */
+  reason: string
+  /**
+   * True when the crisis path was taken because the classifier was unreachable
+   * and the deterministic screen matched. The user is on the crisis path — this
+   * is the audit trail saying how they got there.
+   */
+  crisis_floor?: true
 }
 
 /**
@@ -182,6 +223,13 @@ export interface CrisisSignalFrame {
     // field, but it's included for audit/transcript continuity and for any
     // future client that isn't offline-safe by the same design.
     message: string
+    /**
+     * E17-S4 — present when the crisis path was reached through the
+     * deterministic floor because the classifier was unreachable
+     * (`code: 'CRISIS_FLOOR'`, `crisis_floor: true`). The user's path is
+     * identical either way; this is how the transcript records which one it was.
+     */
+    safety?: SafetyNotice
   }
 }
 
