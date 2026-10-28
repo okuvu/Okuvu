@@ -115,6 +115,56 @@ resource "aws_sns_topic_subscription" "ops_email" {
   endpoint  = var.alarm_notification_email
 }
 
+# Durable sink for every alarm notification.
+#
+# Email subscriptions stay in PendingConfirmation until a human clicks the
+# link, and SNS does not retry a confirmation email that a mail filter eats.
+# A queue subscription is active the moment it is created, so no alarm is
+# ever lost to an unconfirmed mailbox: the message is retained for four days
+# and can be read with
+#   aws sqs receive-message --queue-url <url>
+resource "aws_sqs_queue" "ops_alerts_sink" {
+  name                       = "${var.name_prefix}-ops-alerts-sink"
+  message_retention_seconds  = 345600
+  visibility_timeout_seconds = 30
+  sqs_managed_sse_enabled    = true
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-ops-alerts-sink"
+  })
+}
+
+data "aws_iam_policy_document" "ops_alerts_sink" {
+  statement {
+    sid       = "AllowOpsTopic"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.ops_alerts_sink.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["sns.amazonaws.com"]
+    }
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_sns_topic.ops_alerts.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "ops_alerts_sink" {
+  queue_url = aws_sqs_queue.ops_alerts_sink.id
+  policy    = data.aws_iam_policy_document.ops_alerts_sink.json
+}
+
+resource "aws_sns_topic_subscription" "ops_queue" {
+  topic_arn = aws_sns_topic.ops_alerts.arn
+  protocol  = "sqs"
+  endpoint  = aws_sqs_queue.ops_alerts_sink.arn
+}
+
 resource "aws_cloudwatch_metric_alarm" "api_target_5xx" {
   alarm_name          = "${var.name_prefix}-api-target-5xx"
   alarm_description   = "api is returning 5XX responses to the ALB"
