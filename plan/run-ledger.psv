@@ -1,5 +1,5 @@
 id|epic|title|owner|deps|status|assigned|branch|commit|evidence|verified_at|verified_by|notes
-E15-S1|E15|Merge the working branch into develop so develop is deployable|build|-|in_review|A-ci|feat/develop-merge|33e0a39|evidence/E15-S1.md|||merge ready (326 paths auto-merged, 2 conflicts). Local gate: 1624 passed / 0 failed, typecheck 0. develop NOT pushed. AC needs a green CodeBuild on develop.
+E15-S1|E15|Merge the working branch into develop so develop is deployable|build|-|verified|A-ci|develop|41c5a5a|evidence/E15-S1.md|2026-10-28T16:02Z|orchestrator|develop=41c5a5a pushed. Build a5ffe726 on develop SUCCEEDED end-to-end; ECR tags 41c5a5a9862b on all three repos; all three services rolled to that SHA, 1/1 each, COMPLETED; api and portal health 200.
 E15-S2|E15|Push to develop starts a build with no manual step|build|E15-S1|not_started|||||||
 E15-S3|E15|Green build deploys to ECS automatically with a tested rollback|build|E15-S2,E15-S4|not_started|||||||
 E15-S4|E15|The api service is healthy behind the load balancer|build|E15-S1|not_started|||||||
@@ -7,19 +7,19 @@ E15-S5|E15|Terraform owns every beta resource|build|E15-S4|not_started|||||||
 E15-S6|E15|Logs, alarms and cost guard are real|ops|E15-S4|not_started|||||||
 E16-S1|E16|okuvu.in and www.okuvu.in resolve to the load balancer|build|E15-S4|not_started|||||||
 E16-S2|E16|Apex and www route to the therapist portal|build|E16-S1|not_started|||||||
-E16-S3|E16|Production Cognito pool with real therapist accounts|build|E15-S4|not_started|||||||
+E16-S3|E16|Production Cognito pool with real therapist accounts|build|E15-S4|in_review|A5-portal|feat/E16-S3-cognito|c3ae129|evidence/E16-S3.md|||Audit found the deployed sign-in was COMPLETELY BROKEN: pool had no hosted domain so /authorize returned raw 400; 0 users. Fix applied by orchestrator: domain okuvu-therapists ACTIVE, /oauth2/authorize now returns 302. Still to do: seed 3 therapist users from SSM + upsert Therapist allowlist rows in-VPC, then browser round-trip.
 E16-S4|E16|Production schema migrated from empty with a pre-migration snapshot|build|E15-S4|not_started|||||||
 E16-S5|E16|The therapist journey runs end to end three times consecutively|build|E16-S3,E16-S4,E17-S4|not_started|||||||
 E16-S6|E16|A restore from snapshot is proven|ops|E16-S4|not_started|||||||
 E16-S7|E16|Security and DPDP checklist signed off|ops|E16-S3|not_started|||||||
-E17-S1|E17|The agent runtime calls Bedrock through the Converse API|build|E15-S4|not_started|||||||
+E17-S1|E17|The agent runtime calls Bedrock through the Converse API|build|E15-S4|verified|A3-runtime|feat/E17-S1-converse|3d08afd|evidence/E17-S1.md|2026-10-28T15:55Z|orchestrator|Converse pinned by 3 tests (mutation check fails 8 tests if swapped to InvokeModel); fail-closed proven at HTTP handler: 200 + SAFE_FALLBACK, never 500. Orchestrator re-ran api 1145 / worker 92 / portal 98 green after merge. Gap logged: worker returns empty text on failure, api returns SAFE_FALLBACK.
 E17-S2|E17|Model access and quotas are verified from the task role|ops|-|verified|A-model|||evidence/E17-S2.md|2026-10-28T15:20Z|orchestrator|model ACTIVE; task-role invoke proven by Fargate probe (reply OK); servicequotas AccessDenied so applied TPM quota UNREAD (published default 100M TPM recorded); throttle -> SAFE_FALLBACK, gap logged for E17-S4.
 E17-S3|E17|The agent roster is merged and self-registering|build|E15-S1,E17-S1|not_started|||||||
 E17-S4|E17|The safety core fails closed|build|E17-S3|not_started|||||||
 E17-S5|E17|An evaluation gate is passed and recorded|build|E17-S4|not_started|||||||
 E17-S6|E17|Token and cost budgets are enforced|build|E17-S1|not_started|||||||
 E17-S7|E17|Clinical sign-off on agent copy and technique list|clinical|E17-S5|not_started|||||||
-E18-S1|E18|A real upload keystore replaces the placeholder|decision|-|verified|A-android|feat/E18-S1-keystore|78baf46|evidence/E18-S1.md|2026-10-28T15:20Z|orchestrator|keytool re-read: CN=Okuvu OU=Mobile, 4096-bit RSA, SHA256 54:54:26:...:1A:39 matches agent. Secret evia-beta/android-upload-keystore exists. OUTSTANDING human step: offline backup of keys/okuvu-upload.p12 + password.
+E18-S1|E18|A real upload keystore replaces the placeholder|decision|-|verified|A-android|feat/E18-S1-keystore|78baf46|evidence/E18-S1.md|2026-10-28T18:35Z|orchestrator|keytool re-read by orchestrator from the artefact: CN=Okuvu OU=Mobile O=Okuvu Technologies, 4096-bit RSA, SHA256 54:54:26:...:1A:39, valid to 2054-03-15. Secret evia-beta/android-upload-keystore exists. Evidence re-derived and placed on the orchestrator branch because the child's copy sat on an unmerged branch and was invisible. OUTSTANDING human step: offline backup of keys/okuvu-upload.p12 + password.
 E18-S2|E18|Version bumped and signing switched to the real key|build|E18-S1|not_started|||||||
 E18-S3|E18|Prod app bundle built against the live API|build|E18-S2,E15-S4,E16-S1|not_started|||||||
 E18-S4|E18|Real-device smoke test of the release build|build|E18-S3|not_started|||||||
