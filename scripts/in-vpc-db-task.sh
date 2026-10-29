@@ -34,6 +34,7 @@
 set -euo pipefail
 
 REGION="${AWS_REGION:-ap-south-1}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 NAME_PREFIX="${NAME_PREFIX:-evia-beta}"
 CLUSTER="${NAME_PREFIX}"
@@ -68,15 +69,25 @@ done
 if [ -z "$COMMAND" ] && [ -n "$SQL" ]; then
   # There is no psql in the runtime image; use the pg client that ships with
   # @okuvu/prisma to run the query and print the rows as JSON.
-  COMMAND=$(cat <<'NODE'
+  #
+  # E16-S11: that JSON lands in /ecs/evia-beta/api, so every value passes
+  # through scripts/redact-probe-rows.js first. A probe that selects an email or
+  # a name (scripts/seed-beta-therapists.sql's `RETURNING email, id, name` did
+  # exactly this) used to write personal data into the log group. The redactor
+  # is shipped into the container base64-encoded, because the API image does not
+  # carry the repo's scripts/ directory.
+  REDACT_B64="$(base64 < "${SCRIPT_DIR}/redact-probe-rows.js" | tr -d '\n')"
+  COMMAND=$(cat <<NODE
 cd /app/packages/prisma
+echo "$REDACT_B64" | base64 -d > /tmp/redact-probe-rows.js
 node -e '
 const { Client } = require("pg");
+const { scrub } = require("/tmp/redact-probe-rows.js");
 (async () => {
   const c = new Client({ connectionString: process.env.PG_URL });
   await c.connect();
   const r = await c.query(process.env.IN_VPC_SQL);
-  console.log(JSON.stringify(r.rows));
+  console.log(JSON.stringify(scrub(r.rows)));
   await c.end();
 })().catch((e) => { console.error("SQL_ERROR: " + e.message); process.exit(1); });
 '

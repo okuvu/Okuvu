@@ -151,7 +151,7 @@ export function parseA2Response(raw: string): A2ParsedResponse {
     try {
       signal = JSON.parse(jsonBlock) as S07Signal;
     } catch {
-      console.error({ text: jsonBlock }, 'A2: failed to parse S-07 JSON block');
+      console.error({ chars: jsonBlock.length }, 'A2: failed to parse S-07 JSON block');
     }
   }
 
@@ -161,13 +161,13 @@ export function parseA2Response(raw: string): A2ParsedResponse {
       try {
         signal = JSON.parse(fallback) as S07Signal;
       } catch {
-        console.error({ text: fallback }, 'A2: fallback parse also failed');
+        console.error({ chars: fallback.length }, 'A2: fallback parse also failed');
       }
     }
   }
 
   if (!jsonBlock && !signal) {
-    console.error({ text: raw.slice(0, 200) }, 'A2: no S-07 JSON block found in LLM response');
+    console.error({ chars: raw.length }, 'A2: no S-07 JSON block found in LLM response');
   }
 
   const leakedJson = tryParseJsonFallback(userContent);
@@ -248,7 +248,7 @@ function stripSignalMarkers(text: string): string {
   for (const line of lines) {
     const markerMatch = SIGNAL_MARKER_RE.exec(line) ?? SIGNAL_MARKER_SOFT_RE.exec(line);
     if (markerMatch && markerMatch.index !== undefined) {
-      console.warn({ line: line.slice(0, 120) }, 'A2: improvised signal marker found in user-facing text — truncated everything from it');
+      console.warn({ chars: line.length }, 'A2: improvised signal marker found in user-facing text — truncated everything from it');
       const before = line.slice(0, markerMatch.index).replace(/[—\-–:\s]+$/, '').trim();
       if (before) kept.push(before);
       break;
