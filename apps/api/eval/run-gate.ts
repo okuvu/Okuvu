@@ -51,7 +51,16 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const API_ROOT = resolve(__dirname, '..');
-const REPO_ROOT = resolve(API_ROOT, '../..');
+
+/** Repo root from git itself — a hard-coded `../../..` is wrong the moment this moves. */
+function repoRoot(): string {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: API_ROOT, encoding: 'utf-8' }).trim();
+  } catch {
+    return API_ROOT;
+  }
+}
+const REPO_ROOT = repoRoot();
 const PROMPT_FILE = join(API_ROOT, 'src/prompts/a2-okuvu-v2.1.txt');
 
 // Production inference defaults — must stay identical to lib/bedrock.ts
