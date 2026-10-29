@@ -17,12 +17,12 @@ Every event body is tested against the patterns below. A hit is recorded per
                     literal. Catches the pre-fix `[AUTH] Successful sign-in:
                     <email>` line and the DB-probe JSON rows.
 
-  phone-e164        `(?<![\\w+])\\+[1-9]\\d{1,3}[\\s-]?\\d{6,14}(?![\\w])`
-                    Leading `+` country code, 7-15 digits total (ITU E.164
-                    ceiling). The lookarounds stop it matching inside a longer
-                    token. Formatted Indian mobiles (`+91 98765 43210`) are
-                    covered because one space or dash is allowed after the
-                    country code.
+  phone-e164        `(?<![\\w+])\\+\\d[\\d \\-().]{6,18}\\d(?![\\w])`, kept only when
+                    the match carries 8-15 digits (ITU E.164 ceiling). Written
+                    this way so grouped numbers — `+91 98765 43210`,
+                    `+91-98765-43210` — are caught, while the digit-count guard
+                    rejects timestamps and dates that look similar but never
+                    carry a leading `+`.
 
   phone-in-e164     `(?<![\\w.+-])(?:91)?[6-9]\\d{9}(?![\\w.])`
                     A bare 10-digit Indian mobile (optionally prefixed `91`),
@@ -102,9 +102,23 @@ DEFAULT_NAMES = [
 
 PATTERN_DOCS = [
     ("email-address", r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
-    ("phone-e164", r"(?<![\w+])\+[1-9]\d{1,3}[\s-]?\d{6,14}(?![\w])"),
+    ("phone-e164", r"(?<![\w+])\+\d[\d \-().]{6,18}\d(?![\w])"),
     ("phone-in-e164", r"(?<![\w.+-])(?:91)?[6-9]\d{9}(?![\w.])"),
 ]
+
+
+def e164_like(value: str) -> bool:
+    """Digit-count guard for `phone-e164`: 8-15 digits, per the E.164 ceiling.
+
+    A date or a timestamp can look like a grouped number (`2026-10-29 03:37`),
+    so the shape alone is not enough; a real international number carries at
+    least 8 digits after its `+`.
+    """
+    return 8 <= sum(ch.isdigit() for ch in value) <= 15
+
+
+# Optional per-pattern validator: a match is only a hit when this returns True.
+VALIDATORS = {"phone-e164": e164_like}
 
 
 def ts() -> str:
@@ -147,11 +161,11 @@ def redact_phone(value: str) -> str:
 
 
 def compile_patterns(names, client_names, journal_canaries, note_canaries):
-    """Return [(id, compiled_regex, redactor)] — every hit is fatal."""
+    """Return [(id, compiled_regex, redactor, validator)] — every hit is fatal."""
     pats = []
     for pid, rx in PATTERN_DOCS:
         redactor = redact_email if pid == "email-address" else redact_phone
-        pats.append((pid, re.compile(rx), redactor))
+        pats.append((pid, re.compile(rx), redactor, VALIDATORS.get(pid)))
 
     tokens = set()
     for full in list(names) + list(client_names):
@@ -173,6 +187,7 @@ def compile_patterns(names, client_names, journal_canaries, note_canaries):
                 "person-name",
                 re.compile(r"\b" + re.escape(token) + r"\b", re.I),
                 redact_token,
+                None,
             )
         )
 
@@ -182,7 +197,8 @@ def compile_patterns(names, client_names, journal_canaries, note_canaries):
                 pats.append(
                     ("journal-text" if pid == "journal-text" else "note-text",
                      re.compile(re.escape(canary), re.I),
-                     redact_token)
+                     redact_token,
+                     None)
                 )
     return pats
 
@@ -309,8 +325,10 @@ def main(argv=None) -> int:
                 return 2
         scanned["(files)"] = len(sources)
         for path, lineno, body in sources:
-            for pid, rx, redactor in patterns:
+            for pid, rx, redactor, validator in patterns:
                 for match in rx.finditer(body):
+                    if validator and not validator(match.group(0)):
+                        continue
                     key = (path, lineno, pid)
                     hits.setdefault(key, set()).add(re.sub(r"\s+", " ", match.group(0)))
                     samples.setdefault(pid, []).append(redactor(match.group(0)))
@@ -326,8 +344,10 @@ def main(argv=None) -> int:
             say(f"[{ts()}] {group}: {len(events)} events")
             for ev in events:
                 body = ev.get("message", "")
-                for pid, rx, redactor in patterns:
+                for pid, rx, redactor, validator in patterns:
                     for match in rx.finditer(body):
+                        if validator and not validator(match.group(0)):
+                            continue
                         key = (group, ev.get("eventId") or ev.get("timestamp"), pid)
                         hits.setdefault(key, set()).add(re.sub(r"\s+", " ", match.group(0)))
                         samples.setdefault(pid, []).append(redactor(match.group(0)))
