@@ -11,6 +11,8 @@
  * doesn't block onboarding a client end-to-end.
  */
 
+import { identityRef, redactEmails } from '@/lib/log-identity';
+
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 
 export interface SendInviteEmailParams {
@@ -34,8 +36,11 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<{ 
   `;
 
   if (!apiKey) {
+    // E16-S11: the recipient address is personal data; log the send attempt
+    // against a stable reference instead of the address itself. The invite code
+    // is not personal data and stays — it is how a local send is completed.
     console.warn('[email] BREVO_API_KEY not set — skipping send, invite code logged only', {
-      to: params.to,
+      toRef: identityRef('c', params.to),
       inviteCode: params.inviteCode,
     });
     return { sent: false };
@@ -59,7 +64,10 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<{ 
 
     if (!response.ok) {
       const body = await response.text();
-      console.error('[email] Brevo send failed', { status: response.status, body });
+      console.error('[email] Brevo send failed', {
+        status: response.status,
+        body: redactEmails(body).slice(0, 500),
+      });
       return { sent: false };
     }
 

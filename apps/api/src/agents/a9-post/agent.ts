@@ -90,7 +90,7 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
   try {
     parsed = JSON.parse(resultText);
   } catch {
-    console.info({ raw: resultText }, 'A9-post: invalid JSON, failing closed to BLOCKED');
+    console.info({ chars: resultText.length }, 'A9-post: invalid JSON, failing closed to BLOCKED');
     return { decision: 'BLOCKED', violation_type: 'parse_failure', confidence: 'low', notes: 'parse_failure' };
   }
 
@@ -98,7 +98,7 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
     typeof parsed !== 'object' ||
     parsed === null
   ) {
-    console.info({ raw: resultText }, 'A9-post: non-object response, failing closed to BLOCKED');
+    console.info({ chars: resultText.length }, 'A9-post: non-object response, failing closed to BLOCKED');
     return { decision: 'BLOCKED', violation_type: 'parse_failure', confidence: 'low', notes: 'parse_failure' };
   }
 
