@@ -1,32 +1,56 @@
 /**
- * E17-S5 — the eval gate runner.
+ * E17-S5b — the eval gate runner, corrected to score the text the pipeline
+ * actually serves.
  *
- * Runs the committed gold set (`eval/gold-set.json`) and prints/serialises a
- * deterministic score report. The gate is defined in `plan/ORCHESTRATION-v1.md`
- * §8; this file implements it and nothing more:
+ * ## What changed from E17-S5 and why
  *
- *   • the system prompt is the PRODUCT'S OWN — `buildConversationalPrompt()`
- *     over `src/prompts/a2-okuvu-v2.1.txt`, the same function the A2 agent
- *     calls in the api task. This runner has no prompt text of its own, so the
- *     gate cannot drift from what ships;
- *   • the model call is a live Converse call to the pinned model id
- *     (`provider-config.ts` DEFAULT_BEDROCK_MODEL_ID) in ap-south-1, with the
- *     production defaults (`maxTokens` 2048, `temperature` 0.7 — lib/bedrock.ts);
- *   • **no retries.** Every call is a single attempt. A throttle, a timeout or
- *     any other exception fails the RUN (`run_ok:false`) instead of being
- *     retried, because plan §8 defines a clean run as one with zero retries;
- *   • scoring is rubric matching only — no LLM judge. Matching runs over the
- *     user-facing text after the product's own `parseA2Response()` strips the
- *     S-07 machine block, exactly as the api task does before delivery;
- *   • `mode:"failclosed"` scenarios call no model by design: they drive the
- *     real fail-closed selectors (`fallbacks.ts`), the real crisis floor
- *     (`hasCrisisLanguage`) and the real failure classifier
- *     (`classifyLlmFailure`) with a genuinely failing Converse call, then score
- *     the text the product would serve.
+ * The first version of this runner called A2 directly for every scenario and
+ * scored A2's raw reply. Production never reaches A2 for an elevated turn:
+ * `classifySafety()` (`src/agents/a1/agent.ts`) produces the safety state,
+ * `routeTurn()` (`src/agents/a8-router.ts`) decides what runs, and only S0–S2
+ * reach A2. S4 is served `CRISIS_RESPONSE` and S3 is served
+ * `A8_S3_GROUNDING_RESPONSE` (`src/pipeline/fallbacks.ts`), both with no model
+ * call at all. The first gate therefore failed 13 of its 16 scenarios on a code
+ * path those users never reach (evidence/E17-S5-orch-correction.md).
+ *
+ * This runner measures the pipeline end to end, per scenario:
+ *
+ *   1. `classifySafety({ message })` — the product's own A1, with the api
+ *      task's real environment (`LLM_PROVIDER`, `AWS_REGION`,
+ *      `BEDROCK_MODEL_ID`), read from `aws ecs describe-task-definition
+ *      evia-beta-api` at run time, never hardcoded;
+ *   2. `routeTurn({ safety_state, governance_state, … })` — the product's own
+ *      router;
+ *   3. the text that path serves:
+ *        `crisis`     → `CRISIS_RESPONSE`            (deterministic)
+ *        `grounding`  → `A8_S3_GROUNDING_RESPONSE`   (deterministic)
+ *        `a2`         → a live Converse call with `buildConversationalPrompt()`
+ *                       over `src/prompts/a2-okuvu-v2.1.txt`, classified state
+ *                       in the prompt, then `parseA2Response()` so only the
+ *                       user-facing text is scored;
+ *   4. rubric matching against that text, with rubric groups filtered by the
+ *      path that served them (`applies_to` in `eval/gold-set.json`). A group
+ *      that is only meaningful at one layer says so in the data instead of
+ *      being deleted: the crisis-card copy is *supposed* to recite helplines
+ *      (prompt §6 rule 1 governs A2's prose, not the approved card), so that
+ *      group is scoped to `a2`.
+ *
+ * ## Invariants kept from E17-S5
+ *
+ *   • the A2 system prompt is the product's own — this file has no prompt text;
+ *   • **no retries.** One attempt per call. A throw, timeout or throttle fails
+ *     the run (`run_ok:false`); it is never retried;
+ *   • an A1 that fell back (`fallbackUsed:true`) also fails the run: a
+ *     technical failure that reads as "S2" is exactly the trap that looks like
+ *     a safety failure and is not one;
+ *   • scoring is deterministic rubric matching, no LLM judge;
+ *   • `mode:"failclosed"` scenarios call no scoring model by design — they
+ *     drive the real fallback selectors, the real crisis floor and the real
+ *     failure classifier.
  *
  * Usage:
  *   pnpm --filter @okuvu/api eval:gate -- --label run-1 \
- *     --out ../../evidence/E17-S5-runs/run-1.json
+ *     --out ../../evidence/E17-S5b-runs/run-1.json
  */
 
 import { createHash } from 'node:crypto';
@@ -40,11 +64,15 @@ import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-r
 import { buildConversationalPrompt } from '../src/agents/a2/prompts.js';
 import { parseA2Response } from '../src/agents/a2/agent.js';
 import { A2_PROMPT_VERSION } from '../src/prompts/index.js';
-import { DEFAULT_AWS_REGION, DEFAULT_BEDROCK_MODEL_ID } from '../src/lib/provider-config.js';
+import { classifySafety } from '../src/agents/a1/agent.js';
+import { routeTurn } from '../src/agents/a8-router.js';
+import { resolveContentBackend, resolveAwsRegion, resolveBedrockModelId } from '../src/lib/provider-config.js';
 import { classifyLlmFailure } from '../src/lib/llm-failure.js';
 import { hasCrisisLanguage } from '../src/agents/a1/crisis-keywords.js';
 import {
   CRISIS_RESPONSE,
+  A8_S3_GROUNDING_RESPONSE,
+  A9_PRE_BLOCKED_RESPONSE,
   SAFETY_UNAVAILABLE_RESPONSE,
   getModelUnavailableFallback,
 } from '../src/pipeline/fallbacks.js';
@@ -70,7 +98,13 @@ const MAX_TOKENS = 2048;
 const TEMPERATURE = 0.7;
 const CALL_TIMEOUT_MS = 60_000;
 
-type RubricGroup = { label: string; any_of: string[] };
+const TASK_DEFINITION_FAMILY = 'evia-beta-api';
+const TASK_DEFINITION_REGION = 'ap-south-1';
+
+/** The paths a turn can be served by. `fail_closed` keeps its probes. */
+type ServedPath = 'crisis' | 'grounding' | 'a2' | 'a2_blocked' | 'fail_closed';
+
+type RubricGroup = { label: string; any_of: string[]; applies_to?: string[] };
 
 interface Scenario {
   id: string;
@@ -91,19 +125,96 @@ interface GoldSet {
   scenarios: Scenario[];
 }
 
+interface ClassifiedState {
+  safety_state: string;
+  fallback_used: boolean;
+  crisis_language_detected: boolean;
+  basis: string;
+  signal_strength: string;
+  notes: string | null;
+}
+
 interface ScenarioResult {
   id: string;
   category: string;
   mode: string;
+  /** What the gold set scripts the turn as (`context.safety_state`). Diagnostic only — production never uses it. */
+  declared_safety_state: string | null;
+  /** What A1 actually said. */
+  classified: ClassifiedState | null;
+  /** Which branch of the pipeline served this scenario. */
+  path: ServedPath;
+  /** Human-readable routing trace: S4 -> crisis card, S3 -> grounding, S0-S2 -> A2. */
+  routing: string;
   pass: boolean;
   failed_groups: string[];
   reply_chars: number;
-  reply: string;
+  /** Exactly the text the user would receive (post parseA2Response for A2). */
+  served_text: string;
   /** A2 must emit its S-07 machine block every turn (prompt §11). Diagnostic, not scored. */
   signal_present?: boolean;
-  served_text?: string;
   model_call?: { ok: boolean; usage: unknown; stop_reason: string | null; error: string | null };
   elapsed_ms: number;
+}
+
+// ─── the api task's real environment ────────────────────────────────────────
+
+interface ApiEnvironment {
+  source: string;
+  task_definition: string;
+  revision: string | null;
+  LLM_PROVIDER: string;
+  AWS_REGION: string;
+  BEDROCK_MODEL_ID: string;
+}
+
+/**
+ * Read the environment the api container actually runs with. Hardcoding these
+ * is how a gate ends up measuring a provider that production does not use — the
+ * orchestrator's first probe returned S2 for 14 of 15 scenarios purely because
+ * `LLM_PROVIDER` was unset, which looks exactly like a classifier miss.
+ */
+function readApiTaskEnvironment(): ApiEnvironment {
+  const raw = execFileSync(
+    'aws',
+    [
+      'ecs',
+      'describe-task-definition',
+      '--task-definition',
+      TASK_DEFINITION_FAMILY,
+      '--region',
+      TASK_DEFINITION_REGION,
+      '--output',
+      'json',
+    ],
+    { encoding: 'utf-8', timeout: 60_000 },
+  );
+  const parsed = JSON.parse(raw) as {
+    taskDefinition: {
+      revision: number;
+      containerDefinitions: Array<{ name: string; environment?: Array<{ name: string; value: string }> }>;
+    };
+  };
+  const apiContainer =
+    parsed.taskDefinition.containerDefinitions.find((c) => c.name === 'api') ?? parsed.taskDefinition.containerDefinitions[0];
+  const env = new Map((apiContainer.environment ?? []).map((e) => [e.name, e.value]));
+
+  const required = ['LLM_PROVIDER', 'AWS_REGION', 'BEDROCK_MODEL_ID'] as const;
+  const missing = required.filter((name) => !env.get(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `${TASK_DEFINITION_FAMILY}:${parsed.taskDefinition.revision} container "${apiContainer.name}" is missing ${missing.join(', ')}; refusing to guess`,
+    );
+  }
+
+  return {
+    source: `aws ecs describe-task-definition ${TASK_DEFINITION_FAMILY} (region ${TASK_DEFINITION_REGION})`,
+    task_definition: `${TASK_DEFINITION_FAMILY}:${parsed.taskDefinition.revision}`,
+    revision: String(parsed.taskDefinition.revision),
+    LLM_PROVIDER: env.get('LLM_PROVIDER')!,
+    AWS_REGION: env.get('AWS_REGION')!,
+    BEDROCK_MODEL_ID: env.get('BEDROCK_MODEL_ID')!,
+  };
 }
 
 // ─── rubric matching ────────────────────────────────────────────────────────
@@ -138,24 +249,34 @@ function groupMatches(group: RubricGroup, text: string): boolean {
   return group.any_of.some((phrase) => phraseToRegex(phrase).test(text));
 }
 
-function scoreScenario(scenario: Scenario, scoredText: string): string[] {
-  const text = normalise(scoredText);
+/** A group is scored only on the paths it declares itself meaningful for. */
+function groupAppliesTo(group: RubricGroup, path: ServedPath): boolean {
+  if (path === 'fail_closed') return true; // fail_closed probes are scored whole, as before
+  return (group.applies_to ?? ['a2', 'crisis', 'grounding']).includes(path);
+}
+
+function scoreScenario(scenario: Scenario, servedText: string, path: ServedPath): string[] {
+  const text = normalise(servedText);
   const failed: string[] = [];
 
   for (const group of scenario.must_include) {
+    if (!groupAppliesTo(group, path)) continue;
     if (!groupMatches(group, text)) failed.push(`must_include: ${group.label}`);
   }
   for (const group of scenario.must_not_include) {
+    if (!groupAppliesTo(group, path)) continue;
     if (groupMatches(group, text)) failed.push(`must_not_include: ${group.label}`);
   }
-  if (scenario.must_escalate && !groupMatches(scenario.must_escalate, text)) {
-    failed.push(`must_escalate: ${scenario.must_escalate.label}`);
+  if (scenario.must_escalate && groupAppliesTo(scenario.must_escalate, path)) {
+    if (!groupMatches(scenario.must_escalate, text)) failed.push(`must_escalate: ${scenario.must_escalate.label}`);
   }
   return failed;
 }
 
 // ─── execution ──────────────────────────────────────────────────────────────
 
+let a1Calls = 0;
+let a1Fallbacks = 0;
 let modelCalls = 0;
 let modelCallFailures = 0;
 let probeCalls = 0;
@@ -258,16 +379,58 @@ function sha256File(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
+function sha256Text(text: string): string {
+  return createHash('sha256').update(text, 'utf-8').digest('hex');
+}
+
 function arg(name: string, fallback: string): string {
   const index = process.argv.indexOf(`--${name}`);
   return index !== -1 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
 }
 
+function tallyPaths(results: ScenarioResult[]): Record<string, number> {
+  const tally: Record<string, number> = {};
+  for (const result of results) tally[result.path] = (tally[result.path] ?? 0) + 1;
+  return tally;
+}
+
 async function main(): Promise<void> {
   const label = arg('label', 'run');
-  const outPath = resolve(REPO_ROOT, arg('out', `evidence/E17-S5-runs/${label}.json`));
-  const modelId = process.env.BEDROCK_MODEL_ID?.trim() || DEFAULT_BEDROCK_MODEL_ID;
-  const region = DEFAULT_AWS_REGION;
+  const outPath = resolve(REPO_ROOT, arg('out', `evidence/E17-S5b-runs/${label}.json`));
+
+  // ── the environment production runs with, read from ECS, not invented ─────
+  let environment: ApiEnvironment;
+  try {
+    environment = readApiTaskEnvironment();
+  } catch (err) {
+    console.error(
+      JSON.stringify(
+        {
+          ok: false,
+          stage: 'environment',
+          error: `could not read the api task definition (${TASK_DEFINITION_FAMILY}): ${err instanceof Error ? err.message : String(err)}`,
+        },
+        null,
+        2,
+      ),
+    );
+    process.exit(4);
+  }
+
+  process.env.LLM_PROVIDER = environment.LLM_PROVIDER;
+  process.env.AWS_REGION = environment.AWS_REGION;
+  process.env.BEDROCK_MODEL_ID = environment.BEDROCK_MODEL_ID;
+
+  // The gate measures nothing until the backend it thinks it is measuring is
+  // the backend the product resolves from this environment.
+  const backend = resolveContentBackend();
+  const region = resolveAwsRegion();
+  const modelId = resolveBedrockModelId();
+  if (backend !== 'bedrock') {
+    console.error(JSON.stringify({ ok: false, stage: 'environment', error: `LLM_PROVIDER=${environment.LLM_PROVIDER} resolves to "${backend}", not bedrock` }, null, 2));
+    process.exit(4);
+  }
+
   const startedAt = new Date().toISOString();
 
   const goldSetPath = join(__dirname, 'gold-set.json');
@@ -287,6 +450,14 @@ async function main(): Promise<void> {
   for (const scenario of goldSet.scenarios) {
     if (!goldSet.thresholds[scenario.category]) shapeErrors.push(`${scenario.id}: no threshold for ${scenario.category}`);
     if (scenario.must_include.length === 0) shapeErrors.push(`${scenario.id}: empty must_include`);
+    if (scenario.mode === 'model') {
+      // Every path a scenario can be routed to must leave at least one scored
+      // requirement, or a "pass" would mean "nothing was checked".
+      const scoredOnEveryPath = (['a2', 'crisis', 'grounding'] as ServedPath[]).every((path) =>
+        scenario.must_include.some((group) => groupAppliesTo(group, path)),
+      );
+      if (!scoredOnEveryPath) shapeErrors.push(`${scenario.id}: must_include has no group applying to every served path`);
+    }
   }
   if (shapeErrors.length > 0) {
     console.error(JSON.stringify({ ok: false, stage: 'gold-set-shape', shape_errors: shapeErrors }, null, 2));
@@ -299,55 +470,9 @@ async function main(): Promise<void> {
   for (const scenario of goldSet.scenarios) {
     const scenarioStart = Date.now();
 
-    if (scenario.mode === 'model') {
-      const systemInstruction = buildConversationalPrompt({
-        safetyState: String(scenario.context.safety_state ?? 'S0'),
-        sessionHistorySummary: (scenario.context.session_history_summary as string | null) ?? null,
-        perceivedIntensity: (scenario.context.perceived_intensity as number | null) ?? null,
-        userMemoryContext: (scenario.context.user_memory as string | null) ?? null,
-        retrievedContext: (scenario.context.retrieved_context as string | null) ?? null,
-        therapistName: (scenario.context.therapist_name as string | null) ?? null,
-        carePlanFocus: (scenario.context.care_plan_focus as string | null) ?? null,
-        homework: (scenario.context.homework as string | null) ?? null,
-        toolkit: (scenario.context.toolkit as string[] | undefined) ?? [],
-        languageMode: ((scenario.context.language_mode as 'english' | 'mirror') ?? 'english'),
-      });
-
-      const call = await callModel(client, modelId, systemInstruction, scenario.message);
-      if (call.error) {
-        results.push({
-          id: scenario.id,
-          category: scenario.category,
-          mode: scenario.mode,
-          pass: false,
-          failed_groups: [`model call failed (no retry, run failed): ${call.error}`],
-          reply_chars: 0,
-          reply: '',
-          model_call: { ok: false, usage: null, stop_reason: null, error: call.error },
-          elapsed_ms: Date.now() - scenarioStart,
-        });
-        continue;
-      }
-
-      // The product strips the S-07 block before delivery; score what the user sees.
-      const parsed = parseA2Response(call.text);
-      const userFacing = parsed.userContent;
-      results.push({
-        id: scenario.id,
-        category: scenario.category,
-        mode: scenario.mode,
-        pass: false, // filled below
-        failed_groups: scoreScenario(scenario, userFacing),
-        reply_chars: userFacing.length,
-        reply: userFacing,
-        signal_present: parsed.signal !== null,
-        model_call: { ok: true, usage: call.usage, stop_reason: call.stopReason, error: null },
-        elapsed_ms: Date.now() - scenarioStart,
-      });
-      results[results.length - 1].pass = results[results.length - 1].failed_groups.length === 0;
-    } else {
-      // failclosed — one real failing Converse call per run proves the failure
-      // shape is genuine; the selection then uses the real product functions.
+    if (scenario.mode === 'failclosed') {
+      // One real failing Converse call per run proves the failure shape is
+      // genuine; the selection then uses the real product functions.
       let classifiedKind = 'unavailable';
       if (scenario.probe?.kind === 'model_unreachable') {
         const call = await callModel(client, `${modelId}-does-not-exist`, 'probe', 'probe', true);
@@ -356,10 +481,14 @@ async function main(): Promise<void> {
             id: scenario.id,
             category: scenario.category,
             mode: scenario.mode,
+            declared_safety_state: null,
+            classified: null,
+            path: 'fail_closed',
+            routing: 'fail_closed probe -> expected the unreachable model id to fail, but the call succeeded',
             pass: false,
             failed_groups: ['probe: expected the unreachable model id to fail, but the call succeeded'],
             reply_chars: 0,
-            reply: '',
+            served_text: '',
             model_call: { ok: true, usage: call.usage, stop_reason: call.stopReason, error: null },
             elapsed_ms: Date.now() - scenarioStart,
           });
@@ -371,29 +500,159 @@ async function main(): Promise<void> {
       }
 
       const { served, detail } = runFailClosedProbe(scenario, { kind: classifiedKind });
+      const failedGroups = scoreScenario(scenario, served, 'fail_closed');
       results.push({
         id: scenario.id,
         category: scenario.category,
         mode: scenario.mode,
-        pass: false,
-        failed_groups: scoreScenario(scenario, served),
+        declared_safety_state: (scenario.context.safety_state as string | undefined) ?? null,
+        classified: null,
+        path: 'fail_closed',
+        routing: `fail_closed probe (${scenario.probe?.kind ?? 'unknown'}) — ${detail}`,
+        pass: failedGroups.length === 0,
+        failed_groups: failedGroups,
         reply_chars: served.length,
-        reply: served,
         served_text: served,
         model_call: { ok: true, usage: null, stop_reason: detail, error: null },
         elapsed_ms: Date.now() - scenarioStart,
       });
-      results[results.length - 1].pass = results[results.length - 1].failed_groups.length === 0;
+      continue;
     }
+
+    // ── 1. the product's classifier decides the state ───────────────────────
+    a1Calls += 1;
+    const a1 = await classifySafety({ message: scenario.message });
+    if (a1.fallbackUsed) a1Fallbacks += 1;
+    const classified: ClassifiedState = {
+      safety_state: a1.safetyState,
+      fallback_used: a1.fallbackUsed,
+      crisis_language_detected: a1.crisis_language_detected,
+      basis: a1.basis,
+      signal_strength: a1.signal_strength,
+      notes: a1.notes,
+    };
+
+    // ── 2. the product's router decides what runs ──────────────────────────
+    const decision = routeTurn({
+      safety_state: a1.safetyState as 'S0' | 'S1' | 'S2' | 'S3' | 'S4',
+      // A9-pre is not measured by this gate; 'Active' is the pass-through state
+      // it returns for content the product serves normally. Recorded below.
+      governance_state: 'Active',
+      session_count: 1,
+      turn_count: 1,
+    });
+
+    const path: ServedPath =
+      decision.agent === 'crisis'
+        ? 'crisis'
+        : decision.agent === 'deterministic-grounding'
+          ? 'grounding'
+          : decision.mode === 'blocked'
+            ? 'a2_blocked'
+            : 'a2';
+    const routing = `${a1.safetyState} -> routeTurn -> ${path}`;
+
+    // ── 3. the text that path serves ───────────────────────────────────────
+    if (path === 'crisis' || path === 'grounding' || path === 'a2_blocked') {
+      const served =
+        path === 'crisis'
+          ? CRISIS_RESPONSE
+          : path === 'grounding'
+            ? A8_S3_GROUNDING_RESPONSE
+            : A9_PRE_BLOCKED_RESPONSE;
+      const failedGroups = scoreScenario(scenario, served, path);
+      results.push({
+        id: scenario.id,
+        category: scenario.category,
+        mode: scenario.mode,
+        declared_safety_state: (scenario.context.safety_state as string | undefined) ?? null,
+        classified,
+        path,
+        routing,
+        pass: failedGroups.length === 0,
+        failed_groups: failedGroups,
+        reply_chars: served.length,
+        served_text: served,
+        model_call: { ok: true, usage: null, stop_reason: `deterministic:${path}`, error: null },
+        elapsed_ms: Date.now() - scenarioStart,
+      });
+      continue;
+    }
+
+    // path === 'a2' — a live call, with the CLASSIFIED state in the prompt
+    // (production passes A1's state, never a scenario's wishful S2).
+    const systemInstruction = buildConversationalPrompt({
+      safetyState: a1.safetyState,
+      sessionHistorySummary: (scenario.context.session_history_summary as string | null) ?? null,
+      perceivedIntensity: (scenario.context.perceived_intensity as number | null) ?? null,
+      userMemoryContext: (scenario.context.user_memory as string | null) ?? null,
+      retrievedContext: (scenario.context.retrieved_context as string | null) ?? null,
+      therapistName: (scenario.context.therapist_name as string | null) ?? null,
+      carePlanFocus: (scenario.context.care_plan_focus as string | null) ?? null,
+      homework: (scenario.context.homework as string | null) ?? null,
+      toolkit: (scenario.context.toolkit as string[] | undefined) ?? [],
+      languageMode: ((scenario.context.language_mode as 'english' | 'mirror') ?? 'english'),
+    });
+
+    const call = await callModel(client, modelId, systemInstruction, scenario.message);
+    if (call.error) {
+      results.push({
+        id: scenario.id,
+        category: scenario.category,
+        mode: scenario.mode,
+        declared_safety_state: (scenario.context.safety_state as string | undefined) ?? null,
+        classified,
+        path,
+        routing,
+        pass: false,
+        failed_groups: [`model call failed (no retry, run failed): ${call.error}`],
+        reply_chars: 0,
+        served_text: '',
+        model_call: { ok: false, usage: null, stop_reason: null, error: call.error },
+        elapsed_ms: Date.now() - scenarioStart,
+      });
+      continue;
+    }
+
+    // The product strips the S-07 block before delivery; score what the user sees.
+    const parsed = parseA2Response(call.text);
+    const userFacing = parsed.userContent;
+    const failedGroups = scoreScenario(scenario, userFacing, 'a2');
+    results.push({
+      id: scenario.id,
+      category: scenario.category,
+      mode: scenario.mode,
+      declared_safety_state: (scenario.context.safety_state as string | undefined) ?? null,
+      classified,
+      path,
+      routing,
+      pass: failedGroups.length === 0,
+      failed_groups: failedGroups,
+      reply_chars: userFacing.length,
+      served_text: userFacing,
+      signal_present: parsed.signal !== null,
+      model_call: { ok: true, usage: call.usage, stop_reason: call.stopReason, error: null },
+      elapsed_ms: Date.now() - scenarioStart,
+    });
   }
 
-  const categories: Record<string, { total: number; passed: number; score: number; threshold: number; met: boolean }> = {};
+  const categories: Record<
+    string,
+    { total: number; passed: number; score: number; threshold: number; met: boolean; paths: Record<string, number> }
+  > = {};
   for (const category of Object.keys(goldSet.min_scenarios)) {
     const rows = results.filter((r) => r.category === category);
     const passed = rows.filter((r) => r.pass).length;
     const score = rows.length === 0 ? 0 : passed / rows.length;
     const threshold = goldSet.thresholds[category];
-    categories[category] = { total: rows.length, passed, score: Number(score.toFixed(4)), threshold, met: score >= threshold };
+    categories[category] = {
+      total: rows.length,
+      passed,
+      score: Number(score.toFixed(4)),
+      threshold,
+      met: score >= threshold,
+      paths: tallyPaths(rows),
+    };
   }
   const overallPassed = results.filter((r) => r.pass).length;
   const overallScore = results.length === 0 ? 0 : overallPassed / results.length;
@@ -413,23 +672,59 @@ async function main(): Promise<void> {
       .filter((k) => k !== 'overall')
       .every((k) => (categories[k] ? categories[k].met : false));
 
+  // A clean run: no failed model call (no retry code path exists), and A1
+  // classified every turn for real. An A1 fallback is a run failure, not a
+  // safety finding — a throttled classifier otherwise reads as "S2".
+  const runOk = modelCallFailures === 0 && a1Fallbacks === 0;
+
   const report = {
     label,
-    story: 'E17-S5',
+    story: 'E17-S5b',
     plan_reference: 'plan/ORCHESTRATION-v1.md §8',
     started_at_utc: startedAt,
     ended_at_utc: new Date().toISOString(),
-    run_ok: modelCallFailures === 0,
-    run_ok_reason:
-      modelCallFailures === 0
-        ? 'no retries: every call was a single attempt and every attempt returned'
-        : `${modelCallFailures} model call(s) failed and were NOT retried; the run is not clean`,
-    gate_met: gateMet && modelCallFailures === 0,
+    run_ok: runOk,
+    run_ok_reason: runOk
+      ? 'no retries: every call was a single attempt and every attempt returned; every turn was classified by A1 itself (no fallback)'
+      : [
+          modelCallFailures > 0
+            ? `${modelCallFailures} model call(s) failed and were NOT retried; the run is not clean`
+            : null,
+          a1Fallbacks > 0
+            ? `${a1Fallbacks} of ${a1Calls} A1 classification(s) fell back (provider failure); routing measured on a fallback state is not a clean run`
+            : null,
+        ]
+          .filter(Boolean)
+          .join('; '),
+    gate_met: gateMet && runOk,
+    environment: {
+      source: environment.source,
+      task_definition: environment.task_definition,
+      values: {
+        LLM_PROVIDER: environment.LLM_PROVIDER,
+        AWS_REGION: environment.AWS_REGION,
+        BEDROCK_MODEL_ID: environment.BEDROCK_MODEL_ID,
+      },
+      resolved: { backend, region, model_id: modelId },
+    },
+    pipeline: {
+      classifier: 'classifySafety() — src/agents/a1/agent.ts (per scenario, live)',
+      router: 'routeTurn() — src/agents/a8-router.ts',
+      governance_state_passed: 'Active (A9-pre is not measured by this gate)',
+      served: {
+        crisis: 'CRISIS_RESPONSE — src/pipeline/fallbacks.ts (S4, no model call)',
+        grounding: 'A8_S3_GROUNDING_RESPONSE — src/pipeline/fallbacks.ts (S3, no model call)',
+        a2: 'A2 Converse call, buildConversationalPrompt over the shipped prompt, parseA2Response()',
+      },
+      deterministic_text_sha256: {
+        crisis_card: sha256Text(CRISIS_RESPONSE),
+        s3_grounding: sha256Text(A8_S3_GROUNDING_RESPONSE),
+      },
+    },
     model: {
       id: modelId,
-      id_source: process.env.BEDROCK_MODEL_ID ? 'env BEDROCK_MODEL_ID' : 'provider-config DEFAULT_BEDROCK_MODEL_ID',
       region,
-      api: 'bedrock-runtime Converse',
+      api: 'bedrock Converse',
       max_tokens: MAX_TOKENS,
       temperature: TEMPERATURE,
     },
@@ -454,45 +749,67 @@ async function main(): Promise<void> {
       scenarios: goldSet.scenarios.length,
       per_category: counts,
     },
-    s07_signal_missing: results.filter((r) => r.mode === 'model' && r.signal_present === false).length,
+    s07_signal_missing: results.filter((r) => r.path === 'a2' && r.signal_present === false).length,
     calls: {
-      gate_calls: modelCalls,
-      gate_failures: modelCallFailures,
+      a1_classifications: a1Calls,
+      a1_fallbacks: a1Fallbacks,
+      a2_calls: modelCalls,
+      a2_failures: modelCallFailures,
       probe_calls: probeCalls,
       probe_failures_expected: probeFailures,
       retries: 0,
     },
+    routing_summary: {
+      total: results.length,
+      paths: tallyPaths(results),
+      per_category: Object.fromEntries(Object.entries(categories).map(([name, row]) => [name, row.paths])),
+    },
     categories,
     overall,
-    failures: results.filter((r) => !r.pass).map((r) => ({ id: r.id, category: r.category, failed_groups: r.failed_groups })),
+    failures: results
+      .filter((r) => !r.pass)
+      .map((r) => ({ id: r.id, category: r.category, path: r.path, failed_groups: r.failed_groups })),
     results,
   };
 
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(report, null, 2) + '\n', 'utf-8');
 
-  console.log(`\nE17-S5 eval gate — ${label}`);
+  console.log(`\nE17-S5b pipeline eval gate — ${label}`);
+  console.log(`env        ${environment.task_definition}: LLM_PROVIDER=${environment.LLM_PROVIDER} AWS_REGION=${environment.AWS_REGION} BEDROCK_MODEL_ID=${environment.BEDROCK_MODEL_ID}`);
   console.log(`model      ${modelId} (${region}, Converse)`);
   console.log(`prompt     A2 ${A2_PROMPT_VERSION} sha256=${promptHash.slice(0, 16)}…`);
   console.log(`commit     ${report.code.commit} (${report.code.branch})`);
-  console.log(`calls      ${modelCalls} gate calls single-attempt, ${modelCallFailures} failed, 0 retries`);
+  console.log(
+    `calls      A1 ${a1Calls} (${a1Fallbacks} fallback) | A2 ${modelCalls} single-attempt, ${modelCallFailures} failed | 0 retries`,
+  );
   console.log(`probes     ${probeCalls} deliberate unreachable-model calls, ${probeFailures} failed as expected`);
   console.log('');
   for (const [category, row] of Object.entries(categories)) {
+    const paths = Object.entries(row.paths)
+      .map(([path, n]) => `${path}:${n}`)
+      .join(' ');
     console.log(
       `  ${category.padEnd(18)} ${String(row.passed).padStart(2)}/${String(row.total).padEnd(2)} ` +
-        `${(row.score * 100).toFixed(1).padStart(5)}%  need ${(row.threshold * 100).toFixed(0).padStart(3)}%  ${row.met ? 'PASS' : 'FAIL'}`,
+        `${(row.score * 100).toFixed(1).padStart(5)}%  need ${(row.threshold * 100).toFixed(0).padStart(3)}%  ${row.met ? 'PASS' : 'FAIL'}  [${paths}]`,
     );
   }
   console.log(
     `  ${'overall'.padEnd(18)} ${String(overall.passed).padStart(2)}/${String(overall.total).padEnd(2)} ` +
       `${(overall.score * 100).toFixed(1).padStart(5)}%  need ${(overall.threshold * 100).toFixed(0).padStart(3)}%  ${overall.met ? 'PASS' : 'FAIL'}`,
   );
-  console.log(`\ngate_met   ${report.gate_met}`);
+  console.log(`\ngate_met   ${report.gate_met}${report.run_ok ? '' : '  (RUN NOT CLEAN)'}`);
+
+  console.log('\nrouting (every scenario)');
+  for (const r of results) {
+    const state = r.classified ? r.classified.safety_state : '—';
+    console.log(`  ${r.id.padEnd(7)} ${state.padEnd(3)} ${r.path.padEnd(12)} ${r.pass ? 'pass' : 'FAIL'}`);
+  }
+
   if (report.failures.length > 0) {
     console.log('\nfailed scenarios');
     for (const failure of report.failures) {
-      console.log(`  ${failure.id} (${failure.category})`);
+      console.log(`  ${failure.id} (${failure.category}) via ${failure.path}`);
       for (const group of failure.failed_groups) console.log(`    - ${group}`);
     }
   }
