@@ -194,9 +194,17 @@ raw = sys.stdin.read().strip()
 if not raw:
     sys.exit(0)
 for m in json.loads(raw).get("Messages", []):
-    body = json.loads(m["Body"])
-    inner = json.loads(body["Message"]) if "Message" in body else body
-    d = inner.get("detail", {})
+    # The sink also carries CloudWatch alarm notifications and any older test
+    # publishes: those are SNS envelopes whose Message is not an EventBridge
+    # event, and an older one sitting in the queue must not abort the read.
+    try:
+        body = json.loads(m["Body"])
+        inner = json.loads(body["Message"]) if isinstance(body.get("Message"), str) else body
+        if not isinstance(inner, dict):
+            continue
+    except (ValueError, TypeError, KeyError):
+        continue
+    d = inner.get("detail", {}) or {}
     if d.get("taskArn") == want:
         print(json.dumps({
             "receipt": m["ReceiptHandle"],
