@@ -7,7 +7,7 @@ import { MOCK_INPUT_LABELS, type MockValues } from './mock-mode-mapping';
 
 const SAFETY_OPTIONS: SafetyState[] = ['S0', 'S1', 'S2', 'S3', 'S4'];
 const GOVERNANCE_OPTIONS: GovernanceState[] = ['Active', 'Restricted', 'Blocked'];
-const ROUTER_AGENT_OPTIONS = ['crisis', 'deterministic-grounding', 'A2'] as const;
+const ROUTER_AGENT_OPTIONS = ['crisis', 'medical-emergency', 'deterministic-grounding', 'A2'] as const;
 const ROUTER_MODE_OPTIONS = ['normal', 'blocked'] as const;
 
 const FIELD_LABEL_CLASS =

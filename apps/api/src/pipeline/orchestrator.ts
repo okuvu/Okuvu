@@ -11,7 +11,7 @@ import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
-import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback } from './fallbacks.js';
+import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
 import { hasCrisisLanguage } from '../agents/a1/crisis-keywords.js';
 import { recordAuditEvent } from '../lib/audit-log.js';
 import type { SafetyNotice } from '@okuvu/shared-types';
@@ -273,6 +273,10 @@ export async function processTurn(
       governance_state: governanceState,
       session_count: sessionCount,
       turn_count: nextTurnNumber,
+      // E17-S9: the medical-emergency screen reads the message, because those
+      // turns classify S1/S2 and no state can distinguish them from ordinary
+      // distress. Every other rule in routeTurn ignores this field.
+      message,
     });
     const a8End = now();
     recordTiming(timing, 'A8_router', a8Start, a8End);
@@ -341,6 +345,98 @@ export async function processTurn(
     });
 
     return { type: 'crisis', message: CRISIS_RESPONSE, timing, ...(crisisSafety ? { safety: crisisSafety } : {}), ...(testMode?.captureSignalBus ? { signals } : {}) };
+  }
+
+  // ─── E17-S9 — a medical emergency is not a chat turn ────────────────────
+  //
+  // The finding this branch answers: with the api task's own environment, "I'm
+  // having chest pain and my left arm feels numb" is S1, "my brother drank a
+  // whole bottle of whiskey and he's unconscious" is S2, and A2 answered both
+  // with the mental-health crisis card — "the crisis support in the app has
+  // people who can actually help right now". A heart attack, an unconscious
+  // relative and a haemorrhage in pregnancy were all routed to a chat reply and
+  // never told to call 112.
+  //
+  // A prompt branch cannot carry that guarantee: A2's text can be throttled,
+  // timed out, or replaced by A9-post, and "112 in the first sentence" has to be
+  // true of the text the user receives. So this path is deterministic, in the
+  // same tier as the crisis card and the S3 grounding reply: static approved
+  // copy, persisted turn, no model call, no A9-post review of text no model
+  // wrote. Same shape as the crisis branch above for the same reason — the one
+  // moment where a model is in the loop is the one moment you cannot promise the
+  // wording.
+  //
+  // Precedence lives in routeTurn (`a8-router.ts`): it checks the medical screen
+  // before S4, and the screen itself refuses any message carrying self-harm or
+  // crisis wording, so an explicit disclosure still reaches the crisis card.
+  // When A1 nonetheless returned S4 (or flagged crisis language) on a medical
+  // message, the copy below keeps the helplines after the ambulance and the
+  // session is flagged — nothing is withdrawn from that user.
+  if (decision.agent === 'medical-emergency') {
+    const medicalCrisisOverlap = safetyState === 'S4' || crisisFlag;
+    const medicalResponse = medicalCrisisOverlap
+      ? MEDICAL_EMERGENCY_CRISIS_RESPONSE
+      : MEDICAL_EMERGENCY_RESPONSE;
+    const persistStart = now();
+    const medicalTurnCount = await incrementTurnCount(sessionId);
+    await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: medicalTurnCount,
+        role: 'user', content: message,
+      },
+    });
+    const medicalAssistantTurn = await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: medicalTurnCount,
+        role: 'assistant', content: medicalResponse,
+        fallback_source: 'medical_emergency',
+        model_version: null,
+        prompt_version: null,
+      },
+      select: { id: true },
+    });
+    await prisma.safetyState.upsert({
+      where: { user_id: user.id },
+      update: { safety_state_current: safetyState },
+      create: { user_id: user.id, safety_state_current: safetyState },
+    });
+    if (medicalCrisisOverlap) {
+      await prisma.sessionLog.update({
+        where: { id: sessionId },
+        data: { crisis_flag_detected: true },
+      });
+    }
+    recordTiming(timing, 'medical_emergency_persistence', persistStart, now());
+
+    await recordAuditEvent({
+      actor: 'A8',
+      action: 'SAFETY_MEDICAL_EMERGENCY_ROUTED',
+      object: `turn:${medicalAssistantTurn?.id ?? `${sessionId}:${medicalTurnCount}`}`,
+      detail: {
+        safety_state: safetyState,
+        medical_screen: true,
+        crisis_copy: medicalCrisisOverlap,
+        classifier_fallback: a1FallbackUsed,
+        classifier_reason: a1Unavailable ? a1FailureReason() : 'classified',
+      },
+    });
+
+    return {
+      type: 'agent_turn',
+      message: medicalResponse,
+      turnCount: medicalTurnCount,
+      turnId: medicalAssistantTurn?.id ?? null,
+      timing,
+      fallbackUsed: true,
+      fallbackSource: 'medical_emergency',
+      safety: {
+        code: 'MEDICAL_EMERGENCY_FLOOR',
+        reason: a1Unavailable ? a1FailureReason() : 'deterministic_screen',
+      },
+      estimatedIntensity: null,
+      journalPromptSuggested: null,
+      ...(testMode?.captureSignalBus ? { signals } : {}),
+    };
   }
 
   const a2Start = now();

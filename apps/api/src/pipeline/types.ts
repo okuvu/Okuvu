@@ -72,6 +72,10 @@ export type FallbackSource =
   // problem is visible as itself instead of as an unexplained degrade.
   | 'model_unavailable'
   | 'model_throttled'
+  // E17-S9 — the message described a medical emergency, so the reply is the
+  // deterministic emergency-medical copy (112 first). Set like every other
+  // static-substitute source: the user did not receive model output this turn.
+  | 'medical_emergency'
 
 export type PipelineResult =
   | {
