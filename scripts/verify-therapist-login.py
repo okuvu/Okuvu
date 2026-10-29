@@ -93,7 +93,18 @@ def password_for(email: str, prefix: str) -> str:
     return p.stdout.strip()
 
 
-def verify(email: str, base: str, prefix: str, workdir: str) -> bool:
+def sign_in(email: str, base: str, prefix: str, workdir: str) -> str | None:
+    """Hops 1-6 of the browser chain, and only those hops.
+
+    NextAuth csrf -> POST /api/auth/signin/cognito -> /oauth2/authorize ->
+    hosted UI /login -> authorization code -> /api/auth/callback/cognito.
+    Returns the cookie-jar path on success, None on any failure.
+
+    Factored out of verify() so other scripts can sign a therapist in and then
+    act as that therapist (scripts/verify-conversation-flow.py does requestChatAccess
+    and reads the transcript as them). Two copies of six auth hops is exactly
+    the kind of duplication that drifts the moment the hosted UI changes.
+    """
     password = password_for(email, prefix)
     masked = f"{password[:2]}**{password[-2:]}" if len(password) > 5 else "****"
     say(f"=== {email} (password from SSM, masked {masked}, len {len(password)}) ===")
@@ -162,6 +173,16 @@ def verify(email: str, base: str, prefix: str, workdir: str) -> bool:
     if loc2 and "error" in loc2:
         say(f"   FAIL: NextAuth refused the sign-in: {loc2}")
         return False
+
+
+    return jar
+
+
+def verify(email: str, base: str, prefix: str, workdir: str) -> bool:
+    jar = sign_in(email, base, prefix, workdir)
+    if jar is None:
+        return False
+    s = Session(jar)
 
     out = subprocess.run(
         ["curl", "-sS", "-b", jar, "-c", jar, "-D", f"{workdir}/dash.hdr",
