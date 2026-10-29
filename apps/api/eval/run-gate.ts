@@ -152,16 +152,23 @@ function scoreScenario(scenario: Scenario, scoredText: string): string[] {
 
 let modelCalls = 0;
 let modelCallFailures = 0;
+let probeCalls = 0;
+let probeFailures = 0;
 
 async function callModel(
   client: BedrockRuntimeClient,
   modelId: string,
   systemInstruction: string,
   message: string,
+  probe = false,
 ): Promise<{ text: string; usage: unknown; stopReason: string | null; error: string | null }> {
-  modelCalls += 1;
   // Single attempt. Deliberately no retry/backoff: plan §8 says a throttled or
-  // errored call fails the run rather than being retried silently.
+  // errored call fails the run rather than being retried silently. A probe
+  // call is one made to a non-existent model id on purpose (fail_closed
+  // scenarios); its failure is the expected outcome and is counted apart from
+  // the gate's own calls so it cannot mask — or fake — an unclean run.
+  if (probe) probeCalls += 1;
+  else modelCalls += 1;
   try {
     const response = await client.send(
       new ConverseCommand({
@@ -178,7 +185,8 @@ async function callModel(
         .join('') ?? '';
     return { text, usage: response.usage ?? null, stopReason: response.stopReason ?? null, error: null };
   } catch (err) {
-    modelCallFailures += 1;
+    if (probe) probeFailures += 1;
+    else modelCallFailures += 1;
     const name = err instanceof Error ? err.name : 'unknown';
     const messageText = err instanceof Error ? err.message : String(err);
     return { text: '', usage: null, stopReason: null, error: `${name}: ${messageText}` };
@@ -335,7 +343,7 @@ async function main(): Promise<void> {
       // shape is genuine; the selection then uses the real product functions.
       let classifiedKind = 'unavailable';
       if (scenario.probe?.kind === 'model_unreachable') {
-        const call = await callModel(client, `${modelId}-does-not-exist`, 'probe', 'probe');
+        const call = await callModel(client, `${modelId}-does-not-exist`, 'probe', 'probe', true);
         if (!call.error) {
           results.push({
             id: scenario.id,
@@ -437,7 +445,13 @@ async function main(): Promise<void> {
       scenarios: goldSet.scenarios.length,
       per_category: counts,
     },
-    calls: { total: modelCalls, failures: modelCallFailures, retries: 0 },
+    calls: {
+      gate_calls: modelCalls,
+      gate_failures: modelCallFailures,
+      probe_calls: probeCalls,
+      probe_failures_expected: probeFailures,
+      retries: 0,
+    },
     categories,
     overall,
     failures: results.filter((r) => !r.pass).map((r) => ({ id: r.id, category: r.category, failed_groups: r.failed_groups })),
@@ -451,7 +465,8 @@ async function main(): Promise<void> {
   console.log(`model      ${modelId} (${region}, Converse)`);
   console.log(`prompt     A2 ${A2_PROMPT_VERSION} sha256=${promptHash.slice(0, 16)}…`);
   console.log(`commit     ${report.code.commit} (${report.code.branch})`);
-  console.log(`calls      ${modelCalls} single-attempt, ${modelCallFailures} failed, 0 retries`);
+  console.log(`calls      ${modelCalls} gate calls single-attempt, ${modelCallFailures} failed, 0 retries`);
+  console.log(`probes     ${probeCalls} deliberate unreachable-model calls, ${probeFailures} failed as expected`);
   console.log('');
   for (const [category, row] of Object.entries(categories)) {
     console.log(
