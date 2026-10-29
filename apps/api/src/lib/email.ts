@@ -14,7 +14,7 @@
  * emails a plain code, not a clickable link.
  */
 
-import { identityRef, redactEmails } from './log-identity';
+import { identityRef, redactEmails } from './log-identity.js';
 
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 

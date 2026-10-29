@@ -88,6 +88,11 @@ phases:
       # audit report flowing into the gate instead of aborting the phase first.
       - pnpm audit --prod --json > /tmp/audit.json || true
       - python3 scripts/security-gate.py audit /tmp/audit.json
+      - echo "=== ESM import guard (a container-only failure class) ==="
+      # api and worker run as plain node ESM: an extensionless relative import
+      # typechecks and passes vitest, then dies in the container with
+      # ERR_MODULE_NOT_FOUND. Check it before the docker build, not after.
+      - python3 scripts/check-esm-imports.py
       - echo "=== ECR login ==="
       - aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
@@ -165,6 +170,12 @@ phases:
             --region "${AWS_REGION}" \
             --query 'taskDefinition.taskDefinitionArn' --output text)"
           echo "registered ${new_arn}"
+          # Remember what we asked for: after stabilising we assert the service
+          # is actually serving this revision. The circuit breaker rolls a failed
+          # deployment back to the previous task definition, which leaves the
+          # service *stable* — so `wait services-stable` alone returns success on
+          # a rollback and the build would report SUCCEEDED for old code.
+          echo "${new_arn}" > "/tmp/expected-${workload}.arn"
 
           echo "=== Updating ${service} ==="
           aws ecs update-service \
@@ -192,6 +203,32 @@ phases:
           --region "${AWS_REGION}" \
           --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,taskDefinition:taskDefinition}' \
           --output table
+
+        # A rollback also ends in a steady state, so verify the services are
+        # actually running the revisions this build registered. Without this the
+        # pipeline reports SUCCEEDED while production still serves old code.
+        echo "=== Verifying the services are serving this build ==="
+        failed=0
+        for workload in api worker portal; do
+          expected="$(cat "/tmp/expected-${workload}.arn")"
+          actual="$(aws ecs describe-services \
+            --cluster "${NAME_PREFIX}" \
+            --services "${NAME_PREFIX}-${workload}" \
+            --region "${AWS_REGION}" \
+            --query 'services[0].deployments[?status==`PRIMARY`]|[0].taskDefinition' \
+            --output text)"
+          if [ "${actual}" = "${expected}" ]; then
+            echo "OK   ${workload}: ${actual}"
+          else
+            echo "ROLLED BACK ${workload}: expected ${expected}, serving ${actual}"
+            failed=1
+          fi
+        done
+        if [ "${failed}" -ne 0 ]; then
+          echo "=== A deployment rolled back. The build FAILS so old code is never reported as deployed. ==="
+          exit 1
+        fi
+        echo "=== All three services are serving this build ==="
 
 # The api health endpoint the ALB target group polls; surfaced in the build log
 # so a failed deployment can be triaged without opening the console.
