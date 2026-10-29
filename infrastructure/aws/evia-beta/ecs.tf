@@ -123,6 +123,12 @@ resource "aws_ecs_task_definition" "api" {
     },
   ])
 
+  # The build pipeline owns image revisions (scripts/ecs-image-pin.py). Terraform
+  # manages the shape of the task definition, not which revision is deployed.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
+
   tags = merge(local.common_tags, {
     Name     = "${var.name_prefix}-api-task"
     Workload = "api"
@@ -173,6 +179,12 @@ resource "aws_ecs_task_definition" "worker" {
     },
   ])
 
+  # The build pipeline owns image revisions (scripts/ecs-image-pin.py). Terraform
+  # manages the shape of the task definition, not which revision is deployed.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
+
   tags = merge(local.common_tags, {
     Name     = "${var.name_prefix}-worker-task"
     Workload = "worker"
@@ -211,6 +223,12 @@ resource "aws_ecs_service" "api" {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"
     container_port   = var.api_container_port
+  }
+
+  # The pipeline updates this to the revision it registered; terraform must not
+  # drag the service back to an older revision on an unrelated apply.
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = merge(local.common_tags, {
@@ -255,6 +273,12 @@ resource "aws_ecs_service" "worker" {
   # Publishes each worker task as worker.<namespace> so the api can resolve it.
   service_registries {
     registry_arn = aws_service_discovery_service.worker.arn
+  }
+
+  # The pipeline updates this to the revision it registered; terraform must not
+  # drag the service back to an older revision on an unrelated apply.
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = merge(local.common_tags, {
