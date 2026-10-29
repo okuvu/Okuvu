@@ -242,70 +242,26 @@ resource "aws_cloudwatch_metric_alarm" "portal_unhealthy_hosts" {
 }
 
 # ---------------------------------------------------------------------------
-# Running count vs desired count — the alarm the ALB metrics cannot give us.
+# Running count vs desired count — RETIRED (E15-S8).
 #
-# UnHealthyHostCount only fires when a target group exists. The worker has no
-# load balancer and no target group, so the only signal that it has died used
-# to be a human noticing summaries stopped arriving. These three alarms close
-# that for every service, worker included.
+# These three alarms read ECS/ContainerInsights/RunningTaskCount, i.e. from a
+# paid custom-metric namespace: 108 metric streams x $0.30 = $32.40/mo to answer
+# one question ("is the task still there?"). They are replaced by
+# aws_cloudwatch_event_rule.task_stopped in alerts.tf, which listens to the ECS
+# task state change stream instead. That stream is free, real-time, and carries
+# strictly more than the alarm had: stopCode, stoppedReason and the container
+# exit codes.
 #
-# Why Container Insights and not a Lambda-backed custom metric:
-#   * the cluster already sets containerInsights=enabled (ecs.tf), and the
-#     ECS/ContainerInsights metrics are already flowing — RunningTaskCount and
-#     DesiredTaskCount publish per ServiceName every 60s. So the marginal cost
-#     of these alarms is the alarm fee only, $0.10 each per month, with no new
-#     moving part that can itself fail silently.
-#   * a Lambda on EventBridge ECS task-state-change would cost roughly the same
-#     in request charges but adds code, an IAM role, an invoke path and a place
-#     for the alarm to break exactly when the platform is already unhealthy.
-#   * a Logs metric filter on the worker log group cannot work: the failure
-#     mode is "the task is gone", and a gone task writes no log line.
+# They MUST be removed in the same apply that sets containerInsights =
+# "disabled" in ecs.tf. Left behind with the metric namespace off, there is no
+# data to evaluate, and treat_missing_data = breaching turns that into a
+# permanent ALARM state — three alarms paging forever about a metric that no
+# longer exists.
 #
-# Treat-missing-data is breaching on purpose. Container Insights is published
-# by an agent inside each task; zero running tasks means zero metric data, which
-# is the incident, not a gap to be ignored.
-#
-# 3 x 60s evaluation keeps a rolling deploy (worker runs at minimumHealthy 0, so
-# it dips to 0 briefly) from paging, while a sustained outage alarms in 3 min.
-locals {
-  desired_task_counts = {
-    api    = var.api_desired_count
-    worker = var.worker_desired_count
-    portal = var.portal_desired_count
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "service_running_tasks_low" {
-  for_each = local.desired_task_counts
-
-  alarm_name        = "${var.name_prefix}-${each.key}-running-tasks-low"
-  alarm_description = "${each.key} is running fewer tasks than desired (${each.value}); the service is under-provisioned or failing to start"
-
-  namespace   = "ECS/ContainerInsights"
-  metric_name = "RunningTaskCount"
-  statistic   = "Average"
-
-  period              = 60
-  evaluation_periods  = 3
-  datapoints_to_alarm = 3
-  threshold           = each.value
-
-  comparison_operator = "LessThanThreshold"
-  treat_missing_data  = "breaching"
-
-  dimensions = {
-    ClusterName = aws_ecs_cluster.main.name
-    ServiceName = "${var.name_prefix}-${each.key}"
-  }
-
-  alarm_actions = [aws_sns_topic.ops_alerts.arn]
-  ok_actions    = [aws_sns_topic.ops_alerts.arn]
-
-  tags = merge(local.common_tags, {
-    Name     = "${var.name_prefix}-${each.key}-running-tasks-low"
-    Workload = each.key
-  })
-}
+# The ALB alarms above still cover api and portal behind the load balancer, and
+# the RDS alarms below are unchanged; the worker only ever had this rule as its
+# liveness signal, and now has the task-stop rule.
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # RDS alarms. The database had none: it could fill its 20 GiB or run out of

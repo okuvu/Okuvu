@@ -35,7 +35,7 @@ No credentials are needed for `terraform init -backend=false` / `terraform valid
 | Images | ECR `evia-beta/api`, `evia-beta/worker`, scan-on-push, lifecycle retention |
 | Compute | ECS Fargate cluster + `api` (2 tasks, behind ALB) and `worker` (1 task, no LB) services; execution role separate from per-workload task roles |
 | Messaging | SQS `evia-beta-summary-jobs` with DLQ redrive after 3 receives |
-| Observability | CloudWatch log groups for both services, VPC flow logs, 2 ALB alarms, monthly budget alarm at 150 USD |
+| Observability | CloudWatch log groups for both services, VPC flow logs, 2 ALB alarms, 2 RDS alarms, EventBridge task-stop rule → ops SNS topic (fires when a task dies while it should be running), monthly budget alarm at 250 USD. Container Insights is **disabled**: it cost $32.40/mo in custom metrics and its running-count alarm is replaced by the free task-stop rule (E15-S8) |
 | CI/CD | CodeBuild project `evia-beta-build` (VPC-attached, builds `buildspec.yml`) plus a webhook that starts it on every push to `develop` and reports the result as a GitHub commit status |
 
 ## Image deployment

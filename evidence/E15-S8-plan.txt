@@ -1,0 +1,522 @@
+random_password.worker_internal_auth: Refreshing state... [id=none]
+random_password.db_password: Refreshing state... [id=none]
+random_password.nextauth_secret: Refreshing state... [id=none]
+aws_ecs_cluster.main: Refreshing state... [id=arn:aws:ecs:ap-south-1:562654496378:cluster/evia-beta]
+aws_secretsmanager_secret.android_upload_keystore: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/android-upload-keystore-XU62yo]
+aws_ecr_repository.main["api"]: Refreshing state... [id=evia-beta/api]
+aws_acm_certificate.main[0]: Refreshing state... [id=arn:aws:acm:ap-south-1:562654496378:certificate/6d4ab7e6-909d-4150-a575-f8d527d85fa2]
+aws_ecr_repository.main["portal"]: Refreshing state... [id=evia-beta/portal]
+aws_ecr_repository.main["worker"]: Refreshing state... [id=evia-beta/worker]
+aws_cognito_user_pool.therapists: Refreshing state... [id=ap-south-1_eaJaK7g4g]
+aws_cloudwatch_metric_alarm.service_running_tasks_low["portal"]: Refreshing state... [id=evia-beta-portal-running-tasks-low]
+aws_cloudwatch_metric_alarm.service_running_tasks_low["worker"]: Refreshing state... [id=evia-beta-worker-running-tasks-low]
+aws_cloudwatch_metric_alarm.service_running_tasks_low["api"]: Refreshing state... [id=evia-beta-api-running-tasks-low]
+aws_cloudwatch_log_group.worker: Refreshing state... [id=/ecs/evia-beta/worker]
+aws_cloudwatch_log_group.codebuild[0]: Refreshing state... [id=/aws/codebuild/evia-beta-build]
+aws_vpc.main: Refreshing state... [id=vpc-02ecc13de232b9f66]
+aws_budgets_budget.account_guardrail: Refreshing state... [id=562654496378:account-guardrail-monthly]
+aws_sns_topic.ops_alerts: Refreshing state... [id=arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts]
+data.aws_caller_identity.current: Reading...
+data.aws_iam_policy_document.cognito_sms_publish: Reading...
+aws_cloudwatch_log_group.portal: Refreshing state... [id=/ecs/evia-beta/portal]
+data.aws_iam_policy_document.cognito_sms_publish: Read complete after 0s [id=1268564199]
+aws_db_parameter_group.main: Refreshing state... [id=evia-beta-postgres16]
+aws_cloudwatch_log_group.api: Refreshing state... [id=/ecs/evia-beta/api]
+data.aws_caller_identity.current: Read complete after 0s [id=562654496378]
+aws_sqs_queue.summary_dlq: Refreshing state... [id=https://sqs.ap-south-1.amazonaws.com/562654496378/evia-beta-summary-jobs-dlq]
+aws_sns_topic.budget_alerts: Refreshing state... [id=arn:aws:sns:ap-south-1:562654496378:evia-beta-budget-alerts]
+aws_sqs_queue.ops_alerts_sink: Refreshing state... [id=https://sqs.ap-south-1.amazonaws.com/562654496378/evia-beta-ops-alerts-sink]
+aws_route53_zone.main[0]: Refreshing state... [id=Z04967962T87OWS0AZZBZ]
+aws_cloudwatch_log_group.flow: Refreshing state... [id=/vpc/evia-beta/flow]
+aws_ecs_cluster_capacity_providers.main: Refreshing state... [id=evia-beta]
+aws_ecr_lifecycle_policy.main["portal"]: Refreshing state... [id=evia-beta/portal]
+aws_ecr_lifecycle_policy.main["api"]: Refreshing state... [id=evia-beta/api]
+aws_ecr_lifecycle_policy.main["worker"]: Refreshing state... [id=evia-beta/worker]
+data.aws_iam_policy_document.cognito_sms_assume: Reading...
+data.aws_iam_policy_document.cognito_sms_assume: Read complete after 0s [id=3619518926]
+data.aws_iam_policy_document.ecs_tasks_assume: Reading...
+data.aws_iam_policy_document.flow_log_assume: Reading...
+data.aws_iam_policy_document.flow_log_assume: Read complete after 0s [id=1554820762]
+data.aws_iam_policy_document.ecs_tasks_assume: Read complete after 0s [id=4052851616]
+data.aws_iam_policy_document.codebuild_assume[0]: Reading...
+data.aws_iam_policy_document.codebuild_assume[0]: Read complete after 0s [id=673874274]
+aws_s3_bucket.alb_logs: Refreshing state... [id=evia-beta-alb-logs-562654496378]
+aws_s3_bucket.uploads: Refreshing state... [id=evia-beta-uploads-562654496378]
+aws_sns_topic_subscription.ops_email[0]: Refreshing state... [id=arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts:94fa1906-4d2a-42d1-97f5-37216ae3454a]
+aws_sqs_queue.summary: Refreshing state... [id=https://sqs.ap-south-1.amazonaws.com/562654496378/evia-beta-summary-jobs]
+aws_sns_topic_subscription.budget_email[0]: Refreshing state... [id=arn:aws:sns:ap-south-1:562654496378:evia-beta-budget-alerts:5bddbe4e-9d00-458a-9a33-7f28efd1f50c]
+aws_budgets_budget.monthly: Refreshing state... [id=562654496378:evia-beta-monthly]
+data.aws_iam_policy_document.budget_topic: Reading...
+data.aws_iam_policy_document.ops_alerts_sink: Reading...
+data.aws_iam_policy_document.budget_topic: Read complete after 0s [id=1692552122]
+data.aws_iam_policy_document.ops_alerts_sink: Read complete after 0s [id=2772536479]
+aws_sns_topic_subscription.ops_queue: Refreshing state... [id=arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts:9bd000fb-ed81-494e-9609-e60d48ad865f]
+data.aws_iam_policy_document.flow_log: Reading...
+data.aws_iam_policy_document.flow_log: Read complete after 0s [id=2289992680]
+data.aws_iam_policy_document.kms["data"]: Reading...
+data.aws_iam_policy_document.kms["contacts"]: Reading...
+data.aws_iam_policy_document.kms["data"]: Read complete after 0s [id=725093072]
+data.aws_iam_policy_document.kms["contacts"]: Read complete after 0s [id=725093072]
+data.aws_iam_policy_document.kms["secrets"]: Reading...
+aws_iam_role.cognito_sms: Refreshing state... [id=evia-beta-cognito-sms]
+data.aws_iam_policy_document.kms["secrets"]: Read complete after 0s [id=725093072]
+aws_iam_role.flow_log: Refreshing state... [id=evia-beta-vpc-flow-logs]
+aws_iam_role.ecs_execution: Refreshing state... [id=evia-beta-ecs-execution]
+aws_iam_role.worker_task: Refreshing state... [id=evia-beta-worker-task]
+aws_iam_role.api_task: Refreshing state... [id=evia-beta-api-task]
+aws_iam_role.codebuild[0]: Refreshing state... [id=evia-beta-codebuild]
+aws_cognito_user_pool_domain.therapists: Refreshing state... [id=okuvu-therapists]
+aws_cognito_user_pool_client.portal: Refreshing state... [id=7bcn376flgj7rt35a05a14pk7g]
+aws_sns_topic_policy.budget_alerts: Refreshing state... [id=arn:aws:sns:ap-south-1:562654496378:evia-beta-budget-alerts]
+aws_sqs_queue_policy.ops_alerts_sink: Refreshing state... [id=https://sqs.ap-south-1.amazonaws.com/562654496378/evia-beta-ops-alerts-sink]
+aws_kms_key.data: Refreshing state... [id=b36d5c48-eb04-4221-bc07-f846114467a0]
+aws_kms_key.contacts: Refreshing state... [id=dc34f6ca-febe-4b50-9cf5-e5765862a120]
+aws_kms_key.secrets: Refreshing state... [id=655de397-3139-4a8e-905f-17c1158544df]
+aws_s3_bucket_lifecycle_configuration.alb_logs: Refreshing state... [id=evia-beta-alb-logs-562654496378]
+aws_s3_bucket_ownership_controls.alb_logs: Refreshing state... [id=evia-beta-alb-logs-562654496378]
+aws_s3_bucket_server_side_encryption_configuration.alb_logs: Refreshing state... [id=evia-beta-alb-logs-562654496378]
+aws_s3_bucket_public_access_block.alb_logs: Refreshing state... [id=evia-beta-alb-logs-562654496378]
+data.aws_iam_policy_document.alb_logs: Reading...
+data.aws_iam_policy_document.alb_logs: Read complete after 0s [id=3134505617]
+data.aws_iam_policy_document.uploads: Reading...
+data.aws_iam_policy_document.uploads: Read complete after 0s [id=3371345300]
+aws_s3_bucket_public_access_block.uploads: Refreshing state... [id=evia-beta-uploads-562654496378]
+aws_s3_bucket_lifecycle_configuration.uploads: Refreshing state... [id=evia-beta-uploads-562654496378]
+aws_s3_bucket_ownership_controls.uploads: Refreshing state... [id=evia-beta-uploads-562654496378]
+aws_s3_bucket_versioning.uploads: Refreshing state... [id=evia-beta-uploads-562654496378]
+aws_vpc_ipv6_cidr_block_association.main: Refreshing state... [id=vpc-cidr-assoc-03d239cb7d4c923b8]
+aws_route_table.private: Refreshing state... [id=rtb-042b20b2a4521d9fc]
+aws_lb_target_group.portal: Refreshing state... [id=arn:aws:elasticloadbalancing:ap-south-1:562654496378:targetgroup/evia-beta-portal-tg/713547dbcab9b3b7]
+aws_security_group.alb: Refreshing state... [id=sg-0e746562100288508]
+aws_route_table.public: Refreshing state... [id=rtb-0a89bbc7d8400da00]
+aws_lb_target_group.api: Refreshing state... [id=arn:aws:elasticloadbalancing:ap-south-1:562654496378:targetgroup/evia-beta-api-tg/7de5e7f973e79f4a]
+aws_service_discovery_private_dns_namespace.main: Refreshing state... [id=ns-vhm7ayjytfospwly]
+aws_internet_gateway.main: Refreshing state... [id=igw-0bf3c24523e516265]
+aws_subnet.private["ap-south-1a"]: Refreshing state... [id=subnet-04873f206b25ea119]
+aws_subnet.private["ap-south-1b"]: Refreshing state... [id=subnet-040a4219855138e70]
+aws_kms_alias.data: Refreshing state... [id=alias/evia-beta-data]
+aws_s3_bucket_server_side_encryption_configuration.uploads: Refreshing state... [id=evia-beta-uploads-562654496378]
+aws_kms_alias.contacts: Refreshing state... [id=alias/evia-beta-contacts]
+data.aws_iam_policy_document.worker_task: Reading...
+data.aws_iam_policy_document.api_task: Reading...
+aws_secretsmanager_secret.nextauth_secret: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/portal-nextauth-secret-ShXbpv]
+data.aws_iam_policy_document.worker_task: Read complete after 0s [id=3435246330]
+data.aws_iam_policy_document.api_task: Read complete after 0s [id=1321702293]
+aws_secretsmanager_secret.database: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/database-zl01EO]
+aws_secretsmanager_secret.portal_cognito_client: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/portal-cognito-client-secret-W9viQt]
+aws_kms_alias.secrets: Refreshing state... [id=alias/evia-beta-secrets]
+aws_secretsmanager_secret.brevo: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/brevo-api-key-HnUkM2]
+aws_secretsmanager_secret.worker_internal_auth: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/worker-internal-auth-Hlduhm]
+aws_route53_record.mail["google._domainkey.okuvu.in-TXT"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_google._domainkey.okuvu.in_TXT]
+aws_route53_record.mail["okuvu.in-TXT"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_okuvu.in_TXT]
+aws_route53_record.mail["okuvu.in-MX"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_okuvu.in_MX]
+aws_route53_record.cert_validation["beta.api.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ__e040ac8b216c57c8540282264557b654.beta.api.okuvu.in._CNAME]
+aws_route53_record.mail["_dmarc.okuvu.in-TXT"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ__dmarc.okuvu.in_TXT]
+aws_route53_record.cert_validation["portal.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ__7edefbe13b5925233ccb2cc65d476903.portal.okuvu.in._CNAME]
+aws_route53_record.cert_validation["okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ__0109093460d5293d65ee6af05bf26c21.okuvu.in._CNAME]
+aws_route53_record.cert_validation["www.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ__7e87b1f73c6439afc79f646ab498161e.www.okuvu.in._CNAME]
+aws_route53_record.cert_validation["api.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ__1de8c68dfd34dfdfd417d7ce544da38d.api.okuvu.in._CNAME]
+aws_s3_bucket_policy.alb_logs: Refreshing state... [id=evia-beta-alb-logs-562654496378]
+aws_s3_bucket_policy.uploads: Refreshing state... [id=evia-beta-uploads-562654496378]
+aws_iam_role_policy.cognito_sms_publish: Refreshing state... [id=evia-beta-cognito-sms:evia-beta-cognito-sms-publish]
+aws_iam_role_policy.flow_log: Refreshing state... [id=evia-beta-vpc-flow-logs:evia-beta-vpc-flow-logs]
+aws_flow_log.vpc: Refreshing state... [id=fl-016e12a6bf8a24866]
+aws_subnet.public["ap-south-1a"]: Refreshing state... [id=subnet-07d537de69dba6617]
+aws_subnet.public["ap-south-1b"]: Refreshing state... [id=subnet-0ea670f1d449a4c05]
+aws_iam_role_policy_attachment.ecs_execution_managed: Refreshing state... [id=evia-beta-ecs-execution-20261028075133243800000002]
+aws_vpc_endpoint.s3: Refreshing state... [id=vpce-0bf832cbc8f4ee24f]
+aws_security_group.ecs: Refreshing state... [id=sg-0e2bcf3db41664230]
+aws_eip.nat: Refreshing state... [id=eipalloc-0103c0fb3f9f1330e]
+aws_route.public_internet: Refreshing state... [id=r-rtb-0a89bbc7d8400da001080289494]
+aws_route.public_internet_ipv6: Refreshing state... [id=r-rtb-0a89bbc7d8400da002750132062]
+aws_service_discovery_service.worker: Refreshing state... [id=srv-muqelqmsr3mbsm7x]
+aws_iam_role_policy.worker_task: Refreshing state... [id=evia-beta-worker-task:evia-beta-worker-task-policy]
+aws_iam_role_policy.api_task: Refreshing state... [id=evia-beta-api-task:evia-beta-api-task-policy]
+aws_secretsmanager_secret_version.nextauth_secret: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/portal-nextauth-secret-ShXbpv|terraform-2026102807515736250000000e]
+aws_route_table_association.private["ap-south-1a"]: Refreshing state... [id=rtbassoc-0ff76271ae774512a]
+aws_secretsmanager_secret_version.brevo: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/brevo-api-key-HnUkM2|terraform-2026102807515735830000000d]
+aws_secretsmanager_secret_version.portal_cognito_client: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/portal-cognito-client-secret-W9viQt|terraform-2026102807515764680000000f]
+aws_route_table_association.private["ap-south-1b"]: Refreshing state... [id=rtbassoc-02340941e06f9eff3]
+data.aws_iam_policy_document.codebuild[0]: Reading...
+aws_secretsmanager_secret_version.worker_internal_auth: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/worker-internal-auth-Hlduhm|terraform-20261028075157892600000010]
+data.aws_iam_policy_document.codebuild[0]: Read complete after 0s [id=3201361692]
+data.aws_iam_policy_document.ecs_execution: Reading...
+data.aws_iam_policy_document.ecs_execution: Read complete after 0s [id=3114004409]
+aws_cognito_user_pool.clients: Refreshing state... [id=ap-south-1_y2V0jvjGP]
+aws_route_table_association.public["ap-south-1a"]: Refreshing state... [id=rtbassoc-025ea322520dab79b]
+aws_route_table_association.public["ap-south-1b"]: Refreshing state... [id=rtbassoc-0c5cd8dfd486010dd]
+aws_security_group.rds: Refreshing state... [id=sg-0dc28801591e59b9f]
+aws_security_group.redis: Refreshing state... [id=sg-0f8d78242d441a97e]
+aws_acm_certificate_validation.main[0]: Refreshing state... [id=2026-10-28 07:52:08.002 +0000 UTC]
+aws_db_subnet_group.main: Refreshing state... [id=evia-beta-postgres]
+aws_elasticache_subnet_group.main: Refreshing state... [id=evia-beta-cache]
+aws_ecs_task_definition.portal: Refreshing state... [id=evia-beta-portal]
+aws_nat_gateway.main: Refreshing state... [id=nat-071dec67cd2a9e4eb]
+aws_iam_role_policy.codebuild[0]: Refreshing state... [id=evia-beta-codebuild:evia-beta-codebuild]
+aws_iam_role_policy.ecs_execution: Refreshing state... [id=evia-beta-ecs-execution:evia-beta-ecs-execution-extra]
+aws_lb.api: Refreshing state... [id=arn:aws:elasticloadbalancing:ap-south-1:562654496378:loadbalancer/app/evia-beta-alb/b206473f7e05ebc2]
+aws_route.private_nat: Refreshing state... [id=r-rtb-042b20b2a4521d9fc1080289494]
+aws_db_instance.main: Refreshing state... [id=db-2JPRNCPD7D63EH7B53ACV4IYLE]
+aws_elasticache_replication_group.main: Refreshing state... [id=evia-beta-cache]
+aws_cognito_user_pool_client.mobile: Refreshing state... [id=mqisid7kr7vjm95rvt0g10usj]
+aws_cloudwatch_metric_alarm.api_target_5xx: Refreshing state... [id=evia-beta-api-target-5xx]
+aws_route53_record.alb["portal.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_portal.okuvu.in_A]
+aws_route53_record.alb["www.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_www.okuvu.in_A]
+aws_cloudwatch_metric_alarm.api_unhealthy_hosts: Refreshing state... [id=evia-beta-api-unhealthy-hosts]
+aws_route53_record.alb["api.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_api.okuvu.in_A]
+aws_route53_record.alb["beta.api.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_beta.api.okuvu.in_A]
+aws_route53_record.alb["okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_okuvu.in_A]
+aws_cloudwatch_metric_alarm.portal_unhealthy_hosts: Refreshing state... [id=evia-beta-portal-unhealthy-hosts]
+aws_lb_listener.https[0]: Refreshing state... [id=arn:aws:elasticloadbalancing:ap-south-1:562654496378:listener/app/evia-beta-alb/b206473f7e05ebc2/1250f224ceea6ad3]
+aws_route53_record.alb_ipv6["api.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_api.okuvu.in_AAAA]
+aws_lb_listener.http: Refreshing state... [id=arn:aws:elasticloadbalancing:ap-south-1:562654496378:listener/app/evia-beta-alb/b206473f7e05ebc2/1dfa9a3a607b7699]
+aws_route53_record.alb_ipv6["okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_okuvu.in_AAAA]
+aws_route53_record.alb_ipv6["portal.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_portal.okuvu.in_AAAA]
+aws_route53_record.alb_ipv6["www.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_www.okuvu.in_AAAA]
+aws_route53_record.alb_ipv6["beta.api.okuvu.in"]: Refreshing state... [id=Z04967962T87OWS0AZZBZ_beta.api.okuvu.in_AAAA]
+aws_secretsmanager_secret_version.database: Refreshing state... [id=arn:aws:secretsmanager:ap-south-1:562654496378:secret:evia-beta/database-zl01EO|terraform-20261028084107338000000003]
+aws_cloudwatch_metric_alarm.rds_free_storage: Refreshing state... [id=evia-beta-rds-free-storage-low]
+aws_cloudwatch_metric_alarm.rds_connections_high: Refreshing state... [id=evia-beta-rds-connections-high]
+aws_codebuild_project.main[0]: Refreshing state... [id=arn:aws:codebuild:ap-south-1:562654496378:project/evia-beta-build]
+aws_lb_listener_rule.portal_https[0]: Refreshing state... [id=arn:aws:elasticloadbalancing:ap-south-1:562654496378:listener-rule/app/evia-beta-alb/b206473f7e05ebc2/1250f224ceea6ad3/35e88161e0d70785]
+aws_ecs_service.portal: Refreshing state... [id=arn:aws:ecs:ap-south-1:562654496378:service/evia-beta/evia-beta-portal]
+aws_ecs_task_definition.worker: Refreshing state... [id=evia-beta-worker]
+aws_ecs_task_definition.api: Refreshing state... [id=evia-beta-api]
+aws_codebuild_webhook.main[0]: Refreshing state... [id=evia-beta-build]
+aws_ecs_service.worker: Refreshing state... [id=arn:aws:ecs:ap-south-1:562654496378:service/evia-beta/evia-beta-worker]
+aws_ecs_service.api: Refreshing state... [id=arn:aws:ecs:ap-south-1:562654496378:service/evia-beta/evia-beta-api]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+  ~ update in-place
+  - destroy
+ <= read (data resources)
+
+Terraform will perform the following actions:
+
+  # data.aws_iam_policy_document.ops_alerts_topic will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "ops_alerts_topic" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "SNS:AddPermission",
+              + "SNS:DeleteTopic",
+              + "SNS:GetTopicAttributes",
+              + "SNS:ListSubscriptionsByTopic",
+              + "SNS:Publish",
+              + "SNS:RemovePermission",
+              + "SNS:SetTopicAttributes",
+              + "SNS:Subscribe",
+            ]
+          + effect    = "Allow"
+          + resources = [
+              + "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+            ]
+          + sid       = "__default_statement_ID"
+
+          + condition {
+              + test     = "StringEquals"
+              + values   = [
+                  + "562654496378",
+                ]
+              + variable = "AWS:SourceOwner"
+            }
+
+          + principals {
+              + identifiers = [
+                  + "*",
+                ]
+              + type        = "AWS"
+            }
+        }
+      + statement {
+          + actions   = [
+              + "SNS:Publish",
+            ]
+          + effect    = "Allow"
+          + resources = [
+              + "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+            ]
+          + sid       = "AllowEventBridgeTaskStoppedPublish"
+
+          + condition {
+              + test     = "ArnEquals"
+              + values   = [
+                  + (known after apply),
+                ]
+              + variable = "aws:SourceArn"
+            }
+          + condition {
+              + test     = "StringEquals"
+              + values   = [
+                  + "562654496378",
+                ]
+              + variable = "aws:SourceAccount"
+            }
+
+          + principals {
+              + identifiers = [
+                  + "events.amazonaws.com",
+                ]
+              + type        = "Service"
+            }
+        }
+    }
+
+  # aws_cloudwatch_event_rule.task_stopped will be created
+  + resource "aws_cloudwatch_event_rule" "task_stopped" {
+      + arn            = (known after apply)
+      + description    = "ECS task stopped while it was supposed to be running (replaces the Container Insights running-count alarms)"
+      + event_bus_name = "default"
+      + event_pattern  = jsonencode(
+            {
+              + detail      = {
+                  + "$or"      = [
+                      + {
+                          + desiredStatus = [
+                              + "RUNNING",
+                            ]
+                        },
+                      + {
+                          + containers = {
+                              + exitCode = [
+                                  + {
+                                      + anything-but = [
+                                          + 0,
+                                        ]
+                                    },
+                                ]
+                            }
+                          + stopCode   = [
+                              + "EssentialContainerExited",
+                            ]
+                        },
+                    ]
+                  + clusterArn = [
+                      + "arn:aws:ecs:ap-south-1:562654496378:cluster/evia-beta",
+                    ]
+                  + lastStatus = [
+                      + "STOPPED",
+                    ]
+                }
+              + detail-type = [
+                  + "ECS Task State Change",
+                ]
+              + source      = [
+                  + "aws.ecs",
+                ]
+            }
+        )
+      + force_destroy  = false
+      + id             = (known after apply)
+      + name           = "evia-beta-task-stopped"
+      + name_prefix    = (known after apply)
+      + tags           = {
+          + "Environment" = "beta"
+          + "ManagedBy"   = "terraform"
+          + "Name"        = "evia-beta-task-stopped"
+          + "Project"     = "okuvu"
+          + "Stack"       = "evia-beta"
+        }
+      + tags_all       = {
+          + "Environment" = "beta"
+          + "ManagedBy"   = "terraform"
+          + "Name"        = "evia-beta-task-stopped"
+          + "Project"     = "okuvu"
+          + "Stack"       = "evia-beta"
+        }
+    }
+
+  # aws_cloudwatch_event_target.task_stopped_ops_sns will be created
+  + resource "aws_cloudwatch_event_target" "task_stopped_ops_sns" {
+      + arn            = "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts"
+      + event_bus_name = "default"
+      + force_destroy  = false
+      + id             = (known after apply)
+      + rule           = "evia-beta-task-stopped"
+      + target_id      = "ops-alerts-sns"
+    }
+
+  # aws_cloudwatch_metric_alarm.service_running_tasks_low["api"] will be destroyed
+  # (because aws_cloudwatch_metric_alarm.service_running_tasks_low is not in configuration)
+  - resource "aws_cloudwatch_metric_alarm" "service_running_tasks_low" {
+      - actions_enabled                       = true -> null
+      - alarm_actions                         = [
+          - "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+        ] -> null
+      - alarm_description                     = "api is running fewer tasks than desired (1); the service is under-provisioned or failing to start" -> null
+      - alarm_name                            = "evia-beta-api-running-tasks-low" -> null
+      - arn                                   = "arn:aws:cloudwatch:ap-south-1:562654496378:alarm:evia-beta-api-running-tasks-low" -> null
+      - comparison_operator                   = "LessThanThreshold" -> null
+      - datapoints_to_alarm                   = 3 -> null
+      - dimensions                            = {
+          - "ClusterName" = "evia-beta"
+          - "ServiceName" = "evia-beta-api"
+        } -> null
+      - evaluation_periods                    = 3 -> null
+      - id                                    = "evia-beta-api-running-tasks-low" -> null
+      - insufficient_data_actions             = [] -> null
+      - metric_name                           = "RunningTaskCount" -> null
+      - namespace                             = "ECS/ContainerInsights" -> null
+      - ok_actions                            = [
+          - "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+        ] -> null
+      - period                                = 60 -> null
+      - statistic                             = "Average" -> null
+      - tags                                  = {
+          - "Environment" = "beta"
+          - "ManagedBy"   = "terraform"
+          - "Name"        = "evia-beta-api-running-tasks-low"
+          - "Project"     = "okuvu"
+          - "Stack"       = "evia-beta"
+          - "Workload"    = "api"
+        } -> null
+      - tags_all                              = {
+          - "Environment" = "beta"
+          - "ManagedBy"   = "terraform"
+          - "Name"        = "evia-beta-api-running-tasks-low"
+          - "Project"     = "okuvu"
+          - "Stack"       = "evia-beta"
+          - "Workload"    = "api"
+        } -> null
+      - threshold                             = 1 -> null
+      - treat_missing_data                    = "breaching" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_cloudwatch_metric_alarm.service_running_tasks_low["portal"] will be destroyed
+  # (because aws_cloudwatch_metric_alarm.service_running_tasks_low is not in configuration)
+  - resource "aws_cloudwatch_metric_alarm" "service_running_tasks_low" {
+      - actions_enabled                       = true -> null
+      - alarm_actions                         = [
+          - "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+        ] -> null
+      - alarm_description                     = "portal is running fewer tasks than desired (1); the service is under-provisioned or failing to start" -> null
+      - alarm_name                            = "evia-beta-portal-running-tasks-low" -> null
+      - arn                                   = "arn:aws:cloudwatch:ap-south-1:562654496378:alarm:evia-beta-portal-running-tasks-low" -> null
+      - comparison_operator                   = "LessThanThreshold" -> null
+      - datapoints_to_alarm                   = 3 -> null
+      - dimensions                            = {
+          - "ClusterName" = "evia-beta"
+          - "ServiceName" = "evia-beta-portal"
+        } -> null
+      - evaluation_periods                    = 3 -> null
+      - id                                    = "evia-beta-portal-running-tasks-low" -> null
+      - insufficient_data_actions             = [] -> null
+      - metric_name                           = "RunningTaskCount" -> null
+      - namespace                             = "ECS/ContainerInsights" -> null
+      - ok_actions                            = [
+          - "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+        ] -> null
+      - period                                = 60 -> null
+      - statistic                             = "Average" -> null
+      - tags                                  = {
+          - "Environment" = "beta"
+          - "ManagedBy"   = "terraform"
+          - "Name"        = "evia-beta-portal-running-tasks-low"
+          - "Project"     = "okuvu"
+          - "Stack"       = "evia-beta"
+          - "Workload"    = "portal"
+        } -> null
+      - tags_all                              = {
+          - "Environment" = "beta"
+          - "ManagedBy"   = "terraform"
+          - "Name"        = "evia-beta-portal-running-tasks-low"
+          - "Project"     = "okuvu"
+          - "Stack"       = "evia-beta"
+          - "Workload"    = "portal"
+        } -> null
+      - threshold                             = 1 -> null
+      - treat_missing_data                    = "breaching" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_cloudwatch_metric_alarm.service_running_tasks_low["worker"] will be destroyed
+  # (because aws_cloudwatch_metric_alarm.service_running_tasks_low is not in configuration)
+  - resource "aws_cloudwatch_metric_alarm" "service_running_tasks_low" {
+      - actions_enabled                       = true -> null
+      - alarm_actions                         = [
+          - "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+        ] -> null
+      - alarm_description                     = "worker is running fewer tasks than desired (1); the service is under-provisioned or failing to start" -> null
+      - alarm_name                            = "evia-beta-worker-running-tasks-low" -> null
+      - arn                                   = "arn:aws:cloudwatch:ap-south-1:562654496378:alarm:evia-beta-worker-running-tasks-low" -> null
+      - comparison_operator                   = "LessThanThreshold" -> null
+      - datapoints_to_alarm                   = 3 -> null
+      - dimensions                            = {
+          - "ClusterName" = "evia-beta"
+          - "ServiceName" = "evia-beta-worker"
+        } -> null
+      - evaluation_periods                    = 3 -> null
+      - id                                    = "evia-beta-worker-running-tasks-low" -> null
+      - insufficient_data_actions             = [] -> null
+      - metric_name                           = "RunningTaskCount" -> null
+      - namespace                             = "ECS/ContainerInsights" -> null
+      - ok_actions                            = [
+          - "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts",
+        ] -> null
+      - period                                = 60 -> null
+      - statistic                             = "Average" -> null
+      - tags                                  = {
+          - "Environment" = "beta"
+          - "ManagedBy"   = "terraform"
+          - "Name"        = "evia-beta-worker-running-tasks-low"
+          - "Project"     = "okuvu"
+          - "Stack"       = "evia-beta"
+          - "Workload"    = "worker"
+        } -> null
+      - tags_all                              = {
+          - "Environment" = "beta"
+          - "ManagedBy"   = "terraform"
+          - "Name"        = "evia-beta-worker-running-tasks-low"
+          - "Project"     = "okuvu"
+          - "Stack"       = "evia-beta"
+          - "Workload"    = "worker"
+        } -> null
+      - threshold                             = 1 -> null
+      - treat_missing_data                    = "breaching" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_ecs_cluster.main will be updated in-place
+  ~ resource "aws_ecs_cluster" "main" {
+        id       = "arn:aws:ecs:ap-south-1:562654496378:cluster/evia-beta"
+        name     = "evia-beta"
+        tags     = {
+            "Environment" = "beta"
+            "ManagedBy"   = "terraform"
+            "Name"        = "evia-beta-cluster"
+            "Project"     = "okuvu"
+            "Stack"       = "evia-beta"
+        }
+        # (2 unchanged attributes hidden)
+
+      - setting {
+          - name  = "containerInsights" -> null
+          - value = "enabled" -> null
+        }
+      + setting {
+          + name  = "containerInsights"
+          + value = "disabled"
+        }
+    }
+
+  # aws_sns_topic_policy.ops_alerts will be created
+  + resource "aws_sns_topic_policy" "ops_alerts" {
+      + arn    = "arn:aws:sns:ap-south-1:562654496378:evia-beta-ops-alerts"
+      + id     = (known after apply)
+      + owner  = (known after apply)
+      + policy = (known after apply)
+    }
+
+Plan: 3 to add, 1 to change, 3 to destroy.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.
