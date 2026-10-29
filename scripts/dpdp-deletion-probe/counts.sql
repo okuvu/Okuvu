@@ -19,5 +19,15 @@ UNION ALL SELECT 'ClinicalAccessLog', count(*) FILTER (WHERE client_user_id = (S
 UNION ALL SELECT 'TherapistClient', count(*) FILTER (WHERE client_user_id = (SELECT uid FROM p)), count(*) FROM "TherapistClient"
 UNION ALL SELECT 'UserMemory', count(*) FILTER (WHERE user_id = (SELECT uid FROM p)), count(*) FROM "UserMemory"
 UNION ALL SELECT 'InviteToken', count(*) FILTER (WHERE client_user_id = (SELECT uid FROM p)), count(*) FROM "InviteToken"
+UNION ALL SELECT 'UserToolPreference', count(*) FILTER (WHERE user_id = (SELECT uid FROM p)), count(*) FROM "UserToolPreference"
+-- GovernanceLog has no FK to "User": it is reached through the session id, so
+-- the probe session id is written out literally. Resolving it through
+-- "SessionLog" would report a false zero once the session row is deleted.
+UNION ALL SELECT 'GovernanceLog', count(*) FILTER (WHERE session_id = '11111111-1111-4111-8111-111111111112'), count(*) FROM "GovernanceLog"
+UNION ALL SELECT 'BetaConsent', count(*) FILTER (WHERE user_ref = (SELECT uid FROM p)), count(*) FROM "BetaConsent"
+UNION ALL SELECT 'WaitlistEntry', count(*) FILTER (WHERE email = 'e16s7.deletion.probe@example.test' OR phone_number = '+919000000001'), count(*) FROM "WaitlistEntry"
+-- Retained by design (append-only hash-chained governance ledger). Listed so the
+-- evidence shows it is unchanged, not silently skipped.
+UNION ALL SELECT 'AuditEvent(retained)', 0, count(*) FROM "AuditEvent"
 UNION ALL SELECT 'Therapist(seed)', 0, count(*) FROM "Therapist"
 ORDER BY 1
