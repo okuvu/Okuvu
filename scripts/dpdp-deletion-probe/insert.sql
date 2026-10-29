@@ -44,6 +44,12 @@ FROM "Therapist" WHERE email = 'ananya.rao@okuvu.in';
 INSERT INTO "Reminder" (id, user_id, schedule_note)
 VALUES ('11111111-1111-4111-8111-11111111111f', '11111111-1111-4111-8111-111111111111',
         'SYNTHETIC probe reminder (E16-S7)');
+-- E16-S10: a second reminder pointing at the probe homework. The FK is optional
+-- (ON DELETE SET NULL), so "delete the user's reminders" would silently orphan
+-- this row if it ran after the homework; the ordered delete removes it.
+INSERT INTO "Reminder" (id, user_id, homework_id, schedule_note)
+VALUES ('11111111-1111-4111-8111-11111111112a', '11111111-1111-4111-8111-111111111111',
+        '11111111-1111-4111-8111-11111111111e', 'SYNTHETIC probe homework reminder (E16-S10)');
 INSERT INTO "Appointment" (id, therapist_id, client_user_id, scheduled_at, mode, updated_at)
 SELECT '11111111-1111-4111-8111-111111111120', id, '11111111-1111-4111-8111-111111111111',
        now() + interval '1 day', 'video', now()
@@ -58,3 +64,17 @@ INSERT INTO "InviteToken" (id, token_hash, therapist_id, client_user_id, expires
 SELECT '11111111-1111-4111-8111-111111111123', repeat('e16s7probe', 4), id,
        '11111111-1111-4111-8111-111111111111', now() + interval '7 days'
 FROM "Therapist" WHERE email = 'ananya.rao@okuvu.in';
+-- E16-S10 additions: the table the E16-S7 probe missed (UserToolPreference), and
+-- the three that are reached indirectly rather than through a FK.
+INSERT INTO "UserToolPreference" (id, user_id, tool_id, updated_at)
+VALUES ('11111111-1111-4111-8111-111111111124', '11111111-1111-4111-8111-111111111111',
+        'box_breathing', now());
+INSERT INTO "GovernanceLog" (id, session_id, turn_number, gate, decision, confidence, blocked_content)
+VALUES ('11111111-1111-4111-8111-111111111125', '11111111-1111-4111-8111-111111111112',
+        2, 'A9-POST', 'BLOCKED', 'high', 'SYNTHETIC probe blocked content (E16-S10)');
+INSERT INTO "BetaConsent" (id, user_ref, scope)
+VALUES ('11111111-1111-4111-8111-111111111126', '11111111-1111-4111-8111-111111111111',
+        'beta-programme');
+INSERT INTO "WaitlistEntry" (id, email, phone_number)
+VALUES ('11111111-1111-4111-8111-111111111127', 'e16s7.deletion.probe@example.test',
+        '+919000000001');
