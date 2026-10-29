@@ -164,6 +164,29 @@ export default function ClientDetailPage() {
           {/* Appointments — wireframes P-02/P-03/P-04 */}
           <AppointmentsCard clientUserId={clientId} />
 
+          {/* E16-S9 — entry point to the read-only conversation view. The
+              page itself re-checks the 30-day chat-access window server
+              side, so this link is a doorway, not a permission. */}
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  CONVERSATION WITH AGENT
+                </h2>
+                <p className="mt-2 text-sm text-gray-700">
+                  Read what this client said to the agent and how it replied. Read-only, and
+                  only while a chat-access request you made is inside its 30-day window.
+                </p>
+              </div>
+              <Link
+                href={`/clients/${clientId}/conversation`}
+                className="shrink-0 text-sm font-medium text-royal-purple hover:underline"
+              >
+                Open conversation &rarr;
+              </Link>
+            </div>
+          </div>
+
           {/* Client overview card */}
           <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
