@@ -73,6 +73,8 @@ import {
   CRISIS_RESPONSE,
   A8_S3_GROUNDING_RESPONSE,
   A9_PRE_BLOCKED_RESPONSE,
+  MEDICAL_EMERGENCY_RESPONSE,
+  MEDICAL_EMERGENCY_CRISIS_RESPONSE,
   SAFETY_UNAVAILABLE_RESPONSE,
   getModelUnavailableFallback,
 } from '../src/pipeline/fallbacks.js';
@@ -102,7 +104,7 @@ const TASK_DEFINITION_FAMILY = 'evia-beta-api';
 const TASK_DEFINITION_REGION = 'ap-south-1';
 
 /** The paths a turn can be served by. `fail_closed` keeps its probes. */
-type ServedPath = 'crisis' | 'grounding' | 'a2' | 'a2_blocked' | 'fail_closed';
+type ServedPath = 'crisis' | 'grounding' | 'medical' | 'a2' | 'a2_blocked' | 'fail_closed';
 
 type RubricGroup = { label: string; any_of: string[]; applies_to?: string[] };
 
@@ -534,6 +536,10 @@ async function main(): Promise<void> {
 
     // ── 2. the product's router decides what runs ──────────────────────────
     const decision = routeTurn({
+      // E17-S9: the router reads the message for the medical-emergency screen.
+      // Without it here the gate would score the old routing and silently miss
+      // the branch the product actually serves.
+      message: scenario.message,
       safety_state: a1.safetyState as 'S0' | 'S1' | 'S2' | 'S3' | 'S4',
       // A9-pre is not measured by this gate; 'Active' is the pass-through state
       // it returns for content the product serves normally. Recorded below.
@@ -545,21 +551,29 @@ async function main(): Promise<void> {
     const path: ServedPath =
       decision.agent === 'crisis'
         ? 'crisis'
-        : decision.agent === 'deterministic-grounding'
-          ? 'grounding'
-          : decision.mode === 'blocked'
-            ? 'a2_blocked'
-            : 'a2';
+        : decision.agent === 'medical-emergency'
+          ? 'medical'
+          : decision.agent === 'deterministic-grounding'
+            ? 'grounding'
+            : decision.mode === 'blocked'
+              ? 'a2_blocked'
+              : 'a2';
     const routing = `${a1.safetyState} -> routeTurn -> ${path}`;
 
     // ── 3. the text that path serves ───────────────────────────────────────
-    if (path === 'crisis' || path === 'grounding' || path === 'a2_blocked') {
+    if (path === 'crisis' || path === 'grounding' || path === 'medical' || path === 'a2_blocked') {
       const served =
         path === 'crisis'
           ? CRISIS_RESPONSE
           : path === 'grounding'
             ? A8_S3_GROUNDING_RESPONSE
-            : A9_PRE_BLOCKED_RESPONSE;
+            : path === 'medical'
+              // mirrors orchestrator.ts: a medical message that A1 also read as
+              // S4 keeps the helplines in the copy, so no resource is withdrawn.
+              ? a1.safetyState === 'S4' || a1.crisis_language_detected
+                ? MEDICAL_EMERGENCY_CRISIS_RESPONSE
+                : MEDICAL_EMERGENCY_RESPONSE
+              : A9_PRE_BLOCKED_RESPONSE;
       const failedGroups = scoreScenario(scenario, served, path);
       results.push({
         id: scenario.id,
