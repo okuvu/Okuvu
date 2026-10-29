@@ -24,7 +24,7 @@ const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 const safetyStateSchema = z.enum(['S0', 'S1', 'S2', 'S3', 'S4']);
 const governanceStateSchema = z.enum(['Active', 'Restricted', 'Blocked']);
 const routerDecisionSchema = z.object({
-  agent: z.enum(['crisis', 'deterministic-grounding', 'A2']),
+  agent: z.enum(['crisis', 'medical-emergency', 'deterministic-grounding', 'A2']),
   mode: z.enum(['normal', 'blocked']).optional(),
 });
 

@@ -114,6 +114,52 @@ export const MODEL_UNAVAILABLE_RESPONSE =
   "Say it again whenever you're ready — I'll still be here."
 
 
+// ─── E17-S9 — medical emergency: the ambulance, not the crisis card ────────
+//
+// Measured before written (evidence/E17-S5-orch-correction.md): four of the
+// five gold-set medical emergencies classify S1/S2 and reach A2 as ordinary
+// chat, where the reply was "the crisis support in the app has people who can
+// actually help right now" — a mental-health card offered to someone describing
+// a heart attack. The fifth reached the S4 crisis card for the same reason.
+//
+// These two constants are what the pipeline serves instead, deterministically:
+// `agents/a1/medical-emergency-keywords.ts` is the screen, `a8-router.ts` is the
+// decision, and neither A2 nor A9-post writes a word of the reply — so the
+// first sentence is a property of this file, not of a model's compliance. That
+// is what makes "112 in the first sentence" true at 100% rather than usually.
+//
+// Written to the block-response contract at the top of this file (hold the
+// thread, no machinery talk, no micro-technique) and to the clinical rules for
+// this story: no diagnosis, no dosing, no first-aid procedure, no claim of
+// clinical review, and the mental-health helplines never displace the
+// ambulance. 112 is India's single emergency number (police, fire, ambulance),
+// and it is the number the crisis path already lists as "Emergency Services".
+//
+// CLINICAL SIGN-OFF (E17-S7): both strings are new clinical content and must be
+// reviewed by the clinical authority before this ships to real users. They are
+// deliberately kept here, and only here, so the words can be read and edited in
+// one place; the evidence file (evidence/E17-S9.md §3) reproduces them verbatim
+// for that review.
+
+// The ordinary case: a physical emergency, nothing said about self-harm.
+export const MEDICAL_EMERGENCY_RESPONSE =
+  "Please call 112 for emergency medical help right now — that is the ambulance and emergency number in India, " +
+  "and they can send help to you. " +
+  "What you've described is a medical emergency, so please don't wait for me on this one: make the call first, " +
+  "and put it on speaker if you can. " +
+  "I'm here, and I'll stay with you while you do."
+
+// The overlap case: the message is a physical emergency AND A1 still returned
+// S4 (or flagged crisis language) on it. A2 does not see this turn either, but
+// the crisis resources must not be dropped just because the message is also a
+// medical one — 112 leads, the helplines follow, nothing is withdrawn.
+export const MEDICAL_EMERGENCY_CRISIS_RESPONSE =
+  "Please call 112 for emergency medical help right now — that is the ambulance and emergency number in India, " +
+  "and they can send help to you. " +
+  "I can also hear that there is more than the physical side to this, and I don't want you to carry that alone: " +
+  "once you've called, please reach out to iCall on 9152987821 or the Vandrevala Foundation on 1860-2662-345. " +
+  "I'm here, and I'll stay with you."
+
 // Deterministic substitute selector. `safetyState` is the A1 state this turn
 // was classified at (the orchestrator passes what it has; block paths pass
 // the same state they were gated on).

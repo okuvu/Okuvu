@@ -34,6 +34,13 @@ export interface RouterInput {
   governance_state?: GovernanceState | null
   session_count: number | undefined
   turn_count: number | undefined
+  /**
+   * E17-S9 — the turn's message, used only by the deterministic medical-emergency
+   * screen (`agents/a1/medical-emergency-keywords.ts`). Optional: every other
+   * routing rule is a pure function of the states above, so a caller that omits
+   * it gets the pre-E17-S9 router exactly.
+   */
+  message?: string
 }
 
 export interface RouterDecision {
@@ -44,8 +51,18 @@ export interface RouterDecision {
    * an elevated-risk user to a static policy-boundary reply. Unlike
    * 'crisis', this still gets a real, persisted, grounding-oriented reply —
    * A2 is simply never called for the turn at all.
+   *
+   * 'medical-emergency' (E17-S9) means the turn's message describes a physical
+   * emergency that needs an ambulance (uncontrolled bleeding, chest pain with a
+   * numb or radiating arm, an unconscious person, a fever with confusion,
+   * bleeding in pregnancy — `agents/a1/medical-emergency-keywords.ts`). Same tier
+   * of determinism as 'crisis': no model writes the reply, and the reply leads
+   * with 112. It is decided from the message, not from the safety state, because
+   * those turns classify S1/S2 as ordinary distress. A message carrying
+   * self-harm or crisis wording never reaches this path, so the crisis card is
+   * never displaced by it.
    */
-  agent: 'crisis' | 'deterministic-grounding' | 'A2'
+  agent: 'crisis' | 'medical-emergency' | 'deterministic-grounding' | 'A2'
   /**
    * 'blocked' means A9-pre (governance/policy) rejected the message but A1
    * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4'
@@ -151,6 +168,13 @@ export type SafetyNoticeCode =
   | 'SAFETY_UNAVAILABLE'
   | 'MODEL_UNAVAILABLE'
   | 'MODEL_THROTTLED'
+  /**
+   * E17-S9 — the reply is the deterministic emergency-medical response (112
+   * first), chosen by the message screen rather than by a model. A client that
+   * wants to offer a "call 112" affordance reads this; nothing about the text
+   * depends on it.
+   */
+  | 'MEDICAL_EMERGENCY_FLOOR'
 
 export interface SafetyNotice {
   code: SafetyNoticeCode
