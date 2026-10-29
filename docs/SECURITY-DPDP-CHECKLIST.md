@@ -21,7 +21,7 @@ observed to remove the record."*
 | 1 | TLS-only traffic | PASS | **PASS** | §1, `[E1]`–`[E6]` |
 | 2 | Secrets in SSM/Secrets Manager rather than env files | PARTIAL | **PARTIAL** | §2, `[E8]`–`[E11]`: runtime is clean; one real Google OAuth client secret is still in the history of the **public** repo `okuvu/Okuvu` |
 | 3 | No personal data in log output | FAIL | **PENDING-DATE** | §3, `[E12]`–`[E16]`: the fix is deployed and every post-fix window scans clean, but the criterion's literal *24-hour zero* cannot hold until the pre-fix events age out — measured expiry **2026-11-12T05:37:37Z** |
-| 4 | A stated retention period | PARTIAL | **PARTIAL** | §4, `[E17]`–`[E20]`: both gaps named in rev 1 are closed below; clinical records still have no retention period |
+| 4 | A stated retention period | PARTIAL | **PARTIAL** | §4, `[E17]`–`[E20]`: the log-group and snapshot gaps are closed below; clinical records still have no retention period |
 | 5 | Deletion path exercised once, record observed removed | FAILED | **PASS** | §5, `[E21]`–`[E30]`: 24 probe rows across 22 tables → 0 left, tombstone stripped of every direct identifier, baseline restored |
 
 **Story-level status: PARTIAL.** Two of rev 1's three failing items are closed. The open clauses, without
@@ -181,9 +181,17 @@ If the group is ever recreated by Terraform, the HCL that keeps it at 14 days is
 ```hcl
 resource "aws_cloudwatch_log_group" "rds_postgresql" {
   name              = "/aws/rds/instance/${aws_db_instance.postgres.identifier}/postgresql"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
 }
 ```
+
+**This group is not managed by Terraform today.** `infrastructure/aws/evia-beta/observability.tf`
+declares `aws_cloudwatch_log_group` for `api`, `worker` and `flow` only; RDS creates the `postgresql`
+group implicitly when its log export is configured, which is why it was the one group nobody set a
+retention on. The 14 days applied above therefore lives in the live account and **nothing in the repo
+would restore it** — so adding that resource plus `terraform import aws_cloudwatch_log_group.rds_postgresql
+/aws/rds/instance/evia-beta-postgres/postgresql` is an orchestrator step, recorded as such rather than
+implied to be done.
 
 **Also recorded:** `log_min_duration_statement = 1000` on `evia-beta-postgres16`, with `log_statement`
 unset. Statements slower than 1 s are therefore logged **with their text**, which can include literal
