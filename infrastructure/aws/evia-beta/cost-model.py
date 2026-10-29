@@ -26,6 +26,14 @@ RATE = {
     "logs_ingest_gb": 0.67,
     "logs_store_gb": 0.03,
     "build_min": 0.010,           # BUILD_GENERAL1_MEDIUM
+    # E15-S6 observability additions. Alarm rate is the list "per alarm metric
+    # month" price for standard resolution in ap-south-1; the high-resolution
+    # variant (APS3-CW:HighResAlarmMonitorUsage, $0.30) and the composite one
+    # (APS3-CW:CompositeAlarmMonitorUsage, $0.50) were read from the offer file.
+    "cloudwatch_alarm": 0.10,
+    "s3_standard_gb": 0.025,      # ap-south-1, first 50 TB
+    "s3_put_1k": 0.005,           # per 1,000 PUT requests
+    "cloudwatch_custom_metric": 0.30,  # per metric-month, first 10k
 }
 
 # Assumptions (named so they can be challenged)
@@ -95,3 +103,47 @@ fixed = at - (
 )
 print(f"traffic/build-driven portion of the after total: ${at-fixed:.2f}")
 print(f"fixed-per-stack portion:                          ${fixed:.2f}")
+
+# ---------------------------------------------------------------------------
+# E15-S6 observability delta.
+#
+# Deliberately not folded into the before/after table above: that table answers
+# "what did the lean resize save", and adding lines would silently rewrite the
+# comparison. These are the numbers the budget guard actually needs — and they
+# expose that the after-total understates the real run rate, because it carries
+# no Container Insights line while the cluster is publishing 108 metric streams.
+# ---------------------------------------------------------------------------
+CI_METRIC_STREAMS = 108            # aws cloudwatch list-metrics -n ECS/ContainerInsights
+ALB_REQUESTS_PER_DAY = 2961        # RequestCount Sum, 24h, evia-beta-alb (measured)
+ALB_OBJECTS_PER_DAY = 2 * 288      # one access-log object per 5 min per AZ, 2 AZs
+ALB_BYTES_PER_REQUEST = 400        # log line before gzip; /4 for the gzip ratio
+ALB_RETENTION_DAYS = 90
+
+e15s6 = [
+    ("CloudWatch alarms x5 (3 ECS, 2 RDS)", 5 * RATE["cloudwatch_alarm"]),
+    ("S3 PUT requests for ALB logs", ALB_OBJECTS_PER_DAY * 30 / 1000 * RATE["s3_put_1k"]),
+    (
+        "S3 storage for ALB logs (90d)",
+        (ALB_REQUESTS_PER_DAY * ALB_BYTES_PER_REQUEST * 30 * ALB_RETENTION_DAYS / 4)
+        / 1024**3
+        * RATE["s3_standard_gb"],
+    ),
+]
+
+print()
+print("E15-S6 additions")
+print("-" * 62)
+for name, v in e15s6:
+    print(f"{name:<40}{v:>10.3f}")
+add = sum(v for _, v in e15s6)
+print("-" * 62)
+print(f"{'NEW MONTHLY':<40}{add:>10.3f}")
+print(f"{'NEW ANNUALISED':<40}{add * 12:>10.2f}")
+print()
+print(f"Container Insights already running: {CI_METRIC_STREAMS} streams")
+print(
+    "  estimated ${:.2f}/mo, absent from the after-total above".format(
+        CI_METRIC_STREAMS * RATE["cloudwatch_custom_metric"]
+    )
+)
+

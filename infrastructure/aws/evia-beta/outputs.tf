@@ -128,12 +128,18 @@ output "summary_dlq_url" {
 }
 
 output "log_group_names" {
-  description = "CloudWatch log groups for both services"
+  description = "CloudWatch log groups, one per workload (each matches its task definition's awslogs-group)"
   value = {
     api    = aws_cloudwatch_log_group.api.name
     worker = aws_cloudwatch_log_group.worker.name
+    portal = aws_cloudwatch_log_group.portal.name
     flow   = aws_cloudwatch_log_group.flow.name
   }
+}
+
+output "alb_access_log_bucket" {
+  description = "S3 bucket receiving ALB access logs"
+  value       = aws_s3_bucket.alb_logs.id
 }
 
 output "budget_name" {
