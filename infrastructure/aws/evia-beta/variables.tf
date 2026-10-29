@@ -249,6 +249,24 @@ variable "budget_notification_email" {
   default     = ""
 }
 
+variable "rds_free_storage_alarm_gb" {
+  description = "FreeStorageSpace threshold (GiB) below which the RDS alarm fires"
+  type        = number
+  default     = 5
+}
+
+variable "rds_max_connections_alarm" {
+  description = "DatabaseConnections threshold above which the RDS alarm fires (max_connections is 100)"
+  type        = number
+  default     = 80
+}
+
+variable "alb_access_log_retention_days" {
+  description = "How long ALB access logs are kept in S3 before lifecycle expiry"
+  type        = number
+  default     = 90
+}
+
 variable "alarm_notification_email" {
   description = "Optional email subscribed to operational alarms (leave empty to skip)"
   type        = string

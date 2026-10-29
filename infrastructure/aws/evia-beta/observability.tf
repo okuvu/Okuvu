@@ -242,6 +242,139 @@ resource "aws_cloudwatch_metric_alarm" "portal_unhealthy_hosts" {
 }
 
 # ---------------------------------------------------------------------------
+# Running count vs desired count — the alarm the ALB metrics cannot give us.
+#
+# UnHealthyHostCount only fires when a target group exists. The worker has no
+# load balancer and no target group, so the only signal that it has died used
+# to be a human noticing summaries stopped arriving. These three alarms close
+# that for every service, worker included.
+#
+# Why Container Insights and not a Lambda-backed custom metric:
+#   * the cluster already sets containerInsights=enabled (ecs.tf), and the
+#     ECS/ContainerInsights metrics are already flowing — RunningTaskCount and
+#     DesiredTaskCount publish per ServiceName every 60s. So the marginal cost
+#     of these alarms is the alarm fee only, $0.10 each per month, with no new
+#     moving part that can itself fail silently.
+#   * a Lambda on EventBridge ECS task-state-change would cost roughly the same
+#     in request charges but adds code, an IAM role, an invoke path and a place
+#     for the alarm to break exactly when the platform is already unhealthy.
+#   * a Logs metric filter on the worker log group cannot work: the failure
+#     mode is "the task is gone", and a gone task writes no log line.
+#
+# Treat-missing-data is breaching on purpose. Container Insights is published
+# by an agent inside each task; zero running tasks means zero metric data, which
+# is the incident, not a gap to be ignored.
+#
+# 3 x 60s evaluation keeps a rolling deploy (worker runs at minimumHealthy 0, so
+# it dips to 0 briefly) from paging, while a sustained outage alarms in 3 min.
+locals {
+  desired_task_counts = {
+    api    = var.api_desired_count
+    worker = var.worker_desired_count
+    portal = var.portal_desired_count
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "service_running_tasks_low" {
+  for_each = local.desired_task_counts
+
+  alarm_name        = "${var.name_prefix}-${each.key}-running-tasks-low"
+  alarm_description = "${each.key} is running fewer tasks than desired (${each.value}); the service is under-provisioned or failing to start"
+
+  namespace   = "ECS/ContainerInsights"
+  metric_name = "RunningTaskCount"
+  statistic   = "Average"
+
+  period              = 60
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
+  threshold           = each.value
+
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = "${var.name_prefix}-${each.key}"
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name     = "${var.name_prefix}-${each.key}-running-tasks-low"
+    Workload = each.key
+  })
+}
+
+# ---------------------------------------------------------------------------
+# RDS alarms. The database had none: it could fill its 20 GiB or run out of
+# the 100 max_connections and the first signal would be api 5xx.
+#
+# FreeStorageSpace is in bytes and excludes the 100 GiB autoscaling headroom
+# above it — a roomy-looking number that is still only 20 GiB of real disk, so
+# 5 GiB is the last-resort threshold before "no space left on device". The alarm
+# is Average < threshold over 10 min to ignore a vacuum or a large migration
+# spiking write-ahead log volume for a few minutes.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "rds_free_storage" {
+  alarm_name        = "${var.name_prefix}-rds-free-storage-low"
+  alarm_description = "Postgres has under ${var.rds_free_storage_alarm_gb} GiB of free storage left and will reject writes"
+
+  namespace   = "AWS/RDS"
+  metric_name = "FreeStorageSpace"
+  statistic   = "Average"
+
+  period             = 300
+  evaluation_periods = 2
+
+  # GiB, converted to the bytes the metric is published in.
+  threshold           = var.rds_free_storage_alarm_gb * 1073741824
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.main.identifier
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-rds-free-storage-low"
+  })
+}
+
+# max_connections is pinned to 100 in aws_db_parameter_group.main (rds.tf), so
+# 80 is the "connections are about to be refused" line, not an arbitrary 80%.
+resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
+  alarm_name        = "${var.name_prefix}-rds-connections-high"
+  alarm_description = "Postgres is above ${var.rds_max_connections_alarm} of its 100 max_connections"
+
+  namespace   = "AWS/RDS"
+  metric_name = "DatabaseConnections"
+  statistic   = "Average"
+
+  period             = 300
+  evaluation_periods = 2
+
+  threshold           = var.rds_max_connections_alarm
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.main.identifier
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-rds-connections-high"
+  })
+}
+
+# ---------------------------------------------------------------------------
 # Budget alarm
 # ---------------------------------------------------------------------------
 resource "aws_sns_topic" "budget_alerts" {
