@@ -113,8 +113,11 @@ const ESCAPE_RE = /[.*+?^${}()|[\]\\]/g;
 /**
  * A rubric phrase is a literal, matched case-insensitively as a whole word
  * (lookaround, so "now" never matches "know"), with any run of whitespace
- * standing in for a space. A phrase prefixed `re:` is an explicit regex — the
- * only place structure (markdown bullets) needs matching rather than wording.
+ * standing in for a space. A trailing plural is optional on the last word, so
+ * "long day" matches "long days" — plural inflection is not a behavioural
+ * difference and a rubric should not punish it. A phrase prefixed `re:` is an
+ * explicit regex — the only place structure (markdown bullets) needs matching
+ * rather than wording.
  */
 function phraseToRegex(phrase: string): RegExp {
   if (phrase.startsWith('re:')) return new RegExp(phrase.slice(3), 'im');
@@ -122,7 +125,8 @@ function phraseToRegex(phrase: string): RegExp {
     .replace(ESCAPE_RE, '\\$&')
     .replace(/\s+/g, '\\s+')
     .replace(/['’]/g, "['’]");
-  return new RegExp(`(?<![a-z0-9])${body}(?![a-z0-9])`, 'i');
+  const optionalPlural = /[a-z]$/.test(body) ? 's?' : '';
+  return new RegExp(`(?<![a-z0-9])${body}${optionalPlural}(?![a-z0-9])`, 'i');
 }
 
 /** Normalise typographic punctuation so a curly apostrophe cannot fail a rubric. */
