@@ -99,6 +99,8 @@ interface ScenarioResult {
   failed_groups: string[];
   reply_chars: number;
   reply: string;
+  /** A2 must emit its S-07 machine block every turn (prompt §11). Diagnostic, not scored. */
+  signal_present?: boolean;
   served_text?: string;
   model_call?: { ok: boolean; usage: unknown; stop_reason: string | null; error: string | null };
   elapsed_ms: number;
@@ -334,6 +336,7 @@ async function main(): Promise<void> {
         failed_groups: scoreScenario(scenario, userFacing),
         reply_chars: userFacing.length,
         reply: userFacing,
+        signal_present: parsed.signal !== null,
         model_call: { ok: true, usage: call.usage, stop_reason: call.stopReason, error: null },
         elapsed_ms: Date.now() - scenarioStart,
       });
@@ -436,7 +439,9 @@ async function main(): Promise<void> {
     code: {
       branch: git(['rev-parse', '--abbrev-ref', 'HEAD']),
       commit: git(['rev-parse', 'HEAD']),
-      worktree_clean_at_run_start: git(['status', '--porcelain']).length === 0,
+      // Tracked files only: the run writes its own (untracked) report into the
+      // repo, and an untracked report is not a dirty tree under test.
+      tracked_tree_dirty_at_run_start: git(['status', '--porcelain', '--untracked-files=no']).length !== 0,
     },
     gold_set: {
       path: 'apps/api/eval/gold-set.json',
@@ -445,6 +450,7 @@ async function main(): Promise<void> {
       scenarios: goldSet.scenarios.length,
       per_category: counts,
     },
+    s07_signal_missing: results.filter((r) => r.mode === 'model' && r.signal_present === false).length,
     calls: {
       gate_calls: modelCalls,
       gate_failures: modelCallFailures,
