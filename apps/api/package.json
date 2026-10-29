@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:load": "k6 run load-tests/k6-websocket-load.js"
+    "test:load": "k6 run load-tests/k6-websocket-load.js",
+    "eval:gate": "tsx eval/run-gate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1156.0",
