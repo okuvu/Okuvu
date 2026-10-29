@@ -140,10 +140,64 @@ print("-" * 62)
 print(f"{'NEW MONTHLY':<40}{add:>10.3f}")
 print(f"{'NEW ANNUALISED':<40}{add * 12:>10.2f}")
 print()
-print(f"Container Insights already running: {CI_METRIC_STREAMS} streams")
+print(f"Container Insights (E15-S6 note, now retired): {CI_METRIC_STREAMS} streams")
 print(
-    "  estimated ${:.2f}/mo, absent from the after-total above".format(
+    "  estimated ${:.2f}/mo at the time, absent from the after-total above".format(
         CI_METRIC_STREAMS * RATE["cloudwatch_custom_metric"]
     )
 )
+
+# ---------------------------------------------------------------------------
+# E15-S8 — retire Container Insights and the three running-count alarms.
+#
+# The metric count is measured, not assumed: `aws cloudwatch list-metrics
+# --namespace ECS/ContainerInsights` returned 108 metric streams on 2026-10-29
+# (18 distinct metric names across three dimension sets — 50 with
+# ClusterName+TaskDefinitionFamily, 45 with ClusterName+ServiceName, 13 with
+# ClusterName alone). Every stream is a CloudWatch custom metric.
+#
+# Rate: APS3-CW:MetricMonitorUsage in the ap-south-1 offer file — $0.30 per
+# metric-month for the first 10,000 metrics. 108 x 0.30 = $32.40.
+# Alarm rate: APS3-CW:AlarmMonitorUsage — $0.10 per alarm-month, first tier.
+#
+# The replacement path is free: ECS Task State Change events are AWS service
+# events on the default bus, which EventBridge does not charge for, and the
+# ops SNS topic plus its SQS subscriber already exist.
+#
+# This is an ESTIMATE, not a measured saving: the account's Cost Explorer
+# returns $0.00 for every service for the whole of October (billing data has
+# not started flowing yet), so there is no invoice line to difference. What is
+# measured is the metric count; what is published is the unit price.
+# ---------------------------------------------------------------------------
+e15s8 = [
+    (
+        f"Container Insights {CI_METRIC_STREAMS} metrics @ ${RATE['cloudwatch_custom_metric']:.2f}",
+        -CI_METRIC_STREAMS * RATE["cloudwatch_custom_metric"],
+    ),
+    ("3 running-tasks-low alarms @ $0.10", -3 * RATE["cloudwatch_alarm"]),
+    ("EventBridge rule + SNS target (service events)", 0.0),
+]
+
+print()
+print("E15-S8 removals")
+print("-" * 62)
+for name, v in e15s8:
+    print(f"{name:<40}{v:>10.3f}")
+saved = -sum(v for _, v in e15s8)
+print("-" * 62)
+print(f"{'SAVED MONTHLY':<40}{saved:>10.3f}")
+print(f"{'SAVED ANNUALISED':<40}{saved * 12:>10.2f}")
+print()
+# The $32.40 was never inside the after-total (E15-S6 recorded it as a missing
+# line), so it cannot simply be subtracted from it. Two run rates are shown:
+# the modelled one the table has always published, and the real one.
+modelled = at + add
+ci_cost = CI_METRIC_STREAMS * RATE["cloudwatch_custom_metric"]
+alarm_delta = 3 * RATE["cloudwatch_alarm"]
+print(f"modelled run rate, after-total + E15-S6 additions: ${modelled:.2f}/mo")
+print("  (Container Insights was never in that figure)")
+print(f"real run rate before E15-S8: ${modelled + ci_cost:.2f}/mo")
+print(f"real run rate after E15-S8:  ${modelled - alarm_delta:.2f}/mo")
+print(f"  difference: ${(modelled + ci_cost) - (modelled - alarm_delta):.2f}/mo, matching SAVED MONTHLY")
+print(f"  against the ${250.0:.0f} evia-beta-monthly budget")
 

@@ -1,9 +1,18 @@
 resource "aws_ecs_cluster" "main" {
   name = var.name_prefix
 
+  # Disabled on purpose (E15-S8). Container Insights publishes 108 custom
+  # metrics in ECS/ContainerInsights (measured 2026-10-29, evidence/E15-S8.md
+  # §4), billed at $0.30/metric-month in ap-south-1 — about $32.40/mo for a
+  # three-service beta stack. The only alarm that read it, RunningTaskCount,
+  # is retired in the same change and replaced by the free EventBridge
+  # task-state-change rule in alerts.tf, which is a more precise signal
+  # (it carries stopCode and container exit codes). Setting the value
+  # explicitly rather than dropping the block makes the disable an actual
+  # UpdateClusterSettings call instead of a silent no-op.
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 
   tags = merge(local.common_tags, {
