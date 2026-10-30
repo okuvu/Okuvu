@@ -1503,6 +1503,28 @@ describe('processTurn — per-turn crisis keyword floor (E17-S10)', () => {
     });
   });
 
+  it('does not claim a keyword floor when A1 said S4 and the message also matches', async () => {
+    // A1 gets this right on its own. The keyword screen also matches the same
+    // message. Nothing was raised, so nothing may be claimed — otherwise the
+    // commonest real crisis turn carries a CRISIS_FLOOR notice telling the
+    // review queue the model had not seen it.
+    vi.mocked(classifySafety).mockResolvedValue({ ...confident('S4'), crisis_language_detected: true });
+    vi.mocked(classifyGovernance).mockResolvedValue(activeGovernance);
+    vi.mocked(routeTurn).mockImplementation(realRouteTurn);
+
+    const before = auditEntries().length;
+    const result = await processTurn(UID, SESSION_ID, 'I want to die');
+
+    expect(result.type).toBe('crisis');
+    if (result.type === 'crisis') expect(result.safety).toBeUndefined();
+    expect(auditEntries()[before].detail).toMatchObject({
+      safety_state: 'S4',
+      crisis_floor: false,
+      crisis_floor_source: null,
+      classifier_state: 'S4',
+    });
+  });
+
   // ── negative controls: everyday idioms must not raise the state ──────────
   // Each is a real turn through processTurn with a confident S2 from A1: the
   // user must reach A2 at S2, and no crisis card must be served.

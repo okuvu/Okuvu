@@ -239,9 +239,20 @@ export async function processTurn(
   // for the review queue — and the audit row and safety notice must never
   // claim A1 was unavailable when it answered.
   const crisisKeywordFloorMatched = hasCrisisLanguage(message);
+  const a1ClassifiedState: SafetyState | null =
+    a1Result.status === 'fulfilled' ? a1Result.value.safetyState : null;
   const crisisFloorMatched =
     crisisKeywordFloorMatched ||
     (a1Unavailable && a1Result.status === 'fulfilled' && a1Result.value.safetyState === 'S4');
+
+  // E17-S10 — a *claim* that the keyword floor raised this turn is only true
+  // when the classifier did not itself return S4. A1 often gets "I want to die"
+  // right, and the screen matches it too; recording CRISIS_FLOOR for those
+  // turns would tell the review queue the model had missed a disclosure it
+  // actually caught. The state is unaffected either way — this only governs
+  // what the turn claims about itself.
+  const crisisFloorClaimed =
+    crisisKeywordFloorMatched && (a1Unavailable || a1ClassifiedState !== 'S4');
 
   /** Why A1 could not classify — the `reason` on the safety notice and the audit row. */
   const a1FailureReason = (): string => {
@@ -338,7 +349,7 @@ export async function processTurn(
     // the keywords raised it and carries no classifier-failure reason, because
     // there was no failure: claiming "A1 unavailable" here would be a lie in
     // the audit chain about the one component that worked.
-    const crisisSafety: SafetyNotice | undefined = crisisFloorMatched
+    const crisisSafety: SafetyNotice | undefined = crisisFloorClaimed
       ? {
           code: 'CRISIS_FLOOR',
           reason: a1Unavailable ? a1FailureReason() : 'crisis_keyword_floor',
@@ -381,10 +392,10 @@ export async function processTurn(
       object: `turn:${crisisAssistantTurn?.id ?? `${sessionId}:${crisisTurnCount}`}`,
       detail: {
         safety_state: safetyState,
-        crisis_floor: crisisFloorMatched,
+        crisis_floor: crisisFloorClaimed,
         // E17-S10: which mechanism put this turn at S4. Null when A1's own
         // classification did it, so a floor claim is never implied.
-        crisis_floor_source: crisisFloorMatched ? crisisFloorSource : null,
+        crisis_floor_source: crisisFloorClaimed ? crisisFloorSource : null,
         // What A1 actually said, even when the floor overrode it — so the
         // review queue can see "model read S1, keywords raised it" rather than
         // a turn that looks like an ordinary model crisis.
