@@ -12,7 +12,7 @@ import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConvers
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, CRISIS_THIRD_PARTY_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
-import { hasCrisisLanguage } from '../agents/a1/crisis-keywords.js';
+import { hasCrisisLanguage, hasSelfIngestion } from '../agents/a1/crisis-keywords.js';
 import { recordAuditEvent } from '../lib/audit-log.js';
 import type { SafetyNotice } from '@okuvu/shared-types';
 import type { PipelineResult, StageTiming, TestModeOptions, FallbackSource } from './types.js';
@@ -425,6 +425,13 @@ export async function processTurn(
     // the keywords raised it and carries no classifier-failure reason, because
     // there was no failure: claiming "A1 unavailable" here would be a lie in
     // the audit chain about the one component that worked.
+    // E17-S13 — an intentional overdose is a medical emergency AND a
+    // disclosure. The crisis card lists Emergency Services 112 among five
+    // numbers and never says to call an ambulance now, and the v2 gate failed
+    // csh-03 and csh-19 on exactly that ("treats the ingestion as needing
+    // urgent medical help"). MEDICAL_EMERGENCY_CRISIS_RESPONSE already exists
+    // for the overlap: 112 leads, the helplines follow, nothing withdrawn.
+    const crisisCopy = hasSelfIngestion(message) ? MEDICAL_EMERGENCY_CRISIS_RESPONSE : CRISIS_RESPONSE;
     const crisisSafety: SafetyNotice | undefined = crisisFloorClaimed
       ? {
           code: 'CRISIS_FLOOR',
@@ -443,7 +450,7 @@ export async function processTurn(
     const crisisAssistantTurn = await prisma.turn.create({
       data: {
         session_id: sessionId, user_id: user.id, turn_number: crisisTurnCount,
-        role: 'assistant', content: CRISIS_RESPONSE,
+        role: 'assistant', content: crisisCopy,
       },
       select: { id: true },
     });
@@ -481,7 +488,7 @@ export async function processTurn(
       },
     });
 
-    return { type: 'crisis', message: CRISIS_RESPONSE, timing, ...(crisisSafety ? { safety: crisisSafety } : {}), ...(testMode?.captureSignalBus ? { signals } : {}) };
+    return { type: 'crisis', message: crisisCopy, timing, ...(crisisSafety ? { safety: crisisSafety } : {}), ...(testMode?.captureSignalBus ? { signals } : {}) };
   }
 
   // ─── E17-S9 — a medical emergency is not a chat turn ────────────────────
