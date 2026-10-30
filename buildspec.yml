@@ -2,7 +2,8 @@
 #
 # What it does, in order:
 #   1. install   — pnpm workspace dependencies (frozen lockfile)
-#   2. pre_build — Prisma client, typecheck, unit tests, ECR login
+#   2. pre_build — secret scan (fail-closed on new secrets, advisory on history),
+#                  Prisma client, typecheck, unit tests, ECR login
 #   3. build     — docker build + push the api, worker and therapist-portal
 #                  images to ECR
 #   4. post_build— prisma migrate deploy against RDS, then roll all three ECS
@@ -122,6 +123,31 @@ phases:
         esac
         export DEPLOY_DECISION DEPLOY_SCOPE_REASON
         echo "deploy-scope: DEPLOY_DECISION=${DEPLOY_DECISION} reason=${DEPLOY_SCOPE_REASON:-none}"
+      - echo "=== Secret scan gate (working tree, fail-closed) ==="
+      # A credential committed to this repository is the one defect that cannot be
+      # repaired afterwards: okuvu/Okuvu is public, so a pushed commit is cloneable
+      # within seconds (E16-S8). The scan needs no network and no AWS credentials,
+      # so it runs before the expensive phases and stops them early.
+      #
+      # FAIL-CLOSED: exit 0 is the only pass. A new secret (1), an unreadable file
+      # or a missing/malformed allowlist (2), or a crash (2) all abort pre_build —
+      # and the allowlist is required, so deleting it is not a way past the gate.
+      # There is deliberately no `|| true` on this line.
+      - python3 scripts/secret-scan.py tree --allowlist scripts/secret-scan-allowlist.txt
+      # The history report is ADVISORY and never fails the build. Every value in it
+      # was published before this gate existed, and no pull request can remove it
+      # from a clone that already exists. A gate that is permanently red for a leak
+      # nobody on the build can fix gets deleted within a week and then protects
+      # nothing; this one keeps the leak visible in every build log instead.
+      # Rotation is an owner action: docs/SECRET-REMEDIATION.md.
+      - echo "=== Secret scan report (history, advisory) ==="
+      - |
+        if python3 scripts/secret-scan.py history --limit 20; then
+          echo "secret-scan: history report complete"
+        else
+          rc=$?
+          echo "secret-scan: history report exited ${rc} — advisory only; the working-tree gate above decides this build"
+        fi
       - echo "=== Prisma client ==="
       - cd packages/prisma && npx prisma generate && cd -
       - echo "=== Typecheck ==="
