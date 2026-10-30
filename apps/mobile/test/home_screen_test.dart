@@ -46,7 +46,11 @@ class FakeWebSocketService implements WebSocketService {
   Stream<bool> get showBannerStream => const Stream.empty();
 
   @override
-  Stream<String?> get crisisSignalStream => const Stream.empty();
+  Stream<CrisisSignal> get crisisSignalStream => const Stream.empty();
+
+  // E17-S11 test seam on the real service; nothing feeds frames to this fake.
+  @override
+  void handleRawFrame(String rawFrame) {}
 
   @override
   Future<void> connect(

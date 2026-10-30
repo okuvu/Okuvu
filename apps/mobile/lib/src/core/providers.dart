@@ -114,7 +114,7 @@ final wsShowBannerProvider =
 class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<AgentTurnFrame>? _turnSub;
   StreamSubscription<String?>? _sessionSub;
-  StreamSubscription<String?>? _crisisSub;
+  StreamSubscription<CrisisSignal>? _crisisSub;
 
   StreamSubscription<WsConnectionState>? _connectionSub;
 
@@ -131,7 +131,30 @@ class ChatNotifier extends Notifier<ChatState> {
       if (reason == 'IDLE_TIMEOUT') return;
       state = state.copyWith(isSessionClosed: true);
     });
-    _crisisSub = ws.crisisSignalStream.listen((_) {
+    _crisisSub = ws.crisisSignalStream.listen((signal) {
+      // E17-S11: the S4 reply the api sent with the frame goes into the
+      // transcript before the card covers the screen, so dismissing the card
+      // ("I'm safe for now") does not leave the user's last message with no
+      // assistant reply under it. It also settles the pending-turn state: the
+      // chat screen clears its typing indicator on any new agent message, so
+      // the 20s "No response received. Please try again." timer no longer
+      // fires behind a crisis card.
+      if (signal.message.trim().isNotEmpty) {
+        final id = 'crisis-${signal.sessionId ?? 'session'}';
+        if (!state.messages.any((m) => m.id == id)) {
+          state = state.copyWith(
+            messages: [
+              ...state.messages,
+              ChatMessage(
+                id: id,
+                sender: MessageSender.agent,
+                content: signal.message,
+                timestamp: DateTime.now(),
+              ),
+            ],
+          );
+        }
+      }
       ref.read(crisisOverlayProvider.notifier).show();
     });
     // A prior session closing is only ever recorded (isSessionClosed: true)
