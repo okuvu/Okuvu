@@ -70,19 +70,20 @@ outage window and teaches the team to distrust the finding list.
 DATABASE_URL="postgresql://[user]:***@[host]/evia?sslmode=require"
 ```
 
-The scanner found **2,437** `postgres://`/`postgresql://` URL occurrences across the 556
-commits in this repository. Every single one puts a placeholder where the password goes.
-The complete census, by password shape:
+The scanner found roughly **2,500** `postgres://`/`postgresql://` URL occurrences across
+every commit reachable from every ref (the exact census is `evidence/E16-S8.md` §E9, which
+is dated and reproducible; the counts below are that run's, newest first). **Every single
+one** puts a placeholder where the password goes:
 
 | Password shape | Occurrences | What it is |
 |---|---|---|
-| `[password]` | 1,136 | documentation placeholder |
-| `${urlencode(...)}` | 364 | Terraform interpolation |
-| `]+):([` | 364 | a PowerShell regex matching a URL, not a URL |
-| `%s` | 186 | printf template |
-| `${random_password…}` | 149 | Terraform-generated, never the value |
-| `***` | 146 | mask |
-| `${q(s.username)}` | 92 | a script redacting the password |
+| `[password]` | ~1,150 | documentation placeholder |
+| `${urlencode(...)}` | ~360 | Terraform interpolation |
+| `]+):([` | ~360 | a PowerShell regex matching a URL, not a URL |
+| `%s` | ~200 | printf template |
+| `${random_password…}` | ~150 | Terraform-generated, never the value |
+| `***` | ~150 | mask |
+| `${q(s.username)}` | ~100 | a script redacting the password |
 
 **Conclusion: the test-harness database password is not in this repository's history.** The
 only database facts disclosed are the username `test_harness_app` (in

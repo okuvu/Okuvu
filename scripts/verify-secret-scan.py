@@ -95,7 +95,7 @@ class Case:
 
     def run(self) -> bool:
         cmd = [PY, str(SCANNER)] + self.argv
-        shown = " ".join(("python3" if i == 0 else a) for i, a in enumerate(cmd[1:]))
+        shown = "python3 scripts/secret-scan.py " + " ".join(self.argv)
         proc = subprocess.run(cmd, cwd=self.cwd, capture_output=True, text=True)
         out = (proc.stdout + proc.stderr).rstrip()
         ok = proc.returncode == self.expect
