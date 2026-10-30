@@ -16,9 +16,9 @@ const __dirname = dirname(__filename);
  * the orchestrator now passes the current session's own turns into
  * `recentHistory` (see orchestrator.ts), which this version pairs with.
  */
-export const A2_PROMPT_VERSION = 'v2.1';
+export const A2_PROMPT_VERSION = 'v2.2';
 
 export const A2_PROMPT = readFileSync(
-  join(__dirname, 'a2-okuvu-v2.1.txt'),
+  join(__dirname, 'a2-okuvu-v2.2.txt'),
   'utf-8',
 );

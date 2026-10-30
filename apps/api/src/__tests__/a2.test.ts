@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTurn, parseA2Response } from '../agents/a2/agent.js';
 import type { A2Input, S07Signal } from '../agents/a2/types.js';
+import { A2_PROMPT_VERSION } from '../prompts/index.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
@@ -317,7 +318,7 @@ describe('A2 Support Companion (OKUVU v2.0)', () => {
 
       const result = await handleTurn(makeInput());
 
-      expect(result.promptVersion).toBe('v2.1');
+      expect(result.promptVersion).toBe(A2_PROMPT_VERSION);
     });
 
     it('propagates canned:true from the LLM wrapper', async () => {
