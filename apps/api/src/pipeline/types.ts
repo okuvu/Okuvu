@@ -76,6 +76,10 @@ export type FallbackSource =
   // deterministic emergency-medical copy (112 first). Set like every other
   // static-substitute source: the user did not receive model output this turn.
   | 'medical_emergency'
+  // E17-S13 — the message reported someone else's suicide risk, so the reply is
+  // the deterministic third-party crisis copy (helper-facing, 112 for immediate
+  // danger). Same tier as 'medical_emergency': no model wrote this turn.
+  | 'crisis_third_party'
 
 export type PipelineResult =
   | {

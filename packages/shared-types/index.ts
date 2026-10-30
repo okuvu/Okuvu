@@ -61,8 +61,17 @@ export interface RouterDecision {
    * those turns classify S1/S2 as ordinary distress. A message carrying
    * self-harm or crisis wording never reaches this path, so the crisis card is
    * never displaced by it.
+   *
+   * 'crisis-third-party' (E17-S13) means the message reports someone else's
+   * suicide risk ("my friend has been talking about killing herself"). It is a
+   * separate agent from 'crisis' because `CRISIS_RESPONSE` is second-person
+   * copy: served to a user asking about their mother, it tells them to call a
+   * helpline about themselves. This path serves `CRISIS_THIRD_PARTY_RESPONSE`,
+   * which names the same approved helplines as guidance for the helper and puts
+   * 112 first if the person is in immediate danger. A first-person disclosure
+   * always wins over this path.
    */
-  agent: 'crisis' | 'medical-emergency' | 'deterministic-grounding' | 'A2'
+  agent: 'crisis' | 'crisis-third-party' | 'medical-emergency' | 'deterministic-grounding' | 'A2'
   /**
    * 'blocked' means A9-pre (governance/policy) rejected the message but A1
    * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4'
@@ -175,6 +184,14 @@ export type SafetyNoticeCode =
    * depends on it.
    */
   | 'MEDICAL_EMERGENCY_FLOOR'
+  /**
+   * E17-S13 — the reply is the deterministic third-party crisis response: the
+   * message reported someone else's suicide risk, so the copy addresses the
+   * helper and keeps 112 for immediate danger. Separate from CRISIS_FLOOR
+   * because the copy and the instruction are different, and a client that shows
+   * a second-person crisis overlay must not show it here.
+   */
+  | 'CRISIS_THIRD_PARTY_FLOOR'
 
 export interface SafetyNotice {
   code: SafetyNoticeCode

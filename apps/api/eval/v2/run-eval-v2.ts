@@ -84,10 +84,11 @@ import { classifySafety } from '../../src/agents/a1/agent.js';
 import { routeTurn } from '../../src/agents/a8-router.js';
 import { resolveContentBackend, resolveAwsRegion, resolveBedrockModelId } from '../../src/lib/provider-config.js';
 import { classifyLlmFailure } from '../../src/lib/llm-failure.js';
-import { hasCrisisLanguage } from '../../src/agents/a1/crisis-keywords.js';
+import { hasCrisisLanguage, hasSelfIngestion } from '../../src/agents/a1/crisis-keywords.js';
 import { hasMedicalEmergencyLanguage } from '../../src/agents/a1/medical-emergency-keywords.js';
 import {
   CRISIS_RESPONSE,
+  CRISIS_THIRD_PARTY_RESPONSE,
   A8_S3_GROUNDING_RESPONSE,
   A9_PRE_BLOCKED_RESPONSE,
   MEDICAL_EMERGENCY_RESPONSE,
@@ -367,7 +368,7 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
     turn_count: 1,
   });
   const path: ServedPath =
-    decision.agent === 'crisis'
+    decision.agent === 'crisis' || decision.agent === 'crisis-third-party'
       ? 'crisis'
       : decision.agent === 'medical-emergency'
         ? 'medical'
@@ -384,7 +385,11 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
   if (path !== 'a2') {
     const served =
       path === 'crisis'
-        ? CRISIS_RESPONSE
+        ? decision.agent === 'crisis-third-party'
+          ? CRISIS_THIRD_PARTY_RESPONSE
+          : hasSelfIngestion(scenario.message)
+            ? MEDICAL_EMERGENCY_CRISIS_RESPONSE
+            : CRISIS_RESPONSE
         : path === 'grounding'
           ? A8_S3_GROUNDING_RESPONSE
           : path === 'medical'
