@@ -843,7 +843,7 @@ async function runGate(): Promise<void> {
     prompt: {
       agent: 'A2',
       version: A2_PROMPT_VERSION,
-      file: 'apps/api/src/prompts/a2-okuvu-v2.1.txt',
+      file: `apps/api/src/prompts/a2-okuvu-${A2_PROMPT_VERSION}.txt`,
       sha256: sha256File(PROMPT_FILE),
       built_by: 'buildConversationalPrompt() from src/agents/a2/prompts.ts',
     },
