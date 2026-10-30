@@ -63,6 +63,21 @@ const CHEST_PAIN =
 const CHEST_PAIN_RADIATION =
   /\b(left arm|(?:numb(?:ness)?|tingling|pins and needles) (?:in|down|all the way down) (?:my|his|her|their) (?:left )?(?:arm|hand)|jaw|shoulder|shoulder ?blades?|radiat\w*|down (?:my|his|her|their) (?:left )?arm|between (?:my|his|her|their) shoulder ?blades)\b/;
 
+/**
+ * E17-S12 — numbness of the lips or around the mouth alongside chest tightness.
+ *
+ * Gold-set me-15 ("my chest is tight and my lips feel numb … while I was
+ * sitting still watching TV") is an ischaemic picture and the screen missed it.
+ * Tingling lips are also a hyperventilation symptom, so this is the closest
+ * call in this file — but it is added as a radiation marker rather than a
+ * standalone match, so it still requires chest pain in the same message, and
+ * the retained panic corpus (chest tightness + racing heart, "I can't breathe
+ * when I get anxious") still does not match. A missed MI costs more than one
+ * unnecessary 112 instruction on a message that also describes chest pain.
+ */
+const LIP_NUMBNESS =
+  /\b((?:numb(?:ness)?|tingling|pins and needles) (?:in|on|around) (?:my|his|her|their)? ?lips?|lips? (?:feel|feels|are|is|going|have gone) numb|numb lips)\b/;
+
 /** Reduced consciousness, or a person who cannot be roused. */
 const REDUCED_CONSCIOUSNESS =
   /\b(unconscious|unresponsive|not responding|won'?t wake (?:up)?|can'?t wake (?:him|her|them|up)|not waking up|no pulse)\b/;
@@ -110,13 +125,85 @@ const SEIZURE = /\b(having a seizure|keeps? having seizures?|seizure (?:right )?
 const INGESTION =
   /\b((?:swallowed|drank|took|ate) (?:a |the )?(?:whole |full )?(?:bottle|pack|strip|handful|box|blister) of|poison\w*|bleach|phenyl|pesticide|rat poison|kerosene)\b/;
 
+/**
+ * A person in the water right now — E17-S12 tightened this after the
+ * cross-category probe found `drowning` matching a dream report (gold-set
+ * sb-19, "I keep dreaming about drowning"), which would have answered a
+ * dream-interpretation question with "call 112". The bare word is gone: what
+ * matches is someone actively going under, not the subject of a dream, and
+ * not "I'm drowning" as the overwhelm idiom this app hears constantly.
+ */
+const DROWNING_NOW =
+  /\b((?:he|she|they|my \w+|someone|a child|the child|a (?:boy|girl|man|woman)) (?:is |was |were |are )?(?:drowning|gone under)|drowning now|went under (?:the )?water|pulled (?:him|her|them) out of the (?:water|pool))\b/;
+
 /** Injuries and exposures where the ambulance is the answer in themselves. */
 const MAJOR_TRAUMA =
-  /\b(snake ?bite|bitten by a snake|snake bit (?:me|my|him|her|them)|electric shock|electrocuted|drowning|drowned|stabbed|road accident|hit by a (?:car|bike|truck|bus|two-wheeler)|head injury|fell from (?:a|the) (?:height|terrace|roof|balcony|building))\b/;
+  /\b(snake ?bite|bitten by a snake|snake bit (?:me|my|him|her|them)|electric shock|electrocuted|stabbed|road accident|hit by a (?:car|bike|truck|bus|two-wheeler)|head injury|head trauma|hit (?:my|his|her|their|the) head|banged (?:my|his|her|their) head|struck (?:my|his|her|their) head|fell from (?:a|the) (?:height|terrace|roof|balcony|building))\b/;
 
 /** Airway swelling — anaphylaxis. */
 const AIRWAY_SWELLING =
   /\b(throat (?:is )?(?:closing|swelling|closing up)|can'?t swallow|anaphyla\w*|severe allergic reaction|swelling (?:of|in) (?:my|his|her|their) (?:face|throat|tongue))\b/;
+
+// ─── E17-S12 — the six presentations the v2 gate found the screen missing ──
+//
+// Each one is a gold-set message from `eval/v2/gold-set.v2.json` that reached
+// A2 as ordinary chat in all three v2 runs (me-08, me-09, me-11, me-13, me-15,
+// me-18). They are additions to the *same* design: a presentation specific
+// enough to be worth an ambulance, or a combination that anxious speech does
+// not produce. Nothing here relaxes an existing group.
+
+/**
+ * Limb deformity after trauma — me-08 ("fell off my scooter and my wrist is
+ * bent the wrong way. I can't move my fingers.").
+ *
+ * A bone that has visibly changed shape, or fingers that no longer obey, is
+ * not something anxiety produces. Paired with the trauma word in the message
+ * by design: "I can't move my fingers" on its own could be a numb hand.
+ */
+const LIMB_DEFORMITY =
+  /\b(bent (?:the )?wrong way|bent at (?:a|an) (?:odd|weird|strange) angle|bone (?:is )?(?:sticking|poking) out|deformed|out of (?:its )?socket)\b/;
+const LIMB_TRAUMA =
+  /\b(fell|fallen|falling|slipped|accident|hit by|crash|crashed|scooter|bike|motorcycle|stairs|trip(?:ped)?|jumped|landed)\b/;
+
+/**
+ * Pre-eclampsia pattern — me-09 ("34 weeks pregnant and a bad headache all day
+ * with blurred vision").
+ *
+ * Requires pregnancy AND a visual disturbance in the same message. A headache
+ * during pregnancy is common and stays with A2; a pregnant person who cannot
+ * see properly is the obstetric emergency this exists to catch.
+ */
+const PREGNANCY_CONTEXT =
+  /\b(pregnan\w*|expecting a baby|weeks? (?:pregnant|along|gestation))\b/;
+const VISUAL_DISTURBANCE =
+  /\b(blurred vision|blurry vision|vision (?:is )?(?:blurred|blurry|going)|can'?t see (?:properly|clearly)|seeing (?:spots|flashes|stars)|double vision)\b/;
+
+/** Vomiting blood — me-11 ("vomiting blood since last night and I get dizzy"). */
+const VOMITING_BLOOD =
+  /\b(vomit\w* (?:up )?blood|throwing up blood|blood in (?:my|his|her|their) vomit|bringing up blood|coffee[- ]ground (?:vomit|emesis)|haematemesis|hematemesis)\b/;
+
+/**
+ * A burn severe enough to need a hospital — me-13 ("burned my forearm on a
+ * pressure cooker and the skin is white and I can't feel it").
+ *
+ * The burn word alone is not enough: "I burned my hand on the pan" is a
+ * kitchen annoyance. It needs a depth marker — white/charred leathery skin, or
+ * lost sensation, which is what makes it full-thickness.
+ */
+const BURN =
+  /\b(burn(?:ed|t|s|ing)?|scald(?:ed|s|ing)?)\b/;
+const BURN_DEPTH_MARKER =
+  /\b(skin (?:is |looks )?(?:white|charred|black|grey|leathery|waxy)|(?:can'?t|cannot) feel (?:it|the|my|anything)|no (?:feeling|sensation) (?:in|there)|third[- ]degree|full[- ]thickness|charred)\b/;
+
+/**
+ * Head injury — me-18 ("grandfather fell and hit his head. He's confused and
+ * he's vomited twice").
+ *
+ * "head injury" was already a standalone MAJOR_TRAUMA match; "hit his head" is
+ * the way people actually say it, and it was invisible. Added to the same
+ * standalone group rather than as a new co-occurrence, so the two spellings of
+ * the same presentation behave identically.
+ */
 
 /**
  * Self-harm wording that must keep the crisis path (E17-S9's hard boundary).
@@ -152,8 +239,16 @@ export function hasMedicalEmergencyLanguage(message: string): boolean {
   if (STROKE_SIGNS.test(lower)) return true;
   if (SEIZURE.test(lower)) return true;
   if (INGESTION.test(lower)) return true;
+  if (DROWNING_NOW.test(lower)) return true;
   if (MAJOR_TRAUMA.test(lower)) return true;
   if (AIRWAY_SWELLING.test(lower)) return true;
+
+  // E17-S12 additions. Same tier, same precedence, no existing group relaxed.
+  if (CHEST_PAIN.test(lower) && LIP_NUMBNESS.test(lower)) return true;
+  if (LIMB_DEFORMITY.test(lower) && LIMB_TRAUMA.test(lower)) return true;
+  if (PREGNANCY_CONTEXT.test(lower) && VISUAL_DISTURBANCE.test(lower)) return true;
+  if (VOMITING_BLOOD.test(lower)) return true;
+  if (BURN.test(lower) && BURN_DEPTH_MARKER.test(lower)) return true;
 
   return false;
 }
