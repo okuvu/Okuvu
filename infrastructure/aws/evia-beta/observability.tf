@@ -242,6 +242,95 @@ resource "aws_cloudwatch_metric_alarm" "portal_unhealthy_hosts" {
 }
 
 # ---------------------------------------------------------------------------
+# Running count vs desired count — RETIRED (E15-S8).
+#
+# These three alarms read ECS/ContainerInsights/RunningTaskCount, i.e. from a
+# paid custom-metric namespace: 108 metric streams x $0.30 = $32.40/mo to answer
+# one question ("is the task still there?"). They are replaced by
+# aws_cloudwatch_event_rule.task_stopped in alerts.tf, which listens to the ECS
+# task state change stream instead. That stream is free, real-time, and carries
+# strictly more than the alarm had: stopCode, stoppedReason and the container
+# exit codes.
+#
+# They MUST be removed in the same apply that sets containerInsights =
+# "disabled" in ecs.tf. Left behind with the metric namespace off, there is no
+# data to evaluate, and treat_missing_data = breaching turns that into a
+# permanent ALARM state — three alarms paging forever about a metric that no
+# longer exists.
+#
+# The ALB alarms above still cover api and portal behind the load balancer, and
+# the RDS alarms below are unchanged; the worker only ever had this rule as its
+# liveness signal, and now has the task-stop rule.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# RDS alarms. The database had none: it could fill its 20 GiB or run out of
+# the 100 max_connections and the first signal would be api 5xx.
+#
+# FreeStorageSpace is in bytes and excludes the 100 GiB autoscaling headroom
+# above it — a roomy-looking number that is still only 20 GiB of real disk, so
+# 5 GiB is the last-resort threshold before "no space left on device". The alarm
+# is Average < threshold over 10 min to ignore a vacuum or a large migration
+# spiking write-ahead log volume for a few minutes.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "rds_free_storage" {
+  alarm_name        = "${var.name_prefix}-rds-free-storage-low"
+  alarm_description = "Postgres has under ${var.rds_free_storage_alarm_gb} GiB of free storage left and will reject writes"
+
+  namespace   = "AWS/RDS"
+  metric_name = "FreeStorageSpace"
+  statistic   = "Average"
+
+  period             = 300
+  evaluation_periods = 2
+
+  # GiB, converted to the bytes the metric is published in.
+  threshold           = var.rds_free_storage_alarm_gb * 1073741824
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.main.identifier
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-rds-free-storage-low"
+  })
+}
+
+# max_connections is pinned to 100 in aws_db_parameter_group.main (rds.tf), so
+# 80 is the "connections are about to be refused" line, not an arbitrary 80%.
+resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
+  alarm_name        = "${var.name_prefix}-rds-connections-high"
+  alarm_description = "Postgres is above ${var.rds_max_connections_alarm} of its 100 max_connections"
+
+  namespace   = "AWS/RDS"
+  metric_name = "DatabaseConnections"
+  statistic   = "Average"
+
+  period             = 300
+  evaluation_periods = 2
+
+  threshold           = var.rds_max_connections_alarm
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.main.identifier
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-rds-connections-high"
+  })
+}
+
+# ---------------------------------------------------------------------------
 # Budget alarm
 # ---------------------------------------------------------------------------
 resource "aws_sns_topic" "budget_alerts" {

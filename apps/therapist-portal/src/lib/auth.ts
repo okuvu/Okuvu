@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import CognitoProvider from 'next-auth/providers/cognito';
 import { cognitoPortalConfig } from '@/lib/cognito-config';
+import { identityRef } from '@/lib/log-identity';
 
 // Cognito replaced Google OAuth for therapist sign-in (see
 // docs/AWS-CUTOVER-SPEC.md). Google federation inside the pool is off: an
@@ -49,10 +50,18 @@ export const authConfig: NextAuthOptions = {
             where: { email: profile.email },
           });
           if (therapist) {
-            console.log(`[AUTH] Successful sign-in: ${profile.email}`);
+            // E16-S11: log the therapist id reference, never the address.
+            // `identityRef` is a truncated HMAC, so the line still says *which*
+            // therapist signed in (stable across attempts) without writing
+            // personal data to CloudWatch.
+            console.log(
+              `[AUTH] Successful sign-in therapist=${identityRef('t', therapist.id)}`,
+            );
             return true;
           }
-          console.warn('[AUTH] Unauthorized sign-in attempt: ' + profile.email);
+          console.warn(
+            `[AUTH] Unauthorized sign-in attempt ref=${identityRef('u', profile.email)}`,
+          );
           return '/auth?error=unauthorized';
         } catch (error) {
           console.error('[AUTH] DB error during sign-in:', error);

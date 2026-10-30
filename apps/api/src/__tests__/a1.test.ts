@@ -217,7 +217,8 @@ describe('A1 Safety Gate — classifySafety', () => {
 
       await classifySafety(makeInput());
 
-      expect(spy).toHaveBeenCalledWith({ reason: 'llm_timeout' }, expect.any(String));
+      // E17-S4: the log line now carries the failure *kind* alongside the reason.
+      expect(spy).toHaveBeenCalledWith({ reason: 'llm_timeout', failureKind: null }, expect.any(String));
       spy.mockRestore();
     });
   });
@@ -238,7 +239,7 @@ describe('A1 Safety Gate — classifySafety', () => {
 
       await classifySafety(makeInput());
 
-      expect(spy).toHaveBeenCalledWith({ reason: 'llm_api_error' }, expect.any(String));
+      expect(spy).toHaveBeenCalledWith({ reason: 'llm_api_error', failureKind: null }, expect.any(String));
       spy.mockRestore();
     });
   });
@@ -433,5 +434,95 @@ describe('A1 Safety Gate — classifySafety', () => {
       expect(prompt).toContain('signal_strength');
       expect(prompt).toContain('"basis"');
     });
+  });
+});
+
+// ─── E17-S4 — the deterministic crisis floor under a failed classification ──
+//
+// E17-S1 §7 and E17-S2 §465 both logged the same hole from opposite ends: when
+// the classifier could not answer, every turn became "S2, no crisis language".
+// S2 routes to A2, so an explicit disclosure got supportive chat while the
+// model was down. The floor below makes a technical failure unable to downgrade
+// a literal disclosure: no model, no parsing, just the keyword module
+// (`agents/a1/crisis-keywords.ts`) and S4.
+describe('A1 — crisis floor when the classifier is unreachable (E17-S4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const DISCLOSURES = [
+    'I want to die',
+    'I am going to kill myself',
+    'I keep thinking about suicide',
+    'I want to end my life',
+    'I just want to end it all',
+  ];
+
+  it.each(DISCLOSURES)('classifies %j as S4 on a timeout', async (message) => {
+    mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true, failureReason: 'timeout', failureKind: 'timeout' });
+
+    const result = await classifySafety(makeInput({ message }));
+
+    expect(result.safetyState).toBe('S4');
+    expect(result.crisis_language_detected).toBe(true);
+    expect(result.basis).toBe('literal');
+    expect(result.signal_strength).toBe('high');
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.notes).toBe('llm_timeout:crisis_keyword_floor');
+  });
+
+  it('classifies a disclosure as S4 when the model call throws outright', async () => {
+    mockGenerateContent.mockRejectedValue(new Error('bedrock down'));
+
+    const result = await classifySafety(makeInput({ message: 'I want to die' }));
+
+    expect(result.safetyState).toBe('S4');
+    expect(result.crisis_language_detected).toBe(true);
+    expect(result.notes).toBe('llm_api_error:crisis_keyword_floor');
+  });
+
+  it('classifies a disclosure as S4 when the model answers unparseably', async () => {
+    mockGenerateContent.mockResolvedValue({ text: 'sorry, I cannot help with that', fallbackUsed: false });
+
+    const result = await classifySafety(makeInput({ message: 'I want to end my life' }));
+
+    expect(result.safetyState).toBe('S4');
+    expect(result.crisis_language_detected).toBe(true);
+    expect(result.notes).toBe('parse_failure:crisis_keyword_floor');
+  });
+
+  it('names a throttle as a throttle rather than as a generic api error', async () => {
+    mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true, failureReason: 'api_error', failureKind: 'throttled' });
+
+    const result = await classifySafety(makeInput({ message: 'I want to die' }));
+
+    expect(result.notes).toBe('llm_throttled:crisis_keyword_floor');
+  });
+
+  it('still fails to S2 — not S4 — for a non-disclosure on the same failure', async () => {
+    mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true, failureReason: 'api_error', failureKind: 'throttled' });
+
+    const result = await classifySafety(makeInput({ message: 'work has been stressful' }));
+
+    expect(result.safetyState).toBe('S2');
+    expect(result.crisis_language_detected).toBe(false);
+    expect(result.basis).toBe('ambiguous');
+    expect(result.signal_strength).toBe('low');
+    expect(result.notes).toBe('llm_throttled');
+  });
+
+  it('does not touch the classifier’s verdict when the model does answer', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: validJson({ safetyState: 'S0', crisis_language_detected: false }),
+      fallbackUsed: false,
+    });
+
+    const result = await classifySafety(makeInput({ message: 'I want to die' }));
+
+    // Documented, deliberate: the floor only applies to a *failed* call. A real
+    // classification that says S0 is not overridden by a keyword — the keyword
+    // list is not a classifier and is never allowed to outvote one.
+    expect(result.safetyState).toBe('S0');
+    expect(result.fallbackUsed).toBe(false);
   });
 });

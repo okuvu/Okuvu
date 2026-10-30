@@ -3,7 +3,26 @@ import { authConfig } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+/**
+ * Routes that exist only for signed-out visitors: reaching one while signed in
+ * bounces you into the app (`/`), because there is nothing to do there.
+ */
 const PUBLIC_ROUTES = new Set(['/auth']);
+
+/**
+ * E19-S2 — pages that must be readable by anyone, signed in or not, and that
+ * must NOT bounce a signed-in user anywhere.
+ *
+ * `/privacy` belongs here rather than in PUBLIC_ROUTES because it is the same
+ * document for a therapist, a client's relative, a Google Play reviewer and a
+ * Data Protection Board complaint: a signed-in visitor redirected away from it
+ * would be a bug, not a convenience.
+ *
+ * This set is the *whole* reason `/privacy` renders unauthenticated. Routes not
+ * listed here (or covered by the prefixes below) still require a session — do
+ * not widen this into a prefix match or a bypass.
+ */
+const PUBLIC_PATHS = new Set(['/privacy']);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,6 +38,13 @@ export async function proxy(request: NextRequest) {
   }
 
   if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
+    return undefined;
+  }
+
+  // Public pages short-circuit *before* getServerSession: a policy page must
+  // not depend on auth infrastructure being reachable, and must still render if
+  // the session cookie is stale or the provider is misconfigured.
+  if (PUBLIC_PATHS.has(pathname)) {
     return undefined;
   }
 

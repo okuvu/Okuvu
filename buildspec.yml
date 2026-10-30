@@ -9,6 +9,13 @@
 #                  services onto a new task-definition revision and wait for
 #                  the deployment to stabilise
 #
+# Deploy scope (scripts/deploy-scope.py, pre_build): a commit whose only changes are
+# inside docs/, evidence/ or plan/ cannot change a container, so it finishes the whole
+# build green and then does NOT register a task definition or touch a service. The
+# decision is derived inside the build — ECS names the commit the live services were
+# built from (their image tag is that commit's SHA) and git diffs that tree against
+# HEAD. Every uncertainty resolves to a full rollout; see the comment at the gate.
+#
 # Every name and port here mirrors infrastructure/aws/evia-beta:
 #   ecr.tf    → ${NAME_PREFIX}/{api,worker,portal} repositories
 #   ecs.tf    → cluster ${NAME_PREFIX}, services ${NAME_PREFIX}-api / -worker,
@@ -72,6 +79,49 @@ phases:
       - IMAGE_TAG="${IMAGE_TAG:0:12}"
       - export AWS_ACCOUNT_ID ECR_REGISTRY IMAGE_TAG
       - echo "registry=${ECR_REGISTRY} tag=${IMAGE_TAG}"
+      # === Deploy scope: does this commit need a rollout? ===
+      #
+      # A docs/evidence/plan-only commit cannot change a container, but it used to
+      # replace all three task-definition revisions anyway — a full production rollout
+      # (and a real outage risk) per documentation edit. scripts/deploy-scope.py asks
+      # the only question that matters: is the code that is running the code at HEAD?
+      #
+      #   deployed commit  <- the PRIMARY task definition's image tag, which the
+      #                       deploying build set to ${CODEBUILD_RESOLVED_SOURCE_VERSION:0:12}
+      #   HEAD tree        <- this checkout
+      #   changed paths    <- git diff --name-only <deployed> HEAD
+      #
+      # Allowed without a rollout: docs/, evidence/, plan/. Everything else deploys.
+      #
+      # FAIL-SAFE, TWICE. The decision starts as `deploy`, this phase never aborts
+      # because the helper failed, and only the literal string `skip` is accepted.
+      # A helper that crashes, a missing env file, an unreadable ECS, a shallow clone,
+      # an unparseable diff — every one of them ends in a normal full rollout. A wrong
+      # skip ships old code to production; a wrong deploy costs one rollout.
+      - |
+        # The default decision, written before anything else can fail.
+        printf 'DEPLOY_DECISION=deploy\nDEPLOY_SCOPE_REASON=%s\n' "'fail-safe default'" \
+          > /tmp/deploy-scope.env
+        if python3 scripts/deploy-scope.py --write /tmp/deploy-scope.env; then
+          echo "deploy-scope: helper exited 0"
+        else
+          rc=$?
+          echo "deploy-scope: helper exited ${rc} — falling back to a full deploy"
+          printf 'DEPLOY_DECISION=deploy\nDEPLOY_SCOPE_REASON=%s\n' "'helper failed'" \
+            > /tmp/deploy-scope.env
+        fi
+        if [ -f /tmp/deploy-scope.env ]; then
+          # shellcheck disable=SC1091  # written immediately above
+          . /tmp/deploy-scope.env
+        else
+          echo "deploy-scope: /tmp/deploy-scope.env is missing — full deploy"
+        fi
+        case "${DEPLOY_DECISION:-deploy}" in
+          skip) DEPLOY_DECISION=skip ;;
+          *)    DEPLOY_DECISION=deploy ;;
+        esac
+        export DEPLOY_DECISION DEPLOY_SCOPE_REASON
+        echo "deploy-scope: DEPLOY_DECISION=${DEPLOY_DECISION} reason=${DEPLOY_SCOPE_REASON:-none}"
       - echo "=== Prisma client ==="
       - cd packages/prisma && npx prisma generate && cd -
       - echo "=== Typecheck ==="
@@ -88,6 +138,11 @@ phases:
       # audit report flowing into the gate instead of aborting the phase first.
       - pnpm audit --prod --json > /tmp/audit.json || true
       - python3 scripts/security-gate.py audit /tmp/audit.json
+      - echo "=== ESM import guard (a container-only failure class) ==="
+      # api and worker run as plain node ESM: an extensionless relative import
+      # typechecks and passes vitest, then dies in the container with
+      # ERR_MODULE_NOT_FOUND. Check it before the docker build, not after.
+      - python3 scripts/check-esm-imports.py
       - echo "=== ECR login ==="
       - aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
@@ -147,51 +202,117 @@ phases:
           echo "RUN_MIGRATIONS=false — skipping prisma migrate deploy."
         fi
       - |
-        # Task-definition rewrite is the same helper the deploy scripts use, so
-        # the CI rollout and a manual deploy pin images identically.
-        deploy_service() {
-          service="$1"
-          workload="$2"
-          image="${ECR_REGISTRY}/${NAME_PREFIX}/${workload}:${IMAGE_TAG}"
+        # The deploy-scope decision made in pre_build, re-read here because a phase
+        # cannot rely on another phase's exported variables. Default: deploy.
+        DEPLOY_DECISION=deploy
+        DEPLOY_SCOPE_REASON='pre_build decision unavailable'
+        if [ -f /tmp/deploy-scope.env ]; then
+          # shellcheck disable=SC1091  # written by pre_build
+          . /tmp/deploy-scope.env
+        fi
+        case "${DEPLOY_DECISION:-deploy}" in
+          skip) DEPLOY_DECISION=skip ;;
+          *)    DEPLOY_DECISION=deploy ;;
+        esac
+        echo "deploy-scope: DEPLOY_DECISION=${DEPLOY_DECISION} reason=${DEPLOY_SCOPE_REASON:-none}"
 
-          echo "=== Registering a new task definition for ${service} (${image}) ==="
-          aws ecs describe-task-definition \
-            --task-definition "${service}" \
-            --region "${AWS_REGION}" \
-            --query 'taskDefinition' --output json > /tmp/taskdef.json
-          python3 scripts/ecs-image-pin.py /tmp/taskdef.json /tmp/taskdef.pinned.json "${image}"
-          new_arn="$(aws ecs register-task-definition \
-            --cli-input-json file:///tmp/taskdef.pinned.json \
-            --region "${AWS_REGION}" \
-            --query 'taskDefinition.taskDefinitionArn' --output text)"
-          echo "registered ${new_arn}"
-
-          echo "=== Updating ${service} ==="
-          aws ecs update-service \
+        if [ "${DEPLOY_DECISION}" = "skip" ]; then
+          # Nothing below this line runs: no task definition is registered and no
+          # service is updated, so no ECS revision changes. The build still succeeds,
+          # and the images for this commit are in ECR, tagged with its SHA, so the
+          # commit is traceable and can be rolled out by hand if it ever needs to be.
+          echo "=== Deploy scope: SKIP — this commit does not touch a container ==="
+          echo "reason: ${DEPLOY_SCOPE_REASON}"
+          echo "migrations ran (idempotent); no task definition is registered and no"
+          echo "service is updated. Task definitions in effect after this build:"
+          aws ecs describe-services \
             --cluster "${NAME_PREFIX}" \
-            --service "${service}" \
-            --task-definition "${new_arn}" \
-            --force-new-deployment \
-            --region "${AWS_REGION}" >/dev/null
-        }
+            --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
+            --region "${AWS_REGION}" \
+            --query 'services[].{service:serviceName,taskDefinition:taskDefinition,rollout:deployments[?status==`PRIMARY`]|[0].rolloutState}' \
+            --output table
+          echo "=== Build SUCCEEDS with all three services untouched ==="
+        else
+          echo "=== Deploy scope: DEPLOY (${DEPLOY_SCOPE_REASON}) ==="
 
-        deploy_service "${NAME_PREFIX}-api" api
-        deploy_service "${NAME_PREFIX}-worker" worker
-        deploy_service "${NAME_PREFIX}-portal" portal
+          # Task-definition rewrite is the same helper the deploy scripts use, so
+          # the CI rollout and a manual deploy pin images identically.
+          deploy_service() {
+            service="$1"
+            workload="$2"
+            image="${ECR_REGISTRY}/${NAME_PREFIX}/${workload}:${IMAGE_TAG}"
 
-        echo "=== Waiting for all three services to stabilise (up to ~25 min) ==="
-        aws ecs wait services-stable \
-          --cluster "${NAME_PREFIX}" \
-          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
-          --region "${AWS_REGION}"
+            echo "=== Registering a new task definition for ${service} (${image}) ==="
+            aws ecs describe-task-definition \
+              --task-definition "${service}" \
+              --region "${AWS_REGION}" \
+              --query 'taskDefinition' --output json > /tmp/taskdef.json
+            python3 scripts/ecs-image-pin.py /tmp/taskdef.json /tmp/taskdef.pinned.json "${image}"
+            new_arn="$(aws ecs register-task-definition \
+              --cli-input-json file:///tmp/taskdef.pinned.json \
+              --region "${AWS_REGION}" \
+              --query 'taskDefinition.taskDefinitionArn' --output text)"
+            echo "registered ${new_arn}"
+            # Remember what we asked for: after stabilising we assert the service
+            # is actually serving this revision. The circuit breaker rolls a failed
+            # deployment back to the previous task definition, which leaves the
+            # service *stable* — so `wait services-stable` alone returns success on
+            # a rollback and the build would report SUCCEEDED for old code.
+            echo "${new_arn}" > "/tmp/expected-${workload}.arn"
 
-        echo "=== Deployment complete ==="
-        aws ecs describe-services \
-          --cluster "${NAME_PREFIX}" \
-          --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
-          --region "${AWS_REGION}" \
-          --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,taskDefinition:taskDefinition}' \
-          --output table
+            echo "=== Updating ${service} ==="
+            aws ecs update-service \
+              --cluster "${NAME_PREFIX}" \
+              --service "${service}" \
+              --task-definition "${new_arn}" \
+              --force-new-deployment \
+              --region "${AWS_REGION}" >/dev/null
+          }
+
+          deploy_service "${NAME_PREFIX}-api" api
+          deploy_service "${NAME_PREFIX}-worker" worker
+          deploy_service "${NAME_PREFIX}-portal" portal
+
+          echo "=== Waiting for all three services to stabilise (up to ~25 min) ==="
+          aws ecs wait services-stable \
+            --cluster "${NAME_PREFIX}" \
+            --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
+            --region "${AWS_REGION}"
+
+          echo "=== Deployment complete ==="
+          aws ecs describe-services \
+            --cluster "${NAME_PREFIX}" \
+            --services "${NAME_PREFIX}-api" "${NAME_PREFIX}-worker" "${NAME_PREFIX}-portal" \
+            --region "${AWS_REGION}" \
+            --query 'services[].{service:serviceName,desired:desiredCount,running:runningCount,taskDefinition:taskDefinition}' \
+            --output table
+
+          # A rollback also ends in a steady state, so verify the services are
+          # actually running the revisions this build registered. Without this the
+          # pipeline reports SUCCEEDED while production still serves old code.
+          echo "=== Verifying the services are serving this build ==="
+          failed=0
+          for workload in api worker portal; do
+            expected="$(cat "/tmp/expected-${workload}.arn")"
+            actual="$(aws ecs describe-services \
+              --cluster "${NAME_PREFIX}" \
+              --services "${NAME_PREFIX}-${workload}" \
+              --region "${AWS_REGION}" \
+              --query 'services[0].deployments[?status==`PRIMARY`]|[0].taskDefinition' \
+              --output text)"
+            if [ "${actual}" = "${expected}" ]; then
+              echo "OK   ${workload}: ${actual}"
+            else
+              echo "ROLLED BACK ${workload}: expected ${expected}, serving ${actual}"
+              failed=1
+            fi
+          done
+          if [ "${failed}" -ne 0 ]; then
+            echo "=== A deployment rolled back. The build FAILS so old code is never reported as deployed. ==="
+            exit 1
+          fi
+          echo "=== All three services are serving this build ==="
+        fi
 
 # The api health endpoint the ALB target group polls; surfaced in the build log
 # so a failed deployment can be triaged without opening the console.

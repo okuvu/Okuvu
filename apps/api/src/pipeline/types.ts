@@ -3,7 +3,7 @@ export interface StageTiming {
   elapsedMs: number
 }
 
-import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal } from '@okuvu/shared-types';
+import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal, SafetyNotice } from '@okuvu/shared-types';
 
 // ─── Test Hooks (TH-S10) ───────────────────────────────────────────
 //
@@ -64,6 +64,18 @@ export type FallbackSource =
   | 'a9_post_blocked'
   | 'a9_post_unavailable'
   | 'deterministic_grounding'
+  // E17-S4 — the classifier (A1) could not be reached, so the turn could not be
+  // risk-assessed. Static, helpline-bearing substitute; A2 is never called.
+  | 'safety_unavailable'
+  // E17-S4 — the reply model did not answer (throttled / timed out / errored)
+  // after A1 *did* classify the turn. Split from 'a2_degraded' so a quota
+  // problem is visible as itself instead of as an unexplained degrade.
+  | 'model_unavailable'
+  | 'model_throttled'
+  // E17-S9 — the message described a medical emergency, so the reply is the
+  // deterministic emergency-medical copy (112 first). Set like every other
+  // static-substitute source: the user did not receive model output this turn.
+  | 'medical_emergency'
 
 export type PipelineResult =
   | {
@@ -76,6 +88,8 @@ export type PipelineResult =
       /** A4: set whenever `fallbackUsed` is true — which mechanism produced the substitute. */
       fallbackSource?: FallbackSource
       failureReason?: 'timeout' | 'api_error'
+      /** E17-S4: the machine-readable "what did the user actually get?" record. */
+      safety?: SafetyNotice
       estimatedIntensity: number | null
       toolCard?: ToolCardConfig
       journalPromptSuggested: string | null
@@ -85,6 +99,12 @@ export type PipelineResult =
       type: 'crisis'
       message: string
       timing: StageTiming[]
+      /**
+       * E17-S4 — set when this crisis turn was reached through the
+       * deterministic floor (`crisis_floor: true`) because A1 was unreachable.
+       * A crisis reached by real classification leaves this undefined.
+       */
+      safety?: SafetyNotice
       signals?: PipelineSignal[]
     }
   | {

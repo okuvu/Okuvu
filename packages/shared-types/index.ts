@@ -34,6 +34,13 @@ export interface RouterInput {
   governance_state?: GovernanceState | null
   session_count: number | undefined
   turn_count: number | undefined
+  /**
+   * E17-S9 — the turn's message, used only by the deterministic medical-emergency
+   * screen (`agents/a1/medical-emergency-keywords.ts`). Optional: every other
+   * routing rule is a pure function of the states above, so a caller that omits
+   * it gets the pre-E17-S9 router exactly.
+   */
+  message?: string
 }
 
 export interface RouterDecision {
@@ -44,8 +51,18 @@ export interface RouterDecision {
    * an elevated-risk user to a static policy-boundary reply. Unlike
    * 'crisis', this still gets a real, persisted, grounding-oriented reply —
    * A2 is simply never called for the turn at all.
+   *
+   * 'medical-emergency' (E17-S9) means the turn's message describes a physical
+   * emergency that needs an ambulance (uncontrolled bleeding, chest pain with a
+   * numb or radiating arm, an unconscious person, a fever with confusion,
+   * bleeding in pregnancy — `agents/a1/medical-emergency-keywords.ts`). Same tier
+   * of determinism as 'crisis': no model writes the reply, and the reply leads
+   * with 112. It is decided from the message, not from the safety state, because
+   * those turns classify S1/S2 as ordinary distress. A message carrying
+   * self-harm or crisis wording never reaches this path, so the crisis card is
+   * never displaced by it.
    */
-  agent: 'crisis' | 'deterministic-grounding' | 'A2'
+  agent: 'crisis' | 'medical-emergency' | 'deterministic-grounding' | 'A2'
   /**
    * 'blocked' means A9-pre (governance/policy) rejected the message but A1
    * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4'
@@ -123,7 +140,62 @@ export interface AgentTurnFrame {
      * with ERROR) nothing at all. The machine-readable code travels alongside.
      */
     budget?: BudgetNotice
+    /**
+     * E17-S4 — present only when `message` is a governed safety substitute
+     * rather than model output: the classifier was unreachable
+     * (`SAFETY_UNAVAILABLE`) or the reply model was (`MODEL_UNAVAILABLE` /
+     * `MODEL_THROTTLED`).
+     *
+     * Same reasoning as `budget`: the warm, safe line rides `message` so the
+     * client renders it, and the machine-readable code travels here so a
+     * client, a runbook or a test can tell a served turn from a degraded one
+     * without parsing English.
+     */
+    safety?: SafetyNotice
   }
+}
+
+/**
+ * E17-S4 — the structured form of a fail-closed turn.
+ *
+ * Before this, both technical failures reached the user as the same generic
+ * supportive sentence, and nothing on the wire distinguished them from a real
+ * reply (E17-S1 §7, E17-S2 §465). `code` is the machine answer to "what did the
+ * user actually get?"; `reason` is the classifier/model failure underneath it.
+ */
+export type SafetyNoticeCode =
+  | 'CRISIS_FLOOR'
+  | 'SAFETY_UNAVAILABLE'
+  | 'MODEL_UNAVAILABLE'
+  | 'MODEL_THROTTLED'
+  /**
+   * E17-S9 — the reply is the deterministic emergency-medical response (112
+   * first), chosen by the message screen rather than by a model. A client that
+   * wants to offer a "call 112" affordance reads this; nothing about the text
+   * depends on it.
+   */
+  | 'MEDICAL_EMERGENCY_FLOOR'
+
+export interface SafetyNotice {
+  code: SafetyNoticeCode
+  /**
+   * Why the notice was raised. For a technical failure it is the classifier/
+   * model failure underneath: `llm_timeout`, `llm_throttled`, `llm_api_error`
+   * or `llm_parse_failure`. E17-S10 added `crisis_keyword_floor` for the case
+   * where nothing failed — the classifier answered and the deterministic
+   * keyword screen raised its answer to S4. Never model output or message text.
+   */
+  reason: string
+  /**
+   * True when the crisis path was taken because the deterministic keyword
+   * screen raised the turn to S4. Two ways that happens (E17-S10): the
+   * classifier was unreachable and the screen was all that was left (E17-S4),
+   * or the classifier answered S1/S2/S3 and the screen overrode it. The user is
+   * on the crisis path — this is the audit trail saying how they got there; the
+   * `reason` says which, so `crisis_floor` alone is never read as "A1 was
+   * down".
+   */
+  crisis_floor?: true
 }
 
 /**
@@ -182,6 +254,13 @@ export interface CrisisSignalFrame {
     // field, but it's included for audit/transcript continuity and for any
     // future client that isn't offline-safe by the same design.
     message: string
+    /**
+     * E17-S4 — present when the crisis path was reached through the
+     * deterministic floor because the classifier was unreachable
+     * (`code: 'CRISIS_FLOOR'`, `crisis_floor: true`). The user's path is
+     * identical either way; this is how the transcript records which one it was.
+     */
+    safety?: SafetyNotice
   }
 }
 

@@ -71,6 +71,95 @@ export const BUDGET_PAUSED_RESPONSE =
   "the Vandrevala Foundation on 1860-2662-345, any time. " +
   "I'll be ready to pick this up with you again soon."
 
+// ─── E17-S4 — the two paths a technical failure must land on ────────────────
+//
+// The pipeline can lose its model in two different places, and until now both
+// collapsed into the same generic supportive sentence ("I'm here to support
+// you. Could you tell me more about how you're feeling?" — `SAFE_FALLBACK` in
+// lib/canned-response.ts). E17-S1 §7 and E17-S2 §465 logged that as the gap
+// this story closes: the user could not tell a served turn from an unserved
+// one, and a crisis disclosure that arrived while the classifier was down was
+// answered with chat.
+//
+// Both constants below are held to the same block-response contract as every
+// other substitute in this file (hold the thread, no machinery talk, no
+// micro-technique, ask nothing diagnostic), and both name the approved
+// helplines, because the one case a degraded turn must never fail is a user in
+// distress arriving on a turn we cannot fully serve. Clinical sign-off on the
+// words is the same open item noted above and at CRISIS_RESPONSE.
+
+// A1 could not classify AND the deterministic screen found no crisis phrasing.
+// We are therefore about to answer a turn whose risk we never assessed. The
+// only honest answer is a static one: no model prose, no therapy, and a door
+// held open. Skipping A2 entirely is the point — an ungated model reply is the
+// fail-open outcome this constant exists to prevent.
+export const SAFETY_UNAVAILABLE_RESPONSE =
+  "I'm still here with you. " +
+  "I can't check in on how you're doing the way I usually do right now, and I'd rather say that " +
+  "plainly than answer you without knowing. " +
+  "If things are feeling like too much in the meantime, please reach out to iCall on 9152987821 " +
+  "or the Vandrevala Foundation on 1860-2662-345, any time. " +
+  "I'm not going anywhere."
+
+// A1 classified the turn fine, but the model that writes the reply is
+// unreachable (throttled, timed out, or erroring). The safety decision was
+// made; only the reply is missing, so this copy does not re-open the safety
+// question — it stops short of pretending to have answered.
+export const MODEL_UNAVAILABLE_RESPONSE =
+  "I'm here with you, and I'm listening. " +
+  "Something on my side isn't working properly just now, so I don't want to answer you with " +
+  "words I can't stand behind. " +
+  "If it's feeling heavy in the meantime, iCall on 9152987821 or the Vandrevala Foundation on " +
+  "1860-2662-345 are there any time. " +
+  "Say it again whenever you're ready — I'll still be here."
+
+
+// ─── E17-S9 — medical emergency: the ambulance, not the crisis card ────────
+//
+// Measured before written (evidence/E17-S5-orch-correction.md): four of the
+// five gold-set medical emergencies classify S1/S2 and reach A2 as ordinary
+// chat, where the reply was "the crisis support in the app has people who can
+// actually help right now" — a mental-health card offered to someone describing
+// a heart attack. The fifth reached the S4 crisis card for the same reason.
+//
+// These two constants are what the pipeline serves instead, deterministically:
+// `agents/a1/medical-emergency-keywords.ts` is the screen, `a8-router.ts` is the
+// decision, and neither A2 nor A9-post writes a word of the reply — so the
+// first sentence is a property of this file, not of a model's compliance. That
+// is what makes "112 in the first sentence" true at 100% rather than usually.
+//
+// Written to the block-response contract at the top of this file (hold the
+// thread, no machinery talk, no micro-technique) and to the clinical rules for
+// this story: no diagnosis, no dosing, no first-aid procedure, no claim of
+// clinical review, and the mental-health helplines never displace the
+// ambulance. 112 is India's single emergency number (police, fire, ambulance),
+// and it is the number the crisis path already lists as "Emergency Services".
+//
+// CLINICAL SIGN-OFF (E17-S7): both strings are new clinical content and must be
+// reviewed by the clinical authority before this ships to real users. They are
+// deliberately kept here, and only here, so the words can be read and edited in
+// one place; the evidence file (evidence/E17-S9.md §3) reproduces them verbatim
+// for that review.
+
+// The ordinary case: a physical emergency, nothing said about self-harm.
+export const MEDICAL_EMERGENCY_RESPONSE =
+  "Please call 112 for emergency medical help right now — that is the ambulance and emergency number in India, " +
+  "and they can send help to you. " +
+  "What you've described is a medical emergency, so please don't wait for me on this one: make the call first, " +
+  "and put it on speaker if you can. " +
+  "I'm here, and I'll stay with you while you do."
+
+// The overlap case: the message is a physical emergency AND A1 still returned
+// S4 (or flagged crisis language) on it. A2 does not see this turn either, but
+// the crisis resources must not be dropped just because the message is also a
+// medical one — 112 leads, the helplines follow, nothing is withdrawn.
+export const MEDICAL_EMERGENCY_CRISIS_RESPONSE =
+  "Please call 112 for emergency medical help right now — that is the ambulance and emergency number in India, " +
+  "and they can send help to you. " +
+  "I can also hear that there is more than the physical side to this, and I don't want you to carry that alone: " +
+  "once you've called, please reach out to iCall on 9152987821 or the Vandrevala Foundation on 1860-2662-345. " +
+  "I'm here, and I'll stay with you."
+
 // Deterministic substitute selector. `safetyState` is the A1 state this turn
 // was classified at (the orchestrator passes what it has; block paths pass
 // the same state they were gated on).
@@ -78,19 +167,49 @@ export function getSafeFallback(safetyState: string): string {
   return safetyState === 'S2' ? A9_POST_S2_FALLBACK : A9_POST_DEGRADED_RESPONSE
 }
 
-// OKUVU v2.0: A1 classified this turn S3 (elevated risk — hopelessness,
-// worthlessness, or escape themes, without a stated plan or method). This is
-// the router's 'deterministic-grounding' agent (a8-router.ts) — the same
-// tier of clinical determinism as crisis (S4), one step down: A2 is skipped
-// entirely, but this always gets a real, persisted, grounding-oriented
-// reply, never silence. Unlike the block path, this one IS allowed to offer
-// a body-first exercise (that's its entire purpose); it's held to the rest
-// of the contract (warm, thread-holding, no machinery talk). Content TBD by
-// whoever owns crisis/grounding copy — same open item as A9_PRE_BLOCKED_
-// RESPONSE and the crisis path's no-script gap.
-export const A8_S3_GROUNDING_RESPONSE =
-  "It sounds like things feel really heavy right now. Let's slow down together — " +
-  "can you take a breath with me, and tell me what's around you right now?"
+/**
+ * E17-S4 — what the user gets when A1 made its decision but the model that
+ * writes the reply did not answer. At S2 (elevated risk) the steadier
+ * `A9_POST_S2_FALLBACK` still wins: an elevated-risk turn whose reply failed
+ * should ask even less of the user, not more.
+ */
+export function getModelUnavailableFallback(safetyState: string): string {
+  return safetyState === 'S2' ? A9_POST_S2_FALLBACK : MODEL_UNAVAILABLE_RESPONSE
+}
+
+// OKUVU v2.0 / E17-S10: A1 classified this turn S3 (elevated risk —
+// hopelessness, worthlessness, or escape themes, without a stated plan or
+// method). This is the router's 'deterministic-grounding' agent
+// (a8-router.ts) — the same tier of clinical determinism as crisis (S4), one
+// step down: A2 is skipped entirely, but this always gets a real, persisted,
+// grounding-oriented reply, never silence. Unlike the block path, this one IS
+// allowed to offer a body-first exercise (that's its entire purpose); it's
+// held to the rest of the contract (warm, thread-holding, no machinery talk).
+//
+// E17-S10 — this copy now carries the approved helplines, because S3 is not a
+// safe place to withhold them. The model under-reads explicit intent often
+// enough that csh-10 ("the breathing isn't helping. I want to die.") was
+// answered by the previous one-sentence breathing prompt, and the turns this
+// card serves include third-party risk ("my friend has been talking about
+// killing herself") and passive ideation — the cases the keyword floor
+// deliberately does not claim, because the crisis card is written in the
+// second person and would be the wrong instruction for someone else's risk.
+// So the grounding reply keeps the breathing invitation but never as the whole
+// answer: it names the heaviness, offers the exercise, and puts a crisis line
+// in the same message, with the explicit statement that a call does not
+// require being in immediate danger, and 112 if they might act.
+//
+// Two-part provenance, same as CRISIS_RESPONSE below: the surrounding language
+// is a first pass and should get a clinical/RCI sign-off before it reaches real
+// users in production; the resource list itself is the pre-existing approved
+// set (iCall 9152987821, Vandrevala Foundation 1860-2662-345, Emergency 112),
+// already used by CRISIS_RESPONSE and the mobile app's CrisisOverlay — no new
+// helpline number is introduced here.
+export const A8_S3_GROUNDING_RESPONSE = `It sounds like things feel really heavy right now, and I don't want you to sit with that on your own. Let's slow down together — if you can, take a breath with me and tell me what's around you right now.
+
+And because this sounds like more than anyone should have to carry alone, please keep a crisis line close by: iCall on 9152987821, or the Vandrevala Foundation on 1860-2662-345. They answer day and night, and you don't need to be in immediate danger to call. If you ever feel you might act on these thoughts, call 112 or go to the nearest emergency department.
+
+I'm here with you.`;
 
 // OKUVU v2.0 / audit fix: A1 classified this turn S4 (crisis) — the router's
 // 'crisis' agent (a8-router.ts). Previously this path persisted only the

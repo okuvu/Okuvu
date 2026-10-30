@@ -154,6 +154,12 @@ resource "aws_ecs_task_definition" "portal" {
     },
   ])
 
+  # The build pipeline owns image revisions (scripts/ecs-image-pin.py). Terraform
+  # manages the shape of the task definition, not which revision is deployed.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
+
   tags = merge(local.common_tags, {
     Name     = "${var.name_prefix}-portal-task"
     Workload = "portal"
@@ -189,6 +195,12 @@ resource "aws_ecs_service" "portal" {
     target_group_arn = aws_lb_target_group.portal.arn
     container_name   = "portal"
     container_port   = var.portal_container_port
+  }
+
+  # The pipeline updates this to the revision it registered; terraform must not
+  # drag the service back to an older revision on an unrelated apply.
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = merge(local.common_tags, {

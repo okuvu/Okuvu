@@ -306,10 +306,18 @@ resource "aws_codebuild_project" "main" {
   }
 
   source {
-    type            = "GITHUB"
-    location        = "https://github.com/${var.github_repository}.git"
-    buildspec       = "buildspec.yml"
-    git_clone_depth = 1
+    type      = "GITHUB"
+    location  = "https://github.com/${var.github_repository}.git"
+    buildspec = "buildspec.yml"
+    # 0 = full history. This is what lets buildspec.yml tell a documentation push
+    # from a code push: the deploy-scope gate reads the commit the live services
+    # were built from out of ECS (their image tag is that commit's SHA) and diffs
+    # its tree against HEAD. At the old value of 1 that commit is an ancestor the
+    # clone does not contain, so the gate has to deepen the clone mid-build — an
+    # extra network round trip that fails closed (a full rollout) when it cannot
+    # run. The repository is ~22 MB of history, so a full clone costs a few
+    # seconds of DOWNLOAD_SOURCE and removes that dependency entirely.
+    git_clone_depth = 0
 
     report_build_status = true
 

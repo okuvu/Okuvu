@@ -35,7 +35,7 @@ No credentials are needed for `terraform init -backend=false` / `terraform valid
 | Images | ECR `evia-beta/api`, `evia-beta/worker`, scan-on-push, lifecycle retention |
 | Compute | ECS Fargate cluster + `api` (2 tasks, behind ALB) and `worker` (1 task, no LB) services; execution role separate from per-workload task roles |
 | Messaging | SQS `evia-beta-summary-jobs` with DLQ redrive after 3 receives |
-| Observability | CloudWatch log groups for both services, VPC flow logs, 2 ALB alarms, monthly budget alarm at 150 USD |
+| Observability | CloudWatch log groups for both services, VPC flow logs, 2 ALB alarms, 2 RDS alarms, EventBridge task-stop rule → ops SNS topic (fires when a task dies while it should be running), monthly budget alarm at 250 USD. Container Insights is **disabled**: it cost $32.40/mo in custom metrics and its running-count alarm is replaced by the free task-stop rule (E15-S8) |
 | CI/CD | CodeBuild project `evia-beta-build` (VPC-attached, builds `buildspec.yml`) plus a webhook that starts it on every push to `develop` and reports the result as a GitHub commit status |
 
 ## Image deployment
@@ -67,6 +67,31 @@ CodeBuild webhook (`aws_codebuild_webhook.main` in `pipeline.tf`) filtered to
    status** on the pushed commit (`report_build_status = true` on the project
    source, which is why a red build shows on the commit rather than only in
    CloudWatch).
+
+### Deploy scope — a documentation commit builds green and rolls nothing
+
+Every push runs the whole build (typecheck, tests, audit gate, three images,
+ECR scan gate), but the *rollout* only happens when the commit can change a
+container. `scripts/deploy-scope.py` (called from `pre_build`, acted on in
+`post_build`) reads the commit the live services were built from out of ECS —
+each service's PRIMARY task definition pins the image tag, and that tag is the
+commit SHA — then diffs that tree against `HEAD`:
+
+| changed paths since the deployed commit | result |
+|---|---|
+| only `docs/`, `evidence/`, `plan/` | build succeeds, no task definition registered, no service updated |
+| anything else — app, worker, portal, `infrastructure/`, `buildspec.yml`, `scripts/`, the lockfile | normal full rollout of all three services |
+
+It fails closed: ECS unreadable, services on different tags, a tag that is not a
+commit SHA, a service mid-rollout, a commit this clone cannot reach, or a diff
+that errors all resolve to a **full deploy**. A wrong skip would ship old code;
+a wrong deploy only costs a rollout. The `git_clone_depth = 0` on the project
+source exists for this: the deployed commit has to be in the clone for its tree
+to be diffable.
+
+`python3 scripts/verify-deploy-scope.py` proves the decision offline against
+synthetic commit ranges (docs-only vs code vs infrastructure), including the
+"cannot tell, therefore deploy" controls.
 
 Other branches, tags and pull-request refs do **not** start builds: the filter
 is a single branch pattern, not a wildcard.

@@ -44,6 +44,27 @@ Or pipe from a file (one email per line):
 npx tsx src/scripts/seed-therapists-batch.ts $(cat emails.txt)
 ```
 
+## Seed the beta therapists in production
+
+`evia-beta-postgres` is not publicly accessible, so `DATABASE_URL` cannot be
+pointed at it from a laptop — the batch script above only works against a local
+or otherwise reachable database. For production, run the idempotent SQL through
+the in-VPC runner (`scripts/in-vpc-db-task.sh`), which composes `DATABASE_URL`
+from the `${NAME_PREFIX}/database` secret inside a one-off ECS task:
+
+```bash
+bash scripts/in-vpc-db-task.sh --sql-file scripts/seed-beta-therapists.sql
+```
+
+`scripts/seed-beta-therapists.sql` seeds exactly the three beta accounts
+(`ananya.rao@okuvu.in`, `priya.nair@okuvu.in`, `rohan.mehta@okuvu.in`) and is
+safe to re-run: existing rows are left alone (`ON CONFLICT (email) DO UPDATE`
+only fills in a missing `name`). It prints the rows it wrote.
+
+Skipping this step is the classic failure: Cognito accepts the password, the
+hosted UI redirects back with a code, the code exchange succeeds, and NextAuth
+still answers `/auth?error=unauthorized` because the email is not in the table.
+
 ## How auth works
 
 Sign-in is Amazon Cognito only: the therapist pool (`evia-beta-therapists`)

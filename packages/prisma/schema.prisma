@@ -102,7 +102,7 @@ model ClinicalConfig {
   /// Therapist-portal wireframes C-04 — step 4's display abbreviation
   /// (e.g. "S." from "Shubhangi"), editable by the client at first run.
   display_abbreviation     String?
-  user                     User            @relation(fields: [user_id], references: [id])
+  user                     User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model SafetyState {
@@ -111,7 +111,7 @@ model SafetyState {
   safety_state_current             SafetyStateEnum
   safety_state_at_last_session_end SafetyStateEnum?
   updated_at                       DateTime         @updatedAt
-  user                             User             @relation(fields: [user_id], references: [id])
+  user                             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model SessionLog {
@@ -123,7 +123,7 @@ model SessionLog {
   session_feedback_score Int?
   crisis_flag_detected   Boolean                     @default(false)
   summary_embedding      Unsupported("vector(768)")?
-  user                   User                        @relation(fields: [user_id], references: [id])
+  user                   User                        @relation(fields: [user_id], references: [id], onDelete: Cascade)
   summaries              SessionSummary[]
   turns                  Turn[]
 
@@ -171,7 +171,7 @@ model Turn {
   therapist_referral  Boolean @default(false)
   created_at     DateTime   @default(now())
   session        SessionLog @relation(fields: [session_id], references: [id])
-  user           User       @relation(fields: [user_id], references: [id])
+  user           User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([session_id, turn_number, role])
   @@index([session_id, turn_number])
@@ -188,7 +188,7 @@ model SessionSummary {
   created_at        DateTime      @default(now())
   status            SummaryStatus @default(PENDING)
   session           SessionLog    @relation(fields: [session_id], references: [id])
-  user              User          @relation(fields: [user_id], references: [id])
+  user              User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, session_id])
   @@index([user_id, created_at(sort: Desc)])
@@ -205,13 +205,13 @@ model EngagementProfile {
   consent_2          Boolean   @default(false)
   consent_3          Boolean   @default(false)
   consent_4          Boolean   @default(false)
-  user               User      @relation(fields: [user_id], references: [id])
+  user               User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model UserMemory {
   id      String @id @default(uuid())
   user_id String @unique
-  user    User   @relation(fields: [user_id], references: [id])
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   life_context       String[]
   recurring_themes   String[]
@@ -238,7 +238,7 @@ model TherapistNote {
   client_user_id String
   note_text      String
   created_at     DateTime  @default(now())
-  client         User      @relation("ClientToNote", fields: [client_user_id], references: [id])
+  client         User      @relation("ClientToNote", fields: [client_user_id], references: [id], onDelete: Cascade)
   therapist      Therapist @relation("TherapistToNote", fields: [therapist_id], references: [id])
 
   @@index([client_user_id, created_at(sort: Desc)])
@@ -270,7 +270,7 @@ model TherapistClient {
   /// Set by clients.end — the therapist removing a client from their
   /// roster. Never deletes the row; keeps full history.
   ended_at       DateTime?
-  client         User      @relation(fields: [client_user_id], references: [id])
+  client         User      @relation(fields: [client_user_id], references: [id], onDelete: Cascade)
   therapist      Therapist @relation(fields: [therapist_id], references: [id])
 
   @@unique([therapist_id, client_user_id])
@@ -294,7 +294,7 @@ model Homework {
   status         HomeworkStatus      @default(active)
   assigned_at    DateTime            @default(now())
   updated_at     DateTime            @updatedAt
-  client         User                @relation("ClientToHomework", fields: [client_user_id], references: [id])
+  client         User                @relation("ClientToHomework", fields: [client_user_id], references: [id], onDelete: Cascade)
   therapist      Therapist           @relation("TherapistToHomework", fields: [therapist_id], references: [id])
   tool           ToolRegistryEntry?  @relation(fields: [tool_id], references: [tool_id])
   reminders      Reminder[]
@@ -321,7 +321,7 @@ model Reminder {
   schedule_note String
   active        Boolean            @default(true)
   created_at    DateTime           @default(now())
-  user          User               @relation(fields: [user_id], references: [id])
+  user          User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
   homework      Homework?          @relation(fields: [homework_id], references: [id])
   tool          ToolRegistryEntry? @relation(fields: [tool_id], references: [tool_id])
 
@@ -339,7 +339,7 @@ model ClinicalAccessLog {
   action         String
   created_at     DateTime  @default(now())
   therapist      Therapist @relation(fields: [therapist_id], references: [id])
-  client         User      @relation("ClientToAccessLog", fields: [client_user_id], references: [id])
+  client         User      @relation("ClientToAccessLog", fields: [client_user_id], references: [id], onDelete: Cascade)
 
   @@index([client_user_id, created_at(sort: Desc)])
   @@index([therapist_id, created_at(sort: Desc)])
@@ -371,7 +371,7 @@ model Appointment {
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
   therapist        Therapist @relation("TherapistToAppointment", fields: [therapist_id], references: [id])
-  client           User      @relation("ClientToAppointment", fields: [client_user_id], references: [id])
+  client           User      @relation("ClientToAppointment", fields: [client_user_id], references: [id], onDelete: Cascade)
 
   @@index([therapist_id, scheduled_at])
   @@index([client_user_id, scheduled_at])
@@ -398,7 +398,7 @@ model InviteToken {
   expires_at     DateTime
   redeemed_at    DateTime?
   therapist      Therapist @relation(fields: [therapist_id], references: [id])
-  client         User      @relation(fields: [client_user_id], references: [id])
+  client         User      @relation(fields: [client_user_id], references: [id], onDelete: Cascade)
 
   @@index([client_user_id])
 }
@@ -409,7 +409,7 @@ model EmergencyContact {
   encrypted_name  String
   encrypted_phone String
   created_at      DateTime @default(now())
-  user            User     @relation(fields: [user_id], references: [id])
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 // S6 (waitlist) — captured when a phone number with no invite/account hits
@@ -430,7 +430,7 @@ model MoodLog {
   source     String   @default("user_input")
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-  user       User     @relation(fields: [user_id], references: [id])
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, date_ist])
   @@index([user_id, date_ist(sort: Desc)])
@@ -446,6 +446,30 @@ model GovernanceLog {
   confidence      String
   blocked_content String?
   created_at      DateTime @default(now())
+}
+
+/// E17-S4 — append-only, tamper-evident audit chain (`apps/api/src/lib/
+/// audit-chain.ts`, ported from `reference/python-core/okuvu/audit.py`).
+///
+/// One row per safety-relevant event. `body` is the exact canonical JSON that
+/// was hashed, stored as text rather than JSONB on purpose: jsonb reorders keys
+/// and rewrites numbers, and the bytes that were sealed must be the bytes that
+/// are verified. `hash = sha256(prev_hash + body)`; `prev_hash` is UNIQUE, so a
+/// concurrent append behind the same head is an insert conflict (retried),
+/// never a forked chain. `seq` is app-assigned and contiguous from 1 —
+/// gap-freeness is part of the verification.
+model AuditEvent {
+  seq       Int    @id
+  actor     String
+  action    String
+  object    String
+  at        String
+  body      String
+  prev_hash String @unique
+  hash      String @unique
+
+  @@index([at])
+  @@index([action])
 }
 
 enum CarePlan {
@@ -475,7 +499,7 @@ model JournalEntry {
   intensity  Int
   content    String
   created_at DateTime @default(now())
-  user       User     @relation(fields: [user_id], references: [id])
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id, created_at(sort: Desc)])
 }
@@ -531,7 +555,7 @@ model UserToolPreference {
   tool_id      String
   pace_preset  String            @default("standard")
   updated_at   DateTime          @updatedAt
-  user         User              @relation(fields: [user_id], references: [id])
+  user         User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
   tool         ToolRegistryEntry @relation(fields: [tool_id], references: [tool_id])
 
   @@unique([user_id, tool_id])

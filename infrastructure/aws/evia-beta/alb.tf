@@ -15,6 +15,20 @@ resource "aws_lb" "api" {
   enable_cross_zone_load_balancing = true
   drop_invalid_header_fields       = true
 
+  # Audit trail: one line per request (client IP, route, status, bytes,
+  # timings) into the dedicated bucket above. Without this the only record of
+  # traffic is five-minute aggregate metrics.
+  access_logs {
+    bucket  = aws_s3_bucket.alb_logs.id
+    prefix  = local.alb_access_log_prefix
+    enabled = true
+  }
+
+  # ModifyLoadBalancerAttributes fails with "Access Denied for bucket" if the
+  # bucket policy is not attached yet, and the bucket name alone does not imply
+  # that dependency. Ordering is explicit so a first apply cannot fail here.
+  depends_on = [aws_s3_bucket_policy.alb_logs]
+
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-alb"
   })

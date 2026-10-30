@@ -1,4 +1,5 @@
 import type { RouterInput, RouterDecision, SafetyState } from '@okuvu/shared-types'
+import { hasMedicalEmergencyLanguage } from './a1/medical-emergency-keywords.js'
 
 const VALID_SAFETY_STATES: ReadonlySet<string> = new Set(['S0', 'S1', 'S2', 'S3', 'S4'])
 
@@ -26,6 +27,35 @@ function resolveSafetyState(input: RouterInput): SafetyState | null {
  * user to a static policy-boundary reply. A Blocked verdict at any other
  * (S0-S2) safety state routes to A2 in 'blocked' mode instead: a real,
  * persisted turn with a static policy-boundary response, never silence.
+ *
+ * E17-S9 — medical emergency (agent: 'medical-emergency'). This is the one
+ * rule in this file that is not a function of the states, because the state is
+ * not where the problem shows up: measured on the api task's own environment,
+ * "I'm having chest pain and my left arm feels numb" classified S1 and "my
+ * brother drank a whole bottle of whiskey and he's unconscious" classified S2
+ * (evidence/E17-S5-orch-correction.md). A state-only router sends both to A2,
+ * and A2 answers a medical emergency with the mental-health crisis card. So the
+ * check is on the message, through the deterministic screen in
+ * `a1/medical-emergency-keywords.ts` — the same tier of determinism as the
+ * crisis keyword floor, no model involved.
+ *
+ * Why it is checked before S4, and why that is not a weakening of the crisis
+ * path: `hasMedicalEmergencyLanguage` refuses to match any message that carries
+ * self-harm or crisis wording (it calls `hasCrisisLanguage` first, plus an
+ * explicit self-harm extension), so an explicit disclosure is never a medical
+ * match and still lands on the crisis card at S4. What the ordering fixes is
+ * the measured me-04 case — "I cut my hand badly and the bleeding won't stop"
+ * — where A1 reads an accidental injury as active self-harm and returns S4, and
+ * the user gets a mental-health card for an injury. A model-generated S4 on an
+ * injury message is not a self-harm disclosure; an ambulance is the right
+ * answer for it. Where A1 *does* still return S4 on a medical message, the
+ * orchestrator serves the medical copy that keeps the crisis helplines in it
+ * (MEDICAL_EMERGENCY_CRISIS_RESPONSE) and sets the crisis flag, so no resource
+ * is withdrawn from that user.
+ *
+ * Also checked before governance: a policy Blocked verdict on a message
+ * describing an unconscious relative must not replace the ambulance with a
+ * static policy-boundary line.
  */
 export function routeTurn(input: RouterInput): RouterDecision {
   if (!input) {
@@ -36,6 +66,10 @@ export function routeTurn(input: RouterInput): RouterDecision {
 
   if (!safetyState) {
     return { agent: 'crisis' }
+  }
+
+  if (input.message && hasMedicalEmergencyLanguage(input.message)) {
+    return { agent: 'medical-emergency' }
   }
 
   if (safetyState === 'S4') {

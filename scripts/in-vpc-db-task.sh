@@ -34,6 +34,7 @@
 set -euo pipefail
 
 REGION="${AWS_REGION:-ap-south-1}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 NAME_PREFIX="${NAME_PREFIX:-evia-beta}"
 CLUSTER="${NAME_PREFIX}"
@@ -68,15 +69,39 @@ done
 if [ -z "$COMMAND" ] && [ -n "$SQL" ]; then
   # There is no psql in the runtime image; use the pg client that ships with
   # @okuvu/prisma to run the query and print the rows as JSON.
-  COMMAND=$(cat <<'NODE'
+  #
+  # E16-S11: that JSON lands in /ecs/evia-beta/api, so every value passes
+  # through scripts/redact-probe-rows.js first. A probe that selects an email or
+  # a name (scripts/seed-beta-therapists.sql's `RETURNING email, id, name` did
+  # exactly this) used to write personal data into the log group. The redactor
+  # is shipped into the container base64-encoded, because the API image does not
+  # carry the repo's scripts/ directory.
+  # Both the redactor and the SQL travel gzip+base64'd: ECS rejects the whole
+  # `overrides` document above 8192 characters, and the redactor alone is
+  # 4.6KB as plain base64 (a 5.7KB .sql file blew the limit outright). Expanded
+  # in-process with node's zlib so the script does not depend on a gzip binary
+  # existing in the runtime image. No query parameters are passed, so
+  # node-postgres uses the simple query protocol, which accepts several
+  # statements in one call — which is what lets a whole seed file run at once.
+  REDACT_GZ="$(gzip -9 < "${SCRIPT_DIR}/redact-probe-rows.js" | base64 | tr -d '\n')"
+  SQL_GZ="$(printf '%s' "$SQL" | gzip -9 | base64 | tr -d '\n')"
+  COMMAND=$(cat <<NODE
 cd /app/packages/prisma
 node -e '
 const { Client } = require("pg");
+const zlib = require("zlib");
+const fs = require("fs");
+const gunzip = (v) => zlib.gunzipSync(Buffer.from(v, "base64")).toString("utf8");
+fs.writeFileSync("/tmp/redact-probe-rows.js", gunzip(process.env.REDACT_GZ));
+const { scrub } = require("/tmp/redact-probe-rows.js");
+const sql = process.env.IN_VPC_SQL_GZ ? gunzip(process.env.IN_VPC_SQL_GZ) : null;
+if (!sql) { console.error("FATAL: no SQL supplied"); process.exit(2); }
 (async () => {
   const c = new Client({ connectionString: process.env.PG_URL });
   await c.connect();
-  const r = await c.query(process.env.IN_VPC_SQL);
-  console.log(JSON.stringify(r.rows));
+  const r = await c.query(sql);
+  const rows = Array.isArray(r) ? (r[r.length - 1] || {}).rows : r.rows;
+  console.log(JSON.stringify(scrub(rows || [])));
   await c.end();
 })().catch((e) => { console.error("SQL_ERROR: " + e.message); process.exit(1); });
 '
@@ -120,11 +145,11 @@ aws ecs describe-task-definition --task-definition "$SOURCE_TASK_DEFINITION" --r
   --query 'taskDefinition' --output json > "${WORKDIR}/source.json"
 
 python3 - "$WORKDIR/source.json" "$TASKDEF_FILE" "$NETWORK_FILE" "$OVERRIDES_FILE" \
-  "$CONTAINER" "$COMMAND" "$COMPOSE" "$SECRET_ARN" "$SQL" "$NAME_PREFIX" <<'PY'
+  "$CONTAINER" "$COMMAND" "$COMPOSE" "$SECRET_ARN" "${SQL_GZ}" "$NAME_PREFIX" "${REDACT_GZ}" <<'PY'
 import json, os, sys
 
 (source, taskdef_path, network_path, overrides_path, container,
- command, compose, secret_arn, sql, prefix) = sys.argv[1:11]
+ command, compose, secret_arn, sql_gz, prefix, redact_gz) = sys.argv[1:12]
 
 with open(source) as f:
     td = json.load(f)
@@ -166,9 +191,9 @@ with open(network_path, "w") as f:
         }
     }, f)
 
-env = []
-if sql:
-    env.append({"name": "IN_VPC_SQL", "value": sql})
+env = [{"name": "REDACT_GZ", "value": redact_gz}]
+if sql_gz:
+    env.append({"name": "IN_VPC_SQL_GZ", "value": sql_gz})
 with open(overrides_path, "w") as f:
     json.dump({
         "containerOverrides": [{
