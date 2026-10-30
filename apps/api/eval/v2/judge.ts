@@ -84,7 +84,9 @@ export function buildJudgeMessage(scenario: Scenario, path: ServedPath, servedTe
     ...requirements.map(
       (r) =>
         `${r.id} [${r.kind}] ${r.label}. ${
-          r.kind === 'MUST BE PRESENT' ? 'Example wording that would satisfy it' : 'Example wording this forbids'
+          r.kind === 'MUST BE PRESENT'
+            ? 'Illustrations only — wording that would perform it, never a checklist and never required words; pass it when the reply performs the labelled behaviour in any words'
+            : 'Illustrations of the forbidden thing — a violation needs that thing actually present, not a related word or an arguable implication'
         }: ${r.examples.map((e) => `"${e}"`).join(', ')}`,
     ),
     '',
