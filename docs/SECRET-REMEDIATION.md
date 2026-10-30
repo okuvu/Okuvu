@@ -18,7 +18,7 @@ masks the same way, so its output is safe to paste into a ticket.
 | 2 | Google **API key** for the Android client (`AIzaSy…`, 39 chars) | `apps/mobile/android/app/google-services.json:23` | `7c4ef976` 2026-07-07 | `e25a4402` 2026-07-20 | **124** | No |
 | 3 | Postgres URL with a `user:password` pair | `apps/test-harness/.env.example:9` | — | — | — | — |
 
-Row 3 is on this list because the story expected it; **it does not exist.** The password in
+Row 3 is on this list because the story brief assumed it; **it does not exist.** The password in
 every `postgres://` URL in this repository's history is a placeholder (`***`). See §1.3 —
 the distinction matters, because rotating a credential that was never exposed wastes an
 outage window and teaches the team to distrust the finding list.
@@ -31,8 +31,8 @@ outage window and teaches the team to distrust the finding list.
   **`971397352159`**.
 - **Exposure window:** committed 2026-09-06T04:52:43Z (`0a724b0`, "Test harness Environment
   (#195)"), replaced with an empty string 2026-10-28T12:04:48Z (`06424dc`, "Remove secrets
-  from env example"). It sat in the default branch's tree for **54 days** while the
-  repository was public.
+  from env example"). It sat in the default branch's tree for **52 days** while the
+  repository was public, and the commit was still readable **54 days** after it landed.
 - **Scope:** 74 commits reachable from the refs in this checkout contain the value, and
   75 of the 77 refs contain `0a724b0`. Deleting it in `06424dc` did not delete it anywhere
   else — every commit before `06424dc` still has it, and every clone already made has it.
@@ -48,6 +48,10 @@ outage window and teaches the team to distrust the finding list.
 - **Is it still valid?** Not tested from this host — a credential-bearing request to a
   third party was deliberately not made. **Treat it as live until the console says
   otherwise**; the check is one command, in §2.
+- **Check whether GitHub already told you.** Google credentials are in GitHub's partner
+  secret-scanning programme, so a public repository can raise an alert under
+  **Security → Secret scanning alerts**. Look before assuming nobody was notified — and
+  note that revoking at Google is what closes the alert meaningfully, not dismissing it.
 
 ### 1.2 The Firebase/Android API key
 
@@ -175,7 +179,7 @@ old password" is not an option; rotate again with a fresh one.
 **Yes.** Making the repository private does not undo a leak; it only stops *future* reads.
 Every one of these is already true and none is reversed by the visibility toggle:
 
-1. **It was publicly cloneable for 54 days.** GitHub serves public clones to anyone,
+1. **It was publicly cloneable for 52 days.** GitHub serves public clones to anyone,
    unauthenticated, and `codeload` archives were available the whole time. You cannot
    enumerate who took one.
 2. **Clones, forks and mirrors keep their own copies.** A private repository does not reach
