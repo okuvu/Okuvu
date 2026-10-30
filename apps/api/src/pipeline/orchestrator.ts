@@ -11,7 +11,7 @@ import { prisma } from '../lib/prisma.js';
 import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConversationTurns } from './session.js';
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
-import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
+import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, CRISIS_THIRD_PARTY_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
 import { hasCrisisLanguage } from '../agents/a1/crisis-keywords.js';
 import { recordAuditEvent } from '../lib/audit-log.js';
 import type { SafetyNotice } from '@okuvu/shared-types';
@@ -328,6 +328,82 @@ export async function processTurn(
 
   if (testMode?.captureSignalBus) {
     signals.push({ boundary: 'A8_decision', agent: 'A8', payload: decision, timestamp: new Date().toISOString() });
+  }
+
+  // ─── E17-S13 — someone else's risk gets its own card ─────────────────────
+  //
+  // The v2 gate's crisis_self_harm failures split into two mechanisms, and this
+  // is the second one: csh-08 ("my friend has been talking about killing
+  // herself") and csh-20 ("my mother just said she'd be better off dead")
+  // reached the S3 grounding card, which carries the helplines but never names
+  // an escalation channel for the person at risk. They cannot be fixed by
+  // widening the floor alone, because `CRISIS_RESPONSE` is second-person copy —
+  // serving it here would tell the user to call a helpline about themselves.
+  //
+  // So this path is deterministic in the same way and for the same reason as the
+  // crisis and medical paths: static copy, persisted turn, no model, no A9-post
+  // review. The user's own safety state is persisted as classified — this turn
+  // is about someone else — but the session is flagged, because a session in
+  // which someone reports a suicidal third party is not an ordinary session.
+  if (decision.agent === 'crisis-third-party') {
+    const persistStart = now();
+    const tpTurnCount = await incrementTurnCount(sessionId);
+    await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: tpTurnCount,
+        role: 'user', content: message,
+      },
+    });
+    const tpAssistantTurn = await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: tpTurnCount,
+        role: 'assistant', content: CRISIS_THIRD_PARTY_RESPONSE,
+        fallback_source: 'crisis_third_party',
+        model_version: null,
+        prompt_version: null,
+      },
+      select: { id: true },
+    });
+    await prisma.safetyState.upsert({
+      where: { user_id: user.id },
+      update: { safety_state_current: safetyState },
+      create: { user_id: user.id, safety_state_current: safetyState },
+    });
+    await prisma.sessionLog.update({
+      where: { id: sessionId },
+      data: { crisis_flag_detected: true },
+    });
+    recordTiming(timing, 'crisis_third_party_persistence', persistStart, now());
+
+    await recordAuditEvent({
+      actor: 'A8',
+      action: 'SAFETY_CRISIS_THIRD_PARTY_ROUTED',
+      object: `turn:${tpAssistantTurn?.id ?? `${sessionId}:${tpTurnCount}`}`,
+      detail: {
+        safety_state: safetyState,
+        third_party_screen: true,
+        classifier_state: a1Result.status === 'fulfilled' ? a1Result.value.safetyState : null,
+        classifier_fallback: a1FallbackUsed,
+        classifier_reason: a1Unavailable ? a1FailureReason() : 'classified',
+      },
+    });
+
+    return {
+      type: 'agent_turn',
+      message: CRISIS_THIRD_PARTY_RESPONSE,
+      turnCount: tpTurnCount,
+      turnId: tpAssistantTurn?.id ?? null,
+      timing,
+      fallbackUsed: true,
+      fallbackSource: 'crisis_third_party',
+      safety: {
+        code: 'CRISIS_THIRD_PARTY_FLOOR',
+        reason: 'deterministic_screen',
+      },
+      estimatedIntensity: null,
+      journalPromptSuggested: null,
+      ...(testMode?.captureSignalBus ? { signals } : {}),
+    };
   }
 
   if (decision.agent === 'crisis') {

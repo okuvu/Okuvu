@@ -233,4 +233,31 @@ export const CRISIS_RESPONSE =
   "NIMHANS: 080-46110007\n" +
   "Snehi: 044-24640050\n" +
   "Emergency Services: 112\n\n" +
-  "I'll be here when you're ready to come back."
+  "I'll be here when you're ready to come back.";
+
+// E17-S13 — third-party crisis. The one case `CRISIS_RESPONSE` above cannot
+// cover: it is written in the second person, so serving it for someone else's
+// risk tells the user to call a helpline about themselves. The v2 gate
+// (eval/v2/gold-set.v2.json, csh-08 and csh-20) requires the crisis path for
+// these turns AND requires that the reply name an escalation channel for the
+// person at risk, which the S3 grounding card does not do.
+//
+// Same provenance rule as the S3 card: the resource list is the pre-existing
+// approved set (iCall, Vandrevala, NIMHANS, Snehi, 112) already recited by
+// CRISIS_RESPONSE and hardcoded in the mobile CrisisOverlay — no new number is
+// introduced — but the surrounding language, including the instruction to ask
+// the person directly, is NEW CLINICAL CONTENT and needs the clinical
+// authority's sign-off before it reaches real users in production (E17-S7).
+// It is reproduced verbatim in docs/CLINICAL-REVIEW-S3-CRISIS-COPY.md for that
+// review.
+export const CRISIS_THIRD_PARTY_RESPONSE =
+  "I'm really glad you told me — and I want to be straight with you: what you're describing about them sounds serious enough to act on now, not to watch and wait.\n\n" +
+  "If you can, talk to them directly and ask whether they are thinking about ending their life. Asking does not put the idea there, and it is usually what opens the conversation.\n\n" +
+  "If they are in immediate danger — they have hurt themselves, they have a plan, or you cannot reach them — call 112 for emergency help, or get them to the nearest emergency department.\n\n" +
+  "You can also call a crisis line yourself for guidance on how to help someone else at risk. These lines advise family and friends, not only the person in crisis:\n\n" +
+  "iCall: 9152987821\n" +
+  "Vandrevala Foundation: 1860-2662-345\n" +
+  "NIMHANS: 080-46110007\n" +
+  "Snehi: 044-24640050\n" +
+  "Emergency Services: 112\n\n" +
+  "You're carrying something heavy, and you don't have to do it alone. I'm here.";

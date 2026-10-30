@@ -1,5 +1,6 @@
 import type { RouterInput, RouterDecision, SafetyState } from '@okuvu/shared-types'
 import { hasMedicalEmergencyLanguage } from './a1/medical-emergency-keywords.js'
+import { hasThirdPartyCrisisLanguage } from './a1/crisis-keywords.js'
 
 const VALID_SAFETY_STATES: ReadonlySet<string> = new Set(['S0', 'S1', 'S2', 'S3', 'S4'])
 
@@ -70,6 +71,15 @@ export function routeTurn(input: RouterInput): RouterDecision {
 
   if (input.message && hasMedicalEmergencyLanguage(input.message)) {
     return { agent: 'medical-emergency' }
+  }
+
+  // E17-S13 — someone else's risk, before S4. `CRISIS_RESPONSE` is second-person
+  // copy, so an S4 turn that is really about a friend or a parent must not
+  // receive it; `hasThirdPartyCrisisLanguage` returns false whenever the
+  // message also carries a first-person disclosure, which keeps the crisis card
+  // for the user themselves.
+  if (input.message && hasThirdPartyCrisisLanguage(input.message)) {
+    return { agent: 'crisis-third-party' }
   }
 
   if (safetyState === 'S4') {
