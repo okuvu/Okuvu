@@ -120,7 +120,19 @@ function repoRoot(): string {
   }
 }
 const REPO_ROOT = repoRoot();
-const PROMPT_FILE = join(API_ROOT, 'src/prompts/a2-okuvu-v2.1.txt');
+/**
+ * Report metadata only. The bytes actually served come from `A2_PROMPT`
+ * (see `buildConversationalPrompt()` below); this path exists so the report's
+ * `prompt.file` / `prompt.sha256` fields name the prompt that was really
+ * scored. It is derived from `A2_PROMPT_VERSION` rather than hardcoded so that
+ * a version bump cannot leave the evidence quoting a stale file — every run
+ * before v2.3 reported v2.1's sha while serving v2.2's bytes.
+ */
+const PROMPT_FILE = join(
+  API_ROOT,
+  'src/prompts',
+  `a2-okuvu-${A2_PROMPT_VERSION}.txt`,
+);
 const JUDGE_PROMPT_FILE = join(__dirname, 'judge-prompt.txt');
 
 // Production inference defaults for A2 — identical to lib/bedrock.ts
