@@ -33,6 +33,15 @@
 # Exit code is the container's exit code, so this is safe to use in CI.
 set -euo pipefail
 
+# The SQL path builds COMMAND itself and is the only branch that sets these, but
+# they are referenced unconditionally when the overrides document is assembled.
+# Under `set -u` a plain `-- '<command>'` run therefore died with
+# "SQL_GZ: unbound variable" before it could run anything. Default them empty so
+# the plain-command path works; the python builder only adds IN_VPC_SQL_GZ when
+# a query was actually supplied.
+SQL_GZ=""
+REDACT_GZ=""
+
 REGION="${AWS_REGION:-ap-south-1}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
