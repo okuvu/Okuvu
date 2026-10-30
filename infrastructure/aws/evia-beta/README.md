@@ -68,6 +68,31 @@ CodeBuild webhook (`aws_codebuild_webhook.main` in `pipeline.tf`) filtered to
    source, which is why a red build shows on the commit rather than only in
    CloudWatch).
 
+### Deploy scope — a documentation commit builds green and rolls nothing
+
+Every push runs the whole build (typecheck, tests, audit gate, three images,
+ECR scan gate), but the *rollout* only happens when the commit can change a
+container. `scripts/deploy-scope.py` (called from `pre_build`, acted on in
+`post_build`) reads the commit the live services were built from out of ECS —
+each service's PRIMARY task definition pins the image tag, and that tag is the
+commit SHA — then diffs that tree against `HEAD`:
+
+| changed paths since the deployed commit | result |
+|---|---|
+| only `docs/`, `evidence/`, `plan/` | build succeeds, no task definition registered, no service updated |
+| anything else — app, worker, portal, `infrastructure/`, `buildspec.yml`, `scripts/`, the lockfile | normal full rollout of all three services |
+
+It fails closed: ECS unreadable, services on different tags, a tag that is not a
+commit SHA, a service mid-rollout, a commit this clone cannot reach, or a diff
+that errors all resolve to a **full deploy**. A wrong skip would ship old code;
+a wrong deploy only costs a rollout. The `git_clone_depth = 0` on the project
+source exists for this: the deployed commit has to be in the clone for its tree
+to be diffable.
+
+`python3 scripts/verify-deploy-scope.py` proves the decision offline against
+synthetic commit ranges (docs-only vs code vs infrastructure), including the
+"cannot tell, therefore deploy" controls.
+
 Other branches, tags and pull-request refs do **not** start builds: the filter
 is a single branch pattern, not a wildcard.
 
