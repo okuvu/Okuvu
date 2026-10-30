@@ -179,14 +179,21 @@ export type SafetyNoticeCode =
 export interface SafetyNotice {
   code: SafetyNoticeCode
   /**
-   * Why the model/classifier call failed: `llm_timeout`, `llm_throttled`,
-   * `llm_api_error` or `llm_parse_failure`. Never model output or message text.
+   * Why the notice was raised. For a technical failure it is the classifier/
+   * model failure underneath: `llm_timeout`, `llm_throttled`, `llm_api_error`
+   * or `llm_parse_failure`. E17-S10 added `crisis_keyword_floor` for the case
+   * where nothing failed — the classifier answered and the deterministic
+   * keyword screen raised its answer to S4. Never model output or message text.
    */
   reason: string
   /**
-   * True when the crisis path was taken because the classifier was unreachable
-   * and the deterministic screen matched. The user is on the crisis path — this
-   * is the audit trail saying how they got there.
+   * True when the crisis path was taken because the deterministic keyword
+   * screen raised the turn to S4. Two ways that happens (E17-S10): the
+   * classifier was unreachable and the screen was all that was left (E17-S4),
+   * or the classifier answered S1/S2/S3 and the screen overrode it. The user is
+   * on the crisis path — this is the audit trail saying how they got there; the
+   * `reason` says which, so `crisis_floor` alone is never read as "A1 was
+   * down".
    */
   crisis_floor?: true
 }

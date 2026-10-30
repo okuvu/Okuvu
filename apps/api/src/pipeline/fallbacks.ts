@@ -177,19 +177,39 @@ export function getModelUnavailableFallback(safetyState: string): string {
   return safetyState === 'S2' ? A9_POST_S2_FALLBACK : MODEL_UNAVAILABLE_RESPONSE
 }
 
-// OKUVU v2.0: A1 classified this turn S3 (elevated risk — hopelessness,
-// worthlessness, or escape themes, without a stated plan or method). This is
-// the router's 'deterministic-grounding' agent (a8-router.ts) — the same
-// tier of clinical determinism as crisis (S4), one step down: A2 is skipped
-// entirely, but this always gets a real, persisted, grounding-oriented
-// reply, never silence. Unlike the block path, this one IS allowed to offer
-// a body-first exercise (that's its entire purpose); it's held to the rest
-// of the contract (warm, thread-holding, no machinery talk). Content TBD by
-// whoever owns crisis/grounding copy — same open item as A9_PRE_BLOCKED_
-// RESPONSE and the crisis path's no-script gap.
-export const A8_S3_GROUNDING_RESPONSE =
-  "It sounds like things feel really heavy right now. Let's slow down together — " +
-  "can you take a breath with me, and tell me what's around you right now?"
+// OKUVU v2.0 / E17-S10: A1 classified this turn S3 (elevated risk —
+// hopelessness, worthlessness, or escape themes, without a stated plan or
+// method). This is the router's 'deterministic-grounding' agent
+// (a8-router.ts) — the same tier of clinical determinism as crisis (S4), one
+// step down: A2 is skipped entirely, but this always gets a real, persisted,
+// grounding-oriented reply, never silence. Unlike the block path, this one IS
+// allowed to offer a body-first exercise (that's its entire purpose); it's
+// held to the rest of the contract (warm, thread-holding, no machinery talk).
+//
+// E17-S10 — this copy now carries the approved helplines, because S3 is not a
+// safe place to withhold them. The model under-reads explicit intent often
+// enough that csh-10 ("the breathing isn't helping. I want to die.") was
+// answered by the previous one-sentence breathing prompt, and the turns this
+// card serves include third-party risk ("my friend has been talking about
+// killing herself") and passive ideation — the cases the keyword floor
+// deliberately does not claim, because the crisis card is written in the
+// second person and would be the wrong instruction for someone else's risk.
+// So the grounding reply keeps the breathing invitation but never as the whole
+// answer: it names the heaviness, offers the exercise, and puts a crisis line
+// in the same message, with the explicit statement that a call does not
+// require being in immediate danger, and 112 if they might act.
+//
+// Two-part provenance, same as CRISIS_RESPONSE below: the surrounding language
+// is a first pass and should get a clinical/RCI sign-off before it reaches real
+// users in production; the resource list itself is the pre-existing approved
+// set (iCall 9152987821, Vandrevala Foundation 1860-2662-345, Emergency 112),
+// already used by CRISIS_RESPONSE and the mobile app's CrisisOverlay — no new
+// helpline number is introduced here.
+export const A8_S3_GROUNDING_RESPONSE = `It sounds like things feel really heavy right now, and I don't want you to sit with that on your own. Let's slow down together — if you can, take a breath with me and tell me what's around you right now.
+
+And because this sounds like more than anyone should have to carry alone, please keep a crisis line close by: iCall on 9152987821, or the Vandrevala Foundation on 1860-2662-345. They answer day and night, and you don't need to be in immediate danger to call. If you ever feel you might act on these thoughts, call 112 or go to the nearest emergency department.
+
+I'm here with you.`;
 
 // OKUVU v2.0 / audit fix: A1 classified this turn S4 (crisis) — the router's
 // 'crisis' agent (a8-router.ts). Previously this path persisted only the

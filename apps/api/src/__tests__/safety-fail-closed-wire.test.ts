@@ -348,13 +348,55 @@ describe('E17-S4: an unreachable model fails closed over a real WebSocket', () =
       ),
     );
 
-    await openAndSend('I want to die');
+    // E17-S10: the message matters here. "I want to die" now matches the
+    // per-turn keyword floor as well, so the notice would say the floor raised
+    // it — true, but not the fact this test is about. A plan with no explicit
+    // phrase reaches S4 from the model alone.
+    await openAndSend('I have a plan. Saturday, when everyone is out.');
 
     const crisis = frames.filter((f) => f.type === 'CRISIS_SIGNAL');
     expect(crisis).toHaveLength(1);
     expect(crisis[0].payload.message).toBe(CRISIS_RESPONSE);
     // Classified, not floored: no safety notice, because nothing degraded.
     expect(crisis[0].payload.safety).toBeUndefined();
+    expect(frames.filter((f) => f.type === 'ERROR')).toHaveLength(0);
+  });
+
+  it('serves the crisis card when the keyword floor raises a confident S1 (E17-S10)', async () => {
+    await pointAt(
+      await startConverseStub(({ body }) =>
+        body.includes('safetyState')
+          ? {
+              status: 200,
+              body: structured({
+                // A confident, wrong classification — the shape the gate
+                // measured on csh-10.
+                safetyState: 'S1',
+                crisis_language_detected: false,
+                basis: 'contextual',
+                signal_strength: 'high',
+                notes: null,
+              }),
+            }
+          : {
+              status: 200,
+              body: structured({ governanceState: 'Active', reasonCode: null, confidence: 'medium', notes: null }),
+            },
+      ),
+    );
+
+    await openAndSend("the breathing isn't helping. I want to die.");
+
+    const crisis = frames.filter((f) => f.type === 'CRISIS_SIGNAL');
+    expect(crisis).toHaveLength(1);
+    expect(crisis[0].payload.message).toBe(CRISIS_RESPONSE);
+    // The floor, recorded honestly: the classifier answered, so the reason
+    // names the keyword screen rather than an `llm_*` failure A1 never had.
+    expect(crisis[0].payload.safety).toEqual({
+      code: 'CRISIS_FLOOR',
+      reason: 'crisis_keyword_floor',
+      crisis_floor: true,
+    });
     expect(frames.filter((f) => f.type === 'ERROR')).toHaveLength(0);
   });
 
