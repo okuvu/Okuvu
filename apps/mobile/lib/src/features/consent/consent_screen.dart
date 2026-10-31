@@ -42,7 +42,15 @@ class _ConsentScreenState extends ConsumerState<ConsentScreen> {
 
     final request = ConsentRequest(
       safetyMonitoring: _safetyMonitoring,
+      // The onboarding card is one toggle covering both derived-from-chat
+      // signals, matching the settings screen's single "Mood & progress"
+      // chip which sets consent_2 and consent_3 together.
       moodInference: _chatShare,
+      assessment: _chatShare,
+      // Onboarding never asks about a nominated contact, and there isn't one
+      // yet — the emergency-contact row in Settings owns consent_4. Off is
+      // the only honest default here; it must not be inferred from the card.
+      emergencyContact: false,
     );
 
     try {
