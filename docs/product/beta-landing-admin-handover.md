@@ -7,8 +7,10 @@ Specs: `landing-page-spec.md`, `landing-page-copy.md`, `admin-console-spec.md`,
 ## What now exists
 
 **Landing page at `/`** — public, no session needed, served on every hostname
-the ALB answers for (`okuvu.in`, `www.okuvu.in`, `portal.okuvu.in`). Portal
-bookmarks keep working: `/dashboard` and `/clients/...` are unchanged.
+the ALB answers for (`okuvu.in`, `www.okuvu.in`). `portal.okuvu.in` is
+exempted on purpose: it redirects `/` to `/dashboard` as it always did, so an
+existing therapist bookmark does not land on marketing copy. `/dashboard` and
+`/clients/...` are unchanged everywhere.
 
 **Admin console at `/admin`** — six sections. Reached only by an address on
 `ADMIN_EMAILS`; a signed-in therapist who is not on the list sees a clear

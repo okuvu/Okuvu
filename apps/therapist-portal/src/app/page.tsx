@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { isGoogleConfigured } from '@/lib/google-config';
 import { isCognitoConfigured } from '@/lib/cognito-config';
 import { copy } from '@/lib/marketing/copy';
+import { isPortalEntryHost } from '@/lib/marketing/host';
 import WaitlistForm from './_marketing/WaitlistForm';
 import LandingSignIn from './_marketing/LandingSignIn';
 
@@ -45,6 +48,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default async function LandingPage() {
+  // portal.okuvu.in keeps behaving as the app entry point it has always been,
+  // so a therapist's existing bookmark does not land on marketing copy.
+  const requestHeaders = await headers();
+  if (isPortalEntryHost(requestHeaders.get('host'))) {
+    redirect('/dashboard');
+  }
+
   const session = await auth();
   const signedIn = Boolean(session?.user);
   const googleOn = isGoogleConfigured();
