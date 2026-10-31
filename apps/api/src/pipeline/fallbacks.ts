@@ -25,6 +25,28 @@
 // no-script gap. The wiring (which path serves which constant) is done and
 // tested; the words are reviewable in exactly one place: this file.
 
+// ─── E17-S7 — the approved helpline list (signed 31 October 2026) ──────────
+//
+// Dr Shubhangi Goswami's signed sign-off of 31 Oct 2026
+// (evidence/shubhangi-signoff/, docx sha256 af36ceb9…) corrects the helpline
+// list and fixes its order: Tele-MANAS first, because iCall is not a 24×7
+// service and must not be the first choice in a crisis; iCall last with its
+// hours stated; NIMHANS dropped from the approved set; and the old Vandrevala
+// number (1860-2662-345) removed everywhere. Her condition is explicit: this
+// list, in this order, replaces the old one in every fixed reply in this file,
+// in the A9-post reviewer's approved-number list, and in the app's crisis
+// screen.
+//
+// It is one constant rather than seven copies, because the same list written
+// out seven times is the drift that ends with two numbers disagreeing about
+// which one is correct. The rendered text of the S3 and S4 replies is pinned
+// paragraph-for-paragraph by __tests__/approved-copy.test.ts against the
+// paragraphs of her signed document, so editing a word here fails a test
+// instead of silently re-opening a signed string.
+export const HELPLINE_INLINE =
+  "Tele-MANAS: 14416 (24×7) Vandrevala Foundation: +91 9999666555 Sneha, Chennai: 044-24640050 " +
+  "iCall (TISS): 9152987821 — Mon–Sat, 8 am–9 pm";
+
 // A9-pre (governance) rejected the message but A1 did not find crisis-level
 // risk — the router's 'blocked' mode (a8-router.ts). Distinct from the crisis
 // path: this always gets a real, persisted, non-alarming reply, never silence.
@@ -67,8 +89,8 @@ export const BUDGET_PAUSED_RESPONSE =
   "I'm still here with you. " +
   "We've reached the end of what I can do in this conversation for now, so I have to pause here — " +
   "it's not something you said, and it isn't about how you're doing. " +
-  "If things feel like too much in the meantime, please reach out to iCall on 9152987821 or " +
-  "the Vandrevala Foundation on 1860-2662-345, any time. " +
+  "If things feel like too much in the meantime, please reach one of these: " +
+  HELPLINE_INLINE + ". " +
   "I'll be ready to pick this up with you again soon."
 
 // ─── E17-S4 — the two paths a technical failure must land on ────────────────
@@ -97,8 +119,8 @@ export const SAFETY_UNAVAILABLE_RESPONSE =
   "I'm still here with you. " +
   "I can't check in on how you're doing the way I usually do right now, and I'd rather say that " +
   "plainly than answer you without knowing. " +
-  "If things are feeling like too much in the meantime, please reach out to iCall on 9152987821 " +
-  "or the Vandrevala Foundation on 1860-2662-345, any time. " +
+  "If things are feeling like too much in the meantime, please reach one of these: " +
+  HELPLINE_INLINE + ". " +
   "I'm not going anywhere."
 
 // A1 classified the turn fine, but the model that writes the reply is
@@ -109,8 +131,8 @@ export const MODEL_UNAVAILABLE_RESPONSE =
   "I'm here with you, and I'm listening. " +
   "Something on my side isn't working properly just now, so I don't want to answer you with " +
   "words I can't stand behind. " +
-  "If it's feeling heavy in the meantime, iCall on 9152987821 or the Vandrevala Foundation on " +
-  "1860-2662-345 are there any time. " +
+  "If it's feeling heavy in the meantime, please reach one of these: " +
+  HELPLINE_INLINE + ". " +
   "Say it again whenever you're ready — I'll still be here."
 
 
@@ -157,7 +179,8 @@ export const MEDICAL_EMERGENCY_CRISIS_RESPONSE =
   "Please call 112 for emergency medical help right now — that is the ambulance and emergency number in India, " +
   "and they can send help to you. " +
   "I can also hear that there is more than the physical side to this, and I don't want you to carry that alone: " +
-  "once you've called, please reach out to iCall on 9152987821 or the Vandrevala Foundation on 1860-2662-345. " +
+  "once you've called, please reach one of these: " +
+  HELPLINE_INLINE + ". " +
   "I'm here, and I'll stay with you."
 
 // Deterministic substitute selector. `safetyState` is the A1 state this turn
@@ -186,54 +209,50 @@ export function getModelUnavailableFallback(safetyState: string): string {
 // allowed to offer a body-first exercise (that's its entire purpose); it's
 // held to the rest of the contract (warm, thread-holding, no machinery talk).
 //
-// E17-S10 — this copy now carries the approved helplines, because S3 is not a
-// safe place to withhold them. The model under-reads explicit intent often
-// enough that csh-10 ("the breathing isn't helping. I want to die.") was
-// answered by the previous one-sentence breathing prompt, and the turns this
-// card serves include third-party risk ("my friend has been talking about
-// killing herself") and passive ideation — the cases the keyword floor
-// deliberately does not claim, because the crisis card is written in the
-// second person and would be the wrong instruction for someone else's risk.
-// So the grounding reply keeps the breathing invitation but never as the whole
-// answer: it names the heaviness, offers the exercise, and puts a crisis line
-// in the same message, with the explicit statement that a call does not
-// require being in immediate danger, and 112 if they might act.
+// E17-S10 added the helplines here, because S3 is not a safe place to withhold
+// them: the turns this card serves include passive ideation and third-party
+// risk, the cases the keyword floor deliberately does not claim.
 //
-// Two-part provenance, same as CRISIS_RESPONSE below: the surrounding language
-// is a first pass and should get a clinical/RCI sign-off before it reaches real
-// users in production; the resource list itself is the pre-existing approved
-// set (iCall 9152987821, Vandrevala Foundation 1860-2662-345, Emergency 112),
-// already used by CRISIS_RESPONSE and the mobile app's CrisisOverlay — no new
-// helpline number is introduced here.
-export const A8_S3_GROUNDING_RESPONSE = `It sounds like things feel really heavy right now, and I don't want you to sit with that on your own. Let's slow down together — if you can, take a breath with me and tell me what's around you right now.
+// The copy below is the clinical lead's own text, SIGNED 31 October 2026
+// (E17-S7 row 1) and pinned paragraph-for-paragraph by
+// __tests__/approved-copy.test.ts against her signed document. It replaces both
+// the pack's §3.2 text and its §3.5 variant. What she changed, and why:
+//   • "the only support you have" now names the app — an unmonitored tool must
+//     not read as a companion;
+//   • "please call a crisis line" became "please reach a person", because the
+//     instruction is to reach a human, not to complete a task;
+//   • the breath invitation stays, and "you can keep writing here as well" was
+//     added so the reply does not read as a hand-off out of the app;
+//   • removed: "I'm not going anywhere", "if one is closed or busy, call the
+//     other", the clause addressed to someone asking about another person, and
+//     the "if anyone is in immediate danger, call 112" sentence. The S3 card
+//     therefore names no emergency number, while both medical cards still lead
+//     with 112 — that asymmetry is hers, not an omission here.
+// Any later edit to this text voids her sign-off for the edited text (§7.2 of
+// the sign-off); it goes back to her before it changes.
+export const A8_S3_GROUNDING_RESPONSE =
+  "I want to take this seriously with you, and I don't want this app to be the only support you have with it.\n\n" +
+  `Please reach a person now rather than later: ${HELPLINE_INLINE}\n\n` +
+  "While you call, try one slow breath in, a longer breath out. Is there anyone with you right now? You can keep writing here as well.";
 
-And because this sounds like more than anyone should have to carry alone, please keep a crisis line close by: iCall on 9152987821, or the Vandrevala Foundation on 1860-2662-345. They answer day and night, and you don't need to be in immediate danger to call. If you ever feel you might act on these thoughts, call 112 or go to the nearest emergency department.
-
-I'm here with you.`;
-
-// OKUVU v2.0 / audit fix: A1 classified this turn S4 (crisis) — the router's
-// 'crisis' agent (a8-router.ts). Previously this path persisted only the
-// user's own turn and the client received a bare CRISIS_SIGNAL frame with no
-// message — the "no approved crisis-response script" gap tracked in
-// okuvu-remaining-changes.md and docs/architecture.md. This closes that gap
-// using the exact approved helpline set already referenced by A9-post's
-// system prompt (docs/okuvu-v2.0/system-prompts/04-A9-Post-Content-Reviewer-
-// v2.0.md §2.1) and already hardcoded in the mobile app's CrisisOverlay
-// (apps/mobile/lib/src/features/crisis/crisis_overlay.dart) — no new
-// helpline numbers are introduced here, only the surrounding language is
-// new. That surrounding language is a first pass and should get a clinical/
-// RCI sign-off before it reaches real users in production; the resource
-// list itself is the pre-existing approved set, not new clinical content.
+// OKUVU v2.0 / E17-S7: A1 classified this turn S4 (crisis) — the router's
+// 'crisis' agent (a8-router.ts). This is the reply a user in crisis actually
+// reads, so it is the one string in this file that must not be a paraphrase:
+// it is the clinical lead's own S4 card, SIGNED 31 October 2026 as row 5 of
+// E17-S7 and pinned paragraph-for-paragraph by
+// __tests__/approved-copy.test.ts.
+//
+// What her text drops from the card it replaces: "and I don't want you to be on
+// your own with it", "they're ready to talk with you", "I'll be here when
+// you're ready to come back", and NIMHANS (080-46110007), which is no longer in
+// the approved set. What it adds: the referral to the user's therapist or
+// someone they trust, which the old card left out. The helpline order is her
+// correction (§4) — Tele-MANAS first, iCall last with its hours.
+//
+// Any later edit to this text voids her sign-off for the edited text (§7.2).
 export const CRISIS_RESPONSE =
-  "I'm really glad you told me. What you're carrying right now sounds like too much to hold alone, " +
-  "and I don't want you to be on your own with it. " +
-  "Please reach out to one of these right now — they're ready to talk with you:\n\n" +
-  "iCall: 9152987821\n" +
-  "Vandrevala Foundation: 1860-2662-345\n" +
-  "NIMHANS: 080-46110007\n" +
-  "Snehi: 044-24640050\n" +
-  "Emergency Services: 112\n\n" +
-  "I'll be here when you're ready to come back.";
+  `I'm really glad you told me. What you are carrying sounds too much to hold alone. Please contact one of these right now: ${HELPLINE_INLINE}\n\n` +
+  "I would suggest that you let your therapist or someone you trust know.";
 
 // E17-S13 — third-party crisis. The one case `CRISIS_RESPONSE` above cannot
 // cover: it is written in the second person, so serving it for someone else's
@@ -242,12 +261,13 @@ export const CRISIS_RESPONSE =
 // these turns AND requires that the reply name an escalation channel for the
 // person at risk, which the S3 grounding card does not do.
 //
-// Same provenance rule as the S3 card: the resource list is the pre-existing
-// approved set (iCall, Vandrevala, NIMHANS, Snehi, 112) already recited by
-// CRISIS_RESPONSE and hardcoded in the mobile CrisisOverlay — no new number is
-// introduced — but the surrounding language, including the instruction to ask
-// the person directly, is NEW CLINICAL CONTENT and needs the clinical
-// authority's sign-off before it reaches real users in production (E17-S7).
+// The resource list is the E17-S7 corrected approved set (Tele-MANAS,
+// Vandrevala, Sneha, iCall, plus 112 as the emergency number this card also
+// instructs, contrary to the S3/S4 cards). The surrounding language —
+// including the instruction to ask the person directly — is NOT covered by that
+// sign-off: it is still NEW CLINICAL CONTENT awaiting the clinical authority's
+// decision on csh-08 (§6.3 of her sign-off leaves "a designed reply for people
+// asking about someone else's risk" explicitly open).
 // It is reproduced verbatim in docs/CLINICAL-REVIEW-S3-CRISIS-COPY.md for that
 // review.
 export const CRISIS_THIRD_PARTY_RESPONSE =
@@ -255,9 +275,9 @@ export const CRISIS_THIRD_PARTY_RESPONSE =
   "If you can, talk to them directly and ask whether they are thinking about ending their life. Asking does not put the idea there, and it is usually what opens the conversation.\n\n" +
   "If they are in immediate danger — they have hurt themselves, they have a plan, or you cannot reach them — call 112 for emergency help, or get them to the nearest emergency department.\n\n" +
   "You can also call a crisis line yourself for guidance on how to help someone else at risk. These lines advise family and friends, not only the person in crisis:\n\n" +
-  "iCall: 9152987821\n" +
-  "Vandrevala Foundation: 1860-2662-345\n" +
-  "NIMHANS: 080-46110007\n" +
-  "Snehi: 044-24640050\n" +
-  "Emergency Services: 112\n\n" +
+  "Tele-MANAS: 14416 (24×7)\n" +
+  "Vandrevala Foundation: +91 9999666555\n" +
+  "Sneha, Chennai: 044-24640050\n" +
+  "iCall (TISS): 9152987821 — Mon–Sat, 8 am–9 pm\n" +
+  "Emergency: 112\n\n" +
   "You're carrying something heavy, and you don't have to do it alone. I'm here.";

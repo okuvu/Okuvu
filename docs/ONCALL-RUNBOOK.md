@@ -309,7 +309,7 @@ never an exception:
 
 | Condition | Text the client receives | `safetyNotice.code` |
 | --- | --- | --- |
-| A2 could not write a reply (throttle/timeout/error), state not S2 | `MODEL_UNAVAILABLE_RESPONSE` — *"I'm here with you, and I'm listening. Something on my side isn't working properly just now, so I don't want to answer you with words I can't stand behind. If it's feeling heavy in the meantime, iCall on 9152987821 or the Vandrevala Foundation on 1860-2662-345 are there any time. Say it again whenever you're ready — I'll still be here."* | `MODEL_THROTTLED` or `MODEL_UNAVAILABLE` |
+| A2 could not write a reply (throttle/timeout/error), state not S2 | `MODEL_UNAVAILABLE_RESPONSE` — *"I'm here with you, and I'm listening. Something on my side isn't working properly just now, so I don't want to answer you with words I can't stand behind. If it's feeling heavy in the meantime, please reach one of these: Tele-MANAS: 14416 (24×7) Vandrevala Foundation: +91 9999666555 Sneha, Chennai: 044-24640050 iCall (TISS): 9152987821 — Mon–Sat, 8 am–9 pm. Say it again whenever you're ready — I'll still be here."* | `MODEL_THROTTLED` or `MODEL_UNAVAILABLE` |
 | …and the state **is** S2 (elevated risk) | `A9_POST_S2_FALLBACK` — *"I'm right here with you, and I'm not going anywhere. Take this at your own pace — I'm listening."* | as above |
 | A1 (the safety classifier) itself failed | `SAFETY_UNAVAILABLE_RESPONSE` (fail-closed: no model prose, helplines named) | `SAFETY_UNAVAILABLE` |
 
@@ -777,32 +777,47 @@ user in distress / safety event
 
 ### 6.3 The helpline block (the thing being approved)
 
-The same five numbers, in the same order, appear in three places that must not drift: the
-`CrisisResource` table (seeded by migration `20260912170000_expand_crisis_resource_to_five`, 5 rows),
-`CRISIS_RESPONSE` in `apps/api/src/pipeline/fallbacks.ts`, and the mobile app's hardcoded
-`CrisisOverlay` (which renders offline, deliberately, and is not rewired to the table).
+**Corrected 31 Oct 2026 by the clinical owner's signed sign-off (E17-S7).** The list below replaced the
+earlier one on that date. The retired number 1860-2662-345 is gone everywhere, NIMHANS is no longer in
+the approved set, and "Snehi" was the pack's misspelling of **Sneha, Chennai**. Tele-MANAS leads because
+iCall is not 24×7 and must not be the first choice in a crisis.
 
-| # | Service | Number |
-| --- | --- | --- |
-| 1 | iCall | **9152987821** |
-| 2 | Vandrevala Foundation | **1860-2662-345** |
-| 3 | NIMHANS | **080-46110007** |
-| 4 | Snehi | **044-24640050** |
-| 5 | Emergency Services | **112** |
+| # | Service | Number | Notes |
+| --- | --- | --- | --- |
+| 1 | Tele-MANAS | **14416** | Toll-free, 24×7; also 1-800-891-4416 |
+| 2 | Vandrevala Foundation | **+91 9999666555** | |
+| 3 | Sneha, Chennai | **044-24640050** | |
+| 4 | iCall (TISS) | **9152987821** | Mon–Sat, 8 am–9 pm. Not 24×7. Run by TISS, not IIT Bombay |
+| 5 | Emergency Services | **112** | Not on the sign-off's list; served by the medical cards |
+
+The list lives in one constant, `HELPLINE_INLINE` in `apps/api/src/pipeline/fallbacks.ts`, and is
+interpolated into every fixed reply. The mobile `CrisisOverlay` is hardcoded (it renders offline,
+deliberately, and is not rewired to the table), so it is the one place that must be edited in step with
+the API — a test in `apps/api/src/__tests__/approved-copy.test.ts` pins the API side, and
+`apps/mobile/test/crisis/crisis_overlay_test.dart` pins the app's names, numbers, order and iCall hours.
 
 When the block is served in-product it is presented with this surrounding copy (the governed constant,
-not paraphrasable):
+not paraphrasable — signed, and pinned paragraph-for-paragraph by that same test):
 
-> *"I'm really glad you told me. What you're carrying right now sounds like too much to hold alone, and
-> I don't want you to be on your own with it. Please reach out to one of these right now — they're
-> ready to talk with you:*
-> *iCall: 9152987821 · Vandrevala Foundation: 1860-2662-345 · NIMHANS: 080-46110007 · Snehi:
-> 044-24640050 · Emergency Services: 112*
-> *I'll be here when you're ready to come back."*
+> *"I'm really glad you told me. What you are carrying sounds too much to hold alone. Please contact one
+> of these right now: Tele-MANAS: 14416 (24×7) Vandrevala Foundation: +91 9999666555 Sneha, Chennai:
+> 044-24640050 iCall (TISS): 9152987821 — Mon–Sat, 8 am–9 pm*
+> *I would suggest that you let your therapist or someone you trust know."*
 
 And when only a substitute reply is possible (model down, budget exhausted, safety classifier down),
-the shorter block — iCall **9152987821** and Vandrevala **1860-2662-345** — is embedded in
-`MODEL_UNAVAILABLE_RESPONSE`, `SAFETY_UNAVAILABLE_RESPONSE` and `BUDGET_PAUSED_RESPONSE`.
+the same four numbers, in the same order, are embedded in `MODEL_UNAVAILABLE_RESPONSE`,
+`SAFETY_UNAVAILABLE_RESPONSE` and `BUDGET_PAUSED_RESPONSE`.
+
+**The `CrisisResource` table is not read by any code path** (grep for the model: only its Prisma
+definition). It was seeded with the old five rows by migration
+`20260912170000_expand_crisis_resource_to_five` and is now stale. Nothing serves it, so nothing is
+wrong on screen — but a future reader would take it for the approved list. Open item: correct or drop
+the rows before anything is wired to that table.
+
+**Two questions the sign-off leaves with the clinical owner**, both recorded in `evidence/E17-S7.md` and
+not decided by the build: whether 112 should appear on the S4 card and the S3 reply at all (her text
+names no emergency number, and the previous card did), and the exact iCall hours (she wrote
+Mon–Sat 8 am–9 pm; TISS's own page says 10 am–8 pm).
 
 **One copy decision the clinical owner should look at specifically:** the S2 variant of the model-down
 reply (`A9_POST_S2_FALLBACK`) names **no** helpline — *"I'm right here with you, and I'm not going

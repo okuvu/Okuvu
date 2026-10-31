@@ -32,36 +32,51 @@ class CrisisOverlay extends ConsumerWidget {
                         padding: EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
                           children: [
+                            // E17-S7 — the clinical lead's corrected helpline list,
+                            // signed 31 Oct 2026. Same order, names, numbers and iCall
+                            // hours as HELPLINE_INLINE and the S4 card in
+                            // apps/api/src/pipeline/fallbacks.ts: Tele-MANAS first
+                            // because iCall is not 24×7, iCall last with its hours
+                            // stated, Sneha (not "Snehi"), and the retired Vandrevala
+                            // number 1860-2662-345 gone. 112 is kept as the emergency
+                            // number: her list does not include it, and removing the
+                            // ambulance number from a crisis screen is a decision for
+                            // her, not for this change — it is an open question in
+                            // evidence/E17-S7.md.
+                            //
+                            // Descriptions state only what is known. Vandrevala carries
+                            // no hours claim because her list does not give one; iCall's
+                            // hours are the ones she wrote, and the exact hours are her
+                            // own open question (TISS's page says 10 am–8 pm).
                             _ResourceCard(
-                              name: 'iCall (IIT Bombay)',
-                              description: 'Psychosocial helpline for individuals in distress.',
-                              phone: '9152987821',
+                              name: 'Tele-MANAS',
+                              description: 'Toll-free national helpline, 24×7.',
+                              phone: '14416',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
                               name: 'Vandrevala Foundation',
-                              description: '24x7 crisis intervention and mental health support.',
-                              phone: '18602662345',
-                              displayPhone: '1860-2662-345',
+                              description: 'Crisis intervention and mental health support.',
+                              phone: '919999666555',
+                              displayPhone: '+91 9999666555',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
-                              name: 'NIMHANS',
-                              description: 'Mental health services and emergency support.',
-                              phone: '08046110007',
-                              displayPhone: '080-46110007',
-                            ),
-                            SizedBox(height: 8),
-                            _ResourceCard(
-                              name: 'Snehi',
-                              description: 'Support for emotional and mental health issues.',
+                              name: 'Sneha, Chennai',
+                              description: 'Emotional and mental health support.',
                               phone: '04424640050',
                               displayPhone: '044-24640050',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
+                              name: 'iCall (TISS)',
+                              description: 'Mon–Sat, 8 am–9 pm. Not 24×7.',
+                              phone: '9152987821',
+                            ),
+                            SizedBox(height: 8),
+                            _ResourceCard(
                               name: 'Emergency Services',
-                              description: 'Immediate assistance from emergency responders.',
+                              description: 'Ambulance, police and fire.',
                               phone: '112',
                             ),
                           ],
@@ -220,7 +235,7 @@ class _ResourceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       description,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,

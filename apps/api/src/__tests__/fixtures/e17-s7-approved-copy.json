@@ -1,0 +1,17 @@
+{
+ "note": "Verbatim from the signed clinical sign-off docx, paragraphs in document order. Do not hand-edit; regenerate from the docx.",
+ "clinical_lead": "Dr Shubhangi Goswami",
+ "signed_date": "31 October 2026",
+ "source_docx": "evidence/shubhangi-signoff/E17-S7-signoff-2026-10-31.docx",
+ "source_docx_sha256": "af36ceb9ca7b3995d2299670d9d4d32a515f67190da810a212d7903d5290a1c9",
+ "helpline_inline": "Tele-MANAS: 14416 (24×7) Vandrevala Foundation: +91 9999666555 Sneha, Chennai: 044-24640050 iCall (TISS): 9152987821 — Mon–Sat, 8 am–9 pm",
+ "s3_reply_paragraphs": [
+  "I want to take this seriously with you, and I don't want this app to be the only support you have with it.",
+  "Please reach a person now rather than later: Tele-MANAS: 14416 (24×7) Vandrevala Foundation: +91 9999666555 Sneha, Chennai: 044-24640050 iCall (TISS): 9152987821 — Mon–Sat, 8 am–9 pm",
+  "While you call, try one slow breath in, a longer breath out. Is there anyone with you right now? You can keep writing here as well."
+ ],
+ "s4_card_paragraphs": [
+  "I'm really glad you told me. What you are carrying sounds too much to hold alone. Please contact one of these right now: Tele-MANAS: 14416 (24×7) Vandrevala Foundation: +91 9999666555 Sneha, Chennai: 044-24640050 iCall (TISS): 9152987821 — Mon–Sat, 8 am–9 pm",
+  "I would suggest that you let your therapist or someone you trust know."
+ ]
+}

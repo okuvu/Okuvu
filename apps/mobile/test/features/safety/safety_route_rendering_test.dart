@@ -24,19 +24,20 @@ import '../../support/safety_harness.dart';
 
 /// The helpline set on the S4 crisis card, as the client renders it
 /// (`lib/src/features/crisis/crisis_overlay.dart`).
+/// E17-S7: the clinical lead's corrected set, in her order.
 const crisisCardNumbers = <String>[
-  '9152987821',
-  '1860-2662-345',
-  '080-46110007',
+  '14416',
+  '+91 9999666555',
   '044-24640050',
+  '9152987821',
   '112',
 ];
 
 const crisisCardNames = <String>[
-  'iCall (IIT Bombay)',
+  'Tele-MANAS',
   'Vandrevala Foundation',
-  'NIMHANS',
-  'Snehi',
+  'Sneha, Chennai',
+  'iCall (TISS)',
   'Emergency Services',
 ];
 
@@ -191,17 +192,19 @@ void main() {
         // 2. The digits specifically. Two independent readings: the paragraph
         //    text as laid out, and the raw blob of every rendered paragraph.
         final rendered = renderedParagraphs(tester).join('\n');
-        expect(rendered, contains('9152987821'));
-        expect(rendered, contains('1860-2662-345'));
+        expect(rendered, contains('14416'));
+        expect(rendered, contains('+91 9999666555'));
 
         // 3. A crisis line the user can actually dial: the number is in the
         //    same paragraph run with its label, not split off or dropped.
-        expect(rendered, contains('iCall on 9152987821'));
-        expect(rendered, contains('Vandrevala Foundation on 1860-2662-345'));
+        expect(rendered, contains('Tele-MANAS: 14416'));
+        expect(rendered, contains('Vandrevala Foundation: +91 9999666555'));
+        expect(rendered, contains('iCall (TISS): 9152987821'));
 
         // 4. The closing line survives too — the copy is not clipped at the
-        //    second newline.
-        expect(rendered, contains("I'm here with you."));
+        //    third newline. E17-S7: the signed S3 reply ends on the invitation
+        //    to keep writing, not on "I'm here with you."
+        expect(rendered, contains('You can keep writing here as well.'));
       },
     );
   });
@@ -257,8 +260,10 @@ void main() {
         expectVisibleAndComplete(tester, medicalEmergencyCrisisResponse);
         final rendered = renderedParagraphs(tester).join('\n');
         expect(rendered, contains('112'));
+        expect(rendered, contains('14416'));
         expect(rendered, contains('9152987821'));
-        expect(rendered, contains('1860-2662-345'));
+        expect(rendered, contains('+91 9999666555'));
+        expect(rendered, isNot(contains('1860-2662-345')));
       },
     );
   });
@@ -323,7 +328,7 @@ void main() {
 
       final rendered = renderedParagraphs(tester).join('\n');
       expect(rendered, contains('9152987821'));
-      expect(rendered, contains('1860-2662-345'));
+      expect(rendered, contains('+91 9999666555'));
     });
   });
 

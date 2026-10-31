@@ -296,7 +296,7 @@ describe('E17-S4: an unreachable model fails closed over a real WebSocket', () =
     const crisis = frames.filter((f) => f.type === 'CRISIS_SIGNAL');
     expect(crisis).toHaveLength(1);
     expect(crisis[0].payload.message).toBe(CRISIS_RESPONSE);
-    expect(String(crisis[0].payload.message)).toContain('iCall: 9152987821');
+    expect(String(crisis[0].payload.message)).toContain('iCall (TISS): 9152987821');
 
     const safety = crisis[0].payload.safety as Record<string, unknown>;
     expect(safety).toEqual({ code: 'CRISIS_FLOOR', reason: 'llm_throttled', crisis_floor: true });

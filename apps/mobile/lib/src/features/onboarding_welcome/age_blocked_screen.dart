@@ -56,22 +56,40 @@ class AgeBlockedScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
+                    // E17-S7 — same corrected list, order and names as
+                    // crisis_overlay.dart and HELPLINE_INLINE in
+                    // apps/api/src/pipeline/fallbacks.ts. This screen is served to
+                    // someone we cannot help at all, so the numbers here must not
+                    // disagree with the ones the crisis card names.
                     const _ResourceCard(
-                      name: 'iCall (IIT Bombay)',
-                      description: 'Psychosocial helpline for individuals in distress.',
-                      phone: '9152987821',
+                      name: 'Tele-MANAS',
+                      description: 'Toll-free national helpline, 24×7.',
+                      phone: '14416',
                     ),
                     const SizedBox(height: 8),
                     const _ResourceCard(
                       name: 'Vandrevala Foundation',
-                      description: '24x7 crisis intervention and mental health support.',
-                      phone: '18602662345',
-                      displayPhone: '1860-2662-345',
+                      description: 'Crisis intervention and mental health support.',
+                      phone: '919999666555',
+                      displayPhone: '+91 9999666555',
+                    ),
+                    const SizedBox(height: 8),
+                    const _ResourceCard(
+                      name: 'Sneha, Chennai',
+                      description: 'Emotional and mental health support.',
+                      phone: '04424640050',
+                      displayPhone: '044-24640050',
+                    ),
+                    const SizedBox(height: 8),
+                    const _ResourceCard(
+                      name: 'iCall (TISS)',
+                      description: 'Mon–Sat, 8 am–9 pm. Not 24×7.',
+                      phone: '9152987821',
                     ),
                     const SizedBox(height: 8),
                     const _ResourceCard(
                       name: 'Emergency Services',
-                      description: 'Immediate assistance from emergency responders.',
+                      description: 'Ambulance, police and fire.',
                       phone: '112',
                     ),
                   ],
@@ -135,7 +153,7 @@ class _ResourceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       description,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
                     ),

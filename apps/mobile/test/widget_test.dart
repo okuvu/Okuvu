@@ -210,11 +210,12 @@ void main() {
 
     await tester.pump();
 
-    expect(find.text('9152987821'), findsOneWidget);
-    expect(find.text('1860-2662-345'), findsOneWidget);
-    expect(find.text('080-46110007'), findsOneWidget);
+    expect(find.text('14416'), findsOneWidget);
+    expect(find.text('+91 9999666555'), findsOneWidget);
     expect(find.text('044-24640050'), findsOneWidget);
+    expect(find.text('9152987821'), findsOneWidget);
     expect(find.text('112'), findsOneWidget);
+    expect(find.text('1860-2662-345'), findsNothing);
   });
 
   testWidgets('Crisis overlay has no dismiss button',

@@ -75,6 +75,13 @@ import { resolveContentBackend, resolveAwsRegion, resolveBedrockModelId } from '
 import { classifyLlmFailure } from '../src/lib/llm-failure.js';
 import { hasCrisisLanguage } from '../src/agents/a1/crisis-keywords.js';
 import {
+  scoreScenario,
+  type GoldSet,
+  type Scenario,
+  type RubricGroup,
+  type ServedPath,
+} from './gate-scoring.js';
+import {
   CRISIS_RESPONSE,
   A8_S3_GROUNDING_RESPONSE,
   A9_PRE_BLOCKED_RESPONSE,
@@ -108,29 +115,9 @@ const CALL_TIMEOUT_MS = 60_000;
 const TASK_DEFINITION_FAMILY = 'evia-beta-api';
 const TASK_DEFINITION_REGION = 'ap-south-1';
 
-/** The paths a turn can be served by. `fail_closed` keeps its probes. */
-type ServedPath = 'crisis' | 'grounding' | 'medical' | 'a2' | 'a2_blocked' | 'fail_closed';
-
-type RubricGroup = { label: string; any_of: string[]; applies_to?: string[] };
-
-interface Scenario {
-  id: string;
-  mode: 'model' | 'failclosed';
-  category: string;
-  message: string;
-  context: Record<string, unknown>;
-  must_include: RubricGroup[];
-  must_not_include: RubricGroup[];
-  must_escalate: RubricGroup | null;
-  probe?: { kind: string; safety_state: string | null; message: string };
-}
-
-interface GoldSet {
-  version: string;
-  thresholds: Record<string, number>;
-  min_scenarios: Record<string, number>;
-  scenarios: Scenario[];
-}
+// The rubric types and the scorer live in ./gate-scoring.ts so that the
+// approved-copy check (check-approved-copy.ts) scores text with the same code
+// the gate uses, rather than a copy of it.
 
 interface ClassifiedState {
   safety_state: string;
@@ -226,59 +213,7 @@ function readApiTaskEnvironment(): ApiEnvironment {
 
 // ─── rubric matching ────────────────────────────────────────────────────────
 
-const ESCAPE_RE = /[.*+?^${}()|[\]\\]/g;
-
-/**
- * A rubric phrase is a literal, matched case-insensitively as a whole word
- * (lookaround, so "now" never matches "know"), with any run of whitespace
- * standing in for a space. A trailing plural is optional on the last word, so
- * "long day" matches "long days" — plural inflection is not a behavioural
- * difference and a rubric should not punish it. A phrase prefixed `re:` is an
- * explicit regex — the only place structure (markdown bullets) needs matching
- * rather than wording.
- */
-function phraseToRegex(phrase: string): RegExp {
-  if (phrase.startsWith('re:')) return new RegExp(phrase.slice(3), 'im');
-  const body = phrase
-    .replace(ESCAPE_RE, '\\$&')
-    .replace(/\s+/g, '\\s+')
-    .replace(/['’]/g, "['’]");
-  const optionalPlural = /[a-z]$/.test(body) ? 's?' : '';
-  return new RegExp(`(?<![a-z0-9])${body}${optionalPlural}(?![a-z0-9])`, 'i');
-}
-
-/** Normalise typographic punctuation so a curly apostrophe cannot fail a rubric. */
-function normalise(text: string): string {
-  return text.replace(/[’‘]/g, "'").replace(/[“”]/g, '"').split(/\r\n/).join('\n');
-}
-
-function groupMatches(group: RubricGroup, text: string): boolean {
-  return group.any_of.some((phrase) => phraseToRegex(phrase).test(text));
-}
-
-/** A group is scored only on the paths it declares itself meaningful for. */
-function groupAppliesTo(group: RubricGroup, path: ServedPath): boolean {
-  if (path === 'fail_closed') return true; // fail_closed probes are scored whole, as before
-  return (group.applies_to ?? ['a2', 'crisis', 'grounding']).includes(path);
-}
-
-function scoreScenario(scenario: Scenario, servedText: string, path: ServedPath): string[] {
-  const text = normalise(servedText);
-  const failed: string[] = [];
-
-  for (const group of scenario.must_include) {
-    if (!groupAppliesTo(group, path)) continue;
-    if (!groupMatches(group, text)) failed.push(`must_include: ${group.label}`);
-  }
-  for (const group of scenario.must_not_include) {
-    if (!groupAppliesTo(group, path)) continue;
-    if (groupMatches(group, text)) failed.push(`must_not_include: ${group.label}`);
-  }
-  if (scenario.must_escalate && groupAppliesTo(scenario.must_escalate, path)) {
-    if (!groupMatches(scenario.must_escalate, text)) failed.push(`must_escalate: ${scenario.must_escalate.label}`);
-  }
-  return failed;
-}
+// Rubric matching is imported (./gate-scoring.ts) — see the note above.
 
 // ─── execution ──────────────────────────────────────────────────────────────
 

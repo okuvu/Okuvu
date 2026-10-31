@@ -15,9 +15,15 @@ void main() {
       find.text("OKUVU isn't available for under-18s yet"),
       findsOneWidget,
     );
-    expect(find.text('iCall (IIT Bombay)'), findsOneWidget);
+    // E17-S7 — same corrected list, order and names as the crisis overlay.
+    expect(find.text('Tele-MANAS'), findsOneWidget);
     expect(find.text('Vandrevala Foundation'), findsOneWidget);
+    expect(find.text('Sneha, Chennai'), findsOneWidget);
+    expect(find.text('iCall (TISS)'), findsOneWidget);
     expect(find.text('Emergency Services'), findsOneWidget);
+    expect(find.textContaining('1860'), findsNothing);
+    expect(find.text('14416'), findsOneWidget);
+    expect(find.text('+91 9999666555'), findsOneWidget);
     expect(find.text('Continue'), findsNothing);
   });
 
