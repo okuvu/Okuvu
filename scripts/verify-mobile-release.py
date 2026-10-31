@@ -219,6 +219,22 @@ def gate_artifact(prov):
             record("artifact", "compiled client id", ok,
                    f"present in {sum(found.values())}/{len(found)} ABIs")
 
+            # Provenance says which defines were passed; only the binary proves
+            # it. `--record-only` can write a record without rebuilding, so the
+            # diagnostic copy must be shown absent from the artifact itself.
+            try:
+                with zipfile.ZipFile(apk) as z:
+                    names = [n for n in z.namelist() if n.endswith("libapp.so")]
+                    diag_lits = [b"DIAG  clientId=", b"DIAG clientId="]
+                    leaked = {n: any(l in z.read(n) for l in diag_lits) for n in names}
+            except Exception as e:  # noqa: BLE001
+                record("artifact", "no diag copy", False, f"cannot read APK: {e}")
+            else:
+                clean = bool(leaked) and not any(leaked.values())
+                record("artifact", "no diag copy", clean,
+                       "diagnostic strings absent from all ABIs"
+                       if clean else f"diagnostic copy present in {sum(leaked.values())} ABI(s)")
+
     if aab and os.path.isfile(aab):
         _, out = sh(["keytool", "-printcert", "-jarfile", aab],
                     timeout=120) if _have("keytool") else (1, "")
