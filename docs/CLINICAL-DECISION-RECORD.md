@@ -429,6 +429,48 @@ request.
 | Model route | decided | `qwen.qwen3-32b-v1:0` on Bedrock ap-south-1 |
 | Building the approved copy (E17-S7) | build | open — precedence, guards, 11 phrases, S3 reply, S4 card, third-party reply, self-injury reply and the final helpline block are all approved and none of it is in code; rev 5 of the sign-off record §4 lists the shipping text for all twelve decisions and §6 the four one-word answers outstanding |
 
+## Revision 6 (1 Nov 2026, IST) — final: all twelve closed
+
+Her two messages of 31 Oct 2026 close every item this record has carried since rev 4. Recorded in
+`Okuvu-Clinical-Sign-Off-Record-E17-S7-FINAL-rev6.docx`, which supersedes revs 1–5 **and** the
+returned signed form of 31 Oct.
+
+**The helpline block is final**, five lines, in her order: Tele-MANAS 14416 (free, 24 hours);
+Vandrevala +91 9999 666 555 (24 hours, call or WhatsApp); Emergency services 112; SNEHA, Chennai
+044-24640050 (10am–10pm, every day); iCall (TISS) 9152987821 (Mon–Sat, 10am–8pm). It applies
+everywhere numbers appear, including the S3 reply — **112 in the S3 reply is intended by her**, which
+closes the asymmetry rev 5 flagged.
+
+**Three dated reversals, all hers, all recorded as reversals:** NIMHANS 080-46110007 is retired
+everywhere (it was "keep" on 31 Oct); SNEHA is kept as the fourth line; the 1860-2662-345 number
+stays retired (rev 2 had said show both). The code comment she dictated is exact: "Removed by
+clinical decision, 1 November 2026".
+
+**The four one-word items of rev 5 are closed:** SNEHA kept; NIMHANS removed; item 9 replaced with
+her own corrected text (the double retry was a fault in her edit, her words); the spending-cap bypass
+extended to `hasThirdPartyCrisisLanguage`, so a message about someone else at risk now always gets
+the friend card instead of the pause card.
+
+**Two standing rules she set:** (1) the promise rule — "I'm not going anywhere", "I'll stay with
+you" and "I'm still here with you" come out of every string, failure paths included, because on a
+failure path the promise is untrue; the closing line is "You can come back and write here whenever
+you want." (2) record-keeping — her instructions are quoted verbatim with date and source, never
+paraphrased in her voice. This record now follows both. Note the honest limit: her instructions
+arrive in the review thread, not by email, so there is no email subject to cite; none is invented.
+
+**Verified in code rather than assumed:** the phrase list does override the spending cap
+(`admitTurn` → `hasCrisisLanguage` → `crisis_bypass`, a regex, no model call, logged as
+`budget_bypass: 'crisis_language'`); "jeena nahi chahti/chahta" already fires because "jeena nahi" is
+in the signed pattern; the A9-post approved-number list already excludes NIMHANS (five services), so
+that half of her instruction confirms the code; and there is **no age check anywhere in the API** —
+the gate is a Flutter screen, so her "server-side enforcement before any further users" is a release
+gate, not a copy change.
+
+**Still open, three one-word items** (rev 6 §8.1): whether the age-gate screen takes the full
+five-line block or her own §4.12 text (applied as §4.12 — the more specific and better copy); whether
+the promise rule reaches the friend card's closing "I'm here."; and whether the friend card body is
+approved as recorded. Ours to deliver: the harm-intrusion reply (E17-S15), never yet sent to her.
+
 ## Recording an answer
 
 A short reply with initials against each item plus anything to change is enough. On receipt:
