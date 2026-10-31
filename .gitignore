@@ -144,8 +144,12 @@ yarn-error.log*
 lerna-debug.log*
 
 # ----------------------------
-# Misc
+# Secrets
 # ----------------------------
+# Release-signing password drop (upload-keystore-password.txt). The keystore
+# itself is covered by apps/mobile/.gitignore; this makes sure the password next
+# to it can never be staged by `git add .`.
+.secrets/
 *.pem
 *.key
 *.cert

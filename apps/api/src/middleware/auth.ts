@@ -1,14 +1,24 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { verifyCognitoToken } from '../lib/cognito-auth.js';
+import { looksLikeSessionToken, verifySessionToken } from '../lib/session-token.js';
 
 /**
  * Bearer-token gate for every authenticated route.
  *
- * The token is a Cognito access/ID token from the mobile app's user pool; the
- * `sub` it yields is what `User.auth_subject` stores. This replaced Firebase
- * ID-token verification when the identity provider moved to Amazon Cognito
- * (docs/AWS-CUTOVER-SPEC.md) — the middleware contract (`request.user.uid`) did
- * not change, which is why no route needed touching beyond the import name.
+ * Two token families are accepted, chosen by their (unverified) issuer and then
+ * fully verified by the matching verifier:
+ *
+ * - `okuvu-api` — the session token minted by `POST /auth/google`. This is the
+ *   mobile app's token since sign-in moved to Google; `sub` is the Google
+ *   subject.
+ * - Cognito — an access/ID token from the user pool, still accepted so a build
+ *   or a session that predates the switch keeps working. Retire it together
+ *   with `lib/cognito-auth.ts`.
+ *
+ * Either way the middleware produces the same thing — `request.user.uid`, the
+ * value `User.auth_subject` stores — so no route below knows the difference.
+ * The issuer peek exists only so a session token never triggers a Cognito JWKS
+ * fetch; it makes no trust decision.
  */
 
 const BYPASS_UID = 'dev-bypass-subject-1';
@@ -55,8 +65,10 @@ export async function verifyCognitoJWT(
     : authHeader;
 
   try {
-    const payload = await verifyCognitoToken(token);
-    request.user = payload;
+    const payload = looksLikeSessionToken(token)
+      ? await verifySessionToken(token)
+      : await verifyCognitoToken(token);
+    request.user = { uid: payload.uid };
   } catch {
     // Deliberately opaque: a client learns only that the token is no good, not
     // why (expired vs wrong pool vs bad signature) — that detail is a probing

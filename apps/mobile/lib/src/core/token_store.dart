@@ -2,60 +2,60 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'cognito_client.dart';
-
 /// The locally persisted half of a signed-in session.
 ///
 /// HARDENING NOTE: `shared_preferences` is plain-text app storage. Moving this
 /// to `flutter_secure_storage` (Keystore/Keychain-backed) is the hardening step
-/// and the only thing standing between a rooted device and the refresh token.
+/// and the only thing standing between a rooted device and the session token.
 /// See `apps/mobile/README.md`.
 class StoredSession {
   const StoredSession({
-    required this.phoneNumber,
-    required this.password,
-    required this.session,
+    required this.token,
+    required this.expiresAt,
+    required this.subject,
+    this.email,
+    this.phoneNumber,
   });
 
-  final String phoneNumber;
+  /// Okuvu's own session token (from `POST /auth/google`), sent as the bearer.
+  final String token;
 
-  /// Per-device password (32 random bytes, base64url). Never shown to the user.
-  final String password;
+  /// When [token] stops being accepted — 30 days from sign-in, server-decided.
+  final DateTime expiresAt;
 
-  final CognitoSession session;
+  /// The Google subject, which is what the API stores as `User.auth_subject`.
+  final String subject;
+
+  final String? email;
+  final String? phoneNumber;
+
+  bool get isExpired => DateTime.now().isAfter(
+        expiresAt.subtract(const Duration(seconds: 60)),
+      );
 
   Map<String, dynamic> toJson() => {
+        'token': token,
+        'expires_at': expiresAt.millisecondsSinceEpoch,
+        'subject': subject,
+        'email': email,
         'phone': phoneNumber,
-        'password': password,
-        'access_token': session.accessToken,
-        'id_token': session.idToken,
-        'refresh_token': session.refreshToken,
-        'expires_at': session.expiresAt.millisecondsSinceEpoch,
       };
 
   static StoredSession? fromJson(Map<String, dynamic> json) {
-    final phone = json['phone'];
-    final password = json['password'];
-    final access = json['access_token'];
-    final id = json['id_token'];
+    final token = json['token'];
     final expiresAt = json['expires_at'];
-    if (phone is! String ||
-        password is! String ||
-        access is! String ||
-        id is! String ||
-        expiresAt is! int) {
-      return null;
-    }
-    final refresh = json['refresh_token'];
+    final subject = json['subject'];
+    if (token is! String || expiresAt is! int || subject is! String) return null;
+    if (token.isEmpty || subject.isEmpty) return null;
+
+    final email = json['email'];
+    final phone = json['phone'];
     return StoredSession(
-      phoneNumber: phone,
-      password: password,
-      session: CognitoSession(
-        accessToken: access,
-        idToken: id,
-        refreshToken: refresh is String ? refresh : null,
-        expiresAt: DateTime.fromMillisecondsSinceEpoch(expiresAt),
-      ),
+      token: token,
+      expiresAt: DateTime.fromMillisecondsSinceEpoch(expiresAt),
+      subject: subject,
+      email: email is String ? email : null,
+      phoneNumber: phone is String ? phone : null,
     );
   }
 }
@@ -67,14 +67,14 @@ abstract class TokenStore {
   Future<void> write(StoredSession session);
 
   Future<void> clear();
-
-  /// The device password for [phoneNumber], if this device has signed in
-  /// before. Used to avoid generating a new password on every attempt.
-  Future<String?> readPassword(String phoneNumber);
 }
 
 class PrefsTokenStore implements TokenStore {
-  static const String _key = 'okuvu.cognito.session';
+  /// v2: the stored shape changed with Google sign-in (a session token instead
+  /// of a Cognito refresh token plus a hidden per-device password). A v1 entry
+  /// is ignored rather than migrated — it holds nothing the new app can use, and
+  /// rewriting it would leave a dead credential on disk.
+  static const String _key = 'okuvu.session.v2';
 
   SharedPreferences? _prefs;
 
@@ -115,13 +115,6 @@ class PrefsTokenStore implements TokenStore {
       // Nothing to clear.
     }
   }
-
-  @override
-  Future<String?> readPassword(String phoneNumber) async {
-    final stored = await read();
-    if (stored == null || stored.phoneNumber != phoneNumber) return null;
-    return stored.password;
-  }
 }
 
 /// In-memory store for tests and for platforms without plugin support.
@@ -138,11 +131,4 @@ class MemoryTokenStore implements TokenStore {
 
   @override
   Future<void> clear() async => session = null;
-
-  @override
-  Future<String?> readPassword(String phoneNumber) async {
-    final stored = session;
-    if (stored == null || stored.phoneNumber != phoneNumber) return null;
-    return stored.password;
-  }
 }

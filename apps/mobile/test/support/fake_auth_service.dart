@@ -4,9 +4,8 @@ import 'package:okuvu/src/core/auth_service.dart';
 
 /// In-memory [AuthService] for widget tests.
 ///
-/// Replaces the per-file Firebase mocks: nothing here touches the network, the
-/// Cognito client or `shared_preferences`, so widget tests run with no plugin
-/// channels and no real user pool.
+/// Nothing here touches the network, the Google plugin or `shared_preferences`,
+/// so widget tests run with no platform channels and no real identity provider.
 class FakeAuthService implements AuthService {
   FakeAuthService({this.currentUser, this.tokenToReturn});
 
@@ -16,21 +15,16 @@ class FakeAuthService implements AuthService {
   /// Token returned by [getIdToken]. Null means "signed out / no token".
   String? tokenToReturn;
 
-  /// When set, [verifyPhone] reports it through `onError` instead of sending a
-  /// code.
-  AuthException? verifyPhoneError;
+  /// When set, [signInWithGoogle] throws it instead of signing in.
+  AuthException? signInError;
 
-  /// When set, [verifyOtp] throws it.
-  AuthException? verifyOtpError;
+  /// What the fake reports back for `has_account`.
+  bool hasAccountResult = true;
 
-  String verificationIdToReturn = 'test-verification-id';
-  int? forceResendingTokenToReturn;
+  /// The email Google "returned" — used to prefill the waitlist.
+  String emailResult = 'client@example.com';
 
-  int verifyPhoneCallCount = 0;
-  String? lastPhoneNumber;
-  int? lastForceResendingToken;
-  String? lastVerificationId;
-  String? lastSmsCode;
+  int signInCallCount = 0;
   bool signOutCalled = false;
 
   final StreamController<AuthUser?> _controller =
@@ -51,38 +45,20 @@ class FakeAuthService implements AuthService {
   Future<String?> getIdToken() async => tokenToReturn;
 
   @override
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken)
-        onCodeSent,
-    required void Function(AuthException) onError,
-    int? forceResendingToken,
-  }) async {
-    verifyPhoneCallCount++;
-    lastPhoneNumber = phoneNumber;
-    lastForceResendingToken = forceResendingToken;
+  Future<GoogleSignInResult> signInWithGoogle() async {
+    signInCallCount++;
 
-    final error = verifyPhoneError;
-    if (error != null) {
-      onError(error);
-      return;
-    }
-    onCodeSent(verificationIdToReturn, forceResendingTokenToReturn);
-  }
-
-  @override
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {
-    lastVerificationId = verificationId;
-    lastSmsCode = smsCode;
-
-    final error = verifyOtpError;
+    final error = signInError;
     if (error != null) throw error;
 
-    currentUser = AuthUser(uid: 'fake-uid', phoneNumber: lastPhoneNumber);
+    currentUser = AuthUser(uid: 'fake-google-sub', email: emailResult);
     _controller.add(currentUser);
+
+    return GoogleSignInResult(
+      user: currentUser!,
+      hasAccount: hasAccountResult,
+      email: emailResult,
+    );
   }
 
   @override
