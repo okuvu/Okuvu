@@ -29,4 +29,13 @@ class GoogleConfig {
   );
 
   static bool get isConfigured => serverClientId.isNotEmpty;
+
+  /// Diagnostic build flag (`--dart-define=LOGIN_DIAG=true`).
+  ///
+  /// When set, the sign-in screen renders the raw Google failure code and
+  /// description instead of the user-facing copy, and prints the compiled-in
+  /// client id. Needed because a `canceled` result is suppressed as a benign
+  /// user cancellation — which makes a misconfigured OAuth client look like a
+  /// button that does nothing at all. Never enable in a production build.
+  static const bool diag = bool.fromEnvironment('LOGIN_DIAG');
 }

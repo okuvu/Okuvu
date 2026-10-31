@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../config/app_config.dart';
 import '../../config/google_config.dart';
 import '../../core/auth_service.dart';
 import '../../core/providers.dart';
@@ -44,6 +45,13 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
     _inviteCodeController.dispose();
     super.dispose();
   }
+
+  /// The package Play Services checks against this build's signature, so the
+  /// diagnostic line names the package the Android OAuth client must be
+  /// registered for — a hardcoded `ai.okuvu.app` lies on a `beta` build.
+  String get _diagPackageName => AppConfig.flavor == 'prod'
+      ? 'ai.okuvu.app'
+      : 'ai.okuvu.app.${AppConfig.flavor}';
 
   Future<void> _signIn() async {
     setState(() {
@@ -84,14 +92,17 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
       if (!mounted) return;
       setState(() {
         _isSigningIn = false;
-        // A cancelled consent dialog is not an error worth shouting about.
-        _error = e.code == 'Cancelled' ? null : e.message;
+        // A cancelled consent dialog is not an error worth shouting about —
+        // except in a diagnostic build, where the code is the whole point.
+        _error = (e.code == 'Cancelled' && !GoogleConfig.diag) ? null : e.message;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isSigningIn = false;
-        _error = 'Something went wrong. Please try again.';
+        _error = GoogleConfig.diag
+            ? 'Unexpected: ${e.runtimeType}: $e'
+            : 'Something went wrong. Please try again.';
       });
     }
   }
@@ -197,6 +208,18 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
                   key: const ValueKey('sign_in_error'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: theme.colorScheme.error, fontSize: 14),
+                ),
+              ],
+              if (GoogleConfig.diag) ...[
+                const SizedBox(height: 20),
+                Text(
+                  'DIAG  clientId=${GoogleConfig.serverClientId.isEmpty ? "(none)" : GoogleConfig.serverClientId.substring(0, 16)}…  '
+                  'androidPkg=$_diagPackageName',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
               const SizedBox(height: 24),
