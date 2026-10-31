@@ -5,18 +5,27 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession, signIn } from 'next-auth/react';
 import TopBar from '@/app/components/TopBar';
 
-function AuthContent({ configured }: { configured: boolean }) {
+function AuthContent({
+  googleConfigured,
+  cognitoConfigured,
+}: {
+  googleConfigured: boolean;
+  cognitoConfigured: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
 
   useEffect(() => {
     if (status === 'authenticated') {
-      router.replace('/');
+      // /dashboard bounces an admin (an address on ADMIN_EMAILS with no
+      // Therapist row) on to /admin, so this stays one destination for both.
+      router.replace('/dashboard');
     }
   }, [status, router]);
 
   const error = searchParams.get('error');
+  const configured = googleConfigured || cognitoConfigured;
 
   const isUnauthorized = error === 'unauthorized';
   const errorMessage =
@@ -70,7 +79,7 @@ function AuthContent({ configured }: { configured: boolean }) {
               </h1>
               <p className="text-base leading-relaxed text-ink-soft">
                 {configured
-                  ? 'Use the OKUVU work email and password issued to you. If your account has a second factor enrolled, you will be asked for a one-time code.'
+                  ? 'Use the address your Okuvu administrator registered for you. There is no signup here — if you are not registered yet, write to admin@okuvu.in.'
                   : 'This portal is not connected to an identity provider yet. Please contact your administrator.'}
               </p>
             </div>
@@ -98,30 +107,51 @@ function AuthContent({ configured }: { configured: boolean }) {
             )}
 
             {configured ? (
-              <button
-                onClick={() => signIn('cognito')}
-                className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#bec9c4] bg-white px-4 py-3 transition-colors hover:bg-[#f2f4f6]"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="20"
-                  height="20"
-                  aria-hidden="true"
-                  focusable="false"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-ink-soft"
-                >
-                  <rect x="3" y="11" width="18" height="10" rx="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-                <span className="text-sm font-medium text-charcoal-ink">
-                  Continue with email &amp; password
-                </span>
-              </button>
+              <div className="space-y-3">
+                {googleConfigured && (
+                  <button
+                    onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+                    className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#bec9c4] bg-white px-4 py-3 transition-colors hover:bg-[#f2f4f6]"
+                  >
+                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                      <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9z" />
+                      <path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3a7.2 7.2 0 0 1-10.7-3.8H1.3v3.1A12 12 0 0 0 12 24z" />
+                      <path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8l4-3.1z" />
+                      <path fill="#EA4335" d="M12 4.8c1.8 0 3.4.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1A7.2 7.2 0 0 1 12 4.8z" />
+                    </svg>
+                    <span className="text-sm font-medium text-charcoal-ink">
+                      Continue with Google
+                    </span>
+                  </button>
+                )}
+
+                {cognitoConfigured && (
+                  <button
+                    onClick={() => signIn('cognito', { callbackUrl: '/dashboard' })}
+                    className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#bec9c4] bg-white px-4 py-3 transition-colors hover:bg-[#f2f4f6]"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      aria-hidden="true"
+                      focusable="false"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-ink-soft"
+                    >
+                      <rect x="3" y="11" width="18" height="10" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span className="text-sm font-medium text-charcoal-ink">
+                      Continue with email &amp; password
+                    </span>
+                  </button>
+                )}
+              </div>
             ) : (
               <div
                 className="rounded-lg border border-hairline bg-oat p-4 text-center"
@@ -139,7 +169,7 @@ function AuthContent({ configured }: { configured: boolean }) {
 
             <div className="mt-8 border-t border-hairline pt-6">
               <p className="text-center text-xs text-ink-soft">
-                Access is restricted to registered OKUVU therapists.
+                Access is restricted to registered OKUVU therapists and administrators.
               </p>
             </div>
           </div>
@@ -149,10 +179,16 @@ function AuthContent({ configured }: { configured: boolean }) {
   );
 }
 
-export default function SignInPanel({ configured }: { configured: boolean }) {
+export default function SignInPanel({
+  googleConfigured,
+  cognitoConfigured,
+}: {
+  googleConfigured: boolean;
+  cognitoConfigured: boolean;
+}) {
   return (
     <Suspense>
-      <AuthContent configured={configured} />
+      <AuthContent googleConfigured={googleConfigured} cognitoConfigured={cognitoConfigured} />
     </Suspense>
   );
 }

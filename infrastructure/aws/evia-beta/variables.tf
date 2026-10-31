@@ -353,6 +353,18 @@ variable "admin_emails" {
   default     = ""
 }
 
+variable "google_client_id" {
+  description = "Google OAuth client id for therapist sign-in. Not a secret. Empty disables Google and leaves the portal on Cognito alone; it only takes effect together with google_client_secret_arn."
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the Google OAuth client secret under key `secret`. Empty disables Google sign-in."
+  type        = string
+  default     = ""
+}
+
 variable "brevo_from_email" {
   description = "From address on invite emails sent by the Add-Client wizard"
   type        = string

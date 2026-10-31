@@ -53,6 +53,13 @@ resource "aws_lb_target_group" "portal" {
 locals {
   portal_url = "https://${var.portal_hostname}"
 
+  # Google sign-in is optional and additive (see apps/therapist-portal/
+  # .env.example). It turns on only when BOTH halves are supplied: a client id
+  # (not a secret) and the ARN of a Secrets Manager secret holding the client
+  # secret. Anything less leaves the portal on Cognito alone, which is exactly
+  # what the app does when the pair is absent — no half-on state to reason about.
+  portal_google_enabled = var.google_client_id != "" && var.google_client_secret_arn != ""
+
   # NextAuth takes its origin from NEXTAUTH_URL when that is set, and otherwise
   # from the request's Host header (next-auth v4 only trusts that header when
   # AUTH_TRUST_HOST is set). Deriving the origin is what lets one deployment
@@ -87,9 +94,12 @@ locals {
 
     { name = "BREVO_FROM_EMAIL", value = var.brevo_from_email },
     { name = "BREVO_FROM_NAME", value = var.brevo_from_name },
-  ], local.portal_auth_environment)
+    ],
+    local.portal_auth_environment,
+    local.portal_google_enabled ? [{ name = "GOOGLE_CLIENT_ID", value = var.google_client_id }] : [],
+  )
 
-  portal_secrets = [
+  portal_secrets = concat([
     {
       name      = "DATABASE_URL"
       valueFrom = "${aws_secretsmanager_secret.database.arn}:database_url::"
@@ -106,7 +116,12 @@ locals {
       name      = "BREVO_API_KEY"
       valueFrom = "${aws_secretsmanager_secret.brevo.arn}:api_key::"
     },
-  ]
+    ],
+    local.portal_google_enabled ? [{
+      name      = "GOOGLE_CLIENT_SECRET"
+      valueFrom = "${var.google_client_secret_arn}:secret::"
+    }] : [],
+  )
 }
 
 resource "aws_ecs_task_definition" "portal" {
