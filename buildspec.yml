@@ -295,8 +295,24 @@ phases:
               --region "${AWS_REGION}" >/dev/null
           }
 
-          deploy_service "${NAME_PREFIX}-api" api
+          # Order matters: the API asserts the worker's /health at boot and
+          # exits 1 when it cannot reach it (apps/api/src/lib/worker-health.ts,
+          # the A1 fail-closed rule). Rolling both from one build therefore
+          # killed an API task 4s after start on 2026-11-01 — the worker's old
+          # task had already been drained while the new one was still booting,
+          # so `worker.evia-beta.local` answered nothing. Deploy the worker
+          # first and wait for it to serve, then the API. The API also retries
+          # its probe for WORKER_HEALTH_WAIT_MS (60s) so a later worker restart
+          # overlapping an API task launch is a delay, not a crash loop.
           deploy_service "${NAME_PREFIX}-worker" worker
+
+          echo "=== Waiting for the worker to stabilise before the API rolls ==="
+          aws ecs wait services-stable \
+            --cluster "${NAME_PREFIX}" \
+            --services "${NAME_PREFIX}-worker" \
+            --region "${AWS_REGION}"
+
+          deploy_service "${NAME_PREFIX}-api" api
           deploy_service "${NAME_PREFIX}-portal" portal
 
           echo "=== Waiting for all three services to stabilise (up to ~25 min) ==="
