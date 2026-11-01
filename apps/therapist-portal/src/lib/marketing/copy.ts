@@ -48,7 +48,7 @@ export const how = {
   steps: [
     {
       title: 'A therapist adds you',
-      body: "Okuvu isn't a download-and-go app. A licensed therapist takes you onto their caseload and sends you an invite code. No code, no account.",
+      body: "Okuvu isn't a download-and-go app. A licensed therapist has to register you first, with the email you sign in with. No therapist, no account.",
     },
     {
       title: 'You talk, most days',

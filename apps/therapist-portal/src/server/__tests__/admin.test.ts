@@ -33,7 +33,7 @@ function buildPrisma(overrides: PrismaOverrides = {}) {
   return {
     user: {
       findFirst: vi.fn().mockImplementation((args) => {
-        // assignClient's phone-only lookup vs. createClientWithInvite's
+        // assignClient's phone-only lookup vs. createClient's
         // phone-OR-email dedupe check share this mock; distinguish by args.
         if (args?.where?.OR) {
           return Promise.resolve('existingUserForInvite' in overrides ? overrides.existingUserForInvite : null);
@@ -179,7 +179,7 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
         clientPhoneNumber: '+910000000000',
         chatAccessGranted: false,
       }),
-    ).rejects.toThrow(/\+910000000000.*Invite a new client/s);
+    ).rejects.toThrow(/\+910000000000.*Register a new client/s);
   });
 
   it('rejects a clientPhoneNumber not in E.164 format', async () => {
@@ -196,9 +196,12 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
   });
 });
 
-describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)', () => {
+describe('admin.createClient (therapist-portal wireframes C-01..C-06)', () => {
   beforeEach(() => {
     process.env.ADMIN_EMAILS = ADMIN.email;
+    // The "sends nothing" assertions below are only meaningful against a clean
+    // mock: earlier describes in this file go through the same email mock.
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -216,14 +219,14 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
 
   it('throws FORBIDDEN for a non-admin caller', async () => {
     const caller = callerWith(buildPrisma(), false);
-    await expect(caller.admin.createClientWithInvite(BASE_INPUT)).rejects.toThrow(/admin access required/i);
+    await expect(caller.admin.createClient(BASE_INPUT)).rejects.toThrow(/admin access required/i);
   });
 
   it('throws CONFLICT when a client with this phone or email already exists', async () => {
     const prisma = buildPrisma({ existingUserForInvite: { id: 'already_here' } });
     const caller = callerWith(prisma);
 
-    await expect(caller.admin.createClientWithInvite(BASE_INPUT)).rejects.toThrow(/already exists/i);
+    await expect(caller.admin.createClient(BASE_INPUT)).rejects.toThrow(/already exists/i);
   });
 
   it('rejects an unparseable dateOfBirth', async () => {
@@ -231,7 +234,7 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
     const caller = callerWith(prisma);
 
     await expect(
-      caller.admin.createClientWithInvite({ ...BASE_INPUT, dateOfBirth: 'not-a-date' }),
+      caller.admin.createClient({ ...BASE_INPUT, dateOfBirth: 'not-a-date' }),
     ).rejects.toThrow();
   });
 
@@ -240,7 +243,7 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
     const caller = callerWith(prisma);
 
     await expect(
-      caller.admin.createClientWithInvite({ ...BASE_INPUT, presentingIssues: ['Not A Real Issue'] as never }),
+      caller.admin.createClient({ ...BASE_INPUT, presentingIssues: ['Not A Real Issue'] as never }),
     ).rejects.toThrow();
   });
 
@@ -249,7 +252,7 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
     const caller = callerWith(prisma);
 
     await expect(
-      caller.admin.createClientWithInvite({ ...BASE_INPUT, phoneNumber: '9876500000' }),
+      caller.admin.createClient({ ...BASE_INPUT, phoneNumber: '9876500000' }),
     ).rejects.toThrow();
   });
 
@@ -258,7 +261,7 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
     const caller = callerWith(prisma);
 
     await expect(
-      caller.admin.createClientWithInvite({ ...BASE_INPUT, welcomeNote: 'x'.repeat(2001) }),
+      caller.admin.createClient({ ...BASE_INPUT, welcomeNote: 'x'.repeat(2001) }),
     ).rejects.toThrow();
   });
 
@@ -267,16 +270,17 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
     vi.mocked(prisma.therapist.findUnique).mockResolvedValue(null);
     const caller = callerWith(prisma);
 
-    await expect(caller.admin.createClientWithInvite(BASE_INPUT)).rejects.toThrow(/therapist not found/i);
+    await expect(caller.admin.createClient(BASE_INPUT)).rejects.toThrow(/therapist not found/i);
   });
 
-  it('creates User/ClinicalConfig/TherapistClient/InviteToken in one transaction and sends the invite email', async () => {
+  it('creates the client and sends nothing — the email is the sign-in', async () => {
     const prisma = buildPrisma();
     const caller = callerWith(prisma);
     const { sendInviteEmail } = await import('@/lib/email');
 
-    const result = await caller.admin.createClientWithInvite({
+    const result = await caller.admin.createClient({
       ...BASE_INPUT,
+      email: 'Shubhangi@Gmail.com',
       dateOfBirth: '1995-04-12',
       gender: 'female',
       presentingIssues: ['Anxiety', 'Sleep'],
@@ -286,18 +290,16 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
 
     expect(result.success).toBe(true);
     expect(result.clientId).toBe('new_client_1');
-    // Security-audit round, 16 Sep 2026 — inviteCode is now the real
-    // randomly-generated code returned directly, never read back from a
-    // stored value (the DB only ever holds its hash, never the plaintext).
-    expect(result.inviteCode).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
-    expect(result.emailSent).toBe(true);
+    // Stored lowercased: sign-in binds by email, so a case variant would leave
+    // one person with two rows for the Google verifier to choose between.
+    expect(result.email).toBe('shubhangi@gmail.com');
 
     const tx = (prisma as unknown as { __txClient: ReturnType<typeof buildTxClient> }).__txClient;
     expect(tx.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           phone_number: BASE_INPUT.phoneNumber,
-          email: BASE_INPUT.email,
+          email: 'shubhangi@gmail.com',
           full_name: BASE_INPUT.fullName,
         }),
       }),
@@ -317,26 +319,12 @@ describe('admin.createClientWithInvite (therapist-portal wireframes C-01..C-06)'
     expect(tx.therapistClient.create).toHaveBeenCalledWith({
       data: { therapist_id: THERAPIST.id, client_user_id: 'new_client_1' },
     });
-    expect(sendInviteEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: BASE_INPUT.email,
-        clientName: BASE_INPUT.fullName,
-        inviteCode: result.inviteCode,
-      }),
-    );
 
-    // Security-audit round, 16 Sep 2026 — the DB write must never contain
-    // the plaintext code, only its hash, and the email is the one and only
-    // place the plaintext is meant to end up.
-    expect(tx.inviteToken.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          token_hash: hashInviteToken(result.inviteCode),
-        }),
-      }),
-    );
-    const inviteTokenCallArgs = vi.mocked(tx.inviteToken.create).mock.calls[0][0];
-    expect(JSON.stringify(inviteTokenCallArgs)).not.toContain(result.inviteCode);
+    // The whole handover is the row: `resolveGoogleAccount` binds the client's
+    // Google subject to it by email on first sign-in, so there is no code to
+    // mint and no email to send. `resendInvite` is now the only path that does.
+    expect(tx.inviteToken.create).not.toHaveBeenCalled();
+    expect(sendInviteEmail).not.toHaveBeenCalled();
   });
 });
 

@@ -449,7 +449,7 @@ export const adminRouter = router({
         // one path that does work for someone who has not installed the app.
         throw new TRPCError({
           code: 'NOT_FOUND',
-          message: `No client found with ${input.clientPhoneNumber} — nobody has signed up with that number yet. Check it, or use "Invite a new client" to create them and send an invite.`,
+          message: `No client found with ${input.clientPhoneNumber} — nobody has signed up with that number yet. Check it, or use "Register a new client" to create them — they then sign in with Google.`,
         });
       }
 
@@ -515,7 +515,18 @@ export const adminRouter = router({
   // deliberately NOT duplicated here; the therapist can add those via the
   // client's own Tools tab once the client exists, using the reminders
   // router's existing create path.
-  createClientWithInvite: adminMutation
+  // Registering a client. The email typed here IS the identity: this row is
+  // what the client's first Google sign-in binds to — `resolveGoogleAccount`
+  // (apps/api/src/lib/auth-google.ts) matches a live `User` by email,
+  // case-insensitively, and binds the Google subject when `auth_subject` is
+  // still NULL. So there is nothing to send: no invite email, no code to read
+  // aloud. The client installs the app, taps "Continue with Google" with that
+  // address, and is in.
+  //
+  // The invite-code machinery still exists for the one case this cannot cover
+  // — a client who signs in with a different Google address than the one on
+  // file — via `resendInvite` below.
+  createClient: adminMutation
     .input(
       z.object({
         therapistId: z.string().min(1),
@@ -541,24 +552,32 @@ export const adminRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Therapist not found' });
       }
 
+      // Stored lowercased and matched case-insensitively, so `Name@Gmail.com`
+      // and `name@gmail.com` cannot become two rows that one sign-in has to
+      // guess between — the same rule admin.addTherapist follows.
+      const email = input.email.trim().toLowerCase();
+
       const existing = await ctx.db.user.findFirst({
-        where: { OR: [{ phone_number: input.phoneNumber }, { email: input.email }] },
+        where: {
+          OR: [
+            { phone_number: input.phoneNumber },
+            { email: { equals: email, mode: 'insensitive' } },
+          ],
+        },
         select: { id: true },
       });
       if (existing) {
         throw new TRPCError({
           code: 'CONFLICT',
-          message: 'A client with this phone number or email already exists',
+          message: `A client with ${email} or ${input.phoneNumber} already exists. Find them in the Clients list instead of adding them again.`,
         });
       }
-
-      const inviteCode = generateInviteCode();
 
       const { client } = await ctx.db.$transaction(async (tx) => {
         const client = await tx.user.create({
           data: {
             phone_number: input.phoneNumber,
-            email: input.email,
+            email,
             full_name: input.fullName,
             date_of_birth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
             gender: input.gender || null,
@@ -581,31 +600,10 @@ export const adminRouter = router({
           data: { therapist_id: therapist.id, client_user_id: client.id },
         });
 
-        await tx.inviteToken.create({
-          data: {
-            token_hash: hashInviteToken(inviteCode),
-            therapist_id: therapist.id,
-            client_user_id: client.id,
-            expires_at: new Date(Date.now() + INVITE_TTL_MS),
-          },
-        });
-
         return { client };
       });
 
-      const emailResult = await sendInviteEmail({
-        to: input.email,
-        therapistName: therapist.name ?? therapist.email,
-        clientName: input.fullName,
-        inviteCode,
-      });
-
-      return {
-        success: true,
-        clientId: client.id,
-        inviteCode,
-        emailSent: emailResult.sent,
-      };
+      return { success: true, clientId: client.id, email };
     }),
 
   // Dashboard "Resend" for a still-Pending client (wireframes C-07) —

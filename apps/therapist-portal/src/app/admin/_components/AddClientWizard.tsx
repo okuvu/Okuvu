@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 
 // Mirrors the backend's PRESENTING_ISSUES enum in admin.ts — these are
-// the only values createClientWithInvite will accept.
+// the only values createClient will accept.
 const ISSUE_OPTIONS = ['Anxiety', 'Low mood', 'Stress', 'Sleep', 'Grief'] as const;
 type IssueOption = (typeof ISSUE_OPTIONS)[number];
 const CARE_PLANS = [
@@ -56,20 +56,22 @@ function suggestedAbbreviation(fullName: string): string {
 
 // Therapist-portal wireframes C-01..C-06 — the 6-step Add-Client wizard.
 // A second, additive path alongside the "Add client" section above (which
-// stays for attaching an already-self-signed-up client) — this one
-// creates a brand-new client and sends them an invite code.
+// stays for attaching an already-signed-up client) — this one registers a
+// brand-new client, and the email typed on step 1 is what signs them in: the
+// row created here is bound to their Google subject on first sign-in
+// (apps/api/src/lib/auth-google.ts). Nothing is emailed and there is no code,
+// so the last step is a receipt, not a delivery.
 export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
-  const [result, setResult] = useState<{ inviteCode: string; emailSent: boolean } | null>(null);
+  const [result, setResult] = useState<{ email: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const utils = trpc.useUtils();
-  const create = trpc.admin.createClientWithInvite.useMutation({
+  const create = trpc.admin.createClient.useMutation({
     onSuccess: (res) => {
-      setResult({ inviteCode: res.inviteCode, emailSent: res.emailSent });
+      setResult({ email: res.email });
       setError(null);
       utils.admin.listTherapists.invalidate();
     },
@@ -85,7 +87,6 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
     setStep(1);
     setResult(null);
     setError(null);
-    setCopied(false);
     setIsOpen(false);
   }
 
@@ -106,10 +107,10 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
-              Invite a new client
+              Register a new client
             </h2>
             <p className="text-xs text-gray-500">
-              Creates a brand-new client and sends them an invite code (email, and a code to share manually).
+              Creates the client and assigns the therapist. They sign in with Google using this email — nothing is sent.
             </p>
           </div>
           <button
@@ -127,31 +128,19 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
   if (result) {
     return (
       <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">Invite sent</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">Client registered</h2>
         <div className="rounded-lg bg-sage-tint p-4 space-y-2">
           <p className="text-sm text-gray-700">
-            {result.emailSent
-              ? `An invite email was sent to ${state.email}.`
-              : "Email wasn't sent (no email provider configured) — share the code below manually."}
+            {state.fullName} is registered as{' '}
+            <span className="font-medium text-royal-purple">{result.email}</span>.
           </p>
-          <div className="flex items-center gap-2">
-            <code className="rounded bg-oat-elevated px-3 py-1.5 text-lg font-bold tracking-widest text-royal-purple border border-hairline">
-              {result.inviteCode}
-            </code>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(result.inviteCode);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }}
-              className="text-xs font-medium text-royal-purple hover:underline"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
+          <p className="text-sm text-gray-700">
+            Nothing to send. They install the OKUVU app and tap &ldquo;Continue with Google&rdquo; — signing in with
+            that same email opens their account straight away.
+          </p>
           <p className="text-xs text-gray-500">
-            Valid for 7 days. The client enters this in the app via &ldquo;Have an invite code?&rdquo;
+            It has to be the Google account behind that address. If they need a different one, use Resend from the
+            Clients tab to give them a code instead.
           </p>
         </div>
         <button
@@ -168,7 +157,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
   return (
     <section className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">Invite a new client</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">Register a new client</h2>
         <span className="text-xs text-gray-500">Step {step} of 6</span>
       </div>
 
@@ -180,7 +169,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
 
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-500">Client OTPs on either phone or email. Both must exist.</p>
+          <p className="text-xs text-gray-500">Email is how they get in — this is their Google sign-in address.</p>
           <div>
             <label htmlFor="wiz-therapist" className="mb-1 block text-xs font-medium text-gray-500">Assign to therapist</label>
             <select
@@ -346,8 +335,8 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             tailor it to how the first sessions go.
           </p>
           <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
-            No tools or reminders assigned yet. You can add these from the client&rsquo;s Tools tab after they accept
-            the invite.
+            No tools or reminders assigned yet. You can add these from the client&rsquo;s Tools tab after they first
+            sign in.
           </div>
         </div>
       )}
@@ -409,7 +398,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             }
             className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {create.isPending ? 'Sending invite...' : 'Add client & send invite'}
+            {create.isPending ? 'Adding...' : 'Add client'}
           </button>
         )}
       </div>
