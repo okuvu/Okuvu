@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { copy } from '@/lib/marketing/copy';
 import { LogoLink } from './Logo';
+import ThemeToggle from './ThemeToggle';
 
 /**
  * Marketing nav.
@@ -37,6 +38,7 @@ export default function MarketingNav({ signedIn }: { signedIn: boolean }) {
           <a href="#for-therapists">{copy.nav.forTherapists}</a>
         </nav>
         <div className="mk-nav-actions">
+          <ThemeToggle />
           <Link href={signedIn ? '/dashboard' : '/auth'} className="mk-pill mk-pill--outline">
             {signedIn ? copy.nav.openPortal : copy.nav.signIn}
           </Link>

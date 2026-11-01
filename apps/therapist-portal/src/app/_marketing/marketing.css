@@ -101,24 +101,44 @@
    text, surfaces a step lighter. Honey keeps royal-night text at 7.6:1 either
    way; headlines drop to orchid-tinted because royal purple on night is 1.7:1. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --mk-bg: #1b0b33;
-    --mk-bg-alt: #24103f;
-    --mk-surface: #2b1550;
-    --mk-text: var(--lav-tint);
-    --mk-heading: #d8c7fb;
-    --mk-text-soft: rgba(237, 233, 254, 0.78);
-    --mk-text-faint: rgba(237, 233, 254, 0.64);
-    --mk-border: rgba(196, 181, 253, 0.16);
-    --mk-border-strong: rgba(196, 181, 253, 0.36);
-    --mk-dark-surface: #170826;
-    --mk-nav: rgba(27, 11, 51, 0.74);
-    --sage-ink: #b4cdbc;
-    --mk-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.6);
-    --mk-shadow-lg: 0 28px 60px -28px rgba(0, 0, 0, 0.7);
-    --dawn: linear-gradient(120deg, #24103f 0%, #1b0b33 55%, #2b1550 100%);
+  :root:not([data-theme='light']) {
+      --mk-bg: #1b0b33;
+      --mk-bg-alt: #24103f;
+      --mk-surface: #2b1550;
+      --mk-text: var(--lav-tint);
+      --mk-heading: #d8c7fb;
+      --mk-text-soft: rgba(237, 233, 254, 0.78);
+      --mk-text-faint: rgba(237, 233, 254, 0.64);
+      --mk-border: rgba(196, 181, 253, 0.16);
+      --mk-border-strong: rgba(196, 181, 253, 0.36);
+      --mk-dark-surface: #170826;
+      --mk-nav: rgba(27, 11, 51, 0.74);
+      --sage-ink: #b4cdbc;
+      --mk-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.6);
+      --mk-shadow-lg: 0 28px 60px -28px rgba(0, 0, 0, 0.7);
+      --dawn: linear-gradient(120deg, #24103f 0%, #1b0b33 55%, #2b1550 100%);
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] {
+      --mk-bg: #1b0b33;
+      --mk-bg-alt: #24103f;
+      --mk-surface: #2b1550;
+      --mk-text: var(--lav-tint);
+      --mk-heading: #d8c7fb;
+      --mk-text-soft: rgba(237, 233, 254, 0.78);
+      --mk-text-faint: rgba(237, 233, 254, 0.64);
+      --mk-border: rgba(196, 181, 253, 0.16);
+      --mk-border-strong: rgba(196, 181, 253, 0.36);
+      --mk-dark-surface: #170826;
+      --mk-nav: rgba(27, 11, 51, 0.74);
+      --sage-ink: #b4cdbc;
+      --mk-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.6);
+      --mk-shadow-lg: 0 28px 60px -28px rgba(0, 0, 0, 0.7);
+      --dawn: linear-gradient(120deg, #24103f 0%, #1b0b33 55%, #2b1550 100%);
+  }
 
 /* ── shell ─────────────────────────────────────────────────────────────── */
 
@@ -134,11 +154,18 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .mk-root {
-    background-image: linear-gradient(180deg, #150722 0%, #1b0b33 40%, #241040 100%);
-    background-attachment: fixed;
+  :root:not([data-theme='light']) .mk-root {
+      background-image: linear-gradient(180deg, #150722 0%, #1b0b33 40%, #241040 100%);
+      background-attachment: fixed;
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-root {
+      background-image: linear-gradient(180deg, #150722 0%, #1b0b33 40%, #241040 100%);
+      background-attachment: fixed;
+  }
 
 .mk-root *,
 .mk-root *::before,
@@ -303,14 +330,22 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .mk-logo img.mk-logo-mark--light {
-    display: none;
+  :root:not([data-theme='light']) .mk-logo img.mk-logo-mark--light {
+      display: none;
   }
-
-  .mk-logo img.mk-logo-mark--dark {
-    display: block;
+  :root:not([data-theme='light']) .mk-logo img.mk-logo-mark--dark {
+      display: block;
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-logo img.mk-logo-mark--light {
+      display: none;
+  }
+  :root[data-theme='dark'] .mk-logo img.mk-logo-mark--dark {
+      display: block;
+  }
 
 .mk-logo-word {
   font-family: var(--font-poppins-semibold), system-ui, sans-serif;
@@ -437,12 +472,20 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .mk-hero {
-    background-image: var(--mk-grain),
-      radial-gradient(90% 70% at 12% 0%, rgba(124, 158, 143, 0.22) 0%, rgba(124, 158, 143, 0) 60%),
-      radial-gradient(70% 60% at 88% 12%, rgba(123, 108, 217, 0.22) 0%, rgba(237, 230, 251, 0) 62%);
+  :root:not([data-theme='light']) .mk-hero {
+      background-image: var(--mk-grain),
+        radial-gradient(90% 70% at 12% 0%, rgba(124, 158, 143, 0.22) 0%, rgba(124, 158, 143, 0) 60%),
+        radial-gradient(70% 60% at 88% 12%, rgba(123, 108, 217, 0.22) 0%, rgba(237, 230, 251, 0) 62%);
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-hero {
+      background-image: var(--mk-grain),
+        radial-gradient(90% 70% at 12% 0%, rgba(124, 158, 143, 0.22) 0%, rgba(124, 158, 143, 0) 60%),
+        radial-gradient(70% 60% at 88% 12%, rgba(123, 108, 217, 0.22) 0%, rgba(237, 230, 251, 0) 62%);
+  }
 
 .mk-hero-grid {
   display: grid;
@@ -481,10 +524,16 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .mk-badge {
-    background: rgba(237, 230, 251, 0.07);
+  :root:not([data-theme='light']) .mk-badge {
+      background: rgba(237, 230, 251, 0.07);
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-badge {
+      background: rgba(237, 230, 251, 0.07);
+  }
 
 .mk-badge-dot {
   width: 7px;
@@ -588,12 +637,20 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .mk-mark-aura {
-    background: radial-gradient(36% 36% at 52% 50%, rgba(167, 139, 250, 0.34) 0%, rgba(167, 139, 250, 0.08) 56%, rgba(43, 21, 80, 0) 80%),
-      radial-gradient(30% 30% at 24% 62%, rgba(124, 158, 143, 0.22) 0%, rgba(124, 158, 143, 0) 72%),
-      radial-gradient(22% 22% at 58% 22%, rgba(232, 163, 61, 0.16) 0%, rgba(232, 163, 61, 0) 74%);
+  :root:not([data-theme='light']) .mk-mark-aura {
+      background: radial-gradient(36% 36% at 52% 50%, rgba(167, 139, 250, 0.34) 0%, rgba(167, 139, 250, 0.08) 56%, rgba(43, 21, 80, 0) 80%),
+        radial-gradient(30% 30% at 24% 62%, rgba(124, 158, 143, 0.22) 0%, rgba(124, 158, 143, 0) 72%),
+        radial-gradient(22% 22% at 58% 22%, rgba(232, 163, 61, 0.16) 0%, rgba(232, 163, 61, 0) 74%);
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-mark-aura {
+      background: radial-gradient(36% 36% at 52% 50%, rgba(167, 139, 250, 0.34) 0%, rgba(167, 139, 250, 0.08) 56%, rgba(43, 21, 80, 0) 80%),
+        radial-gradient(30% 30% at 24% 62%, rgba(124, 158, 143, 0.22) 0%, rgba(124, 158, 143, 0) 72%),
+        radial-gradient(22% 22% at 58% 22%, rgba(232, 163, 61, 0.16) 0%, rgba(232, 163, 61, 0) 74%);
+  }
 
 /* Two rings that swell out and fade: water, not a scanner. Invisible at rest
    (opacity 0), so stopping the animation hides them rather than freezing them
@@ -1251,11 +1308,18 @@
   /* On the dark page, indigo-on-indigo collapsed the two panels into one.
      Deepen this one below the page and give it a lavender hairline so the
      contrast between "sees" and "doesn't see" survives the theme. */
-  .mk-panel--not {
-    background: #140725;
-    border: 1px solid rgba(237, 230, 251, 0.22);
+  :root:not([data-theme='light']) .mk-panel--not {
+      background: #140725;
+      border: 1px solid rgba(237, 230, 251, 0.22);
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-panel--not {
+      background: #140725;
+      border: 1px solid rgba(237, 230, 251, 0.22);
+  }
 
 .mk-panel-head {
   display: flex;
@@ -1443,11 +1507,18 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .mk-watermark {
-    color: var(--orchid-soft);
-    opacity: 0.05;
+  :root:not([data-theme='light']) .mk-watermark {
+      color: var(--orchid-soft);
+      opacity: 0.05;
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-watermark {
+      color: var(--orchid-soft);
+      opacity: 0.05;
+  }
 
 .mk-watermark svg {
   display: block;
@@ -1657,10 +1728,16 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .mk-photo img {
-    filter: brightness(0.86) saturate(0.95);
+  :root:not([data-theme='light']) .mk-photo img {
+      filter: brightness(0.86) saturate(0.95);
   }
 }
+
+/* The same theme, reachable by the toggle: forcing dark must not depend
+   on the operating system agreeing. */
+  :root[data-theme='dark'] .mk-photo img {
+      filter: brightness(0.86) saturate(0.95);
+  }
 
 .mk-wait-card {
   /* A white card in both themes, so the theme-dependent text tokens are
@@ -1926,4 +2003,88 @@
 /* Background tabs: nothing keeps ticking. */
 html[data-mk-paused='1'] .mk-root * {
   animation-play-state: paused !important;
+}
+
+/* ── colour-theme switch ───────────────────────────────────────────────────
+   The page used to take its theme only from `prefers-color-scheme`, so anyone
+   whose phone or laptop runs dark could not see the light page at all. The
+   switch writes `data-theme` on <html>; every dark block above is keyed on
+   that attribute as well as on the media query, so "system" still works and an
+   explicit choice wins over the device.
+
+   `color-scheme` is set too: without it the browser paints form controls,
+   scrollbars and the canvas backdrop in its own default, which shows as a white
+   flash on a dark page. */
+
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+.mk-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.mk-theme {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--mk-border-strong);
+  background: transparent;
+  color: var(--mk-text);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.mk-theme:hover {
+  background: var(--mk-bg-alt);
+  border-color: var(--mk-text);
+}
+
+.mk-theme svg {
+  display: block;
+}
+
+/* Which cut of the mark is on screen. Same two rules twice, once for "the
+   device says dark and nobody overrode it", once for "someone chose dark" —
+   CSS has no way to OR a media query with an attribute selector. */
+.mk-mark-big--dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .mk-mark-big--light {
+    display: none;
+  }
+
+  :root:not([data-theme='light']) .mk-mark-big--dark {
+    display: block;
+  }
+}
+
+:root[data-theme='dark'] .mk-mark-big--light {
+  display: none;
+}
+
+:root[data-theme='dark'] .mk-mark-big--dark {
+  display: block;
 }

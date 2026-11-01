@@ -64,6 +64,15 @@ export default async function LandingPage() {
 
   return (
     <div className="mk-root">
+      {/* Applies the remembered theme before the first paint, so a returning
+          visitor never sees the other theme flash first. Inline on purpose: an
+          external file would be a second round trip and arrive too late. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "try{var t=localStorage.getItem('okuvu-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}",
+        }}
+      />
       <MarketingMotion />
       <MarketingNav signedIn={signedIn} />
 

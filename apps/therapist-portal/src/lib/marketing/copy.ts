@@ -27,6 +27,13 @@ export const nav = {
   signIn: 'Sign in',
   openPortal: 'Open portal',
   cta: 'Join the waitlist',
+  // The colour-theme switch. Names the state it is in and the state a click
+  // moves to, so it is useful rather than "toggle dark mode" guesswork.
+  theme: {
+    system: 'Colour theme: follows your device. Switch to light.',
+    light: 'Colour theme: light. Switch to dark.',
+    dark: 'Colour theme: dark. Switch to follow your device.',
+  },
 } as const;
 
 export const hero = {

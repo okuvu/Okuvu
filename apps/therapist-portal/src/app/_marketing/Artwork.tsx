@@ -46,8 +46,10 @@ export function HeroWaves() {
  * is now the real logo rather than a drawing of the product.
  *
  * The artwork is `public/brand/okuvu-mark.svg` — the master file, unchanged,
- * not a redraw and not a simplified cut. `<picture>` picks the lavender cut on
- * a dark ground, so only one of the two files is ever downloaded.
+ * not a redraw and not a simplified cut. The lavender cut replaces it on a dark
+ * ground; which one is visible is decided by CSS (see `.mk-mark-big--dark` in
+ * marketing.css), not by a media query, so the switch in the nav can override
+ * the operating system.
  *
  * The motion is calm on purpose: the spiral drifts a few degrees and breathes,
  * a soft halo behind it swells, two sage rings ripple out, and the honey dot
@@ -70,19 +72,33 @@ export function HeroMark() {
         <span className="mk-mark-ripple mk-mark-ripple--a" aria-hidden="true" />
         <span className="mk-mark-ripple mk-mark-ripple--b" aria-hidden="true" />
         <div className="mk-mark-rotor" aria-hidden="true">
-          <picture>
-            <source srcSet="/brand/okuvu-mark-dark.svg" media="(prefers-color-scheme: dark)" />
-            {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG, next/image adds nothing */}
-            <img
-              className="mk-mark-big"
-              src="/brand/okuvu-mark.svg"
-              alt=""
-              width={800}
-              height={800}
-              fetchPriority="high"
-              decoding="async"
-            />
-          </picture>
+          {/* Two cuts of the master file, one shown at a time by CSS. A
+              <picture> would be lighter — one file downloaded either way — but
+              its media query can only follow the operating system, so a visitor
+              who picked light on a dark device would get the lavender cut on a
+              pale page. The dark file is deferred, so it only loads when the
+              theme actually asks for it. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG, next/image adds nothing */}
+          <img
+            className="mk-mark-big mk-mark-big--light"
+            src="/brand/okuvu-mark.svg"
+            alt=""
+            width={800}
+            height={800}
+            fetchPriority="high"
+            decoding="async"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG, next/image adds nothing */}
+          <img
+            className="mk-mark-big mk-mark-big--dark"
+            src="/brand/okuvu-mark-dark.svg"
+            alt=""
+            width={800}
+            height={800}
+            loading="lazy"
+            fetchPriority="low"
+            decoding="async"
+          />
           <span className="mk-mark-dot" />
         </div>
       </div>
