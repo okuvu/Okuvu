@@ -17,7 +17,8 @@ import {
   resolveBedrockModelId,
   resolveEmbeddingDimensions,
 } from './provider-config.js';
-import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS } from './llm-types.js';
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS, SAFE_FALLBACK } from './llm-types.js';
+import { classifyLlmFailure } from './llm-failure.js';
 import type { GenerateContentParams, GenerateContentResult } from './llm-types.js';
 
 export { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS };
@@ -43,9 +44,15 @@ export type { GenerateContentParams, GenerateContentResult };
  *    per-request category threshold was a no-op that every call logged.
  *    `llm-types.ts` no longer carries the field, so a caller cannot believe a
  *    policy travelled with the request when it did not.
- *  • An empty completion returns `{ text: '', fallbackUsed: false }`.
- *    `summary.ts` treats unparseable text as a parse failure and stores
- *    `summary_text: null`, so this is the safe inherited behaviour.
+ *  • An empty completion and a thrown call both return
+ *    `{ text: SAFE_FALLBACK, fallbackUsed: true, failureKind }` (E17-S4).
+ *    Before this the failure path returned `text: ''` — the api's own copy
+ *    returned the curated sentence instead (E17-S1 §7 recorded the asymmetry).
+ *    An empty string is not a conservative value: it is an absence each caller
+ *    has to remember to check, and the empty-completion path did not even set
+ *    `fallbackUsed`, so `summary.ts`'s fallback guard never saw it. Every
+ *    caller already branches on `fallbackUsed`; now that flag is true for both
+ *    shapes and the text is a sentence that cannot be mistaken for a summary.
  *
  * Structured output mapping matches the API copy: `responseSchema` becomes a
  * forced, `strict` tool (`emit_structured_json`) whose `input` object is
@@ -245,14 +252,16 @@ export async function generateContent(
         { event: 'bedrock_empty_response', stop_reason: response.stopReason, model },
         'Bedrock returned empty response',
       );
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', failureKind: 'unavailable' };
     }
 
     return { text, fallbackUsed: false };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
-    console.error({ reason: failureReason, err: message, model }, 'Bedrock call failed');
-    return { text: '', fallbackUsed: true, failureReason };
+    const failureKind = classifyLlmFailure(err, timedOut);
+    console.error({ reason: failureReason, failureKind, err: message, model }, 'Bedrock call failed');
+    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason, failureKind };
   } finally {
     clearTimeout(timer);
   }

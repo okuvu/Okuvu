@@ -146,6 +146,22 @@ data "aws_iam_policy_document" "codebuild" {
     resources = [for repo in aws_ecr_repository.main : repo.arn]
   }
 
+  # The ECR scan gate in buildspec.yml reads scan findings before post_build
+  # rolls images out. Without these the gate could not see any scan state and
+  # failed the build after its timeout — the gate was blind, not the scans slow.
+  statement {
+    sid    = "EcrScanRead"
+    effect = "Allow"
+
+    actions = [
+      "ecr:DescribeImageScanFindings",
+      "ecr:DescribeImages",
+      "ecr:BatchGetRepositoryScanningConfiguration",
+    ]
+
+    resources = [for repo in aws_ecr_repository.main : repo.arn]
+  }
+
   statement {
     sid    = "EcsRollout"
     effect = "Allow"
@@ -290,10 +306,18 @@ resource "aws_codebuild_project" "main" {
   }
 
   source {
-    type            = "GITHUB"
-    location        = "https://github.com/${var.github_repository}.git"
-    buildspec       = "buildspec.yml"
-    git_clone_depth = 1
+    type      = "GITHUB"
+    location  = "https://github.com/${var.github_repository}.git"
+    buildspec = "buildspec.yml"
+    # 0 = full history. This is what lets buildspec.yml tell a documentation push
+    # from a code push: the deploy-scope gate reads the commit the live services
+    # were built from out of ECS (their image tag is that commit's SHA) and diffs
+    # its tree against HEAD. At the old value of 1 that commit is an ancestor the
+    # clone does not contain, so the gate has to deepen the clone mid-build — an
+    # extra network round trip that fails closed (a full rollout) when it cannot
+    # run. The repository is ~22 MB of history, so a full clone costs a few
+    # seconds of DOWNLOAD_SOURCE and removes that dependency entirely.
+    git_clone_depth = 0
 
     report_build_status = true
 
@@ -315,6 +339,43 @@ resource "aws_codebuild_project" "main" {
   })
 
   depends_on = [aws_iam_role_policy.codebuild]
+}
+
+# Push-to-develop trigger.
+#
+# Before this resource the project had no webhook at all (`webhook: null`), so a
+# push to develop started nothing: the only way to run a build was
+# `aws codebuild start-build` by hand, which is the manual step this story
+# removes. The filter group is deliberately narrow — EVENT PUSH on
+# `^refs/heads/develop$` — so feature branches, tags and pull-request refs do
+# not start deployments.
+#
+# The commit status on the GitHub commit is not set by this resource: it comes
+# from `report_build_status = true` on the project source above, which CodeBuild
+# uses to write STARTED/SUCCEEDED/FAILED back through the same CodeConnections
+# connection.
+#
+# Pausing it: `aws codebuild delete-webhook --project-name evia-beta-build`
+# stops all automatic builds without touching the project (the GitHub side is
+# removed by the same call); set `enable_webhook = false` and apply to do it
+# from code, which also keeps the state honest.
+resource "aws_codebuild_webhook" "main" {
+  count = var.codestar_connection_arn == "" || !var.enable_webhook ? 0 : 1
+
+  project_name = aws_codebuild_project.main[0].name
+  build_type   = "BUILD"
+
+  filter_group {
+    filter {
+      type    = "EVENT"
+      pattern = "PUSH"
+    }
+
+    filter {
+      type    = "HEAD_REF"
+      pattern = "^refs/heads/develop$"
+    }
+  }
 }
 
 resource "aws_cloudwatch_log_group" "codebuild" {

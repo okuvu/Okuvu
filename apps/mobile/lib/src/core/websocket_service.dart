@@ -19,6 +19,21 @@ enum WsConnectionState {
   error,
 }
 
+/// E17-S11 — one `CRISIS_SIGNAL` frame, as the api sends it.
+///
+/// `message` is the governed crisis copy (`CRISIS_RESPONSE` in
+/// `apps/api/src/pipeline/fallbacks.ts`). The service used to read only
+/// `session_id` and throw the rest of the frame away, so the S4 reply the api
+/// sent — and persisted as the assistant turn — never reached the transcript.
+class CrisisSignal {
+  const CrisisSignal({required this.sessionId, required this.message});
+
+  final String? sessionId;
+
+  /// Empty only if the frame carried no message (an older server).
+  final String message;
+}
+
 class WebSocketService {
   WebSocketChannel? _channel;
   WsConnectionState _state = WsConnectionState.disconnected;
@@ -44,8 +59,8 @@ class WebSocketService {
       StreamController<AgentTurnFrame>.broadcast();
   final StreamController<String?> _sessionClosedController =
       StreamController<String?>.broadcast();
-  final StreamController<String?> _crisisSignalController =
-      StreamController<String?>.broadcast();
+  final StreamController<CrisisSignal> _crisisSignalController =
+      StreamController<CrisisSignal>.broadcast();
   final StreamController<bool> _showBannerController =
       StreamController<bool>.broadcast();
 
@@ -57,7 +72,7 @@ class WebSocketService {
   Stream<String?> get errorTypeStream => _errorTypeController.stream;
   Stream<AgentTurnFrame> get agentTurnStream => _agentTurnController.stream;
   Stream<String?> get sessionClosedStream => _sessionClosedController.stream;
-  Stream<String?> get crisisSignalStream => _crisisSignalController.stream;
+  Stream<CrisisSignal> get crisisSignalStream => _crisisSignalController.stream;
   Stream<bool> get showBannerStream => _showBannerController.stream;
 
   void _setState(WsConnectionState newState, {String? errorType}) {
@@ -126,6 +141,14 @@ class WebSocketService {
     }
   }
 
+  /// E17-S11 — test seam. Feeds one raw server frame through exactly the same
+  /// dispatch a socket read takes (`_onMessage`), so a widget test can prove
+  /// what the client does with a frame without opening a socket: no network,
+  /// no plugin channels, but also no re-implementation of the frame switch in
+  /// the test. Never called from production code.
+  @visibleForTesting
+  void handleRawFrame(String rawFrame) => _onMessage(rawFrame);
+
   void _onMessage(dynamic message) {
     Logger.debug('[WebSocketService] Received: ${message is String && message.length > 200 ? '${message.substring(0, 200)}...' : message}');
 
@@ -152,8 +175,14 @@ class WebSocketService {
           break;
         case 'CRISIS_SIGNAL':
           final crisisPayload = data['payload'] as Map<String, dynamic>?;
-          final crisisSessionId = crisisPayload?['session_id'] as String?;
-          _crisisSignalController.add(crisisSessionId);
+          // E17-S11: the message is the governed S4 copy. It rides this frame
+          // (see CrisisSignalFrame in packages/shared-types) and is persisted
+          // server-side as the assistant turn, so dropping it here leaves the
+          // transcript with the user's message and no reply under it.
+          _crisisSignalController.add(CrisisSignal(
+            sessionId: crisisPayload?['session_id'] as String?,
+            message: (crisisPayload?['message'] as String?) ?? '',
+          ));
           break;
         case 'ERROR':
           final errorPayload = data['payload'] as Map<String, dynamic>?;

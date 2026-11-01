@@ -115,6 +115,56 @@ resource "aws_sns_topic_subscription" "ops_email" {
   endpoint  = var.alarm_notification_email
 }
 
+# Durable sink for every alarm notification.
+#
+# Email subscriptions stay in PendingConfirmation until a human clicks the
+# link, and SNS does not retry a confirmation email that a mail filter eats.
+# A queue subscription is active the moment it is created, so no alarm is
+# ever lost to an unconfirmed mailbox: the message is retained for four days
+# and can be read with
+#   aws sqs receive-message --queue-url <url>
+resource "aws_sqs_queue" "ops_alerts_sink" {
+  name                       = "${var.name_prefix}-ops-alerts-sink"
+  message_retention_seconds  = 345600
+  visibility_timeout_seconds = 30
+  sqs_managed_sse_enabled    = true
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-ops-alerts-sink"
+  })
+}
+
+data "aws_iam_policy_document" "ops_alerts_sink" {
+  statement {
+    sid       = "AllowOpsTopic"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.ops_alerts_sink.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["sns.amazonaws.com"]
+    }
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_sns_topic.ops_alerts.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "ops_alerts_sink" {
+  queue_url = aws_sqs_queue.ops_alerts_sink.id
+  policy    = data.aws_iam_policy_document.ops_alerts_sink.json
+}
+
+resource "aws_sns_topic_subscription" "ops_queue" {
+  topic_arn = aws_sns_topic.ops_alerts.arn
+  protocol  = "sqs"
+  endpoint  = aws_sqs_queue.ops_alerts_sink.arn
+}
+
 resource "aws_cloudwatch_metric_alarm" "api_target_5xx" {
   alarm_name          = "${var.name_prefix}-api-target-5xx"
   alarm_description   = "api is returning 5XX responses to the ALB"
@@ -188,6 +238,95 @@ resource "aws_cloudwatch_metric_alarm" "portal_unhealthy_hosts" {
 
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-portal-unhealthy-hosts"
+  })
+}
+
+# ---------------------------------------------------------------------------
+# Running count vs desired count — RETIRED (E15-S8).
+#
+# These three alarms read ECS/ContainerInsights/RunningTaskCount, i.e. from a
+# paid custom-metric namespace: 108 metric streams x $0.30 = $32.40/mo to answer
+# one question ("is the task still there?"). They are replaced by
+# aws_cloudwatch_event_rule.task_stopped in alerts.tf, which listens to the ECS
+# task state change stream instead. That stream is free, real-time, and carries
+# strictly more than the alarm had: stopCode, stoppedReason and the container
+# exit codes.
+#
+# They MUST be removed in the same apply that sets containerInsights =
+# "disabled" in ecs.tf. Left behind with the metric namespace off, there is no
+# data to evaluate, and treat_missing_data = breaching turns that into a
+# permanent ALARM state — three alarms paging forever about a metric that no
+# longer exists.
+#
+# The ALB alarms above still cover api and portal behind the load balancer, and
+# the RDS alarms below are unchanged; the worker only ever had this rule as its
+# liveness signal, and now has the task-stop rule.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# RDS alarms. The database had none: it could fill its 20 GiB or run out of
+# the 100 max_connections and the first signal would be api 5xx.
+#
+# FreeStorageSpace is in bytes and excludes the 100 GiB autoscaling headroom
+# above it — a roomy-looking number that is still only 20 GiB of real disk, so
+# 5 GiB is the last-resort threshold before "no space left on device". The alarm
+# is Average < threshold over 10 min to ignore a vacuum or a large migration
+# spiking write-ahead log volume for a few minutes.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "rds_free_storage" {
+  alarm_name        = "${var.name_prefix}-rds-free-storage-low"
+  alarm_description = "Postgres has under ${var.rds_free_storage_alarm_gb} GiB of free storage left and will reject writes"
+
+  namespace   = "AWS/RDS"
+  metric_name = "FreeStorageSpace"
+  statistic   = "Average"
+
+  period             = 300
+  evaluation_periods = 2
+
+  # GiB, converted to the bytes the metric is published in.
+  threshold           = var.rds_free_storage_alarm_gb * 1073741824
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.main.identifier
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-rds-free-storage-low"
+  })
+}
+
+# max_connections is pinned to 100 in aws_db_parameter_group.main (rds.tf), so
+# 80 is the "connections are about to be refused" line, not an arbitrary 80%.
+resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
+  alarm_name        = "${var.name_prefix}-rds-connections-high"
+  alarm_description = "Postgres is above ${var.rds_max_connections_alarm} of its 100 max_connections"
+
+  namespace   = "AWS/RDS"
+  metric_name = "DatabaseConnections"
+  statistic   = "Average"
+
+  period             = 300
+  evaluation_periods = 2
+
+  threshold           = var.rds_max_connections_alarm
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.main.identifier
+  }
+
+  alarm_actions = [aws_sns_topic.ops_alerts.arn]
+  ok_actions    = [aws_sns_topic.ops_alerts.arn]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-rds-connections-high"
   })
 }
 

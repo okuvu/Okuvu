@@ -1,6 +1,7 @@
 import { generateContent } from '../../lib/generate-content.js';
 import type { SafetyState } from '@okuvu/shared-types';
 import { buildSafetyPrompt } from './prompts.js';
+import { hasCrisisLanguage } from './crisis-keywords.js';
 import type { A1Basis, A1Input, A1Output, A1SignalStrength } from './types.js';
 
 const A1_FALLBACK_STATE: SafetyState = 'S2';
@@ -26,7 +27,30 @@ function isValidSignalStrength(value: unknown): value is A1SignalStrength {
 // still fails to S2 (never S0); the new v2.0 fields fail to their most
 // conservative values so a technical failure never silently reads as "no
 // crisis language, high confidence" on the review queue.
-function fallbackOutput(reason: string): A1Output {
+//
+// E17-S4 — the exception, and the reason this function takes the message: a
+// technical failure used to mean "S2, crisis_language_detected:false" for a
+// message that could be an explicit disclosure ("I want to die"). S2 routes to
+// A2, so an unreachable classifier quietly answered a crisis disclosure with a
+// supportive chat reply — the fail-open hole E17-S1 §7 and E17-S2 §465 both
+// logged against the fallback path. The deterministic screen
+// (`crisis-keywords.ts`) is the floor underneath that failure: if the literal
+// phrasing matches, the state is S4 and the crisis path runs with no model
+// involved. A keyword false positive costs one crisis card; the false negative
+// it replaces was a user in crisis receiving "could you tell me more about how
+// you're feeling?".
+function fallbackOutput(reason: string, message: string): A1Output {
+  if (hasCrisisLanguage(message)) {
+    return {
+      safetyState: 'S4',
+      fallbackUsed: true,
+      crisis_language_detected: true,
+      basis: 'literal',
+      signal_strength: 'high',
+      notes: `${reason}:crisis_keyword_floor`,
+    };
+  }
+
   return {
     safetyState: A1_FALLBACK_STATE,
     fallbackUsed: true,
@@ -42,10 +66,13 @@ function fallbackOutput(reason: string): A1Output {
  * back the same generic prose the safety classifier can't parse, so sandbox
  * always fell back to a fixed S2. A cheap keyword heuristic keeps the
  * classification at least responsive to what the tester actually typed.
+ *
+ * E17-S6: the S4 branch reads `crisis-keywords.ts`, the one keyword list the
+ * budget gate also uses — see that module for why a shared list matters.
  */
 function buildCannedSafetyState(message: string): SafetyState {
   const lower = message.toLowerCase();
-  if (/\b(kill myself|suicide|end my life|want to die|end it all)\b/.test(lower)) return 'S4';
+  if (hasCrisisLanguage(message)) return 'S4';
   if (/\b(harm myself|self[- ]harm|hurt myself|cutting)\b/.test(lower)) return 'S3';
   if (/\b(angry|furious|rage|hate|pissed)\b/.test(lower)) return 'S1';
   if (/\b(anxious|worried|scared|stressed|overwhelmed|nervous)\b/.test(lower)) return 'S1';
@@ -94,7 +121,7 @@ export async function classifySafety(input: A1Input): Promise<A1Output> {
     required: ['safetyState', 'crisis_language_detected', 'basis', 'signal_strength'],
   };
 
-  let result: { text: string; fallbackUsed: boolean; failureReason?: 'timeout' | 'api_error' };
+  let result: { text: string; fallbackUsed: boolean; failureReason?: 'timeout' | 'api_error'; failureKind?: 'timeout' | 'throttled' | 'unavailable' };
 
   try {
     result = await generateContent({
@@ -117,13 +144,22 @@ export async function classifySafety(input: A1Input): Promise<A1Output> {
     });
   } catch {
     console.error({ reason: 'llm_api_error' }, 'A1 safety classification failed');
-    return fallbackOutput('llm_api_error');
+    return fallbackOutput('llm_api_error', input.message);
   }
 
   if (result.fallbackUsed) {
-    const reason = result.failureReason === 'timeout' ? 'llm_timeout' : 'llm_api_error';
-    console.error({ reason }, 'A1 safety classification failed');
-    return fallbackOutput(reason);
+    // E17-S4: `failureKind` is what separates a Bedrock throttle from a broken
+    // model. Both fail closed identically, but "we are being rate limited" is a
+    // quota conversation and "the model id is gone" is an incident — the review
+    // queue and the on-call both need to tell them apart (E17-S2 §465).
+    const reason =
+      result.failureKind === 'throttled'
+        ? 'llm_throttled'
+        : result.failureKind === 'timeout' || result.failureReason === 'timeout'
+          ? 'llm_timeout'
+          : 'llm_api_error';
+    console.error({ reason, failureKind: result.failureKind ?? null }, 'A1 safety classification failed');
+    return fallbackOutput(reason, input.message);
   }
 
   try {
@@ -150,9 +186,9 @@ export async function classifySafety(input: A1Input): Promise<A1Output> {
     }
 
     console.error({ reason: 'parse_failure', received: parsed?.safetyState ?? typeof parsed }, 'A1 safety classification failed');
-    return fallbackOutput('parse_failure');
+    return fallbackOutput('parse_failure', input.message);
   } catch {
     console.error({ reason: 'parse_failure', text: result.text }, 'A1 safety classification failed — unparseable JSON');
-    return fallbackOutput('parse_failure');
+    return fallbackOutput('parse_failure', input.message);
   }
 }

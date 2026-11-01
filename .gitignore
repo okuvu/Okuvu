@@ -24,6 +24,11 @@ graphify-out/
 .env.*.local
 *.env
 
+# ----------------------------
+# Local credential stores (never committed)
+# ----------------------------
+.secrets/
+
 # GCP service account credentials
 *-service-account.json
 *-keyfile.json

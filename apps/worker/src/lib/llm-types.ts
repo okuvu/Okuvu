@@ -46,4 +46,24 @@ export interface GenerateContentResult {
   text: string;
   fallbackUsed: boolean;
   failureReason?: 'timeout' | 'api_error';
+  /**
+   * E17-S4 — 'timeout' | 'throttled' | 'unavailable', mirroring the api's
+   * `lib/llm-failure.ts` so the two deployables classify a failure the same way.
+   */
+  failureKind?: 'timeout' | 'throttled' | 'unavailable';
 }
+
+/**
+ * E17-S4 — the fallback sentence a failed call returns instead of ''.
+ *
+ * Deliberately identical to `apps/api/src/lib/canned-response.ts`'s
+ * `SAFE_FALLBACK`. The duplication is the same one the rest of `llm-types.ts`
+ * carries: `apps/api` and `apps/worker` are separate deployables that share
+ * only `packages/prisma` and `packages/shared-types`, so this cannot be a
+ * cross-app import. The point of the change is that an empty string was not a
+ * conservative value — it was an absence that every caller had to remember to
+ * check, and `bedrock.test.ts` asserted it as the contract. A sentence is the
+ * fail-closed value: it can be logged, shown, and cannot be mistaken for a
+ * summary.
+ */
+export const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";

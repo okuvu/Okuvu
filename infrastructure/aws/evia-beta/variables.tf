@@ -249,6 +249,24 @@ variable "budget_notification_email" {
   default     = ""
 }
 
+variable "rds_free_storage_alarm_gb" {
+  description = "FreeStorageSpace threshold (GiB) below which the RDS alarm fires"
+  type        = number
+  default     = 5
+}
+
+variable "rds_max_connections_alarm" {
+  description = "DatabaseConnections threshold above which the RDS alarm fires (max_connections is 100)"
+  type        = number
+  default     = 80
+}
+
+variable "alb_access_log_retention_days" {
+  description = "How long ALB access logs are kept in S3 before lifecycle expiry"
+  type        = number
+  default     = 90
+}
+
 variable "alarm_notification_email" {
   description = "Optional email subscribed to operational alarms (leave empty to skip)"
   type        = string
@@ -256,15 +274,43 @@ variable "alarm_notification_email" {
 }
 
 variable "portal_callback_urls" {
-  description = "NextAuth OAuth callback URLs registered on the therapist Cognito app client (portal_url is appended automatically)"
+  description = "Extra NextAuth OAuth callback URLs registered on the therapist Cognito app client, on top of the ones derived from portal_hostname and portal_alias_hostnames (default: local development)"
   type        = list(string)
   default     = ["http://localhost:3001/api/auth/callback/cognito"]
 }
 
 variable "portal_logout_urls" {
-  description = "Post-sign-out redirect URLs registered on the therapist Cognito app client (portal_url is appended automatically)"
+  description = "Extra post-sign-out redirect URLs registered on the therapist Cognito app client, on top of the ones derived from portal_hostname and portal_alias_hostnames (default: local development)"
   type        = list(string)
   default     = ["http://localhost:3001/auth"]
+}
+
+variable "portal_alias_hostnames" {
+  description = "Additional public hostnames the therapist portal answers on (apex and www). Each one gets an ALB host rule and a registered Cognito callback, so sign-in completes on whichever host the therapist typed."
+  type        = list(string)
+  default     = ["okuvu.in", "www.okuvu.in"]
+}
+
+variable "portal_nextauth_url" {
+  description = "Pin NextAuth to one canonical origin (e.g. https://okuvu.in). Empty (default) derives the origin from the request Host, which is what lets a single deployment serve sign-in on every hostname in portal_alias_hostnames."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.portal_nextauth_url == "" || can(regex("^https://[a-z0-9.-]+$", var.portal_nextauth_url))
+    error_message = "portal_nextauth_url must be empty or an https origin with no path or trailing slash."
+  }
+}
+
+variable "cognito_therapist_domain_prefix" {
+  description = "Cognito prefix domain for the therapist pool (becomes <prefix>.auth.<region>.amazoncognito.com). The OAuth authorize/token endpoints the portal needs exist only once a domain is attached. Prefixes are globally unique per region; if apply reports the prefix is taken, change this value (e.g. okuvu-therapists-auth)."
+  type        = string
+  default     = "okuvu-therapists"
+
+  validation {
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.cognito_therapist_domain_prefix))
+    error_message = "cognito_therapist_domain_prefix must be lowercase alphanumeric or hyphen, 1-63 characters."
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -303,6 +349,18 @@ variable "portal_hostname" {
 
 variable "admin_emails" {
   description = "Comma-separated therapist emails allowed into /admin. Empty disables the admin console (audit F-07)."
+  type        = string
+  default     = ""
+}
+
+variable "google_client_id" {
+  description = "Google OAuth client id for therapist sign-in. Not a secret. Empty disables Google and leaves the portal on Cognito alone; it only takes effect together with google_client_secret_arn."
+  type        = string
+  default     = ""
+}
+
+variable "google_client_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the Google OAuth client secret under key `secret`. Empty disables Google sign-in."
   type        = string
   default     = ""
 }
@@ -368,6 +426,12 @@ variable "codebuild_compute_type" {
   description = "CodeBuild compute size; MEDIUM is the smallest that reliably runs the pnpm install + three image builds"
   type        = string
   default     = "BUILD_GENERAL1_MEDIUM"
+}
+
+variable "enable_webhook" {
+  description = "Create the CodeBuild GitHub webhook that starts a build on every push to develop. false leaves the project intact but removes the push trigger."
+  type        = bool
+  default     = true
 }
 
 variable "bedrock_model_id" {

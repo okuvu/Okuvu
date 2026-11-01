@@ -9,6 +9,9 @@ vi.mock('@/lib/prisma', () => ({
 // `authConfig` is imported after the mock so the sign-in callback's dynamic
 // `await import('@/lib/prisma')` resolves to the mocked module above.
 const { authConfig, buildProviders } = await import('@/lib/auth');
+const { cognitoPortalConfig, isCognitoConfigured } = await import(
+  '@/lib/cognito-config'
+);
 
 const COGNITO_ENV_KEYS = [
   'COGNITO_THERAPIST_CLIENT_ID',
@@ -122,5 +125,59 @@ describe('Cognito provider list', () => {
     });
     // No Google provider may survive the cutover.
     expect(providers.map((provider) => provider.id)).not.toContain('google');
+  });
+});
+
+describe('portal sign-in configuration (no shared demo credential)', () => {
+  beforeEach(() => {
+    clearCognitoEnv();
+  });
+
+  afterEach(() => {
+    clearCognitoEnv();
+  });
+
+  it('reports unconfigured and exposes no provider when nothing is set', () => {
+    expect(cognitoPortalConfig()).toBeNull();
+    expect(isCognitoConfigured()).toBe(false);
+    expect(buildProviders()).toHaveLength(0);
+  });
+
+  it('is not satisfied by a partially configured deployment', () => {
+    process.env.COGNITO_THERAPIST_CLIENT_ID = 'therapist-client-id';
+    process.env.COGNITO_ISSUER =
+      'https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_XXXXXXXX';
+    expect(cognitoPortalConfig()).toBeNull();
+    expect(isCognitoConfigured()).toBe(false);
+  });
+
+  it('is not satisfied by blank values left in an env template', () => {
+    process.env.COGNITO_THERAPIST_CLIENT_ID = '   ';
+    process.env.COGNITO_THERAPIST_CLIENT_SECRET = '';
+    process.env.COGNITO_ISSUER = '\n';
+    expect(cognitoPortalConfig()).toBeNull();
+  });
+
+  it('returns only the therapist pool values the deployment injected', () => {
+    setCognitoEnv();
+    expect(cognitoPortalConfig()).toEqual({
+      clientId: 'therapist-client-id',
+      clientSecret: 'therapist-client-secret',
+      issuer: 'https://cognito-idp.ap-south-1.amazonaws.com/ap-south-1_XXXXXXXX',
+    });
+    expect(isCognitoConfigured()).toBe(true);
+  });
+
+  it('never falls back to a credential provider, demo user or bypass account', () => {
+    // A real pool configured: exactly one provider, of type oauth.
+    setCognitoEnv();
+    const configured = buildProviders() as Array<{ id: string; type: string }>;
+    expect(configured.map((p) => p.id)).toEqual(['cognito']);
+    expect(configured.every((p) => p.type === 'oauth')).toBe(true);
+
+    // No pool configured: nothing at all rather than something local.
+    clearCognitoEnv();
+    expect(buildProviders()).toHaveLength(0);
+    expect(buildProviders().map((p) => p.id)).not.toContain('credentials');
   });
 });

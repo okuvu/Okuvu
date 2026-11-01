@@ -15,6 +15,7 @@ import {
   generateEmbedding,
   toBedrockJsonSchema,
 } from '../lib/bedrock.js';
+import { SAFE_FALLBACK } from '../lib/llm-types.js';
 
 const ENV_KEYS = [
   'BEDROCK_MODEL_ID',
@@ -126,7 +127,7 @@ describe('worker bedrock generateContent', () => {
     expect(result.fallbackUsed).toBe(false);
   });
 
-  it('returns an empty completion as text without reporting a fallback', async () => {
+  it('treats an empty completion as a fallback, not as a successful empty summary (E17-S4)', async () => {
     mockSend.mockResolvedValue({ output: { message: { role: 'assistant', content: [] } }, stopReason: 'end_turn' });
 
     const result = await generateContent({
@@ -134,12 +135,20 @@ describe('worker bedrock generateContent', () => {
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
     });
 
-    // summary.ts treats unparseable text as a parse failure and stores
-    // summary_text:null — the same path an empty completion always took.
-    expect(result).toEqual({ text: '', fallbackUsed: false });
+    // Before E17-S4 this returned `{ text: '', fallbackUsed: false }`: an empty
+    // "success" that `summary.ts` only caught later, as a parse error, and which
+    // the api's own copy of this module never produced. An empty candidate is a
+    // technical failure (safety block, MAX_TOKENS, a tool call with no input),
+    // so it now reports itself as one.
+    expect(result).toEqual({
+      text: SAFE_FALLBACK,
+      fallbackUsed: true,
+      failureReason: 'api_error',
+      failureKind: 'unavailable',
+    });
   });
 
-  it('returns fallbackUsed:true with api_error when the SDK throws', async () => {
+  it('returns the curated fallback sentence with api_error when the SDK throws (E17-S4)', async () => {
     mockSend.mockRejectedValue(new Error('ModelNotReadyException'));
 
     const result = await generateContent({
@@ -147,7 +156,26 @@ describe('worker bedrock generateContent', () => {
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
     });
 
-    expect(result).toEqual({ text: '', fallbackUsed: true, failureReason: 'api_error' });
+    // E17-S1 §7 recorded this asymmetry: the api returned SAFE_FALLBACK, the
+    // worker returned ''. The worker now matches the api, and names the failure.
+    expect(result).toEqual({
+      text: SAFE_FALLBACK,
+      fallbackUsed: true,
+      failureReason: 'api_error',
+      failureKind: 'unavailable',
+    });
+  });
+
+  it('names a throttled call as throttled, not as a generic api error (E17-S4)', async () => {
+    mockSend.mockRejectedValue(Object.assign(new Error('Too many requests'), { name: 'ThrottlingException' }));
+
+    const result = await generateContent({
+      systemInstruction: 's',
+      contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+    });
+
+    expect(result.failureKind).toBe('throttled');
+    expect(result.text).toBe(SAFE_FALLBACK);
   });
 
   it('aborts the in-flight call and reports a timeout', async () => {

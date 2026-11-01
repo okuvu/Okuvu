@@ -1,5 +1,6 @@
 import type { GenerateContentParams, GenerateContentResult } from './llm-types.js';
-import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS } from './llm-types.js';
+import { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS, SAFE_FALLBACK } from './llm-types.js';
+import { classifyLlmFailure } from './llm-failure.js';
 
 export { DEFAULT_MAX_OUTPUT_TOKENS, DEFAULT_TIMEOUT_MS };
 
@@ -87,7 +88,7 @@ export async function generateContent(params: GenerateContentParams): Promise<Ge
 
     if (!res.ok) {
       console.error({ status: res.status, error: json?.error, model }, 'OpenRouter call failed');
-      return { text: '', fallbackUsed: true, failureReason: 'api_error' };
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', failureKind: classifyLlmFailure({ statusCode: res.status }, false) };
     }
 
     const text = json.choices?.[0]?.message?.content ?? '';
@@ -97,14 +98,15 @@ export async function generateContent(params: GenerateContentParams): Promise<Ge
         { finishReason: json.choices?.[0]?.finish_reason, model },
         'OpenRouter returned an empty completion',
       );
-      return { text: '', fallbackUsed: true, failureReason: 'api_error' };
+      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', failureKind: 'unavailable' };
     }
 
     return { text, fallbackUsed: false };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
-    console.error({ reason: failureReason, err: message }, 'OpenRouter call failed');
-    return { text: '', fallbackUsed: true, failureReason };
+    const failureKind = classifyLlmFailure(err, timedOut);
+    console.error({ reason: failureReason, failureKind, err: message }, 'OpenRouter call failed');
+    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason, failureKind };
   }
 }

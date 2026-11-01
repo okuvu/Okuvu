@@ -53,6 +53,11 @@ environment = "beta"
 # codestar_connection_arn = "arn:aws:codeconnections:ap-south-1:562654496378:connection/ffdce79a-c709-4d53-b7fe-756d93a032a6"
 # github_repository       = "yashraj-ops/Okuvu"
 
+# The push trigger. true (the default) creates the CodeBuild webhook that starts
+# a build, and therefore a deploy, on every push to develop. Set false to remove
+# the webhook while keeping the project and its manual `start-build` path.
+# enable_webhook = true
+
 # -----------------------------------------------------------------------------
 # Sizing and release pinning.
 #

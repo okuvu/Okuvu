@@ -64,7 +64,7 @@ Practical consequences:
 
 | Item | Requirement | Source |
 |---|---|---|
-| Privacy policy URL | Required on the store listing **and** in-app when the app requests sensitive permissions/data (this app: `RECORD_AUDIO`, health/wellness content). Must be an active, publicly reachable URL that applies to this app. | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455) |
+| Privacy policy URL | Required on the store listing **and** in-app when the app requests sensitive permissions/data (this app: `RECORD_AUDIO`, health/wellness content). Must be an active, publicly reachable URL that applies to this app. **Ours: `https://okuvu.in/privacy`** (E19-S2 — public unauthenticated page on the portal, same URL used by `AppConfig.privacyPolicyUrl`). | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455) |
 | Data safety form | "All developers that have an app published on Google Play must complete the Data safety form, including apps on closed, open, or production testing tracks." Only apps *exclusively* on internal testing are exempt. The app bundles no third-party analytics or crash SDK (Firebase was removed in the AWS cutover), so declare only what the first-party `Analytics`/`CrashReporter` code actually collects. | [10787469](https://support.google.com/googleplay/android-developer/answer/10787469) |
 | Content rating questionnaire | Required; "Unrated" apps may be removed from Play. | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455), [9859655](https://support.google.com/googleplay/android-developer/answer/9859655) |
 | App access / sign-in instructions | "If your entire app or parts of your app are restricted based on login credentials … you must provide all required details to enable access to your app." Okuvu has auth → reviewer demo credentials are mandatory. | [9859455](https://support.google.com/googleplay/android-developer/answer/9859455), [15748846](https://support.google.com/googleplay/android-developer/answer/15748846) |
@@ -141,11 +141,15 @@ SHA-256: 77:C1:EA:A9:80:AF:FC:75:03:F9:BB:85:4C:6A:FB:C6:96:EE:CF:31:CA:99:6C:D3
 3. **Run the closed test** — only if the account is personal and created after
    2023-11-13: ≥12 testers opted in continuously for 14 days, then *Apply for production*
    on the Dashboard, answering the review questions.
-4. **Host the privacy policy** at a stable, public URL you control (the app currently
-   points at a Google Docs "pub" link, `AppConfig.privacyPolicyUrl` — fine as a stopgap,
-   not something to ship as the legal record), and link the same URL in-app and in the
-   store listing. It must describe health/wellness data, audio recording, the
-   first-party analytics/crash logging that replaced Firebase, retention and deletion.
+4. **Host the privacy policy** at a stable, public URL you control — **done in E19-S2**:
+   the policy is served by the therapist portal at `https://okuvu.in/privacy` (a public,
+   unauthenticated page; the 443 listener's host rule forwards `okuvu.in`,
+   `www.okuvu.in` and `portal.okuvu.in` to `evia-beta-portal-tg`). `AppConfig.privacyPolicyUrl`
+   now points at it, so the app and this listing declare the same URL. The page must describe
+   health/wellness data, audio dictation, the first-party analytics/crash logging that replaced
+   Firebase, retention and deletion — it does. Enter `https://okuvu.in/privacy` in the Play
+   Console **Privacy policy** field (App content → Privacy policy) when the listing is created;
+   the automated checks in this repo cannot do that step.
 5. **Complete the App content declarations** (Data safety, content rating questionnaire,
    target audience, ads declaration, sign-in/app-access instructions with working reviewer
    credentials, sensitive-permission declarations).

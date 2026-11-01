@@ -25,12 +25,19 @@ export type ContentBackend = 'bedrock' | 'openrouter';
 export const DEFAULT_AWS_REGION = 'ap-south-1';
 
 /**
- * Qwen3 32B (dense, 32K context, 8K output) is served *in-region* in
+ * Qwen3 32B (dense; the model itself reports a 32,768-token maximum output — see
+ * evidence/E17-S2.md §4a, where the service rejected `maxTokens: 100000` with
+ * "exceeds the model limit of 32768". This comment used to claim 8K, which was
+ * wrong; nothing here caps output at 8K) is served *in-region* in
  * ap-south-1 and supports client-side tool use with `toolSpec.strict`, which is
  * the mechanism `bedrock.ts` relies on for schema-constrained JSON. It replaced
  * Nova Pro as the default on 28 Oct 2026 after the A1/A9-post case set was run
  * against the live in-region endpoint (16/16 intake labels, 15/15 reply
  * reviews, no dangerous under-escalations, three consecutive runs).
+ *
+ * The per-call output budget is `DEFAULT_MAX_OUTPUT_TOKENS` (2048, see
+ * `llm-types.ts`) — a product choice well under the model's 32,768 ceiling, not
+ * a model limit.
  *
  * Thinking is off by default for this model on Converse — no reasoning tokens
  * are emitted unless the prompt asks for them — so the 2048-token cap is spent

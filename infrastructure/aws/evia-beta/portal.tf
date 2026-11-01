@@ -53,14 +53,34 @@ resource "aws_lb_target_group" "portal" {
 locals {
   portal_url = "https://${var.portal_hostname}"
 
-  portal_environment = [
+  # Google sign-in is optional and additive (see apps/therapist-portal/
+  # .env.example). It turns on only when BOTH halves are supplied: a client id
+  # (not a secret) and the ARN of a Secrets Manager secret holding the client
+  # secret. Anything less leaves the portal on Cognito alone, which is exactly
+  # what the app does when the pair is absent — no half-on state to reason about.
+  portal_google_enabled = var.google_client_id != "" && var.google_client_secret_arn != ""
+
+  # NextAuth takes its origin from NEXTAUTH_URL when that is set, and otherwise
+  # from the request's Host header (next-auth v4 only trusts that header when
+  # AUTH_TRUST_HOST is set). Deriving the origin is what lets one deployment
+  # complete the OAuth round-trip on okuvu.in, www.okuvu.in and
+  # portal.okuvu.in alike; pin var.portal_nextauth_url to force a single
+  # canonical origin instead. Either way the origin must be a hostname
+  # registered on the app client, so a forged Host header cannot be used to
+  # build a redirect_uri Cognito would accept.
+  portal_auth_environment = (
+    var.portal_nextauth_url == ""
+    ? [{ name = "AUTH_TRUST_HOST", value = "true" }]
+    : [{ name = "NEXTAUTH_URL", value = var.portal_nextauth_url }]
+  )
+
+  portal_environment = concat([
     { name = "NODE_ENV", value = "production" },
     { name = "PORT", value = tostring(var.portal_container_port) },
     { name = "HOSTNAME", value = "0.0.0.0" },
     { name = "NEXT_TELEMETRY_DISABLED", value = "1" },
     { name = "AWS_REGION", value = var.aws_region },
     { name = "COGNITO_REGION", value = var.aws_region },
-    { name = "NEXTAUTH_URL", value = local.portal_url },
 
     # Identity: the therapist pool, never the client pool. MFA is enforced by
     # the pool (see cognito.tf), not by the app.
@@ -74,9 +94,12 @@ locals {
 
     { name = "BREVO_FROM_EMAIL", value = var.brevo_from_email },
     { name = "BREVO_FROM_NAME", value = var.brevo_from_name },
-  ]
+    ],
+    local.portal_auth_environment,
+    local.portal_google_enabled ? [{ name = "GOOGLE_CLIENT_ID", value = var.google_client_id }] : [],
+  )
 
-  portal_secrets = [
+  portal_secrets = concat([
     {
       name      = "DATABASE_URL"
       valueFrom = "${aws_secretsmanager_secret.database.arn}:database_url::"
@@ -93,7 +116,12 @@ locals {
       name      = "BREVO_API_KEY"
       valueFrom = "${aws_secretsmanager_secret.brevo.arn}:api_key::"
     },
-  ]
+    ],
+    local.portal_google_enabled ? [{
+      name      = "GOOGLE_CLIENT_SECRET"
+      valueFrom = "${var.google_client_secret_arn}:secret::"
+    }] : [],
+  )
 }
 
 resource "aws_ecs_task_definition" "portal" {
@@ -141,6 +169,12 @@ resource "aws_ecs_task_definition" "portal" {
     },
   ])
 
+  # The build pipeline owns image revisions (scripts/ecs-image-pin.py). Terraform
+  # manages the shape of the task definition, not which revision is deployed.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
+
   tags = merge(local.common_tags, {
     Name     = "${var.name_prefix}-portal-task"
     Workload = "portal"
@@ -178,6 +212,12 @@ resource "aws_ecs_service" "portal" {
     container_port   = var.portal_container_port
   }
 
+  # The pipeline updates this to the revision it registered; terraform must not
+  # drag the service back to an older revision on an unrelated apply.
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   tags = merge(local.common_tags, {
     Name     = "${var.name_prefix}-portal-service"
     Workload = "portal"
@@ -207,7 +247,7 @@ resource "aws_lb_listener_rule" "portal_https" {
 
   condition {
     host_header {
-      values = [var.portal_hostname]
+      values = local.portal_public_hostnames
     }
   }
 
@@ -230,7 +270,7 @@ resource "aws_lb_listener_rule" "portal_http" {
 
   condition {
     host_header {
-      values = [var.portal_hostname]
+      values = local.portal_public_hostnames
     }
   }
 

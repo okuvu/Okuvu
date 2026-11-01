@@ -25,6 +25,81 @@ export function deriveClientStatus(row: { activated_at: Date | null; ended_at: D
   return "pending";
 }
 
+/**
+ * E16-S9 — the read window for a client's raw conversation.
+ *
+ * This is the SAME 30-day rule `requestChatAccess` already enforces on the
+ * ask side (Decisions doc round, 15 Sep 2026 §9), read from the other
+ * direction: an ask is good for 30 days, so a read is allowed while the
+ * therapist's ask is younger than that. No second permission model, no new
+ * column, no new table — just the existing timestamp with an expiry on it.
+ *
+ * Deliberately NOT `chat_access_granted`: that field is the client's
+ * opt-in consent for *summary-derived* clinical data (report card, session
+ * prep). The story's own gate for the raw transcript is the requested_at
+ * window, and the therapist can only ever ask — the client's grant lands
+ * asynchronously in the mobile app. Requiring the grant here would make the
+ * documented flow (request, then read) impossible to complete in one sitting.
+ */
+export const CHAT_ACCESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+export const CHAT_ACCESS_UNAVAILABLE_MESSAGE =
+  'Chat access is not available for this client';
+
+/** One agent/client turn, as the portal renders it. No author identity. */
+export interface ConversationTurn {
+  id: string;
+  sessionId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+/** One page of a client's conversation, oldest→newest within the page. */
+export interface ConversationPage {
+  window: { requestedAt: string; expiresAt: string };
+  turns: ConversationTurn[];
+  nextCursor: string | null;
+}
+
+/**
+ * Null when no ask was ever made or the ask is 30 days old or older
+ * (boundary: exactly 30 days has expired — the window is half-open).
+ */
+export function chatAccessWindow(
+  assignment: { chat_access_requested_at: Date | null } | null,
+  now: number = Date.now(),
+): { requestedAt: Date; expiresAt: Date } | null {
+  const requestedAt = assignment?.chat_access_requested_at;
+  if (!requestedAt) return null;
+  const expiresAt = new Date(requestedAt.getTime() + CHAT_ACCESS_WINDOW_MS);
+  if (now - requestedAt.getTime() >= CHAT_ACCESS_WINDOW_MS) return null;
+  return { requestedAt, expiresAt };
+}
+
+/** Wire size of one page of the transcript view. */
+const CONVERSATION_PAGE_SIZE = 50;
+const CONVERSATION_MAX_PAGE_SIZE = 100;
+
+/**
+ * Keyset cursor for the transcript: `<created_at ISO>|<turn id>`. Encoded
+ * rather than Prisma's `cursor` so the page (a plain <Link>) can carry it
+ * as a query param and so a deleted/rotated row can never shift the window
+ * onto a turn the therapist already read.
+ */
+function encodeConversationCursor(createdAt: Date, id: string): string {
+  return `${createdAt.toISOString()}|${id}`;
+}
+
+function decodeConversationCursor(cursor: string): { createdAt: Date; id: string } | null {
+  const separator = cursor.lastIndexOf('|');
+  if (separator <= 0) return null;
+  const createdAt = new Date(cursor.slice(0, separator));
+  const id = cursor.slice(separator + 1);
+  if (Number.isNaN(createdAt.getTime()) || id.length === 0) return null;
+  return { createdAt, id };
+}
+
 export const clientsRouter = router({
   list: therapistProcedure.query(async ({ ctx }) => {
     const db = ctx.db;
@@ -326,5 +401,115 @@ export const clientsRouter = router({
       });
 
       return { success: true };
+    }),
+
+  // E16-S9 — the therapist's read-only view of one client's conversation
+  // with the agent. Read-only by construction: there is no counterpart
+  // mutation anywhere in this router, and Turn rows are only ever written
+  // by apps/api's orchestrator, so a therapist has no path to a turn that
+  // speaks as the client.
+  //
+  // Access = the existing TherapistClient row for this exact pair (via
+  // assertClientAssigned, same as every other client read here) AND a
+  // chat_access_requested_at inside the existing 30-day window — see
+  // chatAccessWindow above. Both failures throw FORBIDDEN, deliberately:
+  // a "granted: false" return would put the transcript and the refusal in
+  // the same response type, where one refactor could leak content.
+  //
+  // The read is logged as VIEW_CONVERSATION *before* any Turn row is read,
+  // through the one existing logClinicalAccess helper — worst case an
+  // abandoned page still leaves an access row (fail-closed on audit, not on
+  // availability: the helper swallows its own write failures).
+  conversation: therapistProcedure
+    .input(
+      z.object({
+        clientUserId: z.string().min(1),
+        cursor: z.string().min(1).optional(),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(CONVERSATION_MAX_PAGE_SIZE)
+          .default(CONVERSATION_PAGE_SIZE),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = ctx.db;
+      const therapistId = ctx.therapistId;
+
+      await assertClientAssigned(db, therapistId, input.clientUserId);
+
+      const assignment = await db.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapistId,
+            client_user_id: input.clientUserId,
+          },
+        },
+        select: { chat_access_requested_at: true },
+      });
+
+      const window = chatAccessWindow(assignment);
+      if (!window) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: CHAT_ACCESS_UNAVAILABLE_MESSAGE,
+        });
+      }
+
+      await logClinicalAccess(db, therapistId, input.clientUserId, 'VIEW_CONVERSATION');
+
+      const after = input.cursor ? decodeConversationCursor(input.cursor) : null;
+      if (input.cursor && !after) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid page cursor' });
+      }
+
+      // Newest-first keyset scan (take limit+1 to learn "is there more"),
+      // reversed before returning so each page reads oldest→newest.
+      const rows = await db.turn.findMany({
+        where: {
+          user_id: input.clientUserId,
+          role: { in: ['user', 'assistant'] },
+          ...(after
+            ? {
+                OR: [
+                  { created_at: { lt: after.createdAt } },
+                  { created_at: after.createdAt, id: { lt: after.id } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: input.limit + 1,
+        select: {
+          id: true,
+          session_id: true,
+          role: true,
+          content: true,
+          created_at: true,
+        },
+      });
+
+      const hasMore = rows.length > input.limit;
+      const page = hasMore ? rows.slice(0, input.limit) : rows;
+      const oldest = page[page.length - 1] ?? null;
+
+      return {
+        window: {
+          requestedAt: window.requestedAt.toISOString(),
+          expiresAt: window.expiresAt.toISOString(),
+        },
+        turns: page
+          .slice()
+          .reverse()
+          .map((turn) => ({
+            id: turn.id,
+            sessionId: turn.session_id,
+            role: turn.role === 'user' ? ('user' as const) : ('assistant' as const),
+            content: turn.content,
+            createdAt: turn.created_at.toISOString(),
+          })),
+        nextCursor: hasMore && oldest ? encodeConversationCursor(oldest.created_at, oldest.id) : null,
+      } satisfies ConversationPage;
     }),
 });

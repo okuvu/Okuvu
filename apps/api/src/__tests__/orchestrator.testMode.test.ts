@@ -38,17 +38,24 @@ vi.mock('../pipeline/session.js', () => ({
   getSessionConversationTurns: vi.fn(),
 }));
 
-vi.mock('../lib/prisma.js', () => ({
-  prisma: {
-    sessionLog: { findUnique: vi.fn(), update: vi.fn() },
-    turn: { create: vi.fn() },
-    safetyState: { upsert: vi.fn() },
-    clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
-    governanceLog: { create: vi.fn() },
-    user: { findUnique: vi.fn() },
-    $transaction: vi.fn(() => Promise.resolve([{ id: 'user-turn-1' }, { id: 'assistant-turn-1' }])),
-  },
-}));
+// E17-S4: the pipeline appends one row to the audit chain per turn
+// (`lib/audit-log.ts`). Without a delegate here every turn would log
+// `audit_append_failed` and the chain path would go untested in this suite.
+vi.mock('../lib/prisma.js', async () => {
+  const { makeAuditEventDelegate } = await import('./helpers/in-memory-audit-event.js');
+  return {
+    prisma: {
+      sessionLog: { findUnique: vi.fn(), update: vi.fn() },
+      turn: { create: vi.fn() },
+      safetyState: { upsert: vi.fn() },
+      clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
+      governanceLog: { create: vi.fn() },
+      user: { findUnique: vi.fn() },
+      $transaction: vi.fn(() => Promise.resolve([{ id: 'user-turn-1' }, { id: 'assistant-turn-1' }])),
+      auditEvent: makeAuditEventDelegate(),
+    },
+  };
+});
 
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
@@ -59,7 +66,7 @@ import { getAgentContextBundle } from '../lib/agent-context.js';
 import { isSessionClosed, getSessionCount, incrementTurnCount, getSessionConversationTurns } from '../pipeline/session.js';
 import { prisma } from '../lib/prisma.js';
 import { processTurn } from '../pipeline/orchestrator.js';
-import { A2_DEGRADED_RESPONSE, A9_PRE_BLOCKED_RESPONSE, getSafeFallback } from '../pipeline/fallbacks.js';
+import { A2_DEGRADED_RESPONSE, A9_PRE_BLOCKED_RESPONSE, getSafeFallback, SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 import { clearToolResult } from '../lib/tool-result-store.js';
 import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 
@@ -236,7 +243,11 @@ describe('processTurn — TH-S10 captureSignalBus', () => {
 });
 
 describe('processTurn — TH-S10 faults', () => {
-  it('faults.boundary A1 triggers the existing S2 fallback without calling the real classifySafety', async () => {
+  // E17-S4: this is no longer "the S2 fallback runs the normal pipeline". An A1
+  // fault leaves the turn unassessed, so it is served as the governed
+  // `safety_unavailable` substitute and A2 is never reached — see the comment on
+  // this contract in orchestrator.test.ts.
+  it('faults.boundary A1 serves the safety-unavailable fallback without calling the real classifySafety or A2', async () => {
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
     vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
     vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
@@ -250,9 +261,12 @@ describe('processTurn — TH-S10 faults', () => {
       expect.objectContaining({ safety_state: 'S2' }),
     );
     expect(result.type).toBe('agent_turn');
-    expect(handleTurn).toHaveBeenCalledWith(
-      expect.objectContaining({ safetyState: 'S2' }),
-    );
+    expect(handleTurn).not.toHaveBeenCalled();
+    if (result.type === 'agent_turn') {
+      expect(result.fallbackSource).toBe('safety_unavailable');
+      expect(result.message).toBe(SAFETY_UNAVAILABLE_RESPONSE);
+      expect(result.safety?.code).toBe('SAFETY_UNAVAILABLE');
+    }
   });
 
   it('faults.boundary A9_pre resolves governanceState to Restricted (never Active) — mvp-v2-engineering-spec.md §5.5 fail-closed guard', async () => {

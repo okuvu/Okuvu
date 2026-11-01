@@ -12,4 +12,9 @@ locals {
 
   public_subnet_ids  = [for subnet in aws_subnet.public : subnet.id]
   private_subnet_ids = [for subnet in aws_subnet.private : subnet.id]
+
+  # Key prefix inside the ALB access-log bucket. ELB appends
+  # /AWSLogs/<account>/<region>/... under it, and the bucket policy is scoped to
+  # exactly that path. Changing it here changes both, so they cannot drift.
+  alb_access_log_prefix = "alb"
 }

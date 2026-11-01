@@ -15,8 +15,9 @@ import {
   generateEmbedding,
   toBedrockJsonSchema,
 } from '../lib/bedrock.js';
+import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 
-const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";
+const SAFE_FALLBACK = SAFETY_UNAVAILABLE_RESPONSE;
 
 const ENV_KEYS = [
   'BEDROCK_MODEL_ID',
@@ -226,7 +227,7 @@ describe('bedrock generateContent', () => {
     });
   });
 
-  it('returns SAFE_FALLBACK when the model returns no content', async () => {
+  it('returns the governed fallback when the model returns no content', async () => {
     mockSend.mockResolvedValue({ output: { message: { role: 'assistant', content: [] } }, stopReason: 'end_turn' });
 
     const result = await generateContent({
@@ -240,7 +241,7 @@ describe('bedrock generateContent', () => {
     expect(result.canned).toBe(false);
   });
 
-  it('returns SAFE_FALLBACK when output is missing entirely', async () => {
+  it('returns the governed fallback when output is missing entirely', async () => {
     mockSend.mockResolvedValue({ stopReason: 'end_turn' });
 
     const result = await generateContent({
@@ -252,7 +253,7 @@ describe('bedrock generateContent', () => {
     expect(result.fallbackUsed).toBe(true);
   });
 
-  it('returns SAFE_FALLBACK with api_error when the SDK throws', async () => {
+  it('returns the governed fallback with api_error when the SDK throws', async () => {
     mockSend.mockRejectedValue(new Error('ThrottlingException'));
 
     const result = await generateContent({

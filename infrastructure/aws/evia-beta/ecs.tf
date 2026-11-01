@@ -1,9 +1,18 @@
 resource "aws_ecs_cluster" "main" {
   name = var.name_prefix
 
+  # Disabled on purpose (E15-S8). Container Insights publishes 108 custom
+  # metrics in ECS/ContainerInsights (measured 2026-10-29, evidence/E15-S8.md
+  # §4), billed at $0.30/metric-month in ap-south-1 — about $32.40/mo for a
+  # three-service beta stack. The only alarm that read it, RunningTaskCount,
+  # is retired in the same change and replaced by the free EventBridge
+  # task-state-change rule in alerts.tf, which is a more precise signal
+  # (it carries stopCode and container exit codes). Setting the value
+  # explicitly rather than dropping the block makes the disable an actual
+  # UpdateClusterSettings call instead of a silent no-op.
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 
   tags = merge(local.common_tags, {
@@ -103,6 +112,12 @@ resource "aws_ecs_task_definition" "api" {
 
       environment = concat(local.shared_environment, [
         { name = "PORT", value = tostring(var.api_container_port) },
+        # E15-S4: images are tagged with the git commit SHA, so var.image_tag
+        # *is* the deployed commit. Exposing it lets GET /health prove which
+        # build the ALB is serving without opening the console. The build
+        # pipeline rewrites task definitions with scripts/ecs-image-pin.py,
+        # which keeps this value in step with the tag it pins.
+        { name = "GIT_COMMIT", value = var.image_tag },
       ])
       secrets = local.api_secrets
 
@@ -116,6 +131,12 @@ resource "aws_ecs_task_definition" "api" {
       }
     },
   ])
+
+  # The build pipeline owns image revisions (scripts/ecs-image-pin.py). Terraform
+  # manages the shape of the task definition, not which revision is deployed.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
 
   tags = merge(local.common_tags, {
     Name     = "${var.name_prefix}-api-task"
@@ -167,6 +188,12 @@ resource "aws_ecs_task_definition" "worker" {
     },
   ])
 
+  # The build pipeline owns image revisions (scripts/ecs-image-pin.py). Terraform
+  # manages the shape of the task definition, not which revision is deployed.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
+
   tags = merge(local.common_tags, {
     Name     = "${var.name_prefix}-worker-task"
     Workload = "worker"
@@ -205,6 +232,12 @@ resource "aws_ecs_service" "api" {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"
     container_port   = var.api_container_port
+  }
+
+  # The pipeline updates this to the revision it registered; terraform must not
+  # drag the service back to an older revision on an unrelated apply.
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = merge(local.common_tags, {
@@ -249,6 +282,12 @@ resource "aws_ecs_service" "worker" {
   # Publishes each worker task as worker.<namespace> so the api can resolve it.
   service_registries {
     registry_arn = aws_service_discovery_service.worker.arn
+  }
+
+  # The pipeline updates this to the revision it registered; terraform must not
+  # drag the service back to an older revision on an unrelated apply.
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = merge(local.common_tags, {

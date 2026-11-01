@@ -19,6 +19,9 @@ Options:
                               LOAD_TEST_KEY Secrets Manager reference
     --region REGION           required with --load-test
     --account ACCOUNT_ID      required with --load-test
+    --commit SHA              GIT_COMMIT to advertise on /health. Defaults to
+                              the tag of <image>, so the value the service
+                              reports always equals the tag it was pinned to.
 """
 
 from __future__ import annotations
@@ -47,8 +50,22 @@ def upsert(entries: list[dict], entry: dict) -> list[dict]:
     return kept
 
 
+def tag_of(image: str) -> str | None:
+    """Return the tag portion of an image reference, or None if untagged.
+
+    Handles `registry/repo:tag`, `repo:tag` and digest references
+    (`repo@sha256:...`, which carry no tag).
+    """
+    if "@" in image:
+        return None
+    last = image.rsplit("/", 1)[-1]
+    if ":" not in last:
+        return None
+    return last.rsplit(":", 1)[1]
+
+
 def pin(task_definition: dict, image: str, container: str | None, load_test: bool,
-        region: str | None, account: str | None) -> dict:
+        region: str | None, account: str | None, commit: str | None = None) -> dict:
     containers = task_definition.get("containerDefinitions") or []
     if not containers:
         raise SystemExit("task definition has no containerDefinitions")
@@ -62,6 +79,17 @@ def pin(task_definition: dict, image: str, container: str | None, load_test: boo
         target = containers[0]
 
     target["image"] = image
+
+    # E15-S4: GET /health reports GIT_COMMIT. Terraform sets it for the task
+    # definition it registers, but every pipeline/manual rollout registers a
+    # *rewritten* definition, so the value has to be refreshed here too —
+    # otherwise the service would advertise the previous build's commit.
+    advertised = commit or tag_of(image)
+    if advertised:
+        target["environment"] = upsert(
+            list(target.get("environment") or []),
+            {"name": "GIT_COMMIT", "value": advertised},
+        )
 
     if load_test:
         if not region or not account:
@@ -93,13 +121,14 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--load-test", action="store_true")
     parser.add_argument("--region")
     parser.add_argument("--account")
+    parser.add_argument("--commit")
     args = parser.parse_args(argv)
 
     with open(args.source, encoding="utf-8") as handle:
         task_definition = json.load(handle)
 
     pinned = pin(task_definition, args.image, args.container, args.load_test,
-                 args.region, args.account)
+                 args.region, args.account, args.commit)
 
     with open(args.destination, "w", encoding="utf-8") as handle:
         json.dump(pinned, handle, indent=2)

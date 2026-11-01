@@ -32,37 +32,50 @@ class CrisisOverlay extends ConsumerWidget {
                         padding: EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
                           children: [
+                            // E17-S7 rev 6 §2 — the final five-line block, in her
+                            // order, with her descriptions. Same names, numbers,
+                            // format and hours as HELPLINE_BLOCK and the S4 card in
+                            // apps/api/src/pipeline/fallbacks.ts. Two 24-hour lines
+                            // lead, 112 sits third rather than last, SNEHA is
+                            // fourth, iCall last because it is not a 24-hour
+                            // service. NIMHANS (080-46110007) is retired by clinical
+                            // decision, 1 November 2026; the 1860-2662-345
+                            // Vandrevala number stays retired.
+                            //
+                            // The descriptions are her parentheticals, verbatim.
+                            // 112 carries the one description she did not write
+                            // ("Ambulance, police and fire") because the line she
+                            // supplied is the name and number only.
                             _ResourceCard(
-                              name: 'iCall (IIT Bombay)',
-                              description: 'Psychosocial helpline for individuals in distress.',
-                              phone: '9152987821',
+                              name: 'Tele-MANAS',
+                              description: 'free, 24 hours',
+                              phone: '14416',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
                               name: 'Vandrevala Foundation',
-                              description: '24x7 crisis intervention and mental health support.',
-                              phone: '18602662345',
-                              displayPhone: '1860-2662-345',
+                              description: '24 hours, call or WhatsApp',
+                              phone: '+919999666555',
+                              displayPhone: '+91 9999 666 555',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
-                              name: 'NIMHANS',
-                              description: 'Mental health services and emergency support.',
-                              phone: '08046110007',
-                              displayPhone: '080-46110007',
+                              name: 'Emergency services',
+                              description: 'Ambulance, police and fire.',
+                              phone: '112',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
-                              name: 'Snehi',
-                              description: 'Support for emotional and mental health issues.',
+                              name: 'SNEHA, Chennai',
+                              description: '10am-10pm, every day',
                               phone: '04424640050',
                               displayPhone: '044-24640050',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
-                              name: 'Emergency Services',
-                              description: 'Immediate assistance from emergency responders.',
-                              phone: '112',
+                              name: 'iCall (TISS)',
+                              description: 'Monday to Saturday, 10am-8pm',
+                              phone: '9152987821',
                             ),
                           ],
                         ),
@@ -70,7 +83,7 @@ class CrisisOverlay extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                         child: Text(
-                          "Your next session with OKUVU will be here when you're ready.",
+                          "You can come back to OKUVU whenever you're ready.",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.7),
@@ -81,9 +94,12 @@ class CrisisOverlay extends ConsumerWidget {
                       ),
                       // A deliberate, low-key way out — not a prominent CTA,
                       // since dialing a helpline should read as the primary
-                      // action. hide() was previously dead code: nothing
-                      // called it, so once shown this screen could not be
-                      // dismissed short of logging out.
+                      // action.
+                      //
+                      // E17-S7 rev 6 §4.11: the label is "Close". It used to read
+                      // "I'm safe for now", which made the screen require a person
+                      // in crisis to certify their own safety before it would let
+                      // them leave. "Close" removes the certification entirely.
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: TextButton(
@@ -94,7 +110,7 @@ class CrisisOverlay extends ConsumerWidget {
                             foregroundColor: Colors.white.withValues(alpha: 0.6),
                           ),
                           child: const Text(
-                            "I'm safe for now",
+                            "Close",
                             style: TextStyle(
                               fontSize: 13,
                               decoration: TextDecoration.underline,
@@ -220,7 +236,7 @@ class _ResourceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       description,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 12,

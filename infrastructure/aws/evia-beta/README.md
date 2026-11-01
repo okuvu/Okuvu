@@ -35,7 +35,8 @@ No credentials are needed for `terraform init -backend=false` / `terraform valid
 | Images | ECR `evia-beta/api`, `evia-beta/worker`, scan-on-push, lifecycle retention |
 | Compute | ECS Fargate cluster + `api` (2 tasks, behind ALB) and `worker` (1 task, no LB) services; execution role separate from per-workload task roles |
 | Messaging | SQS `evia-beta-summary-jobs` with DLQ redrive after 3 receives |
-| Observability | CloudWatch log groups for both services, VPC flow logs, 2 ALB alarms, monthly budget alarm at 150 USD |
+| Observability | CloudWatch log groups for both services, VPC flow logs, 2 ALB alarms, 2 RDS alarms, EventBridge task-stop rule → ops SNS topic (fires when a task dies while it should be running), monthly budget alarm at 250 USD. Container Insights is **disabled**: it cost $32.40/mo in custom metrics and its running-count alarm is replaced by the free task-stop rule (E15-S8) |
+| CI/CD | CodeBuild project `evia-beta-build` (VPC-attached, builds `buildspec.yml`) plus a webhook that starts it on every push to `develop` and reports the result as a GitHub commit status |
 
 ## Image deployment
 
@@ -51,6 +52,79 @@ docker push "$AWS_ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/evia-beta/api:late
 ```
 
 Until an image exists at `var.image_tag`, the ECS tasks cannot start.
+
+## Continuous deployment (push to develop)
+
+A push to `develop` now builds and deploys by itself. Terraform owns a
+CodeBuild webhook (`aws_codebuild_webhook.main` in `pipeline.tf`) filtered to
+`EVENT = PUSH` and `HEAD_REF = ^refs/heads/develop$`, so:
+
+1. the push fires a GitHub webhook, which CodeBuild receives on its payload URL;
+2. `evia-beta-build` starts with no human step — nobody runs
+   `aws codebuild start-build`;
+3. `buildspec.yml` builds the three images, pushes them to ECR, rolls the ECS
+   services, and CodeBuild reports the result back to GitHub as a **commit
+   status** on the pushed commit (`report_build_status = true` on the project
+   source, which is why a red build shows on the commit rather than only in
+   CloudWatch).
+
+### Deploy scope — a documentation commit builds green and rolls nothing
+
+Every push runs the whole build (typecheck, tests, audit gate, three images,
+ECR scan gate), but the *rollout* only happens when the commit can change a
+container. `scripts/deploy-scope.py` (called from `pre_build`, acted on in
+`post_build`) reads the commit the live services were built from out of ECS —
+each service's PRIMARY task definition pins the image tag, and that tag is the
+commit SHA — then diffs that tree against `HEAD`:
+
+| changed paths since the deployed commit | result |
+|---|---|
+| only `docs/`, `evidence/`, `plan/` | build succeeds, no task definition registered, no service updated |
+| anything else — app, worker, portal, `infrastructure/`, `buildspec.yml`, `scripts/`, the lockfile | normal full rollout of all three services |
+
+It fails closed: ECS unreadable, services on different tags, a tag that is not a
+commit SHA, a service mid-rollout, a commit this clone cannot reach, or a diff
+that errors all resolve to a **full deploy**. A wrong skip would ship old code;
+a wrong deploy only costs a rollout. The `git_clone_depth = 0` on the project
+source exists for this: the deployed commit has to be in the clone for its tree
+to be diffable.
+
+`python3 scripts/verify-deploy-scope.py` proves the decision offline against
+synthetic commit ranges (docs-only vs code vs infrastructure), including the
+"cannot tell, therefore deploy" controls.
+
+Other branches, tags and pull-request refs do **not** start builds: the filter
+is a single branch pattern, not a wildcard.
+
+Check the trigger from the CLI:
+
+```bash
+aws codebuild batch-get-projects --names evia-beta-build --region ap-south-1 \
+  --query 'projects[0].webhook.{status:status,filterGroups:filterGroups,buildType:buildType}'
+```
+
+`status` must be `ACTIVE` and the filter group must contain
+`{"type":"HEAD_REF","pattern":"^refs/heads/develop$"}`. `webhook: null` means the
+trigger is gone and pushes are silently doing nothing.
+
+### Pausing the trigger
+
+If a bad change lands on `develop`, stop the bleeding first and diagnose second:
+
+```bash
+# Immediate: removes the GitHub hook and the trigger. The project, its role and
+# its manual path are untouched, so a fixed commit can still be built by hand.
+aws codebuild delete-webhook --project-name evia-beta-build --region ap-south-1
+
+# Or keep it reproducible in code (preferred — state stays honest):
+#   enable_webhook = false   in terraform.tfvars
+terraform apply
+```
+
+Turning it back on is the same lever in reverse: `enable_webhook = true` and
+apply, or re-apply after a manual `delete-webhook` (Terraform sees the drift and
+recreates it). Never re-create the hook by hand in the GitHub UI — CodeBuild
+needs its own secret and payload URL, and a hand-made hook silently fails.
 
 ## Verify
 

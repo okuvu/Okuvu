@@ -3,6 +3,7 @@ import type { CreateJournalEntryBody } from '@okuvu/shared-types';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { generateJournalPrompt } from '../agents/journal-prompt/agent.js';
+import { checkBudget, withUsageMetering } from '../lib/token-budget.js';
 
 const VALID_EMOTIONS = ['anxious', 'sad', 'angry', 'overwhelmed', 'numb', 'calm', 'hopeful', 'other'] as const;
 const INTENSITY_MIN = 1;
@@ -151,7 +152,33 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const prompt = await generateJournalPrompt(user.user_memory);
+      // E17-S6 — J2 is the other user-initiated model call on an HTTP request
+      // path, so it is charged to the same per-day budget as chat turns (there
+      // is no session here, so the per-session budget does not apply). This is
+      // also the request path that can answer with a real HTTP status: 429 with
+      // the same dedicated code the WebSocket budget notice carries.
+      const budget = await checkBudget({ userId: uid });
+      if (!budget.allowed) {
+        return reply.status(budget.statusCode).send({
+          error: {
+            code: budget.code,
+            message: budget.message,
+            used: {
+              session_tokens: budget.used.sessionTokens,
+              daily_cost_usd: Number(budget.used.dailyCostUsd.toFixed(6)),
+            },
+            limits: {
+              session_tokens: budget.limits.sessionTokens,
+              daily_cost_usd: budget.limits.dailyCostUsd,
+            },
+            retry_after_seconds: budget.retryAfterSeconds,
+          },
+        });
+      }
+
+      const { result: prompt } = await withUsageMetering({ userId: uid }, () =>
+        generateJournalPrompt(user.user_memory),
+      );
 
       reply.send({ prompt });
     },

@@ -29,11 +29,37 @@ export const SAFETY_LABELS: Record<SafetyState, string> = {
 
 export type GovernanceState = 'Active' | 'Restricted' | 'Blocked'
 
+/**
+ * Every value `RouterDecision.agent` can take, in one place.
+ *
+ * The test harness validates `injectRouter` against this list and renders it as
+ * a dropdown, so a duplicated copy of the list is a build break waiting for the
+ * next agent added to the router — which is exactly what happened when
+ * 'crisis-third-party' (E17-S13) landed in the union but not in the harness.
+ * Derive, never restate.
+ */
+export const ROUTER_AGENTS = [
+  'crisis',
+  'crisis-third-party',
+  'medical-emergency',
+  'deterministic-grounding',
+  'A2',
+] as const
+
+export type RouterAgent = (typeof ROUTER_AGENTS)[number]
+
 export interface RouterInput {
   safety_state: SafetyState | null | undefined
   governance_state?: GovernanceState | null
   session_count: number | undefined
   turn_count: number | undefined
+  /**
+   * E17-S9 — the turn's message, used only by the deterministic medical-emergency
+   * screen (`agents/a1/medical-emergency-keywords.ts`). Optional: every other
+   * routing rule is a pure function of the states above, so a caller that omits
+   * it gets the pre-E17-S9 router exactly.
+   */
+  message?: string
 }
 
 export interface RouterDecision {
@@ -44,8 +70,27 @@ export interface RouterDecision {
    * an elevated-risk user to a static policy-boundary reply. Unlike
    * 'crisis', this still gets a real, persisted, grounding-oriented reply —
    * A2 is simply never called for the turn at all.
+   *
+   * 'medical-emergency' (E17-S9) means the turn's message describes a physical
+   * emergency that needs an ambulance (uncontrolled bleeding, chest pain with a
+   * numb or radiating arm, an unconscious person, a fever with confusion,
+   * bleeding in pregnancy — `agents/a1/medical-emergency-keywords.ts`). Same tier
+   * of determinism as 'crisis': no model writes the reply, and the reply leads
+   * with 112. It is decided from the message, not from the safety state, because
+   * those turns classify S1/S2 as ordinary distress. A message carrying
+   * self-harm or crisis wording never reaches this path, so the crisis card is
+   * never displaced by it.
+   *
+   * 'crisis-third-party' (E17-S13) means the message reports someone else's
+   * suicide risk ("my friend has been talking about killing herself"). It is a
+   * separate agent from 'crisis' because `CRISIS_RESPONSE` is second-person
+   * copy: served to a user asking about their mother, it tells them to call a
+   * helpline about themselves. This path serves `CRISIS_THIRD_PARTY_RESPONSE`,
+   * which names the same approved helplines as guidance for the helper and puts
+   * 112 first if the person is in immediate danger. A first-person disclosure
+   * always wins over this path.
    */
-  agent: 'crisis' | 'deterministic-grounding' | 'A2'
+  agent: RouterAgent
   /**
    * 'blocked' means A9-pre (governance/policy) rejected the message but A1
    * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4'
@@ -113,7 +158,100 @@ export interface AgentTurnFrame {
     tool_card?: ToolCardConfig
     /** OKUVU v2.0 — chat→journal handoff (okuvu-remaining-changes.md §C.4). */
     journal_prompt_suggested?: string | null
+    /**
+     * E17-S6 — present only when `message` is the governed budget notice rather
+     * than model output (the turn was refused before any model call).
+     *
+     * It rides AGENT_TURN, not an ERROR frame, on purpose: every client already
+     * renders AGENT_TURN's `message` as an assistant message, so the user sees a
+     * warm, safe line instead of a generic error or (as the current client does
+     * with ERROR) nothing at all. The machine-readable code travels alongside.
+     */
+    budget?: BudgetNotice
+    /**
+     * E17-S4 — present only when `message` is a governed safety substitute
+     * rather than model output: the classifier was unreachable
+     * (`SAFETY_UNAVAILABLE`) or the reply model was (`MODEL_UNAVAILABLE` /
+     * `MODEL_THROTTLED`).
+     *
+     * Same reasoning as `budget`: the warm, safe line rides `message` so the
+     * client renders it, and the machine-readable code travels here so a
+     * client, a runbook or a test can tell a served turn from a degraded one
+     * without parsing English.
+     */
+    safety?: SafetyNotice
   }
+}
+
+/**
+ * E17-S4 — the structured form of a fail-closed turn.
+ *
+ * Before this, both technical failures reached the user as the same generic
+ * supportive sentence, and nothing on the wire distinguished them from a real
+ * reply (E17-S1 §7, E17-S2 §465). `code` is the machine answer to "what did the
+ * user actually get?"; `reason` is the classifier/model failure underneath it.
+ */
+export type SafetyNoticeCode =
+  | 'CRISIS_FLOOR'
+  | 'SAFETY_UNAVAILABLE'
+  | 'MODEL_UNAVAILABLE'
+  | 'MODEL_THROTTLED'
+  /**
+   * E17-S9 — the reply is the deterministic emergency-medical response (112
+   * first), chosen by the message screen rather than by a model. A client that
+   * wants to offer a "call 112" affordance reads this; nothing about the text
+   * depends on it.
+   */
+  | 'MEDICAL_EMERGENCY_FLOOR'
+  /**
+   * E17-S13 — the reply is the deterministic third-party crisis response: the
+   * message reported someone else's suicide risk, so the copy addresses the
+   * helper and keeps 112 for immediate danger. Separate from CRISIS_FLOOR
+   * because the copy and the instruction are different, and a client that shows
+   * a second-person crisis overlay must not show it here.
+   */
+  | 'CRISIS_THIRD_PARTY_FLOOR'
+
+export interface SafetyNotice {
+  code: SafetyNoticeCode
+  /**
+   * Why the notice was raised. For a technical failure it is the classifier/
+   * model failure underneath: `llm_timeout`, `llm_throttled`, `llm_api_error`
+   * or `llm_parse_failure`. E17-S10 added `crisis_keyword_floor` for the case
+   * where nothing failed — the classifier answered and the deterministic
+   * keyword screen raised its answer to S4. Never model output or message text.
+   */
+  reason: string
+  /**
+   * True when the crisis path was taken because the deterministic keyword
+   * screen raised the turn to S4. Two ways that happens (E17-S10): the
+   * classifier was unreachable and the screen was all that was left (E17-S4),
+   * or the classifier answered S1/S2/S3 and the screen overrode it. The user is
+   * on the crisis path — this is the audit trail saying how they got there; the
+   * `reason` says which, so `crisis_floor` alone is never read as "A1 was
+   * down".
+   */
+  crisis_floor?: true
+}
+
+/**
+ * E17-S6 — the structured form of a budget refusal.
+ *
+ * `status` is the HTTP status the same refusal carries on an HTTP surface (429).
+ * A WebSocket turn has no HTTP response, so the value travels here so a client
+ * can apply identical policy (back off, surface a quota banner) without
+ * inferring it from the code.
+ */
+export type BudgetNoticeCode = 'BUDGET_EXCEEDED_SESSION' | 'BUDGET_EXCEEDED_DAY'
+
+export interface BudgetNotice {
+  code: BudgetNoticeCode
+  status: 429
+  /** User-facing copy (governed constant, never an error string). */
+  message: string
+  used: { session_tokens: number; daily_cost_usd: number }
+  limits: { session_tokens: number | null; daily_cost_usd: number | null }
+  retry_after_seconds: number
 }
 
 // ─── Tool Card Types ──────────────────────────────────────────────
@@ -152,6 +290,13 @@ export interface CrisisSignalFrame {
     // field, but it's included for audit/transcript continuity and for any
     // future client that isn't offline-safe by the same design.
     message: string
+    /**
+     * E17-S4 — present when the crisis path was reached through the
+     * deterministic floor because the classifier was unreachable
+     * (`code: 'CRISIS_FLOOR'`, `crisis_floor: true`). The user's path is
+     * identical either way; this is how the transcript records which one it was.
+     */
+    safety?: SafetyNotice
   }
 }
 

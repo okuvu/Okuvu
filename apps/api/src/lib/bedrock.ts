@@ -11,7 +11,11 @@ import type {
   Tool,
   ToolConfiguration,
 } from '@aws-sdk/client-bedrock-runtime';
-import { isCannedRequested, buildCannedResult, SAFE_FALLBACK } from './canned-response.js';
+import { isCannedRequested, buildCannedResult } from './canned-response.js';
+import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
+import { classifyLlmFailure } from './llm-failure.js';
+import { recordModelUsage } from './token-budget.js';
+import type { TokenUsage } from './llm-types.js';
 import {
   resolveAwsRegion,
   resolveBedrockEmbeddingModelId,
@@ -275,6 +279,29 @@ function extractReplyText(content: ContentBlock[]): string {
     .join('');
 }
 
+/**
+ * E17-S6 — Converse's own token counts, narrowed to the contract's `TokenUsage`.
+ *
+ * `inputTokens`/`outputTokens` are what the service billed for; `totalTokens`
+ * is derived rather than trusted so the two can never disagree. If a model ever
+ * reported only a total, it is attributed to *output*: output is priced ~3.9×
+ * input, so that direction over-states cost and therefore makes a budget refuse
+ * earlier — the fail-closed direction. The reverse would under-state spend.
+ */
+function toTokenUsage(
+  usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined,
+): TokenUsage | undefined {
+  if (!usage) return undefined;
+
+  const hasSplit = typeof usage.inputTokens === 'number' || typeof usage.outputTokens === 'number';
+  const inputTokens = hasSplit ? usage.inputTokens ?? 0 : 0;
+  const outputTokens = hasSplit ? usage.outputTokens ?? 0 : usage.totalTokens ?? 0;
+
+  if (inputTokens === 0 && outputTokens === 0) return undefined;
+
+  return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
+}
+
 export async function generateContent(
   params: GenerateContentParams,
 ): Promise<GenerateContentResult> {
@@ -323,6 +350,11 @@ export async function generateContent(
     const content = extractContentBlocks(response.output);
     const text = extractReplyText(content);
 
+    // E17-S6: the service's own token counts, captured before any early
+    // return. An empty candidate was still billed, so it is metered too.
+    const usage = toTokenUsage(response.usage);
+    recordModelUsage(usage);
+
     if (!text) {
       // Same failure surface as the OpenRouter path: an empty candidate (safety
       // block, MAX_TOKENS, toolUse without input) must read as a technical
@@ -336,15 +368,16 @@ export async function generateContent(
         },
         'Bedrock returned an empty candidate',
       );
-      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', model, canned: false };
+      return { text: SAFETY_UNAVAILABLE_RESPONSE, fallbackUsed: true, failureReason: 'api_error', failureKind: 'unavailable', model, canned: false, usage };
     }
 
-    return { text, fallbackUsed: false, model, canned: false };
+    return { text, fallbackUsed: false, model, canned: false, usage };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const failureKind = classifyLlmFailure(err, timedOut);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
-    console.error({ reason: failureReason, err: message, model }, 'Bedrock call failed');
-    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason, model, canned: false };
+    console.error({ reason: failureReason, failureKind, err: message, model }, 'Bedrock call failed');
+    return { text: SAFETY_UNAVAILABLE_RESPONSE, fallbackUsed: true, failureReason, failureKind, model, canned: false };
   } finally {
     clearTimeout(timer);
   }
