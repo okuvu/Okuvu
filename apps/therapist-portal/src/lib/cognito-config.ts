@@ -34,3 +34,22 @@ export function cognitoPortalConfig(): CognitoPortalConfig | null {
 export function isCognitoConfigured(): boolean {
   return cognitoPortalConfig() !== null;
 }
+
+/**
+ * Region and pool id, read out of the issuer.
+ *
+ * The issuer is the only piece of the deployment that names *where* the pool
+ * lives (`https://cognito-idp.<region>.amazonaws.com/<poolId>`), so a password
+ * change can address Cognito directly without a second pair of env vars that
+ * could drift from it. No default region: an unparseable issuer means this
+ * deployment cannot sign in, so it cannot change a password either.
+ */
+export function cognitoIssuerParts(): { region: string; userPoolId: string } | null {
+  const issuer = process.env.COGNITO_ISSUER?.trim();
+  if (!issuer) return null;
+  const match = /^https:\/\/cognito-idp\.([a-z0-9-]+)\.amazonaws\.com\/([A-Za-z0-9_-]+)\/?$/.exec(
+    issuer,
+  );
+  if (!match) return null;
+  return { region: match[1], userPoolId: match[2] };
+}

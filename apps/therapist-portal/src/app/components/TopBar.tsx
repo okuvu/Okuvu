@@ -1,6 +1,7 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
+import Link from 'next/link';
 
 /**
  * OKUVU brand kit (E99) — the portal's first portal-wide chrome bar.
@@ -66,6 +67,16 @@ export default function TopBar({
 
       {showAvatar && (
         <div className="flex items-center gap-3">
+          {/* Self-service password change. Kept in the shared bar rather than
+              the admin console because every signed-in account holds a
+              password — before this, the only copy was the one an operator
+              handed out of SSM and nobody could rotate it. */}
+          <Link
+            href="/account/password"
+            className="hidden text-xs font-medium text-lavender-tint/90 hover:text-lavender-tint hover:underline sm:inline"
+          >
+            Change password
+          </Link>
           {/* Sidebar owns sign-out on desktop (hidden below md); this is
               the one surviving mobile-only fallback, replacing what used
               to be two independent copies (AuthenticatedShell + the old

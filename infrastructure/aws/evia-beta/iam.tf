@@ -272,3 +272,30 @@ resource "aws_iam_role_policy" "worker_task" {
   role   = aws_iam_role.worker_task.id
   policy = data.aws_iam_policy_document.worker_task.json
 }
+
+# ---------------------------------------------------------------------------
+# portal task role: credentials to *sign* a request, and nothing else.
+#
+# The portal deliberately had no task role: it reached Cognito over its public
+# HTTPS endpoints (the OAuth code flow) and Postgres over the VPC, neither of
+# which needs an AWS identity. Self-service password change breaks that
+# assumption in one narrow place — ChangePassword is an AWS JSON API, so the
+# call must be SigV4-signed even though Cognito authorises it from the access
+# token in the body, not from IAM.
+#
+# Hence a role with NO attached policy. It grants nothing: Cognito's user-facing
+# actions (InitiateAuth, ChangePassword) are public APIs that ignore the caller's
+# IAM identity, so this role exists only so the SDK's signer has credentials to
+# work with. Do not attach a policy here without a specific reason — every
+# permission added to this role is one a compromised portal container inherits.
+# ---------------------------------------------------------------------------
+resource "aws_iam_role" "portal_task" {
+  name               = "${var.name_prefix}-portal-task"
+  description        = "Runtime identity for the portal container: SigV4 signing only, no permissions"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
+
+  tags = merge(local.common_tags, {
+    Name     = "${var.name_prefix}-portal-task"
+    Workload = "portal"
+  })
+}
