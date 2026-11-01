@@ -1,11 +1,12 @@
 import { getServerSession } from 'next-auth/next';
 import { authConfig } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin-allowlist';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
  * Routes that exist only for signed-out visitors: reaching one while signed in
- * bounces you into the app (`/`), because there is nothing to do there.
+ * bounces you into the app (`/dashboard`), because there is nothing to do there.
  */
 const PUBLIC_ROUTES = new Set(['/auth']);
 
@@ -18,11 +19,23 @@ const PUBLIC_ROUTES = new Set(['/auth']);
  * Data Protection Board complaint: a signed-in visitor redirected away from it
  * would be a bug, not a convenience.
  *
- * This set is the *whole* reason `/privacy` renders unauthenticated. Routes not
- * listed here (or covered by the prefixes below) still require a session — do
- * not widen this into a prefix match or a bypass.
+ * `/` is here because it is now the public landing page rather than a
+ * redirect to the dashboard. It carries no clinical data, it is the URL a
+ * prospective client or therapist is sent, and requiring a session to read it
+ * would be the whole product backwards — every visitor would be shown a login
+ * form instead of the explanation of what Okuvu is.
+ *
+ * Routes not listed here (or covered by the prefixes below) still require a
+ * session — do not widen this into a prefix match or a bypass.
  */
-const PUBLIC_PATHS = new Set(['/privacy']);
+const PUBLIC_PATHS = new Set(['/', '/privacy']);
+
+/**
+ * Unauthenticated API endpoints. Kept as an exact list, not a prefix: a
+ * prefix match on `/api` would exempt every future route by default, which is
+ * how an internal endpoint ends up public by accident.
+ */
+const PUBLIC_API_PATHS = new Set(['/api/waitlist']);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -34,6 +47,13 @@ export async function proxy(request: NextRequest) {
   // ALB liveness probe (alb.tf polls this path with matcher 200). It carries no
   // session, so it must short-circuit before the session lookup.
   if (pathname === '/api/health') {
+    return undefined;
+  }
+
+  // The landing page's waitlist form posts here. It must answer a visitor who
+  // has never signed in, and it does its own validation, rate limiting and
+  // honeypot check in the route handler.
+  if (PUBLIC_API_PATHS.has(pathname)) {
     return undefined;
   }
 
@@ -61,8 +81,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // A signed-in visitor on the sign-in screen goes straight to their caseload.
+  // `session.user.email` on ADMIN_EMAILS is an operator account with no
+  // caseload, so it lands on /admin instead of an empty dashboard.
   if (session?.user && PUBLIC_ROUTES.has(pathname)) {
-    const url = new URL('/', request.url);
+    const url = new URL(isAdminEmail(session.user.email) ? '/admin' : '/dashboard', request.url);
     return NextResponse.redirect(url);
   }
 

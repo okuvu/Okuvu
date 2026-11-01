@@ -27,6 +27,9 @@ import { createHmac, randomBytes } from 'node:crypto';
  *   u_  an address with no Therapist row (sign-in refused) — hashed because
  *       there is no internal id to use at that point
  *   c_  a client address used by the invite/waitlist mailers
+ *   a_  an address on the ADMIN_EMAILS allowlist (operator sign-in allowed,
+ *       no Therapist row by design) — added with the operator account, which
+ *       needs a log line that is distinguishable from a therapist's.
  *
  * Key: NEXTAUTH_SECRET (stable per deployment, so refs stay comparable across
  * restarts). If it is unset the module falls back to a random per-process key:
@@ -40,7 +43,7 @@ function key(): string {
   return process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || FALLBACK_KEY;
 }
 
-export type IdentityKind = 't' | 'u' | 'c';
+export type IdentityKind = 't' | 'u' | 'c' | 'a';
 
 export function identityRef(kind: IdentityKind, value: string): string {
   const digest = createHmac('sha256', key())
