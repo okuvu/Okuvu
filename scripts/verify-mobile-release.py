@@ -76,9 +76,22 @@ def record(gate, name, ok, detail):
     return ok
 
 
+def tool_env():
+    # apksigner/keytool are launcher scripts that `exec java` off PATH, and
+    # JAVA_HOME being set is not enough: without $JAVA_HOME/bin on PATH they
+    # die with "java: not found", which reads as an unsigned artifact.
+    env = dict(os.environ)
+    jh = env.get("JAVA_HOME") or os.path.expanduser("~/.local/jdk-17")
+    if os.path.isdir(jh):
+        env["JAVA_HOME"] = jh
+        env["PATH"] = os.path.join(jh, "bin") + ":" + env.get("PATH", "")
+    return env
+
+
 def sh(cmd, cwd=None, timeout=900):
     p = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str),
-                       capture_output=True, text=True, timeout=timeout)
+                       capture_output=True, text=True, timeout=timeout,
+                       env=tool_env())
     return p.returncode, p.stdout + p.stderr
 
 
@@ -255,7 +268,8 @@ def gate_artifact(prov):
 
 
 def _have(binary):
-    return subprocess.run(["which", binary], capture_output=True).returncode == 0
+    return subprocess.run(["which", binary], capture_output=True,
+                          env=tool_env()).returncode == 0
 
 
 # ----------------------------------------------------------------- freshness
