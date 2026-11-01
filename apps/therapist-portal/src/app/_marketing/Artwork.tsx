@@ -83,20 +83,19 @@ export function Squiggle() {
   );
 }
 
-/** The arch motif, at 6 %, behind the therapist band. */
-export function ArchWatermark() {
+/**
+ * The master mark, very large and faint, behind the therapist band.
+ *
+ * This is the brand file itself (`public/brand/okuvu-mark-dark.svg`, the
+ * lavender cut), not a redrawn motif: an approximated logo becomes the thing
+ * someone copies, so the watermark is the artwork with the opacity turned
+ * down. Decorative, so it is hidden from the accessibility tree.
+ */
+export function MarkWatermark() {
   return (
     <div className="mk-watermark" aria-hidden="true">
-      <svg viewBox="0 0 400 460" focusable="false">
-        <path
-          d="M60 460 L60 190 A140 140 0 0 1 340 190 L340 460"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="10"
-          strokeLinecap="round"
-        />
-        <circle cx="200" cy="300" r="16" fill="currentColor" />
-      </svg>
+      {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG watermark, next/image adds nothing */}
+      <img src="/brand/okuvu-mark-dark.svg" alt="" width={400} height={400} />
     </div>
   );
 }

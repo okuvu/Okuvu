@@ -15,7 +15,7 @@ import MarketingNav from './_marketing/MarketingNav';
 import MarketingMotion from './_marketing/MarketingMotion';
 import ScreenSlot from './_marketing/ScreenSlot';
 import {
-  ArchWatermark,
+  MarkWatermark,
   ChatArt,
   HeroWaves,
   InviteArt,
@@ -294,7 +294,7 @@ export default async function LandingPage() {
         className="mk-sec mk-sec--evening"
         style={{ scrollMarginTop: '80px' }}
       >
-        <ArchWatermark />
+        <MarkWatermark />
         <span className="mk-glow" aria-hidden="true" data-anim />
         <div className="mk-wrap mk-therapist-grid">
           <div className="mk-therapist-copy">

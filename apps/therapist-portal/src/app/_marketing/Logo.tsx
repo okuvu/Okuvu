@@ -4,13 +4,13 @@ import { copy } from '@/lib/marketing/copy';
 /**
  * The lockup: mark + OKUVU wordmark.
  *
- * TODO(brand) — the final OKUVU master mark (indigo arch, sage embrace, centre
- * dot) is not in this repository. `public/brand/okuvu-mark.svg` is the previous
- * purple/honey spiral from OKUVU-Brand-Kit-Simple and is used unchanged rather
- * than redrawn or recoloured by hand: an approximated logo is worse than an
- * honestly out-of-date one, because it becomes the thing someone else copies.
- * When the master lands, drop it in at public/brand/okuvu-mark.svg and this
- * component keeps working — nothing else references the path.
+ * The mark is the master brand file, `public/brand/okuvu-mark.svg` — the
+ * purple→orchid spiral with the honey dot from OKUVU-Brand-Kit-Simple, which
+ * is the final OKUVU mark. It ships in two cuts: that file for light
+ * backgrounds and `okuvu-mark-dark.svg` (the lavender cut of the same mark)
+ * for dark ones. Nothing references either path directly except this
+ * component and the watermark in Artwork.tsx, so replacing the artwork stays a
+ * one-file change per cut.
  *
  * The wordmark is live text in Poppins SemiBold (the brand sheet's wordmark
  * face, already self-hosted), not part of the SVG, so it stays crisp and

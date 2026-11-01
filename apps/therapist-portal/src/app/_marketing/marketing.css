@@ -1233,6 +1233,12 @@
   height: auto;
 }
 
+.mk-watermark img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .mk-glow {
   position: absolute;
   left: -10%;

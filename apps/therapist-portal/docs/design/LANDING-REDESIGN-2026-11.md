@@ -48,7 +48,7 @@ All SVG + CSS, no animation library, and only `transform`/`opacity` animate:
 | Bento | breathing orb | 10 s (4 s in, 6 s out) |
 | Between sections | squiggle draws once on scroll-in | 1.5 s ease-out |
 | Bento | mood line draws once on scroll-in | 1.6 s |
-| Therapist band | arch watermark + drifting radial glow | 26 s |
+| Therapist band | master-mark watermark + drifting radial glow | 26 s |
 | Stone sections | feTurbulence grain in the background-image | static |
 
 `MarketingMotion` owns the only JavaScript: an IntersectionObserver that sets
@@ -76,14 +76,28 @@ the component already renders `next/image` with `sizes` when a path is set.
 No slot says "coming soon": every illustration stands for a screen that ships
 today, and the page's own claim is that nothing on it is on a roadmap.
 
-## Brand mark — open item
+## Brand mark
 
-The final OKUVU master (indigo arch, sage embrace, centre dot) is **not in this
-repository**. `public/brand/okuvu-mark.svg` and `-dark.svg` are the previous
-purple/honey spiral from `OKUVU-Brand-Kit-Simple`, and they are used unchanged
-rather than redrawn or recoloured by hand — marked with a `TODO(brand)` in
-`src/app/_marketing/Logo.tsx`. Dropping the master in at the same path needs no
-code change; the dark cut is swapped in automatically by `prefers-color-scheme`.
+The master mark is the **spiral** — the purple→orchid arc with the honey dot
+from `OKUVU-Brand-Kit-Simple`. Confirmed by the owner on 1 November 2026; the
+earlier "indigo arch, sage embrace, centre dot" description in the brief
+referred to a mark that does not exist. There is nothing to swap:
+
+- `public/brand/okuvu-mark.svg` — purple cut, used on light surfaces.
+- `public/brand/okuvu-mark-dark.svg` — lavender cut of the same mark, used on
+  dark surfaces and for the therapist-band watermark. `prefers-color-scheme`
+  picks between them in the nav.
+
+Both are the supplied artwork, not redrawn. The master also arrives as
+`okuvu-mark-dark.svg` at an 800×800 viewBox and as 512/1024 app-icon squares;
+the repo already carries the same geometry at 400×400 (mark) and 1024 (icon),
+with the icon background running `#2A0F4E→#5E2E91` against the sheet's
+`#2C1051→#5C2D8E`. That difference is invisible at every size the page renders,
+so the artwork was left alone rather than re-cut from a raster attachment.
+
+The therapist band previously drew an invented arch-and-dome motif as its
+watermark. With the spiral confirmed as master that shape was a logo that does
+not exist, so it now renders the brand file itself at low opacity.
 
 A repo-wide search found **no green-and-coral logo** anywhere — not in
 `public/`, `src/app/icon.svg`, the mobile app icons, or any OG image (the app
