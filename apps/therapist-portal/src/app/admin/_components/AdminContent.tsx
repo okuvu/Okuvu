@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { AddClientWizard } from './AddClientWizard';
+import { RemoveClientDialog, type RemoveClientTarget } from './RemoveClientDialog';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -156,6 +157,11 @@ export function AdminContent() {
   const [therapistEmail, setTherapistEmail] = useState('');
   const [therapistName, setTherapistName] = useState('');
   const [addTherapistMsg, setAddTherapistMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  // The client being removed, if any. Kept as the row the operator clicked
+  // rather than an id, so the dialog names the person it is about to delete.
+  const [removeTarget, setRemoveTarget] = useState<RemoveClientTarget | null>(null);
+  const [removeMsg, setRemoveMsg] = useState<string | null>(null);
 
   const [assignTherapistId, setAssignTherapistId] = useState('');
   const [assignPhone, setAssignPhone] = useState('');
@@ -616,6 +622,11 @@ export function AdminContent() {
                   className="w-full max-w-sm rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-charcoal-ink outline-none focus:border-violet focus:ring-1 focus:ring-violet"
                 />
               </div>
+              {removeMsg && (
+                <p role="status" aria-live="polite" className="bg-sage-tint px-6 py-3 text-xs text-sage-deep">
+                  {removeMsg}
+                </p>
+              )}
               {clientsQuery.isLoading ? (
                 <div role="status" aria-busy="true" className="px-6 py-8 text-sm text-ink-soft">
                   Loading clients…
@@ -634,6 +645,9 @@ export function AdminContent() {
                         <Th>Status</Th>
                         <Th>Care plan</Th>
                         <Th>Joined</Th>
+                        <Th>
+                          <span className="sr-only">Actions</span>
+                        </Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -663,6 +677,23 @@ export function AdminContent() {
                           </Td>
                           <Td className="text-xs text-ink-soft">{c.carePlan ?? '—'}</Td>
                           <Td className="text-xs text-ink-soft">{formatDate(c.joinedAt)}</Td>
+                          <Td className="text-right">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRemoveMsg(null);
+                                setRemoveTarget({
+                                  id: c.id,
+                                  label: c.name ?? c.email ?? c.phoneMasked,
+                                  email: c.email,
+                                });
+                              }}
+                              aria-label={`Remove ${c.name ?? c.email ?? c.phoneMasked}`}
+                              className="whitespace-nowrap text-xs font-medium text-danger hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </Td>
                         </tr>
                       ))}
                     </tbody>
@@ -876,6 +907,23 @@ export function AdminContent() {
           </div>
         )}
       </div>
+
+      {removeTarget && (
+        <RemoveClientDialog
+          target={removeTarget}
+          onClose={() => setRemoveTarget(null)}
+          onRemoved={(summary) => {
+            setRemoveMsg(summary);
+            setRemoveTarget(null);
+            utils.admin.listClients.invalidate();
+            utils.admin.overview.invalidate();
+            utils.admin.listProgress.invalidate();
+            utils.admin.listAssignments.invalidate();
+            utils.admin.listTherapists.invalidate();
+            utils.admin.listPendingInvites.invalidate();
+          }}
+        />
+      )}
     </main>
   );
 }

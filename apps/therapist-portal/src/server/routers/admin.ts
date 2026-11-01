@@ -643,4 +643,144 @@ export const adminRouter = router({
 
       return { success: true, inviteCode, emailSent: emailResult.sent };
     }),
+
+  // ── Removing a client ─────────────────────────────────────────────────
+  //
+  // The console's only destructive action, and the one operation that used to
+  // mean an in-VPC psql session against private RDS
+  // (`scripts/in-vpc-db-task.sh`). Every other mutation in this router is
+  // additive, so "take that person off the list" needed an engineer for what
+  // is everyday cleanup.
+  //
+  // A real delete, not a `deleted_at` stamp. `listClients`/`overview` already
+  // filter tombstoned rows, so a stamp looks identical in the console while
+  // leaving the name, the email and every clinical row in the table — the
+  // operator has no way to tell "hidden" from "gone", and the two differ for a
+  // data-subject erasure request (DPDP Act 2023 §12).
+  //
+  // Every relation to `User` is `onDelete: Cascade` (migration
+  // 20261029120000_deletion_cascade_on_user), so the FK graph goes with the
+  // `user.delete`. The three tables that reference a subject by a bare string
+  // rather than by FK — GovernanceLog (session_id), BetaConsent (user_ref),
+  // WaitlistEntry (email/phone) — are swept explicitly first, because the
+  // database cascade cannot reach them. `apps/api/src/lib/account.ts` defines
+  // the same subject for the client-initiated erasure path; the console test
+  // parses schema.prisma so a relation that later stops cascading fails the
+  // build instead of silently surviving a removal.
+  //
+  // Deliberately NOT touched: the `Therapist` row. One address, two identity
+  // surfaces — a clinician who also has a client account keeps portal access,
+  // and nothing here can take a therapist's sign-in away as a side effect.
+  removeClient: adminMutation
+    .input(z.object({ clientUserId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const client = await ctx.db.user.findUnique({
+        where: { id: input.clientUserId },
+        select: { id: true, email: true, phone_number: true, full_name: true, auth_subject: true },
+      });
+      if (!client) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'No client with that id' });
+      }
+
+      // Same precondition as the client-initiated erasure path: an ended
+      // session is a finished record, an open one is still being written, and
+      // deleting it mid-conversation would leave the app holding a session id
+      // whose rows no longer exist.
+      const openSession = await ctx.db.sessionLog.findFirst({
+        where: { user_id: client.id, session_ended_at: null },
+        select: { id: true },
+      });
+      if (openSession) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message:
+            'This client has a conversation open right now. Ask them to close the app, then try again — removing an account mid-session deletes a transcript that is still being written.',
+        });
+      }
+
+      const erased = await ctx.db.$transaction(
+        async (tx) => {
+          const counts: Record<string, number> = {};
+          const record = (key: string, result: { count: number }) => {
+            counts[key] = result.count;
+          };
+
+          // String-keyed references first: these die with the session ids and
+          // identifiers, which is why they cannot be left to the cascade.
+          const sessions = await tx.sessionLog.findMany({
+            where: { user_id: client.id },
+            select: { id: true },
+          });
+          const sessionIds = sessions.map((s) => s.id);
+
+          if (sessionIds.length > 0) {
+            record(
+              'governanceEvents',
+              await tx.governanceLog.deleteMany({ where: { session_id: { in: sessionIds } } }),
+            );
+          }
+
+          // Only identifiers that actually exist. An empty value turned into
+          // `IS NULL` would match rows belonging to everybody else.
+          const subjectRefs = [client.id, client.email, client.auth_subject].filter(
+            (v): v is string => typeof v === 'string' && v.length > 0,
+          );
+          record(
+            'betaConsents',
+            await tx.betaConsent.deleteMany({ where: { user_ref: { in: subjectRefs } } }),
+          );
+
+          const waitlistIdentifiers = [
+            client.email ? { email: client.email } : null,
+            client.phone_number ? { phone_number: client.phone_number } : null,
+          ].filter((v): v is { email: string } | { phone_number: string } => v !== null);
+          if (waitlistIdentifiers.length > 0) {
+            record(
+              'waitlistEntries',
+              await tx.waitlistEntry.deleteMany({ where: { OR: waitlistIdentifiers } }),
+            );
+          }
+
+          // Counts before the delete — afterwards there is nothing left to
+          // count, and the operator's confirmation should name what went.
+          const [turns, moodCheckins, appointments, notes, assignments, journalEntries, homework, invites] =
+            await Promise.all([
+              tx.turn.count({ where: { user_id: client.id } }),
+              tx.moodLog.count({ where: { user_id: client.id } }),
+              tx.appointment.count({ where: { client_user_id: client.id } }),
+              tx.therapistNote.count({ where: { client_user_id: client.id } }),
+              tx.therapistClient.count({ where: { client_user_id: client.id } }),
+              tx.journalEntry.count({ where: { user_id: client.id } }),
+              tx.homework.count({ where: { client_user_id: client.id } }),
+              tx.inviteToken.count({ where: { client_user_id: client.id } }),
+            ]);
+
+          await tx.user.delete({ where: { id: client.id } });
+
+          return {
+            ...counts,
+            turns,
+            sessions: sessionIds.length,
+            moodCheckins,
+            appointments,
+            notes,
+            assignments,
+            journalEntries,
+            homework,
+            invites,
+          };
+        },
+        // Same reasoning as the erasure path: 5s is not enough for a subject
+        // with a long chat history (Turn is the big table), and a half-applied
+        // delete is worse than a retry.
+        { maxWait: 10_000, timeout: 60_000 },
+      );
+
+      return {
+        removed: true as const,
+        clientId: client.id,
+        label: client.full_name ?? client.email ?? 'this client',
+        erased,
+      };
+    }),
 });
