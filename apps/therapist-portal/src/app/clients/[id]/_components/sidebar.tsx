@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { trpc } from '@/trpc/client';
@@ -283,18 +283,9 @@ export default function Sidebar({
           </div>
           {therapistName}
         </div>
-        <button
-          type="button"
-          onClick={() => signOut({ callbackUrl: '/auth' })}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors w-full text-left"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          Sign out
-        </button>
+        {/* Sign-out is the top bar's, once, at every width — see TopBar. A
+            second copy down here meant `/admin` (which has no sidebar) had
+            none while therapists had two. */}
       </div>
       </nav>
     </>
