@@ -1,4 +1,4 @@
-# evia → okuvu Migration — ClickUp Stories
+# evia → okuvu Migration — Stories
 
 **Sprint:** Migration: evia → okuvu Rebrand
 **Epic:** E99 — Rebrand evia to okuvu

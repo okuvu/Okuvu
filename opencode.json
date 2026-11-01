@@ -4,17 +4,9 @@
   "permission": {
     "external_directory": "allow"
   },
-  "mcp": {
-    "clickup": {
-      "type": "remote",
-      "url": "https://mcp.clickup.com/mcp",
-      "enabled": true,
-      "headers": {
-        "Authorization": "{env:CLICKUP_API_KEY}"
-      }
-    }
-  },
-  "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"],
+  "plugin": [
+    "superpowers@git+https://github.com/obra/superpowers.git"
+  ],
   "instructions": [
     "CONTRIBUTING.md",
     ".github/PULL_REQUEST_TEMPLATE.md"

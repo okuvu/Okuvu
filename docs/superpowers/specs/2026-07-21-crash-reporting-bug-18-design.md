@@ -1,7 +1,6 @@
 # Crash Reporting & Production Observability (BUG-18)
 
 **Story:** BUG-18
-**ClickUp task:** https://app.clickup.com/t/86d3rpu1e
 **Date:** 2026-07-21
 
 ## Problem

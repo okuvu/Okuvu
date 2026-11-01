@@ -39,7 +39,7 @@ The implementation plan was written against assumptions. Here is what **actually
 | Session limits bypass precedent | `apps/api/src/lib/session-handler.ts` has a `uid.startsWith('load-test-vu-')` bypass. Reuse this idea for synthetic test users (`test-user-*`). |
 | CI | `.github/workflows/ci.yml` — backend (tsc + vitest), flutter, security gate. **No regression/HALT gate job yet.** |
 | Design docs | `docs/design/EVIA_Therapist_Portal_Design.md` (portal) and `docs/design/EVIA_Mobile_Design.md` (mobile, contains the SRS modal for session-close simulation). |
-| Story format reference | `docs/planning/evia-to-okuvu-migration-clickup-stories.md` — the format used here. |
+| Story format reference | `docs/planning/evia-to-okuvu-migration-stories.md` — the format used here. |
 
 **Naming conventions used throughout these stories:**
 

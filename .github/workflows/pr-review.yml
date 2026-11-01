@@ -34,17 +34,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/merge', github.event.issue.number) }}
 
       # ─────────────────────────────────────────────
-      # Cache: NPX packages (ClickUp MCP, etc.)
-      # ─────────────────────────────────────────────
-      - name: Cache NPX packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm/_npx
-          key: npx-cache-${{ runner.os }}-${{ hashFiles('package.json') }}
-          restore-keys: |
-            npx-cache-${{ runner.os }}-
-
-      # ─────────────────────────────────────────────
       # Pre-flight: validate PR template is filled
       # ─────────────────────────────────────────────
       - name: Validate PR template
@@ -81,22 +70,6 @@ jobs:
               issues.push('- **Story:** — Use `**Story:**` instead of `Story:`.\n  Expected: `**Story:** E4-S02`\n  Current: `' + current + '`');
             } else {
               issues.push('- **Story:** — Missing `**Story:**` field entirely.\n  Add it under the `## Story` heading: `**Story:** E4-S02`');
-            }
-
-            // ── ClickUp task URL field ──────────────
-            const storyValue = boldStoryMatch ? stripHtml(boldStoryMatch[1]).trim() : '';
-            const isNaStory = /^(n\/a|none|N\/A|NONE|-)$/i.test(storyValue);
-
-            if (!isNaStory && storyValue) {
-              const clickupMatch = body.match(/\*\*ClickUp task:\*\*\s*(\S+)/);
-              const clickupValue = clickupMatch ? stripHtml(clickupMatch[1]).trim() : '';
-              const isClickupUrl = /https:\/\/app\.clickup\.com\/t\/\d+\/[a-z0-9]+/.test(clickupValue);
-
-              if (!clickupValue || clickupValue.startsWith('<!--')) {
-                issues.push('- **ClickUp task:** — Missing or empty.\n  Paste the full ClickUp task URL, e.g., `**ClickUp task:** https://app.clickup.com/t/90161657622/86d3dqmk6`');
-              } else if (!isClickupUrl) {
-                issues.push('- **ClickUp task:** — Value `' + clickupValue + '` doesn\'t look like a ClickUp task URL.\n  Expected format: `https://app.clickup.com/t/{workspace}/{task_id}`');
-              }
             }
 
             // ── Section diagnostic helper ────────────
@@ -192,7 +165,6 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: minimax/MiniMax-M2.7
@@ -211,10 +183,12 @@ jobs:
             Read the event payload at $GITHUB_EVENT_PATH using jq.
             Extract: PR body (.pull_request.body or .issue.body), title, author, head branch ref.
 
-            From the body, extract:
-            - The ClickUp story ID from the `**Story:**` field (e.g. `E3-S01`)
-            - The ClickUp task URL from the `**ClickUp task:**` field (e.g. `https://app.clickup.com/t/90161657622/86d3dqmk6`)
-            - Parse the task ID from the URL: it is the last path segment (e.g. `86d3dqmk6`)
+            From the body, extract the story ID from the `**Story:**` field (e.g. `E3-S01`).
+
+            The spec lives in the repo. Look for the matching story in `plan/launch-backlog.psv`,
+            under `docs/planning/`, and for a design doc under `docs/superpowers/specs/` whose name
+            carries the story ID. Review against that spec when it exists; if none does, review
+            against the acceptance criteria in the PR body and say so in the verdict.
 
             ## Step 2 — Verify conventions
 
@@ -223,87 +197,34 @@ jobs:
             - PR targets develop (not main), unless it's a hotfix/* branch
             - PR template is filled (Story ID present, What Changed has content, Test Evidence has content)
 
-            ## Step 3 — Fetch the ClickUp story
-
-            If the story ID is "N/A", "none", or clearly not a real story ID, log:
-            `[CLICKUP] Skipping fetch — intentional non-story PR`
-            Then skip this step and note that spec comparison is not applicable.
-
-            Otherwise you MUST try ALL of the following attempts in order. Log EACH attempt's result.
-            Do NOT skip to the review without attempting every one.
-
-            **Attempt 1 — MCP get task:**
-            Log: `[CLICKUP] Attempting Method 1: MCP get_task with task ID from URL`
-            Run `clickup_get_task` with the task ID parsed from the `**ClickUp task:**` URL in Step 1.
-            If successful, log: `[CLICKUP] ✅ Method 1 succeeded — fetched task via MCP get_task`
-            If failed or tools unavailable, log: `[CLICKUP] ❌ Method 1 failed — MCP tools not available or task not found`
-
-            **Attempt 2 — MCP search:**
-            Log: `[CLICKUP] Attempting Method 2: MCP search with story ID (e.g. E3-S04)`
-            Run `clickup_search` with the story ID text.
-            If successful, log: `[CLICKUP] ✅ Method 2 succeeded — fetched task via MCP search`
-            If failed, log: `[CLICKUP] ❌ Method 2 failed — task not found in MCP search or no MCP tools available`
-
-            **Attempt 3 — curl direct fetch:**
-            Log: `[CLICKUP] Attempting Method 3: curl direct fetch with task ID`
-            Parse the task ID from the `**ClickUp task:**` URL (last path segment, e.g. `86d3dqmk6`).
-            Run this shell command now:
-            ```
-            curl -s -H "Authorization: $CLICKUP_API_KEY" \
-              "https://api.clickup.com/api/v2/task/TASK_ID_HERE?include_markdown_description=true"
-            ```
-            If curl returned valid JSON with a task, log: `[CLICKUP] ✅ Method 3 succeeded — fetched task via curl`
-            If curl returned empty, 404, or error, log: `[CLICKUP] ❌ Method 3 failed — curl returned error or task not found`
-
-            **Attempt 4 — curl search:**
-            Log: `[CLICKUP] Attempting Method 4: curl search by story ID`
-            Run these shell commands now:
-            ```
-            WSID=$(curl -s -H "Authorization: $CLICKUP_API_KEY" \
-              "https://api.clickup.com/api/v2/team" | jq -r '.teams[0].id')
-            curl -s -H "Authorization: $CLICKUP_API_KEY" \
-              "https://api.clickup.com/api/v2/team/$WSID/task?text=STORY_ID_HERE&include_closed=true&subtasks=true"
-            ```
-            If curl returned task results, log: `[CLICKUP] ✅ Method 4 succeeded — fetched task via curl search`
-            If curl failed or returned no results, log: `[CLICKUP] ❌ Method 4 failed — no results from curl search or API error`
-
-            From whichever attempt returns data, extract:
-            - Task name and description
-            - Custom fields named "Functional Requirements", "Acceptance Criteria", "AI Coding Notes",
-              "Definition of Done"
-
-            Log the final outcome:
-            - If any method succeeded: `[CLICKUP] SUCCESS: Using task data from [Method X]`
-            - If all methods failed: `[CLICKUP] FAILURE: All 4 methods failed. Proceeding with general best practices review only.`
-
-            ## Step 4 — Read the diff
+            ## Step 3 — Read the diff
 
             Run: git diff origin/${{ github.base_ref }}...HEAD --stat
             Then: git diff origin/${{ github.base_ref }}...HEAD
 
             Categorize all changed files by app (api, mobile, therapist-portal, worker, shared-types, etc.).
 
-            ## Step 5 — Run the structured review
+            ## Step 4 — Run the structured review
 
-            Review every changed file against the spec. Structure your analysis:
+            Review every changed file against the spec you located in Step 1. Structure your analysis:
 
-            ### 5a. Scope check
+            ### 4a. Scope check
             - Does the PR do exactly what the story spec describes?
             - Any out-of-scope changes?
             - Any required pieces missing?
 
-            ### 5b. Functional requirements check
+            ### 4b. Functional requirements check
             Go through every item from the spec's Functional Requirements.
             For each: ✅ IMPLEMENTED, ❌ MISSING, ⚠️ PARTIAL
 
-            ### 5c. Acceptance criteria check
+            ### 4c. Acceptance criteria check
             Go through every item from the spec's Acceptance Criteria.
             For each: ✅ MET, ❌ NOT MET, ⚠️ CANNOT VERIFY
 
-            ### 5d. AI Coding Notes compliance
+            ### 4d. AI Coding Notes compliance
             Check Common mistakes, Hidden requirements, Security considerations, Performance considerations.
 
-            ### 5e. Security check (non-negotiable)
+            ### 4e. Security check (non-negotiable)
             - Hardcoded secrets or .env values?
             - LOCAL_DEV_BYPASS_AUTH hardcoded as true?
             - JWT validation enforced?
@@ -312,24 +233,24 @@ jobs:
             - Therapist-to-client scoping server-side (therapist portal)?
             - E11-S03: notes table NOT referenced in agent context code?
 
-            ### 5f. Database check
+            ### 4f. Database check
             - No raw SQL (Prisma only)?
             - Upserts used where idempotency required?
             - Queries filtered to authenticated user?
 
-            ### 5g. TypeScript / code quality check
+            ### 4g. TypeScript / code quality check
             - No `any` types (use `unknown`)?
             - No duplicate types from packages/shared-types/?
             - No unused imports/variables?
             - Error handling on all async operations?
             - No console.log in production paths?
 
-            ### 5h. Test evidence check
+            ### 4h. Test evidence check
             - PR template Test Evidence section filled with real output?
             - If DoD includes specific tests, is evidence provided?
             - For E12 stories: do test assertions actually test what they claim?
 
-            ## Step 6 — Produce the verdict
+            ## Step 5 — Produce the verdict
 
             Format your verdict exactly like this:
 
@@ -342,13 +263,13 @@ jobs:
             {2-3 sentence summary}
 
             ### Functional Requirements
-            {checklist from 5b}
+            {checklist from 4b}
 
             ### Acceptance Criteria
-            {checklist from 5c}
+            {checklist from 4c}
 
             ### AI Coding Notes Compliance
-            {checklist from 5d}
+            {checklist from 4d}
 
             ### Issues Found
             {numbered list with severity, file:line, problem, fix}
@@ -363,11 +284,11 @@ jobs:
             {APPROVE / REQUEST CHANGES / BLOCK with reasoning}
             ---
 
-            ## Step 7 — Save the review
+            ## Step 6 — Save the review
 
             Write the entire verdict to /tmp/review.md.
 
-            ## Step 8 — Finish silently
+            ## Step 7 — Finish silently
 
             After writing /tmp/review.md, output ONLY this exact line as your final response and nothing else:
             `Review saved.`

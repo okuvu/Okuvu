@@ -185,7 +185,7 @@ Optional longer explanation if needed.
 - `docs` — documentation changes only
 - `refactor` — code change that neither fixes a bug nor adds a feature
 
-**Scope:** the ClickUp story ID, e.g. `E4-S02`
+**Scope:** the story ID, e.g. `E4-S02`
 
 Examples:
 ```
@@ -195,7 +195,7 @@ chore(E0-S01): monorepo pnpm workspace setup
 test(E12-S01): Vitest rate limiter concurrency test
 ```
 
-Keep the first line under 72 characters. Reference the ClickUp story ID in the scope so the commit is traceable.
+Keep the first line under 72 characters. Reference the story ID in the scope so the commit is traceable.
 
 ---
 
@@ -203,12 +203,12 @@ Keep the first line under 72 characters. Reference the ClickUp story ID in the s
 
 ### Size
 
-One story = one PR. If a story is too large for one PR, split it into sub-tasks in ClickUp and open a PR per sub-task.
+One story = one PR. If a story is too large for one PR, split it into smaller stories and open a PR per story.
 
 ### PR template
 
 Every PR must fill in all sections of the template. The CI validation checks for these exact heading formats:
-- `## Story` — includes `**Story:**` (story ID) and `**ClickUp task:**` (full URL)
+- `## Story` — includes `**Story:**` (story ID, or `n/a` for a non-story PR)
 - `## What changed` — 2-4 sentences describing what you built
 - `## Test evidence` — how you verified it works, with checked acceptance criteria
 - `## Checklist` — all items must be addressed
@@ -220,7 +220,7 @@ Every PR must fill in all sections of the template. The CI validation checks for
 
 For backend stories, test evidence should include:
 - A curl command or Postman screenshot showing the endpoint responding correctly
-- The acceptance criteria from the ClickUp task, checked off
+- The acceptance criteria from the story spec, checked off
 
 For Flutter stories, test evidence should include:
 - A screenshot or screen recording of the UI
@@ -229,7 +229,7 @@ For Flutter stories, test evidence should include:
 ### What reviewers look for
 
 Reviewers will specifically check:
-- The acceptance criteria from the ClickUp story spec are met
+- The acceptance criteria from the story spec are met
 - No `.env` values or AWS credentials committed
 - `LOCAL_DEV_BYPASS_AUTH` is not accidentally left `true` in production-bound code
 - The story's AI Coding Notes section constraints are followed (especially the ones marked "common mistakes")
@@ -273,7 +273,7 @@ Reviewers will specifically check:
 
 Stuck on something? In order:
 
-1. Check the ClickUp story spec — the "Development Notes" and "AI Coding Notes" sections often answer common questions
+1. Check the story spec — the "Development Notes" and "AI Coding Notes" sections often answer common questions
 2. Ask in the team chat
 3. Tag the Senior Engineer (backend/infra) or Lead Developer (Flutter/portal) directly
 

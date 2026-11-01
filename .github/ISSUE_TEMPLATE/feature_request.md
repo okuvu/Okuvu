@@ -19,7 +19,7 @@ assignees: ''
 
 ## What the current spec says (or doesn't say)
 
-<!-- Quote the relevant part of the ClickUp task spec, or note that the spec is silent on this. -->
+<!-- Quote the relevant part of the story spec, or note that the spec is silent on this. -->
 
 
 ## Suggested handling
