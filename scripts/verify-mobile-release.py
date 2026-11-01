@@ -198,9 +198,12 @@ def gate_artifact(prov):
             norm = lambda s: (s or "").replace(":", "").upper()
             got1 = (s1.group(1).upper() if s1 else "<none>")
             got256 = (s256.group(1).upper() if s256 else "<none>")
+            tail = " ".join(out.split())[-160:]
             record("artifact", "signer = upload key", norm(got1) == norm(CANONICAL_SHA1),
                    got1 if norm(got1) == norm(CANONICAL_SHA1)
-                   else f"{got1} != canonical {CANONICAL_SHA1}")
+                   else (f"{got1} != canonical {CANONICAL_SHA1}" if s1 else
+                         f"apksigner read no certificate (tool failure, NOT proof of an "
+                         f"unsigned APK): {tail}"))
             record("artifact", "signer SHA-256", norm(got256) == norm(CANONICAL_SHA256),
                    got256[:29] + "…")
         else:
@@ -236,15 +239,18 @@ def gate_artifact(prov):
                        if clean else f"diagnostic copy present in {sum(leaked.values())} ABI(s)")
 
     if aab and os.path.isfile(aab):
-        _, out = sh(["keytool", "-printcert", "-jarfile", aab],
-                    timeout=120) if _have("keytool") else (1, "")
+        if _have("keytool"):
+            _, out = sh(["keytool", "-printcert", "-jarfile", aab], timeout=120)
+        else:
+            out = "keytool not on PATH (needs JAVA_HOME/bin or a bare `java` on PATH)"
         m = re.search(r"SHA1: ([0-9A-F:]+)", out)
         if m:
             record("artifact", "aab signer", m.group(1) == CANONICAL_SHA1.upper(),
                    m.group(1) if m.group(1) == CANONICAL_SHA1.upper()
                    else f"{m.group(1)} != canonical")
         else:
-            record("artifact", "aab signer", False, "keytool produced no certificate")
+            record("artifact", "aab signer", False,
+                   f"keytool produced no certificate: {' '.join(out.split())[-160:]}")
     return apk, aab
 
 

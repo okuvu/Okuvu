@@ -116,8 +116,12 @@ python3 - "$OUT/provenance.json" "$FLAVOR" "$VERSION_NAME" "$VERSION_CODE" \
 import hashlib, json, os, subprocess, sys, datetime
 (out, flavor, vname, vcode, cid, want_apk, want_aab, apk, aab, repo) = sys.argv[1:11]
 
-def record(path):
-    if not os.path.isfile(path):
+def record(path, wanted):
+    # Only record what this run actually built. A stale APK/AAB left in the
+    # build dir from an earlier run otherwise lands in provenance with its old
+    # mtime/hash, and the FRESHNESS gate then blocks on an artifact nobody
+    # asked this build to produce.
+    if not wanted or not os.path.isfile(path):
         return None
     h = hashlib.sha256()
     with open(path, 'rb') as f:
@@ -155,7 +159,8 @@ doc = {
     'git_branch': git('rev-parse', '--abbrev-ref', 'HEAD'),
     'git_dirty': dirty(),
     'artifacts': {k: v for k, v in
-                  (('apk', record(apk)), ('aab', record(aab))) if v},
+                  (('apk', record(apk, want_apk == '1')),
+                   ('aab', record(aab, want_aab == '1'))) if v},
 }
 with open(out, 'w') as f:
     json.dump(doc, f, indent=2)
