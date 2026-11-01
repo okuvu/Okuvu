@@ -1,0 +1,1691 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Marketing landing page — apps/therapist-portal/src/app/page.tsx only.
+
+   Scoping rules, so the portal is untouched:
+   - this file is imported by page.tsx alone; /dashboard, /admin, /clients
+     never load it;
+   - every selector below is prefixed .mk- (or is a keyframe named mk-*);
+   - the only thing it puts on :root is custom properties with names the
+     portal does not read.
+
+   Palette is the redesign brief: indigo / sage / amber / stone / lavender.
+   The portal keeps its own purple-gold @theme in globals.css.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── brand tokens (brief §2) ── */
+  --indigo: #1c2243;
+  --sage: #6e8f73;
+  --amber: #d89a3a;
+  --stone: #e8e3d8;
+  --lavender: #e7e9f2;
+
+  --dawn: linear-gradient(120deg, #d5ded4 0%, var(--stone) 46%, #f1ece2 100%);
+  --twilight: linear-gradient(120deg, var(--indigo) 0%, #4a5478 55%, var(--lavender) 100%);
+  --evening: linear-gradient(160deg, #141831 0%, var(--indigo) 42%, #33513c 100%);
+
+  /* ── semantic surface/text (these flip in dark mode) ── */
+  --mk-bg: var(--stone);
+  --mk-bg-alt: var(--lavender);
+  --mk-surface: #fffdf8;
+  --mk-text: var(--indigo);
+  --mk-text-soft: rgba(28, 34, 67, 0.72);
+  --mk-text-faint: rgba(28, 34, 67, 0.66);
+  --mk-border: rgba(28, 34, 67, 0.14);
+  --mk-border-strong: rgba(28, 34, 67, 0.3);
+  --mk-on-dark: #f2f2f7;
+  --mk-on-dark-soft: rgba(242, 242, 247, 0.78);
+  --mk-dark-surface: #232a4b;
+  --mk-nav: rgba(232, 227, 216, 0.72);
+
+  /* Sage fails AA as text on stone (2.8:1), so label text uses the same hue,
+     two steps down: 5.0:1 on stone, and still 5:1 on lavender. */
+  --sage-ink: #47664e;
+
+  /* Fills used inside the phone/laptop illustrations. These stay light in both
+     themes on purpose: the drawing stands in for a light app screen. */
+  --mk-fill-stone: #eee9df;
+  --mk-fill-lavender: #dfe3ef;
+  --mk-fill-sage: #cfdfd3;
+  --mk-fill-bar: #b7bccb;
+
+  --mk-radius: 24px;
+  --mk-shadow: 0 20px 40px -20px rgba(28, 34, 67, 0.18);
+  --mk-shadow-lg: 0 28px 60px -28px rgba(28, 34, 67, 0.28);
+
+  --mk-wrap: 1100px;
+  --mk-display: var(--font-fraunces), Georgia, 'Times New Roman', serif;
+  --mk-body: var(--font-manrope), system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* feTurbulence grain, baked to ~3 % so it can sit in a background-image and
+     never overlap text: a background cannot cover content. */
+  --mk-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* Dark theme, built on the evening gradient: indigo ground, lavender-tinted
+   text, surfaces a step lighter. Amber keeps indigo text at 6.4:1 either way. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mk-bg: #151a33;
+    --mk-bg-alt: #1b2140;
+    --mk-surface: #202749;
+    --mk-text: #eceaf3;
+    --mk-text-soft: rgba(236, 234, 243, 0.76);
+    --mk-text-faint: rgba(236, 234, 243, 0.62);
+    --mk-border: rgba(231, 233, 242, 0.16);
+    --mk-border-strong: rgba(231, 233, 242, 0.34);
+    --mk-dark-surface: #1d2444;
+    --mk-nav: rgba(21, 26, 51, 0.74);
+    --sage-ink: #a9c6ae;
+    --mk-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.6);
+    --mk-shadow-lg: 0 28px 60px -28px rgba(0, 0, 0, 0.7);
+    --dawn: linear-gradient(120deg, #1f2e28 0%, #1b2138 55%, #232a48 100%);
+  }
+}
+
+/* ── shell ─────────────────────────────────────────────────────────────── */
+
+.mk-root {
+  background: var(--mk-bg);
+  color: var(--mk-text);
+  font-family: var(--mk-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  position: relative;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mk-root {
+    background-image: linear-gradient(180deg, #10142b 0%, #151a33 40%, #182238 100%);
+    background-attachment: fixed;
+  }
+}
+
+.mk-root *,
+.mk-root *::before,
+.mk-root *::after {
+  box-sizing: border-box;
+}
+
+.mk-root :where(h1, h2, h3, p, ul, ol, li, figure, blockquote) {
+  margin: 0;
+  padding: 0;
+}
+
+.mk-root :where(ul, ol) {
+  list-style: none;
+}
+
+.mk-wrap {
+  width: 100%;
+  max-width: var(--mk-wrap);
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.mk-sec {
+  position: relative;
+  padding-block: clamp(3.5rem, 8vw, 6.5rem);
+}
+
+.mk-sec--stone {
+  background-color: var(--mk-bg);
+  background-image: var(--mk-grain);
+}
+
+.mk-sec--lavender {
+  background-color: var(--mk-bg-alt);
+  background-image: var(--mk-grain);
+}
+
+.mk-sec--evening {
+  background: var(--evening);
+  color: var(--mk-on-dark);
+  overflow: hidden;
+}
+
+.mk-sec--evening::after {
+  /* Keeps the sage end of the gradient dark enough for light text (7:1+). */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, rgba(20, 24, 49, 0.55) 0%, rgba(20, 24, 49, 0.72) 60%, rgba(20, 24, 49, 0.82) 100%);
+  pointer-events: none;
+}
+
+.mk-sec--evening > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ── type ──────────────────────────────────────────────────────────────── */
+
+.mk-display {
+  font-family: var(--mk-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 560;
+  line-height: 1.04;
+  letter-spacing: -0.018em;
+  text-wrap: balance;
+}
+
+.mk-h1 {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  /* No balance here: on the hero the brief's 4.5rem cap makes "balance" pick
+     four short lines, while natural filling gives three fuller ones. */
+  text-wrap: pretty;
+}
+
+.mk-h2 {
+  font-size: clamp(1.75rem, 3.4vw, 2.55rem);
+  line-height: 1.1;
+}
+
+.mk-h3 {
+  font-family: var(--mk-body);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.mk-label {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sage-ink);
+}
+
+.mk-lede {
+  font-size: clamp(1rem, 1.15vw, 1.125rem);
+  line-height: 1.65;
+  color: var(--mk-text-soft);
+  max-width: 46ch;
+}
+
+.mk-body {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--mk-text-soft);
+}
+
+.mk-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── focus ─────────────────────────────────────────────────────────────── */
+
+.mk-root :where(a, button, input, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(28, 34, 67, 0.45);
+  border-radius: 10px;
+}
+
+.mk-sec--evening :where(a, button, input):focus-visible {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55);
+}
+
+/* ── logo ──────────────────────────────────────────────────────────────── */
+
+.mk-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.mk-logo img {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+
+/* Two marks, one shown. The .mk-logo img rule above is more specific than a
+   bare class, so these are qualified with the element to actually win. */
+.mk-logo img.mk-logo-mark--dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mk-logo img.mk-logo-mark--light {
+    display: none;
+  }
+
+  .mk-logo img.mk-logo-mark--dark {
+    display: block;
+  }
+}
+
+.mk-logo-word {
+  font-family: var(--font-poppins-semibold), system-ui, sans-serif;
+  font-size: 0.9375rem;
+  letter-spacing: 0.16em;
+  color: var(--mk-text);
+}
+
+.mk-logo-word[data-tone='light'] {
+  color: var(--mk-on-dark);
+}
+
+.mk-logo-link {
+  text-decoration: none;
+  border-radius: 12px;
+}
+
+/* ── nav ───────────────────────────────────────────────────────────────── */
+
+.mk-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--mk-nav);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.28s ease, border-color 0.28s ease;
+}
+
+.mk-nav[data-stuck='true'] {
+  background: var(--mk-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-bottom-color: var(--mk-border);
+}
+
+.mk-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 66px;
+}
+
+.mk-nav-links {
+  display: none;
+  gap: 1.75rem;
+}
+
+.mk-nav-links a {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mk-text-soft);
+  text-decoration: none;
+  padding-block: 0.35rem;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.mk-nav-links a:hover {
+  color: var(--mk-text);
+  border-bottom-color: var(--sage);
+}
+
+@media (min-width: 860px) {
+  .mk-nav-links {
+    display: flex;
+  }
+}
+
+.mk-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.mk-pill--outline {
+  color: var(--mk-text);
+  border: 1.5px solid var(--mk-text);
+  background: transparent;
+}
+
+.mk-pill--outline:hover {
+  background: var(--mk-text);
+  color: var(--mk-bg);
+}
+
+.mk-pill--amber {
+  background: var(--amber);
+  color: var(--indigo);
+  border: 1.5px solid transparent;
+  padding-inline: 1.5rem;
+}
+
+.mk-pill--amber:hover {
+  background: #e3a84a;
+  transform: translateY(-1px);
+}
+
+.mk-pill--ghost {
+  color: var(--mk-on-dark);
+  border: 1.5px solid rgba(242, 242, 247, 0.4);
+}
+
+/* ── hero ──────────────────────────────────────────────────────────────── */
+
+.mk-hero {
+  position: relative;
+  overflow: hidden;
+  padding-top: clamp(2rem, 5vw, 3.5rem);
+  padding-bottom: clamp(9rem, 16vw, 14rem);
+  background-color: var(--mk-bg);
+  background-image: var(--mk-grain),
+    radial-gradient(90% 70% at 12% 0%, rgba(110, 143, 115, 0.16) 0%, rgba(110, 143, 115, 0) 60%),
+    radial-gradient(70% 60% at 88% 12%, rgba(231, 233, 242, 0.85) 0%, rgba(231, 233, 242, 0) 62%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .mk-hero {
+    background-image: var(--mk-grain),
+      radial-gradient(90% 70% at 12% 0%, rgba(110, 143, 115, 0.22) 0%, rgba(110, 143, 115, 0) 60%),
+      radial-gradient(70% 60% at 88% 12%, rgba(120, 132, 190, 0.22) 0%, rgba(231, 233, 242, 0) 62%);
+  }
+}
+
+.mk-hero-grid {
+  display: grid;
+  gap: clamp(2.5rem, 6vw, 4rem);
+  align-items: center;
+}
+
+@media (min-width: 960px) {
+  .mk-hero-grid {
+    grid-template-columns: 1.15fr 0.85fr;
+  }
+}
+
+.mk-eyebrow-top {
+  display: block;
+  font-family: var(--mk-display);
+  font-variation-settings: 'SOFT' 100;
+  font-size: clamp(1rem, 1.4vw, 1.25rem);
+  font-style: italic;
+  letter-spacing: 0.01em;
+  color: var(--sage-ink);
+  margin-bottom: 0.9rem;
+}
+
+.mk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--mk-border-strong);
+  background: rgba(255, 255, 255, 0.42);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mk-text-soft);
+}
+
+@media (prefers-color-scheme: dark) {
+  .mk-badge {
+    background: rgba(231, 233, 242, 0.07);
+  }
+}
+
+.mk-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sage);
+}
+
+.mk-hero h1 {
+  margin-top: 1.5rem;
+}
+
+.mk-hero-lede {
+  margin-top: 1.35rem;
+  max-width: 44ch;
+}
+
+.mk-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  margin-top: 2rem;
+}
+
+.mk-link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--mk-text);
+  text-decoration: none;
+  border-bottom: 1.5px solid var(--sage);
+  padding-bottom: 2px;
+}
+
+.mk-link-arrow:hover {
+  color: var(--sage-ink);
+}
+
+.mk-gate {
+  margin-top: 1.5rem;
+  max-width: 40ch;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--mk-text-faint);
+}
+
+/* hero visual */
+.mk-hero-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+}
+
+.mk-blob {
+  position: absolute;
+  inset: 2% -6%;
+  border-radius: 52% 48% 44% 56% / 46% 52% 48% 54%;
+  background: radial-gradient(60% 54% at 28% 24%, rgba(110, 143, 115, 0.5) 0%, rgba(110, 143, 115, 0.18) 48%, rgba(231, 233, 242, 0) 72%),
+    linear-gradient(152deg, rgba(110, 143, 115, 0.42) 0%, rgba(231, 233, 242, 0.8) 54%, rgba(216, 154, 58, 0.2) 100%);
+  filter: blur(2px);
+  animation: mk-breathe 8s ease-in-out infinite;
+  animation-play-state: paused;
+  will-change: transform;
+}
+
+.mk-blob[data-inview='1'] {
+  animation-play-state: running;
+}
+
+.mk-hero-art .mk-slot {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── waves ─────────────────────────────────────────────────────────────── */
+
+.mk-waves {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  height: clamp(120px, 15vw, 180px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mk-wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  display: block;
+  animation-play-state: paused;
+  will-change: transform;
+}
+
+.mk-wave--indigo {
+  color: var(--indigo);
+  z-index: 3;
+  animation: mk-drift 30s linear infinite;
+}
+
+.mk-wave--sage {
+  color: var(--sage);
+  opacity: 0.4;
+  z-index: 2;
+  animation: mk-drift 45s linear infinite reverse;
+}
+
+.mk-wave--lavender {
+  color: var(--lavender);
+  opacity: 0.6;
+  z-index: 1;
+  animation: mk-drift 60s linear infinite;
+}
+
+.mk-waves[data-inview='1'] .mk-wave {
+  animation-play-state: running;
+}
+
+@keyframes mk-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* ── how it works ──────────────────────────────────────────────────────── */
+
+.mk-topo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.14;
+  color: var(--sage);
+  z-index: 0;
+}
+
+.mk-topo svg {
+  position: absolute;
+  inset: -8% -4%;
+  width: 108%;
+  height: 116%;
+}
+
+.mk-topo-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  transform-origin: 50% 50%;
+  animation-play-state: paused;
+}
+
+.mk-topo-line--0 {
+  animation: mk-topo-a 40s ease-in-out infinite;
+}
+
+.mk-topo-line--1 {
+  animation: mk-topo-b 40s ease-in-out infinite;
+}
+
+.mk-topo-line--2 {
+  animation: mk-topo-c 40s ease-in-out infinite;
+}
+
+.mk-topo[data-inview='1'] .mk-topo-line {
+  animation-play-state: running;
+}
+
+@keyframes mk-topo-a {
+  0%, 100% { transform: scale(1) translateY(0); opacity: 0.9; }
+  50% { transform: scale(1.035) translateY(-6px); opacity: 0.55; }
+}
+
+@keyframes mk-topo-b {
+  0%, 100% { transform: scale(1.02) translateY(4px); opacity: 0.5; }
+  50% { transform: scale(0.99) translateY(-3px); opacity: 0.95; }
+}
+
+@keyframes mk-topo-c {
+  0%, 100% { transform: scale(0.995) translateX(-4px); opacity: 0.7; }
+  50% { transform: scale(1.025) translateX(5px); opacity: 0.4; }
+}
+
+.mk-how-head {
+  position: relative;
+  z-index: 1;
+  max-width: 52ch;
+}
+
+.mk-how-head h2 {
+  margin-top: 0.85rem;
+}
+
+.mk-how-head p {
+  margin-top: 0.9rem;
+}
+
+.mk-cards {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1rem;
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+@media (min-width: 780px) {
+  .mk-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.mk-card {
+  position: relative;
+  border-radius: var(--mk-radius);
+  background: var(--mk-surface);
+  border: 1px solid var(--mk-border);
+  box-shadow: var(--mk-shadow);
+  padding: clamp(1.4rem, 2.4vw, 1.9rem);
+  overflow: hidden;
+}
+
+.mk-card-num {
+  display: block;
+  font-family: var(--mk-display);
+  font-variation-settings: 'SOFT' 100;
+  font-size: clamp(2.75rem, 5vw, 3.75rem);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  color: transparent;
+  -webkit-text-stroke: 1.2px var(--sage);
+  opacity: 0.85;
+}
+
+.mk-step-art {
+  display: block;
+  width: clamp(96px, 14vw, 120px);
+  height: auto;
+  margin: 1.1rem 0 1rem;
+  overflow: visible;
+}
+
+.mk-stroke-indigo,
+.mk-stroke-indigo-thin,
+.mk-stroke-sage,
+.mk-stroke-indigo-thin {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mk-stroke-indigo {
+  stroke: var(--indigo);
+  stroke-width: 2;
+}
+
+.mk-stroke-sage {
+  stroke: var(--sage);
+  stroke-width: 2;
+}
+
+.mk-stroke-indigo-thin {
+  stroke: var(--indigo);
+  stroke-width: 1.4;
+}
+
+.mk-card h3 {
+  margin-top: 0.35rem;
+}
+
+.mk-card p {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  color: var(--mk-text-soft);
+}
+
+/* ── squiggle divider ──────────────────────────────────────────────────── */
+
+.mk-squiggle {
+  max-width: var(--mk-wrap);
+  margin-inline: auto;
+  padding: 0 clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.mk-squiggle svg {
+  display: block;
+  width: 100%;
+  height: 40px;
+  color: var(--sage);
+}
+
+.mk-squiggle-path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1.5s ease-out;
+}
+
+.mk-squiggle[data-drawn='1'] .mk-squiggle-path {
+  stroke-dashoffset: 0;
+}
+
+/* ── bento ─────────────────────────────────────────────────────────────── */
+
+.mk-bento {
+  display: grid;
+  gap: 1rem;
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+@media (min-width: 780px) {
+  .mk-bento {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.mk-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  border-radius: var(--mk-radius);
+  background: var(--mk-surface);
+  border: 1px solid var(--mk-border);
+  box-shadow: var(--mk-shadow);
+  padding: clamp(1.3rem, 2.4vw, 1.75rem);
+  overflow: hidden;
+}
+
+@media (min-width: 780px) {
+  .mk-tile--half {
+    grid-column: span 3;
+  }
+  .mk-tile--tall {
+    grid-column: span 3;
+    grid-row: span 2;
+  }
+}
+
+.mk-tile h3 {
+  order: 1;
+}
+
+.mk-tile p {
+  order: 2;
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  color: var(--mk-text-soft);
+}
+
+.mk-tile-media {
+  order: 3;
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  padding-top: 0.5rem;
+}
+
+.mk-tile--tall .mk-tile-media {
+  flex: 1;
+  align-items: center;
+}
+
+/* breathing orb */
+.mk-orb-wrap {
+  order: 3;
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0 0.25rem;
+  flex: 1;
+}
+
+.mk-orb {
+  width: clamp(104px, 16vw, 128px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.85) 0%, var(--sage) 52%, #b9c9c0 100%);
+  box-shadow: 0 18px 40px -22px rgba(28, 34, 67, 0.55);
+  transform: scale(1);
+  animation: mk-breathe 10s ease-in-out infinite;
+  animation-play-state: paused;
+  will-change: transform;
+}
+
+.mk-orb[data-inview='1'] {
+  animation-play-state: running;
+}
+
+@keyframes mk-breathe {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.mk-orb-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--sage-ink);
+}
+
+/* mood sparkline */
+.mk-spark-wrap {
+  order: 3;
+  padding-top: 1.1rem;
+}
+
+.mk-spark {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--sage);
+}
+
+.mk-spark-axis {
+  fill: none;
+  stroke: var(--mk-border-strong);
+  stroke-width: 1;
+}
+
+.mk-spark-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1.6s ease-out 0.15s;
+}
+
+.mk-spark-wrap[data-drawn='1'] .mk-spark-line {
+  stroke-dashoffset: 0;
+}
+
+.mk-figcap {
+  font-size: 0.75rem;
+  color: var(--mk-text-faint);
+  letter-spacing: 0.02em;
+}
+
+/* ── screen slots ──────────────────────────────────────────────────────── */
+
+.mk-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.mk-frame {
+  position: relative;
+  width: 100%;
+  border-radius: 26px;
+  border: 1.5px solid var(--mk-border-strong);
+  background: var(--mk-bg-alt);
+  padding: 10px;
+  box-shadow: var(--mk-shadow);
+}
+
+.mk-frame--phone {
+  width: min(280px, 82%);
+  border-radius: 36px;
+  padding: 12px;
+}
+
+.mk-frame--card {
+  border-radius: 20px;
+  padding: 8px;
+}
+
+.mk-frame--laptop {
+  border-radius: 18px;
+  padding: 10px 10px 6px;
+}
+
+.mk-frame-screen {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--mk-fill-stone);
+}
+
+.mk-frame--phone .mk-frame-screen {
+  aspect-ratio: 9 / 19.2;
+  border-radius: 26px;
+}
+
+.mk-frame--card .mk-frame-screen {
+  aspect-ratio: 16 / 10;
+  border-radius: 14px;
+}
+
+.mk-frame--laptop .mk-frame-screen {
+  aspect-ratio: 16 / 10;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.mk-frame-screen > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mk-frame-base {
+  display: block;
+  width: 42%;
+  height: 8px;
+  margin: 6px auto 0;
+  border-radius: 0 0 8px 8px;
+  background: var(--mk-border-strong);
+}
+
+.mk-slot-caption {
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--mk-text-faint);
+}
+
+/* illustration fills (constant in both themes: a light app screen) */
+.mk-fill-stone { fill: var(--mk-fill-stone); }
+.mk-fill-lavender { fill: var(--mk-fill-lavender); }
+.mk-fill-sage { fill: var(--mk-fill-sage); }
+.mk-fill-bar { fill: var(--mk-fill-bar); }
+
+.mk-outline-indigo {
+  stroke: var(--indigo);
+  stroke-width: 1.6;
+  fill-opacity: 1;
+  stroke-opacity: 0.5;
+}
+
+.mk-stroke-indigo-thin {
+  stroke: var(--indigo);
+  stroke-width: 1.6;
+}
+
+/* ── who sees what ─────────────────────────────────────────────────────── */
+
+.mk-who-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: clamp(2rem, 4vw, 2.75rem);
+}
+
+@media (min-width: 780px) {
+  .mk-who-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mk-panel {
+  border-radius: var(--mk-radius);
+  padding: clamp(1.4rem, 2.6vw, 2rem);
+  box-shadow: var(--mk-shadow);
+}
+
+.mk-panel--sees {
+  background: var(--mk-surface);
+  border: 1px solid var(--mk-border);
+}
+
+.mk-panel--not {
+  background: var(--indigo);
+  color: var(--mk-on-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  /* On the dark page, indigo-on-indigo collapsed the two panels into one.
+     Deepen this one below the page and give it a lavender hairline so the
+     contrast between "sees" and "doesn't see" survives the theme. */
+  .mk-panel--not {
+    background: #0c1026;
+    border: 1px solid rgba(231, 233, 242, 0.22);
+  }
+}
+
+.mk-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.mk-panel--sees .mk-panel-head {
+  color: var(--sage-ink);
+}
+
+.mk-panel--not .mk-panel-head {
+  color: var(--lavender);
+}
+
+.mk-panel ul {
+  margin-top: 1.15rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.mk-panel li {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.mk-panel--sees li {
+  color: var(--mk-text);
+}
+
+.mk-panel--not li {
+  color: var(--mk-on-dark-soft);
+}
+
+.mk-tick {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 0.55rem;
+  border-radius: 50%;
+  background: var(--sage);
+}
+
+.mk-panel--not .mk-tick {
+  background: var(--lavender);
+  opacity: 0.8;
+}
+
+.mk-who-note {
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--mk-text-soft);
+}
+
+/* ── what this isn't ───────────────────────────────────────────────────── */
+
+.mk-isnt-list {
+  margin-top: clamp(1.5rem, 3vw, 2.25rem);
+  border-top: 1px solid var(--mk-border);
+}
+
+.mk-isnt-row {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 0.5rem 1rem;
+  padding-block: 1.35rem;
+  border-bottom: 1px solid var(--mk-border);
+}
+
+.mk-isnt-row .mk-dash {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.mk-isnt-row h3 {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.mk-isnt-row p {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+@media (min-width: 780px) {
+  .mk-isnt-row {
+    grid-template-columns: 56px 1fr 1.1fr;
+    align-items: baseline;
+    gap: 1.5rem;
+  }
+
+  .mk-isnt-row .mk-dash {
+    grid-row: 1 / span 2;
+  }
+
+  .mk-isnt-row p {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+.mk-dash {
+  display: block;
+  width: 28px;
+  height: 2px;
+  margin-top: 0.7rem;
+  border-radius: 2px;
+  background: var(--sage);
+}
+
+.mk-isnt-row h3 {
+  font-size: 1rem;
+}
+
+.mk-isnt-row p {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--mk-text-soft);
+}
+
+.mk-isnt-crisis {
+  font-weight: 700;
+  color: var(--mk-text);
+}
+
+/* ── your data ─────────────────────────────────────────────────────────── */
+
+.mk-data-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: clamp(1.75rem, 3.5vw, 2.5rem);
+}
+
+@media (min-width: 720px) {
+  .mk-data-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mk-data-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  border-radius: 18px;
+  border: 1px solid var(--mk-border);
+  background: var(--mk-surface);
+  padding: 1.15rem 1.25rem;
+}
+
+.mk-icon-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(110, 143, 115, 0.14);
+  color: var(--sage-ink);
+}
+
+.mk-data-row p {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--mk-text);
+}
+
+/* ── for therapists ────────────────────────────────────────────────────── */
+
+.mk-watermark {
+  position: absolute;
+  bottom: -8%;
+  right: -4%;
+  width: min(560px, 58%);
+  color: var(--lavender);
+  opacity: 0.07;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mk-watermark {
+    color: #cdd6ea;
+    opacity: 0.05;
+  }
+}
+
+.mk-watermark svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mk-glow {
+  position: absolute;
+  left: -10%;
+  bottom: -30%;
+  width: 620px;
+  height: 620px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(110, 143, 115, 0.6), rgba(110, 143, 115, 0) 70%);
+  filter: blur(4px);
+  pointer-events: none;
+  z-index: 1;
+  animation: mk-glow-drift 26s ease-in-out infinite;
+  animation-play-state: paused;
+  will-change: transform;
+}
+
+.mk-glow[data-inview='1'] {
+  animation-play-state: running;
+}
+
+@keyframes mk-glow-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6%, -5%, 0) scale(1.08); }
+}
+
+.mk-therapist-grid {
+  display: grid;
+  gap: clamp(2rem, 5vw, 3.5rem);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .mk-therapist-grid {
+    grid-template-columns: 1.05fr 0.95fr;
+  }
+}
+
+.mk-sec--evening h2 {
+  color: var(--mk-on-dark);
+  margin-top: 0.85rem;
+}
+
+.mk-sec--evening .mk-label {
+  color: var(--lavender);
+}
+
+.mk-therapist-copy p {
+  margin-top: 1rem;
+  color: var(--mk-on-dark-soft);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.mk-therapist-copy .mk-pill--ghost {
+  margin-top: 1.5rem;
+}
+
+.mk-micro {
+  margin-top: 0.85rem;
+  font-size: 0.8125rem;
+  color: rgba(242, 242, 247, 0.6);
+}
+
+.mk-signin {
+  --sage-ink: #47664e;
+  --mk-text-faint: rgba(28, 34, 67, 0.66);
+  margin-top: 2rem;
+  border-radius: var(--mk-radius);
+  background: var(--mk-surface);
+  border: 1px solid var(--mk-border);
+  padding: clamp(1.3rem, 2.4vw, 1.75rem);
+  box-shadow: var(--mk-shadow-lg);
+  color: var(--mk-text);
+  color-scheme: light;
+}
+
+.mk-signin h3 {
+  font-size: 1rem;
+}
+
+.mk-signin p {
+  margin-top: 0.45rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--mk-text-soft);
+}
+
+.mk-signin-actions {
+  margin-top: 1.15rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.mk-signin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 100%;
+  border-radius: 14px;
+  border: 1.5px solid var(--mk-border-strong);
+  background: #fff;
+  color: var(--indigo);
+  padding: 0.75rem 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.mk-signin-btn:hover {
+  background: #f4f2ea;
+  border-color: var(--sage);
+}
+
+.mk-signin-note {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--mk-border);
+  font-size: 0.75rem;
+  color: var(--mk-text-faint);
+}
+
+.mk-signin-unavailable {
+  border-radius: 14px;
+  border: 1px solid var(--mk-border);
+  background: var(--mk-bg-alt);
+  padding: 0.9rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--mk-text-soft);
+}
+
+/* ── waitlist ──────────────────────────────────────────────────────────── */
+
+.mk-wait {
+  position: relative;
+  background: var(--dawn);
+  color: var(--mk-text);
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+  overflow: hidden;
+}
+
+.mk-wait::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--mk-grain);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mk-wait-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .mk-wait-grid {
+    grid-template-columns: 0.95fr 1.05fr;
+  }
+}
+
+.mk-photo {
+  position: relative;
+  border-radius: var(--mk-radius);
+  overflow: hidden;
+  box-shadow: var(--mk-shadow-lg);
+  border: 1px solid rgba(28, 34, 67, 0.1);
+  aspect-ratio: 8 / 5;
+}
+
+.mk-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* On wide screens the photograph matches the form card's height instead of
+   floating shorter than it; the frame keeps its own crop (object-fit: cover). */
+@media (min-width: 900px) {
+  .mk-wait-grid {
+    align-items: stretch;
+  }
+
+  .mk-photo {
+    aspect-ratio: auto;
+    min-height: 420px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .mk-photo img {
+    filter: brightness(0.86) saturate(0.95);
+  }
+}
+
+.mk-wait-card {
+  /* A white card in both themes, so the theme-dependent text tokens are
+     pinned to their light values inside it. */
+  --sage-ink: #47664e;
+  --mk-text-faint: rgba(28, 34, 67, 0.66);
+  border-radius: var(--mk-radius);
+  background: #fff;
+  color: var(--indigo);
+  border: 1px solid rgba(28, 34, 67, 0.12);
+  box-shadow: var(--mk-shadow-lg);
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+  color-scheme: light;
+}
+
+.mk-wait-card h2 {
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+}
+
+.mk-wait-card .mk-wait-sub {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: rgba(28, 34, 67, 0.75);
+}
+
+.mk-wait-card .mk-wait-body {
+  margin-top: 0.6rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: rgba(28, 34, 67, 0.7);
+}
+
+/* waitlist form (client component) */
+.mk-form {
+  margin-top: 1.5rem;
+}
+
+.mk-form-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--sage-ink);
+}
+
+.mk-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 520px) {
+  .mk-form-row {
+    flex-direction: row;
+  }
+}
+
+.mk-input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 14px;
+  border: 1.5px solid rgba(28, 34, 67, 0.22);
+  background: #fff;
+  padding: 0.8rem 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  color: var(--indigo);
+}
+
+.mk-input::placeholder {
+  /* 4.7:1 on the input's white — a placeholder is still text. */
+  color: rgba(28, 34, 67, 0.66);
+}
+
+.mk-input:focus-visible {
+  border-color: var(--sage);
+}
+
+.mk-submit {
+  border-radius: 14px;
+  border: 1.5px solid transparent;
+  background: var(--amber);
+  color: var(--indigo);
+  padding: 0.8rem 1.35rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.mk-submit:hover:not(:disabled) {
+  background: #e3a84a;
+  transform: translateY(-1px);
+}
+
+.mk-submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.mk-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: rgba(28, 34, 67, 0.72);
+}
+
+.mk-consent input {
+  margin-top: 0.2rem;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--sage);
+}
+
+.mk-consent a {
+  color: var(--indigo);
+  text-underline-offset: 2px;
+}
+
+.mk-form-error {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: #8c2f24;
+}
+
+.mk-form-micro {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: rgba(28, 34, 67, 0.68);
+}
+
+.mk-form-success {
+  border-radius: 14px;
+  border: 1px solid rgba(110, 143, 115, 0.45);
+  background: rgba(110, 143, 115, 0.1);
+  padding: 1.1rem 1.2rem;
+  margin-top: 1.5rem;
+}
+
+.mk-form-success strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.mk-form-success p {
+  margin-top: 0.4rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: rgba(28, 34, 67, 0.75);
+}
+
+.mk-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── footer ────────────────────────────────────────────────────────────── */
+
+.mk-footer {
+  position: relative;
+  background: var(--mk-bg);
+  padding-block: clamp(2.5rem, 5vw, 3.5rem);
+  border-top: 1px solid var(--mk-border);
+}
+
+.mk-footer::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: -1px;
+  height: 2px;
+  background: var(--twilight);
+  opacity: 0.5;
+}
+
+.mk-footer-line {
+  max-width: 60ch;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--mk-text-soft);
+}
+
+.mk-crisis {
+  margin-top: 0.85rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--mk-text);
+}
+
+.mk-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1.75rem;
+  font-size: 0.875rem;
+}
+
+.mk-footer-links a {
+  color: var(--mk-text);
+  text-underline-offset: 3px;
+}
+
+.mk-footer-note {
+  margin-top: 1.75rem;
+  max-width: 62ch;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--mk-text-faint);
+}
+
+.mk-copyright {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--mk-text-faint);
+}
+
+/* ── reduced motion ────────────────────────────────────────────────────── */
+/* Every loop stops; the waves settle flat; the drawn lines are simply drawn. */
+@media (prefers-reduced-motion: reduce) {
+  .mk-root *,
+  .mk-root *::before,
+  .mk-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .mk-wave,
+  .mk-blob,
+  .mk-orb,
+  .mk-glow,
+  .mk-topo-line {
+    transform: none !important;
+  }
+
+  .mk-squiggle-path,
+  .mk-spark-line {
+    stroke-dashoffset: 0 !important;
+  }
+}
+
+/* Background tabs: nothing keeps ticking. */
+html[data-mk-paused='1'] .mk-root * {
+  animation-play-state: paused !important;
+}

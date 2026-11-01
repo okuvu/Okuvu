@@ -14,6 +14,10 @@ import { copy } from '@/lib/marketing/copy';
  *     crafted request cannot skip it;
  *   - a duplicate email returns the same success state as a new one, which is
  *     why this component never says "you were already on the list".
+ *
+ * Restyled in the 1 Nov 2026 redesign: the form now sits on a white card
+ * inside the dawn band, so its colours come from .mk-* classes rather than
+ * assuming the dark purple panel it used to live in.
  */
 export default function WaitlistForm() {
   const [email, setEmail] = useState('');
@@ -50,23 +54,19 @@ export default function WaitlistForm() {
 
   if (state === 'done') {
     return (
-      <div
-        className="rounded-xl border border-white/15 bg-white/5 p-6"
-        role="status"
-        aria-live="polite"
-      >
-        <p className="text-base font-semibold text-white">{copy.wait.successTitle}</p>
-        <p className="mt-2 text-sm leading-relaxed text-lavender-tint/80">{copy.wait.successBody}</p>
+      <div className="mk-form-success" role="status" aria-live="polite">
+        <strong>{copy.wait.successTitle}</strong>
+        <p>{copy.wait.successBody}</p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <label htmlFor="waitlist-email" className="block text-xs font-medium uppercase tracking-wider text-lavender-tint/70">
+    <form onSubmit={onSubmit} noValidate className="mk-form">
+      <label htmlFor="waitlist-email" className="mk-form-label">
         {copy.wait.emailLabel}
       </label>
-      <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+      <div className="mk-form-row">
         <input
           id="waitlist-email"
           name="email"
@@ -76,19 +76,15 @@ export default function WaitlistForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={copy.wait.emailPlaceholder}
-          className="min-w-0 flex-1 rounded-lg border border-white/20 bg-white/95 px-4 py-3 text-sm text-charcoal-ink placeholder:text-ink-soft/60 focus:border-honey focus:outline-none focus:ring-2 focus:ring-honey/40"
+          className="mk-input"
         />
-        <button
-          type="submit"
-          disabled={state === 'sending'}
-          className="rounded-lg bg-honey px-6 py-3 text-sm font-semibold text-royal-night transition-colors hover:bg-honey-bright disabled:opacity-60"
-        >
+        <button type="submit" disabled={state === 'sending'} className="mk-submit">
           {state === 'sending' ? 'Sending…' : copy.wait.submit}
         </button>
       </div>
 
       {/* Honeypot — hidden from people, tempting to bots. */}
-      <div className="absolute h-0 w-0 overflow-hidden opacity-0" aria-hidden="true">
+      <div className="mk-visually-hidden" aria-hidden="true">
         <label htmlFor="waitlist-company">Company</label>
         <input
           id="waitlist-company"
@@ -101,28 +97,25 @@ export default function WaitlistForm() {
         />
       </div>
 
-      <label className="mt-4 flex items-start gap-2.5 text-xs leading-relaxed text-lavender-tint/75">
+      <label className="mk-consent">
         <input
           type="checkbox"
           required
           checked={consent}
           onChange={(e) => setConsent(e.target.checked)}
-          className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 accent-honey"
         />
         <span>
           {copy.wait.consentPrefix}{' '}
-          <a href="/privacy" className="underline underline-offset-2 hover:text-white">
-            Privacy policy
-          </a>
+          <a href="/privacy">Privacy policy</a>
         </span>
       </label>
 
       {error && (
-        <p className="mt-3 text-sm text-honey-bright" role="alert">
+        <p className="mk-form-error" role="alert">
           {error}
         </p>
       )}
-      <p className="mt-3 text-xs text-lavender-tint/50">{copy.wait.micro}</p>
+      <p className="mk-form-micro">{copy.wait.micro}</p>
     </form>
   );
 }

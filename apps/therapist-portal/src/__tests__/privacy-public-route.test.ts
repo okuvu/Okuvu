@@ -127,6 +127,18 @@ describe('proxy — public routes', () => {
     expect(new URL(res!.headers.get('location')!).pathname).toBe('/admin');
   });
 
+  it('exempts the marketing asset directory but keeps other static-looking paths protected', async () => {
+    // The landing page's photograph is served from public/marketing and the
+    // image optimizer fetches it through this proxy; a redirect here renders
+    // an empty frame rather than an error.
+    getServerSession.mockResolvedValue(null);
+    expect(await proxy(req('/marketing/window-light.webp'))).toBeUndefined();
+
+    const other = await proxy(req('/marketingx/secret.png'));
+    expect(other!.status).toBe(307);
+    expect(new URL(other!.headers.get('location')!).pathname).toBe('/auth');
+  });
+
   it('keeps /api/health and /api/auth unauthenticated for the ALB and next-auth', async () => {
     for (const path of ['/api/health', '/api/auth/session']) {
       expect(await proxy(req(path)), path).toBeUndefined();

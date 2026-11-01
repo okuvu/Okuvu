@@ -30,6 +30,10 @@ export const nav = {
 } as const;
 
 export const hero = {
+  // Layout line above the beta badge (redesign, 1 Nov 2026). Brand voice,
+  // not a clinical claim: it is the etymology of "oku-" already used in the
+  // brand sheet, and it makes no promise about care or outcomes.
+  eyebrowTop: 'You are always becoming.',
   eyebrow: 'In beta · places open by therapist invitation',
   h1: 'Therapy is one hour a week. This is for the other 167.',
   sub: 'Okuvu is something to talk to between sessions, and the therapist who took you on can read how the week went — so the next appointment starts where the last one ended.',
@@ -177,6 +181,32 @@ export const forTherapists = {
   micro: 'Onboarding is a 45-minute walkthrough with a person, not a signup form.',
 } as const;
 
+/**
+ * Alt text, captions and image labels (redesign, 1 Nov 2026).
+ *
+ * These describe pictures, not the product, so they are new strings rather
+ * than edits to signed copy. Two rules held here:
+ *   - every illustration is called an illustration, never a screenshot —
+ *     real screenshots do not exist yet and the page must not imply one;
+ *   - no alt text invents data ("42% calmer") or phrases a feature as a
+ *     promise. It says what is drawn.
+ */
+export const art = {
+  illustration: 'Illustration',
+  breatheLabel: 'Breathe with it',
+  screenAlt: {
+    chat: 'Illustration of a phone showing a conversation with Okuvu, drawn as plain message bubbles.',
+    mood: 'Illustration of the mood check-in, drawn as a rising line across a month.',
+    journal: 'Illustration of the private journal, drawn as a page with ruled lines.',
+    breathing: 'Illustration of a breathing exercise, drawn as two concentric rings.',
+    appointments: 'Illustration of the appointments list, drawn as dated cards.',
+    portal:
+      'Illustration of the therapist portal, drawn as a caseload list beside a summary panel.',
+  },
+  photoAlt: 'Morning light through a window and a pale curtain, falling across a soft wall.',
+  wordmark: 'Okuvu',
+} as const;
+
 export const footer = {
   line: 'Okuvu is a wellbeing app for adults in India, 18+. It is not therapy and it is not an emergency service.',
   privacy: 'Privacy policy',
@@ -199,5 +229,6 @@ export const copy = {
   data,
   wait,
   forTherapists,
+  art,
   footer,
 } as const;

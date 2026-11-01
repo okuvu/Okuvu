@@ -15,6 +15,10 @@ import { copy } from '@/lib/marketing/copy';
  *      rests on.
  *   2. No button for a provider that is not configured. A greyed-out or
  *      broken provider is worse than an honest sentence and a mailto.
+ *
+ * Restyled in the 1 Nov 2026 redesign: it renders inside the white sign-in card
+ * on the therapist band, so the buttons are .mk-signin-btn rather than the old
+ * oat/hairline utilities.
  */
 export default function LandingSignIn({
   googleConfigured,
@@ -27,19 +31,19 @@ export default function LandingSignIn({
 
   if (!googleConfigured && !cognitoConfigured) {
     return (
-      <div className="rounded-xl border border-hairline bg-oat p-4 text-sm leading-relaxed text-ink-soft" role="status">
+      <div className="mk-signin-unavailable" role="status">
         {copy.forTherapists.signInUnavailable}
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="mk-signin-actions">
       {googleConfigured && (
         <button
           type="button"
           onClick={() => signIn('google', { callbackUrl })}
-          className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#bec9c4] bg-white px-4 py-3 text-sm font-medium text-charcoal-ink transition-colors hover:bg-[#f2f4f6]"
+          className="mk-signin-btn"
         >
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
             <path
@@ -67,7 +71,7 @@ export default function LandingSignIn({
         <button
           type="button"
           onClick={() => signIn('cognito', { callbackUrl })}
-          className="flex w-full items-center justify-center gap-3 rounded-lg border border-hairline bg-oat px-4 py-3 text-sm font-medium text-charcoal-ink transition-colors hover:bg-lavender-tint"
+          className="mk-signin-btn"
         >
           <svg
             viewBox="0 0 24 24"
@@ -80,7 +84,6 @@ export default function LandingSignIn({
             strokeWidth="1.6"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="text-ink-soft"
           >
             <rect x="3" y="11" width="18" height="10" rx="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
