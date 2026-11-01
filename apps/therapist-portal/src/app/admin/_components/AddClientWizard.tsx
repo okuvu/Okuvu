@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { GENDER_OPTIONS } from '@/lib/client-code';
+import { PHONE_FORMAT_HINT, toE164 } from '@/lib/phone';
 
 // Mirrors the backend's PRESENTING_ISSUES enum in admin.ts — these are
 // the only values createClient will accept.
@@ -98,7 +99,11 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
     }));
   }
 
-  const canContinueStep1 = Boolean(state.therapistId && state.fullName.trim() && state.phoneNumber.trim() && state.email.trim());
+  // A phone number that cannot be read as a real number cannot open a client
+  // record, so step 1 also requires the number to survive toE164().
+  const canContinueStep1 = Boolean(
+    state.therapistId && state.fullName.trim() && toE164(state.phoneNumber) && state.email.trim(),
+  );
   // Step 2 is now the one that cannot be skipped: the client's ID is stamped
   // from the birth year and gender, and an ID with a placeholder year is one
   // nobody can trust. Presenting issues on the same step stay optional.
@@ -223,9 +228,16 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
               type="tel"
               value={state.phoneNumber}
               onChange={(e) => update('phoneNumber', e.target.value)}
-              placeholder="+91XXXXXXXXXX"
+              placeholder="9432936553 or +919432936553"
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
             />
+            {state.phoneNumber.trim() && !toE164(state.phoneNumber) ? (
+              <p className="mt-1 text-xs text-danger">
+                Not a phone number we can read — use {PHONE_FORMAT_HINT}.
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-400">{PHONE_FORMAT_HINT}. +91 added automatically.</p>
+            )}
           </div>
           <div>
             <label htmlFor="wiz-email" className="mb-1 block text-xs font-medium text-gray-500">Email</label>
@@ -408,11 +420,17 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
           <button
             type="button"
             disabled={!canSubmit}
-            onClick={() =>
+            onClick={() => {
+              const phoneNumber = toE164(state.phoneNumber);
+              if (!phoneNumber) {
+                setError(`That phone number isn't in a format we recognise. Use the ${PHONE_FORMAT_HINT}.`);
+                return;
+              }
+              setError(null);
               create.mutate({
                 therapistId: state.therapistId,
                 fullName: state.fullName.trim(),
-                phoneNumber: state.phoneNumber.trim(),
+                phoneNumber,
                 email: state.email.trim(),
                 dateOfBirth: state.dateOfBirth,
                 gender: state.gender as (typeof GENDER_OPTIONS)[number],
@@ -420,8 +438,8 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
                 carePlanId: state.carePlanId as 'CP1' | 'CP2' | 'CP3',
                 welcomeNote: state.welcomeNote.trim() || undefined,
                 displayAbbreviation: state.displayAbbreviation.trim() || undefined,
-              })
-            }
+              });
+            }}
             className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
             {create.isPending ? 'Adding...' : 'Add client'}
