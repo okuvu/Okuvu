@@ -180,7 +180,7 @@ okuvu/  (pnpm monorepo, Node >= 20, pnpm 11.8.0)
 | **Google OAuth** | Therapist portal login | `apps/therapist-portal/src/lib/auth.ts`, `GOOGLE_CLIENT_ID/SECRET` | **Stays** — client IDs live in Google Cloud Console (auth product), not tied to GCP compute. Keep the Google project for OAuth even after AWS cutover |
 | **Vercel** | Portal + test-harness hosting | `apps/*/vercel.json`, `next.config.ts` comments, `VERCEL_GIT_COMMIT_SHA` in `apps/test-harness/src/lib/run-identity.ts` | None required. Optional: move to AWS Amplify Hosting if you want single-vendor (extra work, not needed for the GCP exit) |
 | **Sentry/Datadog etc.** | Not present (audit confirms) | — | N/A |
-| **Discord/ClickUp/GitHub** | CI plumbing | `pr-review.yml` | None |
+| **Discord/GitHub** | CI plumbing | `pr-review.yml` | None |
 
 ---
 

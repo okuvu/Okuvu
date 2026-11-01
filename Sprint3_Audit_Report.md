@@ -2,7 +2,7 @@
 
 **Date:** July 12, 2026  
 **Scope:** Sprint 3 — Home, Settings, Therapist Portal  
-**Audit Type:** Implementation verification against ClickUp task requirements  
+**Audit Type:** Implementation verification against story requirements  
 
 ---
 
@@ -15,7 +15,7 @@
 | Partially completed | 2 |
 | Incomplete / not implemented | 1 |
 
-**Overall completion:** ~89% of functional requirements met. One critical gap (T-02 Client Overview UI missing) blocks the therapist portal's primary user flow. Two moderate issues exist (note list draft preservation, PR not yet merged). The remaining 15 tasks are verified complete with no material deviations from their ClickUp specifications.
+**Overall completion:** ~89% of functional requirements met. One critical gap (T-02 Client Overview UI missing) blocks the therapist portal's primary user flow. Two moderate issues exist (note list draft preservation, PR not yet merged). The remaining 15 tasks are verified complete with no material deviations from their specifications.
 
 ---
 
@@ -28,7 +28,7 @@
 | **Task ID** | E10-S06 |
 | **Title** | T-02 Client Overview UI |
 | **Severity** | **Critical** |
-| **Status in ClickUp** | `in progress` |
+| **Status at audit** | `in progress` |
 
 **Description:** The page file `apps/therapist-portal/src/app/clients/[id]/page.tsx` does not exist in the codebase. The T-01 Dashboard (E10-S04, marked complete) renders a list of clients where each row is a `<Link>` pointing to `/clients/${client.id}`. Since the target page does not exist, every client click results in a 404 error, making the therapist portal's primary user flow (caseload overview → client detail) non-functional.
 
@@ -49,7 +49,7 @@
 3. Remains read-only per spec (editing belongs in T-03 / E11-S02).
 4. Handles loading, error, and missing-client states.
 
-The backend `reasoningNote` field was confirmed present in the response (a bug flagged on July 9 was fixed). The assignee (Anvi Patchigolla) was already notified via ClickUp comments that E10-S05's fix has landed.
+The backend `reasoningNote` field was confirmed present in the response (a bug flagged on July 9 was fixed). The assignee (Anvi Patchigolla) was already notified that E10-S05's fix has landed.
 
 ---
 
@@ -62,11 +62,11 @@ The backend `reasoningNote` field was confirmed present in the response (a bug f
 | **Task ID** | E11-S04 |
 | **Title** | T-05 UI — note list |
 | **Severity** | **Moderate** |
-| **Status in ClickUp** | `pr approved` |
+| **Status at audit** | `pr approved` |
 
 **Description:** The notes page (`apps/therapist-portal/src/app/clients/[id]/notes/page.tsx`) stores draft text in React state only (`useState`). On mutation failure, the draft is correctly preserved (re-render survives). However, there is no `localStorage` or `sessionStorage` persistence — if the user navigates away, refreshes the page, or closes the browser tab, any unsaved draft text is permanently lost.
 
-**Why it matters:** Losing a partially-written clinical note due to accidental navigation or refresh is a trust-eroding failure mode. The ClickUp spec explicitly requires: "Save failure: clear error, draft input preserved (not silently cleared)." While the "save failure" sub-requirement is met, the broader expectation of draft preservation is only partially addressed.
+**Why it matters:** Losing a partially-written clinical note due to accidental navigation or refresh is a trust-eroding failure mode. The story spec explicitly requires: "Save failure: clear error, draft input preserved (not silently cleared)." While the "save failure" sub-requirement is met, the broader expectation of draft preservation is only partially addressed.
 
 **Relevant files:**
 - `apps/therapist-portal/src/app/clients/[id]/notes/page.tsx` (lines 21-24: `const [noteText, setNoteText]`)
@@ -82,7 +82,7 @@ The backend `reasoningNote` field was confirmed present in the response (a bug f
 | **Task ID** | E11-S04 |
 | **Title** | T-05 UI — note list |
 | **Severity** | **Moderate** |
-| **Status in ClickUp** | `pr approved` |
+| **Status at audit** | `pr approved` |
 
 **Description:** The E11-S04 PR is approved but has not been merged to `develop`. The `listNotes` procedure (added to `notes.ts` as part of this story) and the notes UI page (`notes/page.tsx`) are not yet available on the base branch.
 
@@ -103,7 +103,7 @@ The backend `reasoningNote` field was confirmed present in the response (a bug f
 | **Task ID** | E10-S02 / E10-S03 / E10-S05 / E11-S01 |
 | **Title** | All therapist portal backend procedures in `clients.ts` |
 | **Severity** | **Low** (code quality) |
-| **Status in ClickUp** | All four marked `complete` |
+| **Status at audit** | All four marked `complete` |
 
 **Description:** The file `apps/therapist-portal/src/server/routers/clients.ts` uses `as any` type assertions on every Prisma query (lines 24, 42, 57, 76, 93, 143, 158, 178, 194). This bypasses TypeScript's strict mode type checking entirely. By contrast, the sibling file `apps/therapist-portal/src/server/routers/notes.ts` uses proper Prisma client typing without `as any`.
 
@@ -133,7 +133,7 @@ The backend `reasoningNote` field was confirmed present in the response (a bug f
 
 ## Overall Recommendation
 
-Sprint 3 is in strong shape with **15 of 18 tasks fully verified** against their ClickUp specifications — the mood check-in pipeline (E8-S02), mood history API (E8-S05), progress screen (E8-S04), emergency contact encryption (E9-S02), account deletion (E9-S03), and all therapist portal backend procedures (E10-S02/03/05, E11-S01/03) are production-ready implementations with solid test coverage.
+Sprint 3 is in strong shape with **15 of 18 tasks fully verified** against their specifications — the mood check-in pipeline (E8-S02), mood history API (E8-S05), progress screen (E8-S04), emergency contact encryption (E9-S02), account deletion (E9-S03), and all therapist portal backend procedures (E10-S02/03/05, E11-S01/03) are production-ready implementations with solid test coverage.
 
 **Immediate priority (blocking):** Complete E10-S06 (T-02 Client Overview UI). This is the only task that breaks an end-to-end user flow. The backend is ready; a single frontend page file needs to be created. Without it, the therapist dashboard is a dead end.
 

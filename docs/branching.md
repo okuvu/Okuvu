@@ -7,7 +7,7 @@
 ```
 main        ← always deployable to evia-500215 (staging)
 develop     ← all story branches merge here first
-story/*     ← one branch per ClickUp story (deleted after merge)
+story/*     ← one branch per story (deleted after merge)
 hotfix/*    ← P0 fixes only, direct to main (Sprint 4 only)
 ```
 
@@ -30,7 +30,7 @@ That's it. Two permanent branches. Everything else is transient.
 - **No direct pushes** — everything goes through a PR
 
 ### `story/*`
-- Created by the developer when they pick up a ClickUp story
+- Created by the developer when they pick up a story
 - Named: `story/E{epic}-S{story}-short-description`
 - Merged into `develop` via PR
 - **Deleted automatically after merge** (GitHub is configured to do this)
@@ -57,7 +57,7 @@ git checkout -b story/E4-S02-websocket-turn-pipeline
 git push origin story/E4-S02-websocket-turn-pipeline
 Opens PR → develop
         │
-        │  Reviewer checks AC from ClickUp task
+        │  Reviewer checks AC from the story spec
         │  CI must pass (tsc + vitest + flutter test where applicable)
         │
         ▼

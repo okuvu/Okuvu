@@ -1,6 +1,5 @@
 # BUG-05: Session Limits Cleanup UTC/IST Cutoff Mismatch
 
-**ClickUp task:** https://app.clickup.com/t/86d3nev2p
 **Story:** BUG-05
 **Severity:** Critical
 **Date:** 2026-07-14

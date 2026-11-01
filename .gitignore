@@ -156,3 +156,6 @@ temp/
 
 graphify-out/
 apps/mobile/android/app/google-services.json
+
+# local credential material
+.secrets/

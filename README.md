@@ -133,7 +133,7 @@ Every environment runs in `ap-south-1` (Mumbai); `infrastructure/aws/evia-beta/v
 ```
 main        ← always deployable to the beta account (staging)
 develop     ← story branches merge here first
-story/*     ← one branch per ClickUp story (deleted after merge)
+story/*     ← one branch per story (deleted after merge)
 hotfix/*    ← P0 fixes only, direct to main
 ```
 
@@ -150,7 +150,7 @@ See [docs/branching.md](docs/branching.md) for the full branching guide.
 | Sprint 3 — Home, Settings, Therapist Portal | Home/progress screens, settings, full portal    | 18      | 49h   |
 | Sprint 4 — Testing, Dogfooding & Beta       | Automated tests, HALT sign-off, supervised beta | 9       | 63h   |
 
-All stories are tracked in ClickUp under the **Evia** folder.
+Stories are tracked in `plan/launch-backlog.psv` (id | epic | title | owner | deps | days | acceptance).
 
 ---
 
