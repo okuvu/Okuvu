@@ -73,6 +73,13 @@ export async function proxy(request: NextRequest) {
     PUBLIC_ROUTES.has(pathname) ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/brand/') ||
+    // Static marketing images (the landing page's photograph and its credits
+    // file). A public asset directory, same shape as /brand/: these are files
+    // served straight from public/, not routes, so nothing here can return
+    // data. Added with the 2026-11-01 landing redesign; the image optimizer
+    // fetches the source through this proxy, which is how its absence showed
+    // up as a 307 on /_next/image rather than a visible 404.
+    pathname.startsWith('/marketing/') ||
     pathname === '/favicon.ico' ||
     pathname === '/icon.svg';
 

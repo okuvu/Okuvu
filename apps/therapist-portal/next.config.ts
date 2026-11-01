@@ -9,6 +9,14 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   transpilePackages: ['@okuvu/prisma', '@okuvu/shared-types'],
   devIndicators: false,
+  images: {
+    // The landing page has one photograph and it ships as WebP; asking the
+    // optimizer for AVIF first means browsers that support it get an AVIF
+    // cached variant and everyone else a WebP one — no request to a
+    // third-party image host either way.
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [390, 640, 768, 960, 1080, 1280, 1440, 1920],
+  },
 };
 
 export default nextConfig;
