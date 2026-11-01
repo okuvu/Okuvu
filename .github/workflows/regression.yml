@@ -62,4 +62,4 @@ jobs:
       # live Prisma-backed synthetic session and is a natural follow-up once
       # this simpler job has proven stable — not included here yet.
       - name: Run regression checks (A8 state-space)
-        run: cd apps/test-harness && npx tsx src/scripts/run-regression-checks.ts
+        run: cd apps/test-harness && pnpm exec tsx src/scripts/run-regression-checks.ts

@@ -76,7 +76,6 @@ import {
   A9_POST_S2_FALLBACK,
   A9_POST_DEGRADED_RESPONSE,
 } from '../pipeline/fallbacks.js';
-import { SAFE_FALLBACK } from '../lib/canned-response.js';
 import { buildApp } from '../app.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 
@@ -140,9 +139,9 @@ function model(options: {
 
     if (which.kind === 'failed') {
       // Exactly what apps/api/src/lib/bedrock.ts returns when the model is
-      // unreachable: the SAFE_FALLBACK sentinel, never fabricated text.
+      // unreachable: the SAFETY_UNAVAILABLE_RESPONSE sentinel, never fabricated text.
       return {
-        text: SAFE_FALLBACK,
+        text: SAFETY_UNAVAILABLE_RESPONSE,
         fallbackUsed: true,
         failureReason: which.failureKind === 'timeout' ? 'timeout' : 'api_error',
         failureKind: which.failureKind,
@@ -285,8 +284,10 @@ describe('E17-S4 — an unassessable turn is served as a governed fallback', () 
 
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
+      // E17-S7 rev 6 §4.10: the old "not the generic SAFE_FALLBACK" assertion is
+      // gone because that string is gone — the provider layer now returns this
+      // same governed text, and the toBe above is the whole check.
       expect(result.message).toBe(SAFETY_UNAVAILABLE_RESPONSE);
-      expect(result.message).not.toBe(SAFE_FALLBACK);
       expect(result.message).toContain('9152987821');
       expect(result.fallbackUsed).toBe(true);
       expect(result.fallbackSource).toBe('safety_unavailable');
@@ -331,7 +332,7 @@ describe('E17-S4 — an unassessable turn is served as a governed fallback', () 
 // ─── 3. The reply model is unreachable after a real classification ──────────
 
 describe('E17-S4 — a classified turn whose reply model fails', () => {
-  it('serves MODEL_UNAVAILABLE_RESPONSE for a non-elevated turn, not SAFE_FALLBACK', async () => {
+  it('serves MODEL_UNAVAILABLE_RESPONSE for a non-elevated turn, not SAFETY_UNAVAILABLE_RESPONSE', async () => {
     model({
       a1: { kind: 'ok', text: a1Json('S1') },
       a9pre: { kind: 'ok', text: OK_A9_PRE },
@@ -343,7 +344,7 @@ describe('E17-S4 — a classified turn whose reply model fails', () => {
     expect(result.type).toBe('agent_turn');
     if (result.type === 'agent_turn') {
       expect(result.message).toBe(MODEL_UNAVAILABLE_RESPONSE);
-      expect(result.message).not.toBe(SAFE_FALLBACK);
+      expect(result.message).not.toBe(SAFETY_UNAVAILABLE_RESPONSE);
       expect(result.fallbackSource).toBe('model_throttled');
       expect(result.safety).toEqual({ code: 'MODEL_THROTTLED', reason: 'llm_throttled' });
       expect(result.failureReason).toBe('api_error');

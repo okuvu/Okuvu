@@ -12,7 +12,8 @@
     "test:load": "k6 run load-tests/k6-websocket-load.js",
     "eval:gate": "tsx eval/run-gate.ts",
     "eval:v2": "tsx eval/v2/run-eval-v2.ts",
-    "typecheck:eval": "tsc -p tsconfig.eval.json"
+    "typecheck:eval": "tsc -p tsconfig.eval.json",
+    "eval:approved-copy": "tsx eval/check-approved-copy.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1156.0",

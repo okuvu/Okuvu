@@ -11,7 +11,8 @@ import type {
   Tool,
   ToolConfiguration,
 } from '@aws-sdk/client-bedrock-runtime';
-import { isCannedRequested, buildCannedResult, SAFE_FALLBACK } from './canned-response.js';
+import { isCannedRequested, buildCannedResult } from './canned-response.js';
+import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 import { classifyLlmFailure } from './llm-failure.js';
 import { recordModelUsage } from './token-budget.js';
 import type { TokenUsage } from './llm-types.js';
@@ -367,7 +368,7 @@ export async function generateContent(
         },
         'Bedrock returned an empty candidate',
       );
-      return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason: 'api_error', failureKind: 'unavailable', model, canned: false, usage };
+      return { text: SAFETY_UNAVAILABLE_RESPONSE, fallbackUsed: true, failureReason: 'api_error', failureKind: 'unavailable', model, canned: false, usage };
     }
 
     return { text, fallbackUsed: false, model, canned: false, usage };
@@ -376,7 +377,7 @@ export async function generateContent(
     const failureKind = classifyLlmFailure(err, timedOut);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
     console.error({ reason: failureReason, failureKind, err: message, model }, 'Bedrock call failed');
-    return { text: SAFE_FALLBACK, fallbackUsed: true, failureReason, failureKind, model, canned: false };
+    return { text: SAFETY_UNAVAILABLE_RESPONSE, fallbackUsed: true, failureReason, failureKind, model, canned: false };
   } finally {
     clearTimeout(timer);
   }

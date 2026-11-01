@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import type { TestRunStatus } from '@okuvu/shared-types';
+import { ROUTER_AGENTS } from '@okuvu/shared-types';
 import { protectedProcedure, router } from '../trpc';
 import {
   runFullPipeline as runFullPipelineImpl,
@@ -24,7 +25,7 @@ const environmentSchema = z.enum(['sandbox', 'staging', 'beta']);
 const safetyStateSchema = z.enum(['S0', 'S1', 'S2', 'S3', 'S4']);
 const governanceStateSchema = z.enum(['Active', 'Restricted', 'Blocked']);
 const routerDecisionSchema = z.object({
-  agent: z.enum(['crisis', 'medical-emergency', 'deterministic-grounding', 'A2']),
+  agent: z.enum(ROUTER_AGENTS),
   mode: z.enum(['normal', 'blocked']).optional(),
 });
 

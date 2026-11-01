@@ -309,16 +309,16 @@ never an exception:
 
 | Condition | Text the client receives | `safetyNotice.code` |
 | --- | --- | --- |
-| A2 could not write a reply (throttle/timeout/error), state not S2 | `MODEL_UNAVAILABLE_RESPONSE` — *"I'm here with you, and I'm listening. Something on my side isn't working properly just now, so I don't want to answer you with words I can't stand behind. If it's feeling heavy in the meantime, iCall on 9152987821 or the Vandrevala Foundation on 1860-2662-345 are there any time. Say it again whenever you're ready — I'll still be here."* | `MODEL_THROTTLED` or `MODEL_UNAVAILABLE` |
-| …and the state **is** S2 (elevated risk) | `A9_POST_S2_FALLBACK` — *"I'm right here with you, and I'm not going anywhere. Take this at your own pace — I'm listening."* | as above |
+| A2 could not write a reply (throttle/timeout/error), state not S2 | `MODEL_UNAVAILABLE_RESPONSE` — *"Something on my side isn't working properly just now, so I don't want to answer you with words I can't stand behind. If it's feeling heavy in the meantime, please reach one of these:"* then the five-line block (§6.3), then *"Please try again in a little while."* | `MODEL_THROTTLED` or `MODEL_UNAVAILABLE` |
+| …and the state **is** S2 (elevated risk) | `A9_POST_S2_FALLBACK` — *"Take this at your own pace. If things feel heavier at any point, Tele-MANAS (14416) answers 24 hours a day, and 112 is there in an emergency."* | as above |
 | A1 (the safety classifier) itself failed | `SAFETY_UNAVAILABLE_RESPONSE` (fail-closed: no model prose, helplines named) | `SAFETY_UNAVAILABLE` |
 
-The pipeline does **not** forward the model client's `SAFE_FALLBACK` sentinel
-(`"I'm here to support you. Could you tell me more about how you're feeling?"`) — it discards the
-sentinel text and substitutes the governed copy above (`apps/api/src/pipeline/orchestrator.ts` §A2
-result handling; `apps/api/src/pipeline/fallbacks.ts`). `SAFE_FALLBACK` still exists in
-`lib/canned-response.ts` as the raw client-level sentinel and is what appears in unit tests; it is not
-what a beta user sees on the throttled path.
+The pipeline does **not** forward whatever text the model client returns on failure — it substitutes the
+governed copy above (`apps/api/src/pipeline/orchestrator.ts` §A2 result handling;
+`apps/api/src/pipeline/fallbacks.ts`). As of E17-S7 revision 6 (1 Nov 2026) there is **no generic
+`SAFE_FALLBACK` sentence left in the product**: the clinical owner rejected it, and the client-level
+sentinel in `lib/canned-response.ts` now carries the same governed `SAFETY_UNAVAILABLE_RESPONSE` text,
+so a failure can only ever surface copy she has signed.
 
 **This is the intended degradation, and it is the promise that must hold:** a Bedrock outage makes
 Okuvu sound vague and slightly broken. It must never make it error, hang, or (worse) answer without a
@@ -775,147 +775,64 @@ user in distress / safety event
 | Serve the existing substitute constants; they already name the helplines | Claim, imply, or write anywhere that the product or its copy is clinically reviewed |
 | Escalate and wait | Delete or edit clinical rows to "clean up" — the audit chain is the record |
 
-### 6.3 The helpline block (the thing being approved)
+### 6.3 The helpline block (the approved list)
 
-The same five numbers, in the same order, appear in three places that must not drift: the
-`CrisisResource` table (seeded by migration `20260912170000_expand_crisis_resource_to_five`, 5 rows),
-`CRISIS_RESPONSE` in `apps/api/src/pipeline/fallbacks.ts`, and the mobile app's hardcoded
-`CrisisOverlay` (which renders offline, deliberately, and is not rewired to the table).
+**Final at revision 6, 1 Nov 2026 IST.** This is the block the clinical owner signed; it replaced the
+31 Oct one. The retired number 1860-2662-345 stays retired, NIMHANS 080-46110007 is now **removed
+everywhere** (it was "keep" on 31 Oct; she reversed that on 1 Nov), "Snehi" was the pack's
+misspelling of **SNEHA, Chennai**, and 112 sits **third**, not last, because it is the ambulance
+number. Tele-MANAS leads because it is free and 24 hours.
 
-| # | Service | Number |
-| --- | --- | --- |
-| 1 | iCall | **9152987821** |
-| 2 | Vandrevala Foundation | **1860-2662-345** |
-| 3 | NIMHANS | **080-46110007** |
-| 4 | Snehi | **044-24640050** |
-| 5 | Emergency Services | **112** |
+| # | Service | Number | Notes |
+| --- | --- | --- | --- |
+| 1 | Tele-MANAS | **14416** | free, 24 hours |
+| 2 | Vandrevala Foundation | **+91 9999 666 555** | 24 hours, call or WhatsApp |
+| 3 | Emergency services | **112** | ambulance, police and fire |
+| 4 | SNEHA, Chennai | **044-24640050** | 10am-10pm, every day |
+| 5 | iCall (TISS) | **9152987821** | Monday to Saturday, 10am-8pm. Not 24 hours. Run by TISS, not IIT Bombay |
+
+The list lives in one constant, `HELPLINE_BLOCK` in `apps/api/src/pipeline/fallbacks.ts` — five lines,
+one service per line — and is interpolated into every fixed reply. The mobile `CrisisOverlay` and
+`AgeBlockedScreen` are hardcoded (they render offline, deliberately), so they are the places that must
+be edited in step with the API. `apps/api/src/__tests__/approved-copy.test.ts` pins the API side
+against her document; `apps/mobile/test/crisis/crisis_overlay_test.dart` pins the app's names, numbers,
+order, descriptions and footer.
 
 When the block is served in-product it is presented with this surrounding copy (the governed constant,
-not paraphrasable):
+not paraphrasable — signed, and pinned byte-for-byte by that same test):
 
-> *"I'm really glad you told me. What you're carrying right now sounds like too much to hold alone, and
-> I don't want you to be on your own with it. Please reach out to one of these right now — they're
-> ready to talk with you:*
-> *iCall: 9152987821 · Vandrevala Foundation: 1860-2662-345 · NIMHANS: 080-46110007 · Snehi:
-> 044-24640050 · Emergency Services: 112*
-> *I'll be here when you're ready to come back."*
+> *"I'm really glad you told me. What you are carrying sounds like too much to hold alone. Please contact
+> one of these right now:"*
+>
+> Tele-MANAS: 14416 (free, 24 hours)
+> Vandrevala Foundation: +91 9999 666 555 (24 hours, call or WhatsApp)
+> Emergency services: 112
+> SNEHA, Chennai: 044-24640050 (10am-10pm, every day)
+> iCall (TISS): 9152987821 (Monday to Saturday, 10am-8pm)
+>
+> *"I would suggest that you let your therapist or someone you trust know."*
 
 And when only a substitute reply is possible (model down, budget exhausted, safety classifier down),
-the shorter block — iCall **9152987821** and Vandrevala **1860-2662-345** — is embedded in
-`MODEL_UNAVAILABLE_RESPONSE`, `SAFETY_UNAVAILABLE_RESPONSE` and `BUDGET_PAUSED_RESPONSE`.
+the same five lines, in the same order, are embedded in `MODEL_UNAVAILABLE_RESPONSE`,
+`SAFETY_UNAVAILABLE_RESPONSE` and `BUDGET_PAUSED_RESPONSE`. The two double-failure paths
+(`A9_POST_S2_FALLBACK`, `A2_DEGRADED_RESPONSE`) use her short form instead — one number to dial rather
+than five to choose between:
 
-**One copy decision the clinical owner should look at specifically:** the S2 variant of the model-down
-reply (`A9_POST_S2_FALLBACK`) names **no** helpline — *"I'm right here with you, and I'm not going
-anywhere. Take this at your own pace — I'm listening."* That is deliberate (the constant's comment says
-an elevated-risk turn whose reply failed should ask even less of the user, and the crisis path at S4
-carries the numbers), but it means an **S2 turn served during a model or quota outage receives a warm
-reply and no number at all**. Approving the block as it stands approves that behaviour; if the clinical
-owner wants a number on the S2 path, it is a copy change in `apps/api/src/pipeline/fallbacks.ts`, with
-the same review weight as any other governed constant.
+> *"If things feel heavier at any point, Tele-MANAS (14416) answers 24 hours a day, and 112 is there in
+> an emergency."*
 
-**What the clinical owner is being asked to approve:** that these five services are the right set for
-the beta population, that the numbers are current, that naming them in a substitute reply (rather than
-only on a dedicated crisis screen) is clinically appropriate, and the E1–E5 thresholds above. **What is
-not being asked, and must not be inferred:** approval of the agent's clinical copy generally (that is
-E17-S7), or of any public claim about clinical review (that is E20-S3).
+**The `CrisisResource` table is not read by any code path** (grep for the model: only its Prisma
+definition). It was seeded with the old five rows by migration
+`20260912170000_expand_crisis_resource_to_five` and is now stale. Nothing serves it, so nothing is
+wrong on screen — but a future reader would take it for the approved list. Open item: correct or drop
+the rows before anything is wired to that table.
 
-Verify the numbers are still what production serves before relying on this table:
+**Both questions this section used to leave open are closed by revision 6**, and are not to be raised
+again: 112 in the S3 reply and on the S4 card **is intended** (her words, 31 Oct: "112 in the S3 reply
+is intended"), and iCall's hours are **Monday to Saturday, 10am-8pm** — TISS's own page, and the
+organisation that runs the line backs her figure.
 
-```bash
-scripts/in-vpc-db-task.sh --sql \
-  'select name, phone, "order" from "CrisisResource" order by "order";'
-```
-
-### 6.4 Contact channels
-
-The roles are the supervised-beta plan's, unmodified. **The names in that table were never filled in**
-(`docs/supervised-beta/01-escalation-plan.md` §2 lists `—` for all five), so the operational channels
-today are:
-
-| Role | Channel as it exists |
-| --- | --- |
-| Clinical owner (approver of this section; named as the clinical authority in `plan/ORCHESTRATION-v1.md` §6 item 4) | The ops contact sheet, not this document. Personal contact details are deliberately not committed to a public repository |
-| On-call engineer | Whoever holds the current on-call rota; alarms do not page (§1) — the rota is a human arrangement |
-| Beta therapists (3, seeded, `CONFIRMED`) | `https://okuvu.in/auth`, accounts in pool `ap-south-1_eaJaK7g4g`. Their addresses are personal data and are **masked** everywhere in this repo (`a***@okuvu.in`) |
-| Product owner | Via the ops contact sheet; also holds the Google Cloud login needed for §5.2 |
-
-This table is thin because it is. `docs/supervised-beta/01-escalation-plan.md` also predates the AWS
-cutover and still names Neon, Cloud Run and GCP Error Reporting as the intervention surfaces; treat its
-§3 as stale and use §2–§5 of *this* document for the technical half.
-
-### 6.5 If an E1 happens before approval is signed
-
-The route is unapproved, but a user in distress is not an abstraction:
-
-1. The **in-product helpline block** (§6.3) is already live and does not depend on this approval — it
-   is served by the crisis path and by every substitute constant.
-2. Notify the clinical owner **today**, by voice, with the incident record.
-3. Do **not** improvise clinical guidance to the user, and do not add, remove or reword a helpline.
-4. Record the gap in the incident note: *"escalation route unapproved at the time of the incident
-   (E20-S2 §6, UNAPPROVED-PENDING-CLINICAL-OWNER)"*. That sentence is the honest record, and it is the
-   finding that should block the pilot's go/no-go, not something to paper over.
-
-### 6.6 Sign-off (blank until a human signs)
-
-| Field | Value |
-| --- | --- |
-| Section | §6 Clinical escalation route and helpline block |
-| Status | **UNAPPROVED-PENDING-CLINICAL-OWNER** |
-| Clinical owner (name) | — |
-| Approved on (date, UTC) | — |
-| Signature / written approval reference | — |
-| Scope approved | E1–E5 thresholds (§6.1), route (§6.2), helpline set and surrounding copy (§6.3) |
-| Explicitly **not** covered by this signature | Agent clinical copy (E17-S7), public clinical claims (E20-S3) |
-
----
-
-## 7. What this runbook does not cover
-
-1. **Nothing pages a human.** §1. Confirming the SNS email subscription is a one-click owner action
-   and the single highest-value fix available today.
-2. **No alarm on model degradation** (§3.5) — the failure mode that is invisible to every alarm.
-3. **Restoring over production / PITR** (§4.4) — not drilled, not documented, do not improvise.
-4. **The therapist portal's own database TLS path.** `apps/therapist-portal/src/lib/prisma.ts` builds
-   its pool the same way the api did before the `sslmode` fix; `evidence/E16-S4.md` §7 records it as
-   untouched. If the portal starts erroring on queries while `/api/health` stays 200, that is the first
-   thing to suspect — and it is a code fix, not a runbook step.
-5. **Worker failures.** There is no worker target group and no worker health check in CloudWatch beyond
-   `RunningTaskCount`; summary generation can fail silently. `aws logs tail /ecs/evia-beta/worker` is
-   the only signal.
-6. **Clinical approval** (§6.6). The one clause of E20-S2 that cannot be met by this repository's
-   author.
-7. **Rollback of a migration.** `prisma migrate deploy` runs in every build; a task-definition rollback
-   does not reverse schema changes. If a bad migration shipped, the database path is §4 (restore to a
-   scratch instance and compare), and the decision to restore *over* production belongs to the on-call
-   owner with the clinical owner informed.
-
----
-
-## 8. How this document was verified
-
-Every **read-only** `aws` command above was executed against account `562654496378` in `ap-south-1` on
-2026-10-29 between 15:28Z and 15:40Z. The mutating commands — `ecs update-service`,
-`rds modify-db-instance`, `secretsmanager put-secret-value`, `ssm put-parameter`,
-`cognito-idp admin-set-user-password` — were **not** run: pointing them at production to prove a runbook
-would itself be an incident. They were checked as commands (argument shapes, derived values, service and
-resource names from live `describe-*` output), and the one piece of logic that could silently corrupt a
-secret — the URI rewrite in §5.1 — was dry-run against the live payload.
-
-The transcript, including the state that changed underneath the run (a `develop` build rolled api
-`25 → 26`, worker `25 → 26`, portal `23 → 24` while the document was being written), is in
-`evidence/E20-S2.md`. The URLs were fetched live. The CloudWatch Logs Insights queries were run and
-returned zero rows, which is the expected healthy result, not a failure of the query.
-
-Re-verify before trusting §0's identifiers after any Terraform change:
-
-```bash
-aws ecs describe-services --region ap-south-1 --cluster evia-beta \
-  --services evia-beta-api evia-beta-worker evia-beta-portal \
-  --query 'services[].[serviceName,taskDefinition,runningCount]' --output text
-aws elbv2 describe-target-groups --region ap-south-1 \
-  --query 'TargetGroups[].[TargetGroupName,TargetGroupArn,HealthCheckPath]' --output text
-aws cloudwatch describe-alarms --region ap-south-1 --alarm-name-prefix evia-beta \
-  --query 'MetricAlarms[].[AlarmName,StateValue]' --output text
-aws sns list-subscriptions-by-topic --region ap-south-1 --topic-arn "$OPS_TOPIC" \
-  --query 'Subscriptions[].[Protocol,SubscriptionArn]' --output text
-```
+**The S2 variant carries the short line.** `A9_POST_S2_FALLBACK` used to name no helpline at all — an
+elevated-risk turn served during a model or quota outage got a warm reply and no number. She fixed
+that in revision 6 (§4.5): *"Take this at your own pace."* plus the short line, which names Tele-MANAS
+and 112.

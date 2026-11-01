@@ -36,8 +36,18 @@ class AgeBlockedScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
+                    // E17-S7 rev 6 §4.12 — her text, in full. The line stays at
+                    // 18 and the stop is hard: the pilot is neither designed nor
+                    // consented for minors, and DPDP requires verifiable parental
+                    // consent for under-18s. "yet" is gone — the old heading
+                    // ("OKUVU isn't available for under-18s yet") read to a
+                    // 16-year-old as a roadmap item — and 1098 is added, the one
+                    // number on this screen that is for the person reading it.
+                    // The full five-line block does not appear here: item 12 of
+                    // the record gives this screen its own text, which is the
+                    // more specific instruction (rev 6 §8.1 item 1).
                     const Text(
-                      "OKUVU isn't available for under-18s yet",
+                      'OKUVU is for adults aged 18 and over.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 24,
@@ -47,7 +57,7 @@ class AgeBlockedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      "We're not able to create an account for you right now. If you need to talk to someone today, here are people who can help.",
+                      'If you need to talk to someone today, these people can help:',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 15,
@@ -57,22 +67,36 @@ class AgeBlockedScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     const _ResourceCard(
-                      name: 'iCall (IIT Bombay)',
-                      description: 'Psychosocial helpline for individuals in distress.',
-                      phone: '9152987821',
+                      name: 'Tele-MANAS',
+                      description: 'free, 24 hours, for all ages',
+                      phone: '14416',
                     ),
                     const SizedBox(height: 8),
                     const _ResourceCard(
-                      name: 'Vandrevala Foundation',
-                      description: '24x7 crisis intervention and mental health support.',
-                      phone: '18602662345',
-                      displayPhone: '1860-2662-345',
+                      name: 'Child Helpline',
+                      description: 'For children and young people',
+                      phone: '1098',
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'If you are in danger right now, call 112.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.charcoalInk,
+                        height: 22 / 15,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    const _ResourceCard(
-                      name: 'Emergency Services',
-                      description: 'Immediate assistance from emergency responders.',
-                      phone: '112',
+                    const Text(
+                      'It can also help to talk to a parent, teacher or another adult you trust.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: AppColors.inkSoft,
+                        height: 22 / 15,
+                      ),
                     ),
                   ],
                 ),
@@ -89,13 +113,11 @@ class _ResourceCard extends StatelessWidget {
   final String name;
   final String description;
   final String phone;
-  final String? displayPhone;
 
   const _ResourceCard({
     required this.name,
     required this.description,
     required this.phone,
-    this.displayPhone,
   });
 
   Future<void> _call() async {
@@ -135,13 +157,13 @@ class _ResourceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       description,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      displayPhone ?? phone,
+                      phone,
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,

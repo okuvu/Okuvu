@@ -85,7 +85,6 @@ import {
   MEDICAL_EMERGENCY_CRISIS_RESPONSE,
   SAFETY_UNAVAILABLE_RESPONSE,
 } from '../pipeline/fallbacks.js';
-import { SAFE_FALLBACK } from '../lib/canned-response.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import type { SafetyState } from '@okuvu/shared-types';
 
@@ -381,7 +380,7 @@ function model(options: { a1?: ModelReply; a2?: ModelReply; a9pre?: ModelReply; 
 
     if (which.kind === 'failed') {
       return {
-        text: SAFE_FALLBACK,
+        text: SAFETY_UNAVAILABLE_RESPONSE,
         fallbackUsed: true,
         failureReason: which.failureKind === 'timeout' ? 'timeout' : 'api_error',
         failureKind: which.failureKind,
@@ -400,6 +399,9 @@ function a2Calls(): unknown[] {
     ([params]) => (params as { generationConfig?: unknown }).generationConfig === undefined,
   );
 }
+
+/** The instruction both medical copies open on (rev 6 §4.1 and §4.2). */
+const MEDICAL_LEAD = 'Please call 112 for emergency medical help right now';
 
 /** The first sentence of a reply, as the user reads it. */
 function firstSentence(text: string): string {
@@ -471,7 +473,11 @@ describe('E17-S9 — the reply a medical emergency receives', () => {
 
     expect(result.type).toBe('agent_turn');
     if (result.type !== 'agent_turn') return;
-    expect(firstSentence(result.message)).toBe(firstSentence(MEDICAL_EMERGENCY_RESPONSE));
+    // rev 6 §4.1/§4.2: the two copies no longer share a byte-identical first
+    // sentence — hers ends the medical-overlap sentence at "right now" — but
+    // both still open on the same instruction, which is what the state test
+    // exists to protect.
+    expect(result.message.startsWith(MEDICAL_LEAD)).toBe(true);
   });
 
   it('never calls the reply model — the wording cannot be throttled away', async () => {
@@ -645,7 +651,12 @@ describe('E17-S9 — the shipped copy satisfies the eval gate’s medical-emerge
     }
   });
 
-  it('keeps both copies identical in their first sentence, so what a clinician signs off is one sentence', () => {
-    expect(firstSentence(MEDICAL_EMERGENCY_RESPONSE)).toBe(firstSentence(MEDICAL_EMERGENCY_CRISIS_RESPONSE));
+  it('opens both copies on the same instruction, so what a clinician signs off is one sentence', () => {
+    // Her §4.2 text ends that sentence at "right now" and starts a new one;
+    // §4.1 keeps the em-dash clause. The instruction itself is identical.
+    expect(MEDICAL_EMERGENCY_RESPONSE.startsWith(MEDICAL_LEAD)).toBe(true);
+    expect(MEDICAL_EMERGENCY_CRISIS_RESPONSE.startsWith(MEDICAL_LEAD)).toBe(true);
+    expectFirstSentenceNames112(MEDICAL_EMERGENCY_RESPONSE);
+    expectFirstSentenceNames112(MEDICAL_EMERGENCY_CRISIS_RESPONSE);
   });
 });

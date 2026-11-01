@@ -123,7 +123,21 @@ export const S4_CRISIS_EXTENDED_PATTERN =
       // Attachment to the assistant as the only remaining anchor.
       String.raw`\bonly thing keeping me (?:here|alive|going)\b`,
       // Hindi / Hinglish, matching the forms the gate now scores.
-      String.raw`\b(?:jeena nahi|jeena nahin|marna chaht\w*|mar jaana|khatam kar\w*|khatam karna)\b`,
+      //
+      // E17-S7 (clinical sign-off, 31 Oct 2026) approved "marna chahta / marni
+      // chahti" and "khud ko khatam" as literal phrases. `marni chahti` (the
+      // feminine form) and `khud ko khatam` are added below because neither was
+      // reachable before this: the old alternative had only `marna chaht*` and
+      // `khatam kar*`, so "Main marni chahti hoon" and "khud ko khatam" both
+      // fell through to the model.
+      //
+      // The remaining forms here — `jeena nahin` (a spelling variant of the
+      // signed "jeena nahi"), `mar jaana`, `khatam kar*` and the last line's
+      // Hinglish construction — are NOT in her signed list. They are retained
+      // because they can only ever raise a turn to S4, and they are reported to
+      // her for a decision rather than added to or removed from the list
+      // silently (her condition 3: spelling variants come back for approval).
+      String.raw`\b(?:jeena nahi|jeena nahin|marna chaht\w*|marni chahti|mar jaana|khud ko khatam|khatam kar\w*|khatam karna)\b`,
       String.raw`\bkuch samajh nahi aa raha\b.*\bmarna\b`,
     ].join('|'),
   );
