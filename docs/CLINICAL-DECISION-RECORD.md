@@ -91,7 +91,7 @@ not a clinical gap.
 | 1 | S3 reply (D-A) | **Signed 31 Oct**, rev 3 final: 112, iCall last at 10 am–8 pm, NIMHANS fourth, one Vandrevala number 24×7×365. Varies from `b7aca89`. | Yes — build at `b7aca89`; edits listed in rev 3 §9 needed first |
 | 2 | Phrase list + precedence (D-B) | **Signed 31 Oct** — eleven phrases. Both idiom guards and all three deliberate omissions approved. Precedence: literal outranks the model on every message, raise-only. | Yes — builds as one change, list and guards together |
 | 3 | Three unsigned cards (D-C) | **S4 card signed 31 Oct**, slips corrected, therapist line retained on her instruction. **Third-party card signed**, and rev 3 instruction 4 **drops** the ask-about-intent passage, so the shipped card is her words plus the number block. Medical cards still unsigned. | Two of three, and the third-party card is now clean of unreviewed technique |
-| 4 | Harm-intrusion E17-S15 (D-D) | Approved in principle on three conditions; she still wants the exact current and proposed reply before it ships. | Conditional — the last look is still hers |
+| 4 | Harm-intrusion E17-S15 (D-D) | Approved in principle on three conditions. **Sent to her 1 Nov 2026** with the exact message, current reply and proposed reply; her conditions (a) escalation and (b) therapist alert are unbuilt and were reported as such. | Conditional — awaiting her answer |
 | 5 | Retention (D-E) | "Until deletion" accepted as an **interim** only; wants the lawyer call before it is final. | No — deferred to legal |
 | 6 | Escalation route (D-F) | Signs only once alerts verifiably reach a human with a named backup clinician. | No — blocked on build evidence, not on her |
 | 7 | Launch claims (D-G) | Explicitly last; depends on 1 and 2. | No — not reached |
@@ -110,8 +110,10 @@ All five points revision 2 listed are closed by her third message. What is still
 - **The medical-emergency cards** — unsigned, and they are not untouched by this revision: they share
   the helpline constant, so they will start naming NIMHANS and printing iCall's 10 am–8 pm hours without
   having been reviewed. Fix: sign them, or give them their own constant.
-- **Harm-intrusion (E17-S15)** — unchanged since 30 Oct: approved in principle on three conditions, and
-  she still wants the exact current and proposed reply before it ships.
+- **Harm-intrusion (E17-S15)** — **sent to her 1 Nov 2026** with the exact message, the current reply
+  and a proposed replacement. Her conditions (a) escalation on target/plan/means/past violence or a
+  wanted thought, and (b) a therapist alert on recurrence, are both unbuilt, and the email says so
+  rather than implying they exist.
 - **Retention, escalation route, launch claims (D-E, D-F, D-G)** — unchanged. Retention is deferred to
   legal, escalation waits on build evidence, launch claims come last by her own sequencing.
 - **The waitlist case for "please let your therapist know"** — she retains the line because the app is
@@ -272,6 +274,16 @@ frightened by their own thoughts, potentially harmful. The risk of the change is
 escalate a real risk, which is why it does not move without her.
 
 **Decision (Dr Goswami):** ____________________  Date: __________  Commit: ____________
+
+**Sent to her, 1 Nov 2026 10:18 UTC** — email "E17-S15 - intrusive harm thoughts: the exact message,
+current reply, and proposed reply" from admin@okuvu.in to alphashubhangi@gmail.com, Gmail message
+`1a1969de5a7a3ac9`. It carries the cc-09 message verbatim, the S3 grounding reply she signed as it
+ships today, a drafted replacement marked as hers to amend or replace, and both her conditions (a)
+and (b) reported honestly as unbuilt: (a) verified by probe on 1 Nov — "I'm going to hurt my brother
+tonight" and the knife/routine variant fire no deterministic crisis rule, landing on the policy line at
+S0–S2 and the S3 reply at S3; (b) no alert path exists anywhere in the product (no alert record, no
+delivery, no recurrence detection), and the on-call runbook is still unsigned. Awaiting her answer on
+the copy and on sequencing.
 
 ---
 
@@ -477,7 +489,8 @@ gate, not a copy change.
 **Still open, three one-word items** (rev 6 §8.1): whether the age-gate screen takes the full
 five-line block or her own §4.12 text (applied as §4.12 — the more specific and better copy); whether
 the promise rule reaches the friend card's closing "I'm here."; and whether the friend card body is
-approved as recorded. Ours to deliver: the harm-intrusion reply (E17-S15), never yet sent to her.
+approved as recorded. Ours to deliver: the harm-intrusion reply (E17-S15) — **sent to her 1 Nov 2026**
+(see D-D); awaiting her answer on the copy and on sequencing.
 
 ## Recording an answer
 
