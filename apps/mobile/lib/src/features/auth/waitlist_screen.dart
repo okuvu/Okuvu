@@ -7,13 +7,16 @@ import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 
-/// S6 — reached when /auth/verify-otp returns NO_ACCOUNT: a verified phone
-/// number with no matching OKUVU account or invite. Captures an email so
-/// there's an actual list to follow up on, rather than a dead-end error.
+/// S6 — reached when `POST /auth/google` verifies the person but no OKUVU
+/// account (or invite) exists for their email. Captures an email so there's an
+/// actual list to follow up on, rather than a dead-end error.
 class WaitlistScreen extends ConsumerStatefulWidget {
   final String? phoneNumber;
 
-  const WaitlistScreen({this.phoneNumber, super.key});
+  /// Prefilled when the caller already knows it — Google sign-in always does.
+  final String? email;
+
+  const WaitlistScreen({this.phoneNumber, this.email, super.key});
 
   @override
   ConsumerState<WaitlistScreen> createState() => _WaitlistScreenState();
@@ -26,6 +29,15 @@ class _WaitlistScreenState extends ConsumerState<WaitlistScreen> {
   String? _errorMessage;
 
   static final _emailRe = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+
+  @override
+  void initState() {
+    super.initState();
+    final known = widget.email;
+    if (known != null && known.isNotEmpty) {
+      _emailController.text = known;
+    }
+  }
 
   @override
   void dispose() {
@@ -86,7 +98,7 @@ class _WaitlistScreenState extends ConsumerState<WaitlistScreen> {
         const Icon(LucideIcons.messageCircle, size: 56, color: AppColors.royalPurple),
         const SizedBox(height: 20),
         Text(
-          "We don't have an account for that number yet",
+          "We don't have an OKUVU account for you yet",
           style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),

@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/splash/splash_screen.dart';
-import '../features/auth/otp_login_screen.dart';
+import '../features/auth/google_login_screen.dart';
 import '../features/onboarding_welcome/welcome_screen.dart';
 import '../features/onboarding_welcome/age_blocked_screen.dart';
 import '../features/auth/waitlist_screen.dart';
@@ -108,7 +108,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/auth',
-        builder: (context, state) => const OtpLoginScreen(),
+        builder: (context, state) => const GoogleLoginScreen(),
       ),
       GoRoute(
         path: '/onboarding/welcome',
@@ -125,7 +125,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/waitlist',
         builder: (context, state) =>
-            WaitlistScreen(phoneNumber: state.extra as String?),
+            WaitlistScreen(email: state.extra as String?),
       ),
       GoRoute(
         path: '/onboarding/coldstart',

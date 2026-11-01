@@ -1,59 +1,42 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
-import '../config/cognito_config.dart';
-import 'cognito_client.dart';
+import '../config/google_config.dart';
+import 'dio_client.dart';
 import 'logger.dart';
 import 'token_store.dart';
 
-/// The signed-in user. `uid` is the Cognito `sub` claim — the value the API
-/// stores as `User.auth_subject`.
+/// The signed-in user. `uid` is the Google subject — the value the API stores
+/// as `User.auth_subject`.
 @immutable
 class AuthUser {
-  const AuthUser({required this.uid, this.phoneNumber});
+  const AuthUser({required this.uid, this.email, this.phoneNumber});
 
   final String uid;
+  final String? email;
   final String? phoneNumber;
 
   @override
   bool operator ==(Object other) =>
       other is AuthUser &&
       other.uid == uid &&
+      other.email == email &&
       other.phoneNumber == phoneNumber;
 
   @override
-  int get hashCode => Object.hash(uid, phoneNumber);
+  int get hashCode => Object.hash(uid, email, phoneNumber);
 
   @override
-  String toString() => 'AuthUser($uid, $phoneNumber)';
+  String toString() => 'AuthUser($uid)';
 }
 
 /// Auth failure with a human-readable [message] ready to show in the UI.
 class AuthException implements Exception {
   const AuthException(this.code, this.message);
-
-  /// Maps a Cognito error code to the message the login screen shows.
-  factory AuthException.fromCognito(CognitoException error) {
-    final message = switch (error.code) {
-      'CodeMismatchException' => 'That code is incorrect.',
-      'ExpiredCodeException' => 'That code has expired. Request a new one.',
-      'LimitExceededException' ||
-      'TooManyRequestsException' ||
-      'TooManyFailedAttemptsException' =>
-        'Too many attempts. Try again in a few minutes.',
-      'NotAuthorizedException' => 'Sign-in failed. Request a new code.',
-      'UsernameExistsException' =>
-        'That number is already registered. Request a new code.',
-      'UserNotFoundException' => 'No account found for that number.',
-      'NetworkError' =>
-        "Couldn't reach the server. Check your connection and try again.",
-      _ => 'Something went wrong. Please try again.',
-    };
-    return AuthException(error.code, message);
-  }
 
   final String code;
   final String message;
@@ -62,39 +45,69 @@ class AuthException implements Exception {
   String toString() => 'AuthException($code): $message';
 }
 
-enum _Flow { signup, reset, signedIn }
+/// What `signInWithGoogle` resolved to.
+///
+/// [hasAccount] is false when Google verified the person but no Okuvu `User`
+/// exists for them yet — the app sends them to the waitlist (or redeems an
+/// invite code first). Sign-in itself still succeeded, and a session token
+/// exists either way, because redeeming an invite requires being authenticated.
+@immutable
+class GoogleSignInResult {
+  const GoogleSignInResult({
+    required this.user,
+    required this.hasAccount,
+    this.email,
+  });
 
-/// Phone-OTP authentication against Amazon Cognito.
+  final AuthUser user;
+  final bool hasAccount;
+  final String? email;
+}
+
+/// Supplies a Google ID token. Injected so tests never touch the plugin.
+typedef GoogleIdTokenProvider = Future<String?> Function();
+
+/// Google authentication, exchanged for an Okuvu session token.
 ///
-/// Cognito user pool with `phone_number` as the username, SMS codes sent by
-/// Cognito itself. New users: `SignUp` → `ConfirmSignUp` →
-/// `InitiateAuth(USER_PASSWORD_AUTH)`. Returning users: `SignUp` answers
-/// `UsernameExistsException`, which selects `ForgotPassword` →
-/// `ConfirmForgotPassword` → `InitiateAuth` instead.
+/// Flow: `google_sign_in` performs the consent dialog on device and returns a
+/// Google ID token → this class posts it to `POST /auth/google` → the API
+/// verifies the token's signature/issuer/audience, links the Google subject to
+/// the invited `User` row, and returns Okuvu's own 30-day session token, which
+/// is what every subsequent request carries.
 ///
-/// Public surface is unchanged from the previous implementation:
-/// [currentUser], [getIdToken], [verifyPhone], [verifyOtp], [signOut],
-/// [authStateChanges].
+/// Why not Cognito and not phone OTP: SMS-only sign-in needed TRAI DLT
+/// registration before a single client could log in, and clients are already
+/// Google users. The API still accepts Cognito tokens (see
+/// `apps/api/src/middleware/auth.ts`), so this is additive on the server side.
 class AuthService {
   AuthService({
-    CognitoConfig? config,
     TokenStore? store,
-    CognitoClient? client,
-  })  : _config = config ?? CognitoConfig.fromEnvironment(),
-        _store = store ?? PrefsTokenStore() {
-    _client = client ??
-        CognitoClient(region: _config.region, clientId: _config.clientId);
-  }
+    Dio? api,
+    GoogleIdTokenProvider? googleIdToken,
+    Future<void> Function()? googleSignOut,
+  })  : _store = store ?? PrefsTokenStore(),
+        _api = api ?? createDioClient(),
+        _googleIdToken = googleIdToken ?? _deviceGoogleIdToken,
+        _googleSignOut = googleSignOut ?? _deviceGoogleSignOut;
 
-  final CognitoConfig _config;
   final TokenStore _store;
-  late final CognitoClient _client;
+
+  /// A bare Dio (no `AuthInterceptor`): signing in is precisely the call that
+  /// has no bearer token yet, and wiring the interceptor in would make
+  /// `AuthService` depend on itself.
+  final Dio _api;
+
+  final GoogleIdTokenProvider _googleIdToken;
+  final Future<void> Function() _googleSignOut;
 
   final StreamController<AuthUser?> _controller =
       StreamController<AuthUser?>.broadcast();
 
   AuthUser? _currentUser;
   Future<AuthUser?>? _restore;
+
+  /// `GoogleSignIn.initialize` may only be called once per process.
+  static bool _googleInitialised = false;
 
   AuthUser? get currentUser => _currentUser;
 
@@ -108,9 +121,9 @@ class AuthService {
     yield* _controller.stream;
   }
 
-  /// The Cognito **ID** token (the API accepts `id` and `access` tokens and
-  /// reads `sub` from either). Refreshes transparently when the stored token is
-  /// expired; a failed refresh is a sign-out and returns `null`.
+  /// The bearer token for API calls. Refreshes nothing: a session token lasts
+  /// 30 days, and an expired one means signing in again, so the caller sees
+  /// `null` and the router sends the user back to `/auth`.
   Future<String?> getIdToken() async {
     final stored = await _safeRead();
     if (stored == null) {
@@ -118,155 +131,95 @@ class AuthService {
       return null;
     }
 
-    var session = stored.session;
-    if (session.isExpired) {
-      final refreshed = await _refresh(stored);
-      if (refreshed == null) return null;
-      session = refreshed.session;
+    if (stored.isExpired) {
+      Logger.debug('[AuthService] stored session expired — signing out');
+      await _signOutLocally();
+      return null;
     }
 
-    _currentUser ??= _userFrom(session, stored.phoneNumber);
-    return session.idToken;
+    _currentUser ??= _userFrom(stored);
+    return stored.token;
   }
 
-  /// Sends an SMS code via Cognito.
+  /// Runs the Google consent dialog and exchanges the result for a session.
   ///
-  /// [forceResendingToken] is accepted for signature compatibility with the
-  /// previous implementation but unused: Cognito has no resend token, so a
-  /// resend is another `SignUp`/`ForgotPassword` call, which re-sends the code
-  /// for the same username.
-  Future<void> verifyPhone({
-    required String phoneNumber,
-    required void Function(String verificationId, int? forceResendingToken)
-        onCodeSent,
-    required void Function(AuthException) onError,
-    int? forceResendingToken,
-  }) async {
-    final phone = _normalizePhone(phoneNumber);
-
-    if (!_config.isConfigured) {
-      onError(const AuthException(
-        'AuthNotConfigured',
-        'Sign-in is not configured on this build.',
-      ));
-      return;
-    }
-
-    try {
-      final password = await _store.readPassword(phone) ?? _newDevicePassword();
-
-      var confirmed = false;
-      try {
-        confirmed = await _client.signUp(
-          phoneNumber: phone,
-          password: password,
-        );
-      } on CognitoException catch (e) {
-        if (e.code != 'UsernameExistsException') rethrow;
-
-        // Returning user. Ask Cognito to send a fresh SMS code; confirming it
-        // resets the (never-shown) device password, which is what verifyOtp
-        // then sets and signs in with.
-        final resetPassword = _newDevicePassword();
-        await _client.forgotPassword(phone);
-        onCodeSent(
-          _encodeVerificationId(_Flow.reset, phone, resetPassword),
-          null,
-        );
-        return;
-      }
-
-      if (confirmed) {
-        // Only reachable on a pool with no confirmation step: there is no SMS
-        // to wait for, so sign in now and hand back a verification id that
-        // resolves the live session.
-        final session = await _client.passwordAuth(
-          phoneNumber: phone,
-          password: password,
-        );
-        await _persist(phone, password, session);
-        onCodeSent(_encodeVerificationId(_Flow.signedIn, phone, password), null);
-        return;
-      }
-
-      onCodeSent(_encodeVerificationId(_Flow.signup, phone, password), null);
-    } on CognitoException catch (e) {
-      onError(AuthException.fromCognito(e));
-    } catch (e) {
-      Logger.debug('[AuthService] verifyPhone failed unexpectedly: $e');
-      onError(const AuthException(
-        'Unknown',
-        'Something went wrong. Please try again.',
-      ));
-    }
-  }
-
-  /// Confirms the SMS code and signs in. Throws [AuthException] on any failure.
-  Future<void> verifyOtp({
-    required String verificationId,
-    required String smsCode,
-  }) async {
-    final attempt = _decodeVerificationId(verificationId);
-    if (attempt == null) {
+  /// Throws [AuthException] for everything a user could act on — cancelled,
+  /// not configured, no account, email already bound, network — so the login
+  /// screen only has to render `e.message`.
+  Future<GoogleSignInResult> signInWithGoogle() async {
+    final idToken = await _googleIdToken();
+    if (idToken == null || idToken.isEmpty) {
       throw const AuthException(
-        'InvalidVerificationId',
-        'Sign-in failed. Request a new code.',
+        'NoIdToken',
+        'Google did not return a sign-in token. Please try again.',
       );
     }
 
+    Response<dynamic> response;
     try {
-      if (attempt.flow == _Flow.signedIn) {
-        await _ensureRestored();
-        if (_currentUser == null) {
-          throw const AuthException(
-            'NotAuthorizedException',
-            'Sign-in failed. Request a new code.',
-          );
-        }
-        return;
-      }
-
-      if (attempt.flow == _Flow.signup) {
-        try {
-          await _client.confirmSignUp(
-            phoneNumber: attempt.phone,
-            code: smsCode,
-          );
-        } on CognitoException catch (e) {
-          // A pool without a confirmation step reports the user as already
-          // confirmed; the password sign-in below is the real check.
-          final alreadyConfirmed = e.code == 'NotAuthorizedException' &&
-              e.message.toLowerCase().contains('already');
-          if (!alreadyConfirmed) rethrow;
-        }
-      } else {
-        await _client.confirmForgotPassword(
-          phoneNumber: attempt.phone,
-          code: smsCode,
-          password: attempt.password,
-        );
-      }
-
-      final session = await _client.passwordAuth(
-        phoneNumber: attempt.phone,
-        password: attempt.password,
+      response = await _api.post<dynamic>(
+        '/auth/google',
+        data: {'id_token': idToken},
       );
-      await _persist(attempt.phone, attempt.password, session);
-    } on CognitoException catch (e) {
-      throw AuthException.fromCognito(e);
+    } on DioException catch (e) {
+      throw _fromDio(e);
     }
+
+    final data = response.data;
+    if (data is! Map) {
+      throw const AuthException(
+        'InvalidResponse',
+        'Something went wrong. Please try again.',
+      );
+    }
+    final body = Map<String, dynamic>.from(data);
+
+    final token = body['token'];
+    final expiresAt = body['expires_at'];
+    if (token is! String || token.isEmpty || expiresAt is! num) {
+      throw const AuthException(
+        'InvalidResponse',
+        'Something went wrong. Please try again.',
+      );
+    }
+
+    final email = body['email'] is String ? body['email'] as String : null;
+    final phone = body['phone_number'] is String ? body['phone_number'] as String : null;
+    final stored = StoredSession(
+      token: token,
+      expiresAt: DateTime.fromMillisecondsSinceEpoch(expiresAt.toInt() * 1000),
+      subject: _subjectOf(token) ?? email ?? '',
+      email: email,
+      phoneNumber: phone,
+    );
+
+    if (stored.subject.isEmpty) {
+      throw const AuthException(
+        'InvalidResponse',
+        'Something went wrong. Please try again.',
+      );
+    }
+
+    await _persist(stored);
+
+    return GoogleSignInResult(
+      user: _userFrom(stored),
+      hasAccount: body['has_account'] == true,
+      email: email,
+    );
   }
 
-  /// Clears local tokens and best-effort revokes the refresh token at Cognito.
+  /// Clears the session locally and drops the Google account from this app.
+  ///
+  /// There is no server-side revocation in this revision: the token expires on
+  /// its own (30 days) and rotating `OKUVU_SESSION_SECRET` invalidates all
+  /// sessions at once. Deliberately no failure surface — a user tapping "Sign
+  /// out" must end up signed out even if the Google call fails.
   Future<void> signOut() async {
-    final stored = await _safeRead();
-    final refreshToken = stored?.session.refreshToken;
-    if (refreshToken != null && _config.isConfigured) {
-      try {
-        await _client.revoke(refreshToken);
-      } catch (e) {
-        Logger.debug('[AuthService] RevokeToken failed (ignored): $e');
-      }
+    try {
+      await _googleSignOut();
+    } catch (e) {
+      Logger.debug('[AuthService] Google sign-out failed (ignored): $e');
     }
     await _signOutLocally();
   }
@@ -277,61 +230,115 @@ class AuthService {
 
   // ── internals ────────────────────────────────────────────────────────────
 
+  static Future<String?> _deviceGoogleIdToken() async {
+    if (!GoogleConfig.isConfigured) {
+      throw const AuthException(
+        'SignInNotConfigured',
+        'Sign-in is not configured on this build.',
+      );
+    }
+
+    final google = GoogleSignIn.instance;
+    try {
+      if (!_googleInitialised) {
+        await google.initialize(serverClientId: GoogleConfig.serverClientId);
+        _googleInitialised = true;
+      }
+      final account = await google.authenticate();
+      return account.authentication.idToken;
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw const AuthException('Cancelled', 'Sign-in cancelled.');
+      }
+      Logger.debug('[AuthService] Google sign-in failed: ${e.code} ${e.description}');
+      throw const AuthException(
+        'GoogleSignInFailed',
+        "Google sign-in didn't complete. Please try again.",
+      );
+    }
+  }
+
+  static Future<void> _deviceGoogleSignOut() async {
+    if (!_googleInitialised) return;
+    await GoogleSignIn.instance.signOut();
+  }
+
+  static AuthException _fromDio(DioException error) {
+    final code = _errorCode(error.response?.data);
+    switch (code) {
+      case 'INVALID_GOOGLE_TOKEN':
+        return const AuthException(
+          'INVALID_GOOGLE_TOKEN',
+          'Google sign-in could not be verified. Please try again.',
+        );
+      case 'EMAIL_IN_USE':
+        return const AuthException(
+          'EMAIL_IN_USE',
+          'This email is already connected to a different sign-in method. Please contact support.',
+        );
+      case 'ACCOUNT_DELETED':
+        return const AuthException(
+          'ACCOUNT_DELETED',
+          'This account has been closed.',
+        );
+      case 'SIGN_IN_NOT_CONFIGURED':
+        return const AuthException(
+          'SIGN_IN_NOT_CONFIGURED',
+          'Sign-in is not configured on this build.',
+        );
+    }
+
+    if (error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout) {
+      return const AuthException(
+        'NetworkError',
+        "Couldn't reach the server. Check your connection and try again.",
+      );
+    }
+
+    return AuthException(
+      code ?? 'Unknown',
+      'Something went wrong. Please try again.',
+    );
+  }
+
+  static String? _errorCode(dynamic responseData) {
+    var data = responseData;
+    if (data is String && data.isNotEmpty) {
+      try {
+        data = jsonDecode(data);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (data is Map) {
+      final error = data['error'];
+      if (error is Map) {
+        final code = error['code'];
+        if (code is String) return code;
+      }
+    }
+    return null;
+  }
+
   Future<AuthUser?> _ensureRestored() => _restore ??= _restoreFromStore();
 
   Future<AuthUser?> _restoreFromStore() async {
     final stored = await _safeRead();
     if (stored == null) return null;
-
-    var session = stored.session;
-    if (session.isExpired) {
-      // A dead refresh token means the stored session is worthless — treat it
-      // as signed out rather than looping on 401s.
-      final refreshed = await _refresh(stored);
-      if (refreshed == null) return null;
-      session = refreshed.session;
+    if (stored.isExpired) {
+      await _signOutLocally();
+      return null;
     }
-
-    final user = _userFrom(session, stored.phoneNumber);
+    final user = _userFrom(stored);
     _currentUser = user;
     return user;
   }
 
-  Future<StoredSession?> _refresh(StoredSession stored) async {
-    final refreshToken = stored.session.refreshToken;
-    if (refreshToken == null) {
-      await _signOutLocally();
-      return null;
-    }
-    try {
-      final session = await _client.refresh(refreshToken);
-      final next = StoredSession(
-        phoneNumber: stored.phoneNumber,
-        password: stored.password,
-        session: stored.session.merge(session),
-      );
-      await _store.write(next);
-      return next;
-    } catch (e) {
-      Logger.debug('[AuthService] token refresh failed — signing out: $e');
-      await _signOutLocally();
-      return null;
-    }
-  }
-
-  Future<void> _persist(
-    String phoneNumber,
-    String password,
-    CognitoSession session,
-  ) async {
-    await _store.write(
-      StoredSession(
-        phoneNumber: phoneNumber,
-        password: password,
-        session: session,
-      ),
-    );
-    final user = _userFrom(session, phoneNumber);
+  Future<void> _persist(StoredSession stored) async {
+    await _store.write(stored);
+    final user = _userFrom(stored);
     _currentUser = user;
     _restore = Future<AuthUser?>.value(user);
     if (!_controller.isClosed) _controller.add(user);
@@ -353,88 +360,26 @@ class AuthService {
     }
   }
 
-  AuthUser _userFrom(CognitoSession session, String phoneNumber) {
-    final claims = _decodeJwtPayload(session.idToken);
-    final sub = claims?['sub'];
-    final phone = claims?['phone_number'];
-    return AuthUser(
-      uid: sub is String && sub.isNotEmpty ? sub : phoneNumber,
-      phoneNumber: phone is String && phone.isNotEmpty ? phone : phoneNumber,
-    );
-  }
+  AuthUser _userFrom(StoredSession stored) => AuthUser(
+        uid: stored.subject,
+        email: stored.email,
+        phoneNumber: stored.phoneNumber,
+      );
 
-  static Map<String, dynamic>? _decodeJwtPayload(String token) {
+  /// The `sub` claim of the session token — the Google subject the API has
+  /// already verified. Read without verification because it is only used as a
+  /// local identifier; authorisation happens server-side on every request.
+  static String? _subjectOf(String token) {
     final parts = token.split('.');
     if (parts.length < 2) return null;
     try {
       final decoded =
           utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
       final json = jsonDecode(decoded);
-      return json is Map ? Map<String, dynamic>.from(json) : null;
+      if (json is Map && json['sub'] is String) return json['sub'] as String;
+      return null;
     } catch (_) {
       return null;
     }
   }
-
-  /// 32 random bytes, base64url, behind a short prefix that satisfies the
-  /// strictest Cognito password policy (upper, lower, digit, symbol). Never
-  /// shown to the user; stored on the device next to the refresh token.
-  static String _newDevicePassword() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
-    return 'Aa1!${base64Url.encode(bytes)}';
-  }
-
-  static String _encodeVerificationId(
-    _Flow flow,
-    String phone,
-    String password,
-  ) {
-    final payload = jsonEncode({
-      'flow': flow.name,
-      'phone': phone,
-      'password': password,
-    });
-    return base64Url.encode(utf8.encode(payload));
-  }
-
-  static _Attempt? _decodeVerificationId(String verificationId) {
-    try {
-      final json = jsonDecode(
-        utf8.decode(base64Url.decode(base64Url.normalize(verificationId))),
-      );
-      if (json is! Map) return null;
-      _Flow? flow;
-      for (final candidate in _Flow.values) {
-        if (candidate.name == json['flow']) flow = candidate;
-      }
-      final phone = json['phone'];
-      final password = json['password'];
-      if (flow == null || phone is! String || password is! String) return null;
-      return _Attempt(flow: flow, phone: phone, password: password);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static String _normalizePhone(String input) {
-    final trimmed = input.replaceAll(RegExp(r'[\s\-()]'), '');
-    if (trimmed.startsWith('+')) return trimmed;
-    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
-    if (digits.isEmpty) return trimmed;
-    if (digits.length == 10) return '+91$digits';
-    return '+$digits';
-  }
-}
-
-class _Attempt {
-  const _Attempt({
-    required this.flow,
-    required this.phone,
-    required this.password,
-  });
-
-  final _Flow flow;
-  final String phone;
-  final String password;
 }

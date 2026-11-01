@@ -161,24 +161,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sign In'), findsAtLeast(1));
 
-    await tester.enterText(find.byType(TextField), '9999999999');
-    await tester.tap(find.text('Continue with Phone'));
+    await tester.tap(find.byKey(const ValueKey('google_sign_in_button')));
     await tester.pumpAndSettle();
-    expect(find.text('OTP Verification'), findsOneWidget);
 
-    for (int i = 0; i < 6; i++) {
-      await tester.enterText(find.byKey(ValueKey('otp_$i')), '${i + 1}');
-    }
-    // Auto-submit triggers verify → backend → navigate → redirect to /auth.
-    // Explicit pumps avoid pumpAndSettle getting stuck on the
-    // CircularProgressIndicator animation and periodic resend timer.
-    await tester.pump();
-    await tester.pump();
-    await tester.pump();
-
-    // After auto-submit, verify + backend both succeed;
-    // session remains unauthenticated, so redirect to /auth would happen.
-    // Manually set session and navigate.
+    // Sign-in succeeds in the fake, but `sessionProvider` is overridden below,
+    // so the router still treats the user as unauthenticated and bounces back
+    // to /auth. The real navigation assertion starts once the session flips.
+    expect(find.text('Sign In'), findsAtLeast(1));
     container
         .read(_testSessionState.notifier)
         .update(SessionState.authenticated);

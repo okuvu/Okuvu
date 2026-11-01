@@ -4,60 +4,38 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:okuvu/src/config/cognito_config.dart';
 import 'package:okuvu/src/core/auth_service.dart';
-import 'package:okuvu/src/core/cognito_client.dart';
 import 'package:okuvu/src/core/token_store.dart';
 
-const _clientId = 'mobile-client-id';
-const _phone = '+919876543210';
+/// Google sign-in, as far as the app is concerned: a Google ID token goes to
+/// `POST /auth/google`, an Okuvu session token comes back and is what every
+/// later request carries. The Google plugin itself is injected out, so these
+/// tests never touch a platform channel.
 
-String _fakeIdToken({String sub = 'sub-abc', String phone = _phone}) {
-  final header = base64Url.encode(utf8.encode(jsonEncode({'alg': 'RS256'})));
-  final payload = base64Url.encode(
-    utf8.encode(jsonEncode({'sub': sub, 'phone_number': phone})),
-  );
-  return '$header.$payload.signature';
-}
+const _idToken = 'google-id-token';
+const _subject = 'google-sub-abc';
 
-Map<String, dynamic> _authResult({
-  String idToken = '',
-  String? refreshToken = 'refresh-1',
-  int expiresIn = 3600,
-}) {
-  return {
-    'AuthenticationResult': {
-      'AccessToken': 'access-1',
-      'IdToken': idToken.isEmpty ? _fakeIdToken() : idToken,
-      'RefreshToken': refreshToken,
-      'ExpiresIn': expiresIn,
-      'TokenType': 'Bearer',
-    },
+String _fakeSessionToken({String sub = _subject, int ttlSeconds = 3600}) {
+  String seg(Map<String, dynamic> value) =>
+      base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+  final payload = {
+    'sub': sub,
+    'iss': 'okuvu-api',
+    'aud': 'okuvu-mobile',
+    'exp': DateTime.now().add(Duration(seconds: ttlSeconds)).millisecondsSinceEpoch ~/ 1000,
   };
+  return '${seg({'alg': 'HS256'})}.${seg(payload)}.signature';
 }
 
-/// Records every Cognito call and answers per operation.
-class FakeCognitoAdapter implements HttpClientAdapter {
-  final List<String> operations = [];
-  final List<Map<String, dynamic>> bodies = [];
+class FakeAdapter implements HttpClientAdapter {
+  RequestOptions? lastRequest;
+  int statusCode = 200;
+  dynamic body = '{}';
 
-  final Map<String, Map<String, dynamic>> _responses = {};
-  final Map<String, ({int status, String type, String message})> _failures = {};
-
-  void on(String operation, Map<String, dynamic> body) {
-    _responses[operation] = body;
-  }
-
-  void fail(
-    String operation,
-    String type, {
-    int status = 400,
-    String message = 'failed',
-  }) {
-    _failures[operation] = (status: status, type: type, message: message);
-  }
-
-  int countOf(String operation) => operations.where((o) => o == operation).length;
+  FakeAdapter({
+    this.statusCode = 200,
+    this.body = '{}',
+  });
 
   @override
   Future<ResponseBody> fetch(
@@ -65,32 +43,13 @@ class FakeCognitoAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
-    final target = options.headers['X-Amz-Target'] as String;
-    final operation = target.split('.').last;
-    operations.add(operation);
-    bodies.add(
-      Map<String, dynamic>.from(jsonDecode(options.data as String) as Map),
-    );
-
-    final failure = _failures[operation];
-    if (failure != null) {
-      return ResponseBody.fromString(
-        jsonEncode({
-          '__type': 'com.amazonaws.cognitoidentityprovider.model.${failure.type}',
-          'message': failure.message,
-        }),
-        failure.status,
-        headers: {
-          'content-type': ['application/x-amz-json-1.1'],
-        },
-      );
-    }
-
+    lastRequest = options;
+    final payload = body is String ? body as String : jsonEncode(body);
     return ResponseBody.fromString(
-      jsonEncode(_responses[operation] ?? {}),
-      200,
+      payload,
+      statusCode,
       headers: {
-        'content-type': ['application/x-amz-json-1.1'],
+        Headers.contentTypeHeader: ['application/json'],
       },
     );
   }
@@ -99,368 +58,195 @@ class FakeCognitoAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-Map<String, dynamic> _verificationIdPayload(String verificationId) {
-  return Map<String, dynamic>.from(
-    jsonDecode(utf8.decode(base64Url.decode(verificationId))) as Map,
-  );
-}
+Map<String, dynamic> _successBody({
+  String? token,
+  int ttlSeconds = 3600,
+  bool hasAccount = true,
+  String email = 'client@example.com',
+}) =>
+    {
+      'token': token ?? _fakeSessionToken(ttlSeconds: ttlSeconds),
+      'expires_at':
+          DateTime.now().add(Duration(seconds: ttlSeconds)).millisecondsSinceEpoch ~/ 1000,
+      'has_account': hasAccount,
+      'user_id': hasAccount ? 'user-1' : null,
+      'phone_number': hasAccount ? '+919****3210' : null,
+      'email': email,
+      'linked': false,
+    };
 
 void main() {
-  late FakeCognitoAdapter adapter;
   late Dio dio;
+  late FakeAdapter adapter;
+  late MemoryTokenStore store;
+
+  AuthService build({
+    Future<String?> Function()? idToken,
+    Future<void> Function()? googleSignOut,
+  }) =>
+      AuthService(
+        store: store,
+        api: dio,
+        googleIdToken: idToken ?? () async => _idToken,
+        googleSignOut: googleSignOut ?? () async {},
+      );
 
   setUp(() {
-    adapter = FakeCognitoAdapter();
-    dio = Dio();
+    adapter = FakeAdapter();
+    dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
     dio.httpClientAdapter = adapter;
+    store = MemoryTokenStore();
   });
 
-  AuthService buildService(TokenStore store) {
-    return AuthService(
-      config: const CognitoConfig(region: 'ap-south-1', clientId: _clientId),
-      store: store,
-      client: CognitoClient(
-        region: 'ap-south-1',
-        clientId: _clientId,
-        dio: dio,
-      ),
-    );
-  }
+  group('signInWithGoogle', () {
+    test('posts the Google ID token and stores the returned session', () async {
+      adapter.body = _successBody();
+      final service = build();
 
-  group('SignUp flow (new phone number)', () {
-    test('sends SignUp with phone_number and an unseen device password', () async {
-      final store = MemoryTokenStore();
-      final service = buildService(store);
-      adapter.on('SignUp', {'UserConfirmed': false});
+      final result = await service.signInWithGoogle();
 
-      String? verificationId;
-      AuthException? error;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, token) => verificationId = id,
-        onError: (e) => error = e,
-      );
+      expect(adapter.lastRequest?.path, contains('/auth/google'));
+      expect(adapter.lastRequest?.data, containsPair('id_token', _idToken));
+      expect(result.hasAccount, isTrue);
+      expect(result.user.uid, _subject);
+      expect(result.user.email, 'client@example.com');
+      expect(result.user.phoneNumber, '+919****3210');
 
-      expect(error, isNull);
-      expect(adapter.operations, ['SignUp']);
-      final body = adapter.bodies.single;
-      expect(body['ClientId'], _clientId);
-      expect(body['Username'], _phone);
-      expect(body['UserAttributes'], [
-        {'Name': 'phone_number', 'Value': _phone},
-      ]);
-      final password = body['Password'] as String;
-      expect(password.length, greaterThan(32));
-      // Meets the strictest pool policy out of the box.
-      expect(password, contains('Aa1!'));
-
-      final payload = _verificationIdPayload(verificationId!);
-      expect(payload['flow'], 'signup');
-      expect(payload['phone'], _phone);
-      expect(payload['password'], password);
+      // Persisted, so the session survives a restart.
+      expect(store.session?.token, isNotEmpty);
+      expect(store.session?.subject, _subject);
+      expect(await service.getIdToken(), store.session?.token);
     });
 
-    test('verifyOtp confirms the code then signs in with the password', () async {
-      final store = MemoryTokenStore();
-      final service = buildService(store);
-      adapter.on('SignUp', {'UserConfirmed': false});
-      adapter.on('ConfirmSignUp', {});
-      adapter.on('InitiateAuth', _authResult());
+    test('reports has_account:false for someone with no OKUVU account', () async {
+      adapter.body = _successBody(hasAccount: false, email: 'stranger@example.com');
+      final service = build();
 
-      String? verificationId;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, _) => verificationId = id,
-        onError: (_) {},
-      );
+      final result = await service.signInWithGoogle();
 
-      await service.verifyOtp(verificationId: verificationId!, smsCode: '123456');
-
-      expect(adapter.operations, ['SignUp', 'ConfirmSignUp', 'InitiateAuth']);
-
-      final confirm = adapter.bodies[1];
-      expect(confirm['Username'], _phone);
-      expect(confirm['ConfirmationCode'], '123456');
-
-      final initiate = adapter.bodies[2];
-      expect(initiate['AuthFlow'], 'USER_PASSWORD_AUTH');
-      final params = initiate['AuthParameters'] as Map;
-      expect(params['USERNAME'], _phone);
-      expect(params['PASSWORD'], _verificationIdPayload(verificationId!)['password']);
-
-      expect(service.currentUser?.uid, 'sub-abc');
-      expect(service.currentUser?.phoneNumber, _phone);
-      expect(store.session?.session.idToken, _fakeIdToken());
-      expect(store.session?.session.refreshToken, 'refresh-1');
-      expect(store.session?.phoneNumber, _phone);
+      expect(result.hasAccount, isFalse);
+      expect(result.email, 'stranger@example.com');
+      // The session still exists — redeeming an invite requires being signed in.
+      expect(await service.getIdToken(), isNotNull);
     });
 
-    test('a SignUp failure is reported as an AuthException message', () async {
-      final service = buildService(MemoryTokenStore());
-      adapter.fail('SignUp', 'LimitExceededException');
-
-      String? verificationId;
-      AuthException? error;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, _) => verificationId = id,
-        onError: (e) => error = e,
-      );
-
-      expect(verificationId, isNull);
-      expect(error?.code, 'LimitExceededException');
-      expect(error?.message, 'Too many attempts. Try again in a few minutes.');
-    });
-
-    test('refuses to call Cognito when the build has no client id', () async {
-      final service = AuthService(
-        config: const CognitoConfig(region: 'ap-south-1', clientId: ''),
-        store: MemoryTokenStore(),
-        client: CognitoClient(
-          region: 'ap-south-1',
-          clientId: '',
-          dio: dio,
-        ),
-      );
-
-      AuthException? error;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (_, __) {},
-        onError: (e) => error = e,
-      );
-
-      expect(error?.code, 'AuthNotConfigured');
-      expect(adapter.operations, isEmpty);
-    });
-  });
-
-  group('ForgotPassword flow (returning phone number)', () {
-    test('UsernameExistsException switches to ForgotPassword and marks the flow reset', () async {
-      final service = buildService(MemoryTokenStore());
-      adapter.fail('SignUp', 'UsernameExistsException');
-      adapter.on('ForgotPassword', {});
-
-      String? verificationId;
-      AuthException? error;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, _) => verificationId = id,
-        onError: (e) => error = e,
-      );
-
-      expect(error, isNull);
-      expect(adapter.operations, ['SignUp', 'ForgotPassword']);
-      expect(adapter.bodies[1]['Username'], _phone);
-      expect(adapter.bodies[1]['ClientId'], _clientId);
-
-      final payload = _verificationIdPayload(verificationId!);
-      expect(payload['flow'], 'reset');
-      expect(payload['phone'], _phone);
-    });
-
-    test('verifyOtp confirms the reset with a new password, then signs in', () async {
-      final store = MemoryTokenStore();
-      final service = buildService(store);
-      adapter.fail('SignUp', 'UsernameExistsException');
-      adapter.on('ForgotPassword', {});
-      adapter.on('ConfirmForgotPassword', {});
-      adapter.on('InitiateAuth', _authResult(refreshToken: 'refresh-2', expiresIn: 60));
-
-      String? verificationId;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, _) => verificationId = id,
-        onError: (_) {},
-      );
-
-      await service.verifyOtp(verificationId: verificationId!, smsCode: '999999');
-
-      expect(
-        adapter.operations,
-        ['SignUp', 'ForgotPassword', 'ConfirmForgotPassword', 'InitiateAuth'],
-      );
-      final confirm = adapter.bodies[2];
-      final expectedPassword =
-          _verificationIdPayload(verificationId!)['password'] as String;
-      expect(confirm['ConfirmationCode'], '999999');
-      expect(confirm['Password'], expectedPassword);
-      expect(confirm['Username'], _phone);
-      expect(
-        (adapter.bodies[3]['AuthParameters'] as Map)['PASSWORD'],
-        expectedPassword,
-      );
-      expect(service.currentUser?.uid, 'sub-abc');
-      expect(store.session?.session.refreshToken, 'refresh-2');
-    });
-
-    test('a wrong code surfaces as CodeMismatchException with a readable message', () async {
-      final service = buildService(MemoryTokenStore());
-      adapter.on('SignUp', {'UserConfirmed': false});
-      adapter.fail('ConfirmSignUp', 'CodeMismatchException');
-
-      String? verificationId;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, _) => verificationId = id,
-        onError: (_) {},
-      );
+    test('throws when Google returns no ID token', () async {
+      final service = build(idToken: () async => null);
 
       await expectLater(
-        service.verifyOtp(verificationId: verificationId!, smsCode: '000000'),
+        service.signInWithGoogle(),
+        throwsA(isA<AuthException>().having((e) => e.code, 'code', 'NoIdToken')),
+      );
+      expect(adapter.lastRequest, isNull);
+    });
+
+    test('surfaces EMAIL_IN_USE with an actionable message', () async {
+      adapter.statusCode = 409;
+      adapter.body =
+          '{"error": {"code": "EMAIL_IN_USE", "message": "already connected"}}';
+      final service = build();
+
+      await expectLater(
+        service.signInWithGoogle(),
         throwsA(
           isA<AuthException>()
-              .having((e) => e.code, 'code', 'CodeMismatchException')
-              .having((e) => e.message, 'message', 'That code is incorrect.'),
+              .having((e) => e.code, 'code', 'EMAIL_IN_USE')
+              .having((e) => e.message, 'message', contains('contact support')),
         ),
       );
     });
 
-    test('an expired code maps to the "request a new one" message', () async {
-      final service = buildService(MemoryTokenStore());
-      adapter.on('SignUp', {'UserConfirmed': false});
-      adapter.fail('ConfirmSignUp', 'ExpiredCodeException');
-
-      String? verificationId;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, _) => verificationId = id,
-        onError: (_) {},
-      );
+    test('surfaces a rejected Google token as a generic retry message', () async {
+      adapter.statusCode = 401;
+      adapter.body = '{"error": {"code": "INVALID_GOOGLE_TOKEN"}}';
+      final service = build();
 
       await expectLater(
-        service.verifyOtp(verificationId: verificationId!, smsCode: '000000'),
+        service.signInWithGoogle(),
         throwsA(
           isA<AuthException>().having(
-            (e) => e.message,
-            'message',
-            'That code has expired. Request a new one.',
+            (e) => e.code,
+            'code',
+            'INVALID_GOOGLE_TOKEN',
           ),
         ),
       );
     });
-  });
 
-  group('getIdToken', () {
-    StoredSession expiredSession() => StoredSession(
-          phoneNumber: _phone,
-          password: 'device-password',
-          session: CognitoSession(
-            accessToken: 'old-access',
-            idToken: _fakeIdToken(),
-            refreshToken: 'refresh-old',
-            expiresAt: DateTime.now().subtract(const Duration(minutes: 5)),
-          ),
-        );
+    test('surfaces ACCOUNT_DELETED', () async {
+      adapter.statusCode = 403;
+      adapter.body = '{"error": {"code": "ACCOUNT_DELETED"}}';
 
-    test('refreshes an expired token via REFRESH_TOKEN_AUTH', () async {
-      final store = MemoryTokenStore(expiredSession());
-      final service = buildService(store);
-      adapter.on('InitiateAuth', _authResult(refreshToken: null));
-
-      final token = await service.getIdToken();
-
-      expect(token, _fakeIdToken());
-      expect(adapter.operations, ['InitiateAuth']);
-      expect(adapter.bodies.single['AuthFlow'], 'REFRESH_TOKEN_AUTH');
-      expect(
-        (adapter.bodies.single['AuthParameters'] as Map)['REFRESH_TOKEN'],
-        'refresh-old',
+      await expectLater(
+        build().signInWithGoogle(),
+        throwsA(isA<AuthException>().having((e) => e.code, 'code', 'ACCOUNT_DELETED')),
       );
-      // REFRESH_TOKEN_AUTH returns no new refresh token — the old one is kept.
-      expect(store.session?.session.refreshToken, 'refresh-old');
-      expect(service.currentUser?.uid, 'sub-abc');
     });
 
-    test('a successful refresh is cached (no second network call)', () async {
-      final store = MemoryTokenStore(expiredSession());
-      final service = buildService(store);
-      adapter.on('InitiateAuth', _authResult(refreshToken: null));
+    test('rejects a malformed success response instead of storing garbage', () async {
+      adapter.body = '{"has_account": true}';
 
-      await service.getIdToken();
-      await service.getIdToken();
-
-      expect(adapter.countOf('InitiateAuth'), 1);
-    });
-
-    test('a failed refresh signs the user out and returns null', () async {
-      final store = MemoryTokenStore(expiredSession());
-      final service = buildService(store);
-      adapter.fail('InitiateAuth', 'NotAuthorizedException');
-
-      final token = await service.getIdToken();
-
-      expect(token, isNull);
+      await expectLater(
+        build().signInWithGoogle(),
+        throwsA(isA<AuthException>().having((e) => e.code, 'code', 'InvalidResponse')),
+      );
       expect(store.session, isNull);
-      expect(service.currentUser, isNull);
-    });
-
-    test('returns null when nothing is stored', () async {
-      final service = buildService(MemoryTokenStore());
-      expect(await service.getIdToken(), isNull);
-      expect(adapter.operations, isEmpty);
     });
   });
 
-  group('authStateChanges', () {
-    test('emits the restored session at start-up without a network call', () async {
-      final store = MemoryTokenStore(
-        StoredSession(
-          phoneNumber: _phone,
-          password: 'device-password',
-          session: CognitoSession(
-            accessToken: 'access',
-            idToken: _fakeIdToken(sub: 'restored-sub'),
-            refreshToken: 'refresh',
-            expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          ),
-        ),
+  group('session lifecycle', () {
+    test('restores a persisted session on startup', () async {
+      store.session = StoredSession(
+        token: _fakeSessionToken(),
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+        subject: _subject,
+        email: 'client@example.com',
       );
-      final service = buildService(store);
+      final service = build();
 
       final user = await service.authStateChanges().first;
 
-      expect(user?.uid, 'restored-sub');
-      expect(user?.phoneNumber, _phone);
-      expect(service.currentUser?.uid, 'restored-sub');
-      expect(adapter.operations, isEmpty);
+      expect(user?.uid, _subject);
+      expect(service.isSignedIn, isTrue);
     });
 
-    test('emits null when there is no stored session', () async {
-      final service = buildService(MemoryTokenStore());
-      expect(await service.authStateChanges().first, isNull);
-    });
-
-    test('emits the user on sign-in and null on sign-out', () async {
-      final store = MemoryTokenStore();
-      final service = buildService(store);
-      adapter.on('SignUp', {'UserConfirmed': false});
-      adapter.on('ConfirmSignUp', {});
-      adapter.on('InitiateAuth', _authResult());
-      adapter.on('RevokeToken', {});
-
-      final emitted = <AuthUser?>[];
-      final subscription = service.authStateChanges().listen(emitted.add);
-      await Future<void>.delayed(Duration.zero);
-
-      String? verificationId;
-      await service.verifyPhone(
-        phoneNumber: '9876543210',
-        onCodeSent: (id, _) => verificationId = id,
-        onError: (_) {},
+    test('treats an expired stored session as signed out', () async {
+      store.session = StoredSession(
+        token: _fakeSessionToken(),
+        expiresAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        subject: _subject,
       );
-      await service.verifyOtp(verificationId: verificationId!, smsCode: '123456');
-      await Future<void>.delayed(Duration.zero);
+      final service = build();
+
+      expect(await service.getIdToken(), isNull);
+      expect(service.isSignedIn, isFalse);
+      expect(store.session, isNull);
+    });
+
+    test('signOut clears the session and drops the Google account', () async {
+      var googleSignedOut = false;
+      adapter.body = _successBody();
+      final service = build(googleSignOut: () async => googleSignedOut = true);
+      await service.signInWithGoogle();
 
       await service.signOut();
-      await Future<void>.delayed(Duration.zero);
-      await subscription.cancel();
 
-      expect(emitted.map((u) => u?.uid), [null, 'sub-abc', null]);
+      expect(googleSignedOut, isTrue);
+      expect(service.isSignedIn, isFalse);
       expect(store.session, isNull);
-      expect(service.currentUser, isNull);
-      expect(adapter.countOf('RevokeToken'), 1);
-      expect(adapter.bodies.last['Token'], 'refresh-1');
+    });
+
+    test('signOut still clears locally when the Google call fails', () async {
+      adapter.body = _successBody();
+      final service = build(
+        googleSignOut: () async => throw Exception('plugin unavailable'),
+      );
+      await service.signInWithGoogle();
+
+      await service.signOut();
+
+      expect(service.isSignedIn, isFalse);
+      expect(store.session, isNull);
     });
   });
 }
