@@ -77,14 +77,17 @@ export default function TopBar({
           >
             Change password
           </Link>
-          {/* Sidebar owns sign-out on desktop (hidden below md); this is
-              the one surviving mobile-only fallback, replacing what used
-              to be two independent copies (AuthenticatedShell + the old
-              per-client-route top-bar.tsx). */}
+          {/* Sign-out lives here for every signed-in page, at every width.
+              It used to be `md:hidden` on the assumption that the therapist
+              sidebar carried the desktop copy — which left `/admin` (no
+              sidebar, by design) with no way out at all, and made the
+              therapist's logout easy to miss at the bottom of the nav. One
+              always-visible control beats a role-dependent one. */}
           <button
             type="button"
+            aria-label="Sign out"
             onClick={() => signOut({ callbackUrl: '/auth' })}
-            className="md:hidden flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-lavender-tint hover:bg-white/10 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-white/25 px-2.5 py-1.5 text-xs font-medium text-lavender-tint hover:bg-white/10 transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
