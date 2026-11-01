@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const findUnique = vi.fn();
+const findFirst = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { therapist: { findUnique } },
+  prisma: { therapist: { findFirst } },
 }));
 
 // `authConfig` is imported after the mock so the sign-in callback's dynamic
@@ -32,12 +32,12 @@ function setCognitoEnv() {
 
 describe('sign-in allowlist (§8: a Cognito identity alone is never sufficient)', () => {
   beforeEach(() => {
-    findUnique.mockReset();
+    findFirst.mockReset();
     delete process.env.LOCAL_DEV_BYPASS_AUTH;
   });
 
   it('rejects a Cognito user with no matching Therapist row', async () => {
-    findUnique.mockResolvedValue(null);
+    findFirst.mockResolvedValue(null);
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'cognito' },
       profile: { email: 'stranger@example.com' },
@@ -46,13 +46,15 @@ describe('sign-in allowlist (§8: a Cognito identity alone is never sufficient)'
   });
 
   it('allows a Cognito user with a matching Therapist row', async () => {
-    findUnique.mockResolvedValue({ id: 'th_1', email: 'therapist@okuvu.dev' });
+    findFirst.mockResolvedValue({ id: 'th_1', email: 'therapist@okuvu.dev' });
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'cognito' },
       profile: { email: 'therapist@okuvu.dev' },
     } as never);
     expect(result).toBe(true);
-    expect(findUnique).toHaveBeenCalledWith({ where: { email: 'therapist@okuvu.dev' } });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: 'therapist@okuvu.dev', mode: 'insensitive' } },
+    });
   });
 
   it('allows non-Cognito sign-in attempts to pass through unchecked', async () => {
@@ -61,11 +63,11 @@ describe('sign-in allowlist (§8: a Cognito identity alone is never sufficient)'
       profile: undefined,
     } as never);
     expect(result).toBe(true);
-    expect(findUnique).not.toHaveBeenCalled();
+    expect(findFirst).not.toHaveBeenCalled();
   });
 
   it('redirects to server_error when the database lookup throws', async () => {
-    findUnique.mockRejectedValue(new Error('connection reset'));
+    findFirst.mockRejectedValue(new Error('connection reset'));
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'cognito' },
       profile: { email: 'therapist@okuvu.dev' },
@@ -81,7 +83,7 @@ describe('sign-in allowlist (§8: a Cognito identity alone is never sufficient)'
         profile: { email: 'nobody@example.com' },
       } as never);
       expect(result).toBe(true);
-      expect(findUnique).not.toHaveBeenCalled();
+      expect(findFirst).not.toHaveBeenCalled();
     } finally {
       delete process.env.LOCAL_DEV_BYPASS_AUTH;
     }

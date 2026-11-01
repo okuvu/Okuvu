@@ -401,11 +401,24 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const therapist = await ctx.db.therapist.upsert({
-        where: { email: input.email },
-        update: input.name ? { name: input.name } : {},
-        create: { email: input.email, name: input.name },
+      // Normalise on write. `Therapist.email` is compared against whatever
+      // Google hands back, and an address typed into /admin as `Name@Gmail.com`
+      // used to create a row that no sign-in could ever match (the symptom is
+      // the generic "not set up yet" bounce, with nothing in the logs to say
+      // why). Matching is also case-insensitive on read now, so either half
+      // alone would be enough — both, because rows written before this are
+      // already in the table.
+      const email = input.email.trim().toLowerCase();
+      const existing = await ctx.db.therapist.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        select: { id: true },
       });
+      const therapist = existing
+        ? await ctx.db.therapist.update({
+            where: { id: existing.id },
+            data: { email, ...(input.name ? { name: input.name } : {}) },
+          })
+        : await ctx.db.therapist.create({ data: { email, name: input.name } });
       return { id: therapist.id, email: therapist.email, name: therapist.name };
     }),
 

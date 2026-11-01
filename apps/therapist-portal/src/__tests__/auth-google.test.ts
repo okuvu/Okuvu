@@ -12,10 +12,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  *      the allowlist moved into `lib/admin-allowlist.ts`.
  */
 
-const findUnique = vi.fn();
+const findFirst = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { therapist: { findUnique } },
+  prisma: { therapist: { findFirst } },
 }));
 
 const { authConfig, buildProviders } = await import('@/lib/auth');
@@ -83,22 +83,36 @@ describe('buildProviders — Google is additive, never a stub', () => {
 describe('sign-in allowlist with Google', () => {
   beforeEach(() => {
     clearEnv();
-    findUnique.mockReset();
+    findFirst.mockReset();
   });
   afterEach(clearEnv);
 
   it('allows a Google user whose email has a Therapist row', async () => {
-    findUnique.mockResolvedValue({ id: 'th_1' });
+    findFirst.mockResolvedValue({ id: 'th_1' });
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'google' },
       profile: { email: 'therapist@gmail.com' },
     } as never);
     expect(result).toBe(true);
-    expect(findUnique).toHaveBeenCalledWith({ where: { email: 'therapist@gmail.com' } });
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: 'therapist@gmail.com', mode: 'insensitive' } },
+    });
+  });
+
+  it('passes the Google address through case-insensitively, so a mixed-case row still matches', async () => {
+    findFirst.mockResolvedValue({ id: 'th_1' });
+    const result = await authConfig.callbacks!.signIn!({
+      account: { provider: 'google' },
+      profile: { email: 'Therapist@Gmail.com' },
+    } as never);
+    expect(result).toBe(true);
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: 'Therapist@Gmail.com', mode: 'insensitive' } },
+    });
   });
 
   it('refuses a Google user with no Therapist row — there is no therapist signup', async () => {
-    findUnique.mockResolvedValue(null);
+    findFirst.mockResolvedValue(null);
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'google' },
       profile: { email: 'stranger@gmail.com' },
@@ -113,7 +127,7 @@ describe('sign-in allowlist with Google', () => {
       profile: { email: 'admin@okuvu.in' },
     } as never);
     expect(result).toBe(true);
-    expect(findUnique).not.toHaveBeenCalled();
+    expect(findFirst).not.toHaveBeenCalled();
   });
 
   it('matches the admin allowlist case-insensitively', async () => {
@@ -127,7 +141,7 @@ describe('sign-in allowlist with Google', () => {
 
   it('still refuses an ordinary Google user when an allowlist exists', async () => {
     process.env.ADMIN_EMAILS = 'admin@okuvu.in';
-    findUnique.mockResolvedValue(null);
+    findFirst.mockResolvedValue(null);
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'google' },
       profile: { email: 'someone@gmail.com' },
@@ -142,11 +156,11 @@ describe('sign-in allowlist with Google', () => {
       profile: { email: 'anything@gmail.com' },
     } as never);
     expect(result).toBe(true);
-    expect(findUnique).not.toHaveBeenCalled();
+    expect(findFirst).not.toHaveBeenCalled();
   });
 
   it('redirects to server_error when the database lookup throws', async () => {
-    findUnique.mockRejectedValue(new Error('connection reset'));
+    findFirst.mockRejectedValue(new Error('connection reset'));
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'google' },
       profile: { email: 'therapist@gmail.com' },

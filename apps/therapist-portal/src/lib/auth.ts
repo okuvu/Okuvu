@@ -92,8 +92,8 @@ export const authConfig: NextAuthOptions = {
             console.error('[AUTH] Database not configured');
             return '/auth?error=server_error';
           }
-          const therapist = await prisma.therapist.findUnique({
-            where: { email },
+          const therapist = await prisma.therapist.findFirst({
+            where: { email: { equals: email, mode: 'insensitive' } },
           });
           if (therapist) {
             // E16-S11: log the therapist id reference, never the address.

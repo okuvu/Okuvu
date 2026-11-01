@@ -10,10 +10,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * the address, the local part, or the domain.
  */
 
-const findUnique = vi.fn();
+const findFirst = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { therapist: { findUnique } },
+  prisma: { therapist: { findFirst } },
 }));
 
 const { authConfig } = await import('@/lib/auth');
@@ -35,7 +35,7 @@ describe('sign-in logging carries no personal data', () => {
   let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    findUnique.mockReset();
+    findFirst.mockReset();
     delete process.env.LOCAL_DEV_BYPASS_AUTH;
     process.env.NEXTAUTH_SECRET = 'test-secret-for-log-refs';
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -49,7 +49,7 @@ describe('sign-in logging carries no personal data', () => {
   });
 
   it('logs a reference, not the address, on a successful sign-in', async () => {
-    findUnique.mockResolvedValue({ id: THERAPIST_ID, email: THERAPIST_EMAIL });
+    findFirst.mockResolvedValue({ id: THERAPIST_ID, email: THERAPIST_EMAIL });
 
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'cognito' },
@@ -68,7 +68,7 @@ describe('sign-in logging carries no personal data', () => {
   });
 
   it('logs a stable reference for the same therapist across sign-ins', async () => {
-    findUnique.mockResolvedValue({ id: THERAPIST_ID, email: THERAPIST_EMAIL });
+    findFirst.mockResolvedValue({ id: THERAPIST_ID, email: THERAPIST_EMAIL });
 
     for (let i = 0; i < 2; i++) {
       await authConfig.callbacks!.signIn!({
@@ -83,7 +83,7 @@ describe('sign-in logging carries no personal data', () => {
   });
 
   it('logs a reference, not the address, when the sign-in is refused', async () => {
-    findUnique.mockResolvedValue(null);
+    findFirst.mockResolvedValue(null);
 
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'cognito' },
@@ -101,7 +101,7 @@ describe('sign-in logging carries no personal data', () => {
   });
 
   it('gives two different refused identities two different references', async () => {
-    findUnique.mockResolvedValue(null);
+    findFirst.mockResolvedValue(null);
 
     for (const email of ['stranger@example.com', 'other@example.com']) {
       await authConfig.callbacks!.signIn!({
@@ -115,7 +115,7 @@ describe('sign-in logging carries no personal data', () => {
   });
 
   it('keeps the database-error path free of the address too', async () => {
-    findUnique.mockRejectedValue(new Error('connection reset'));
+    findFirst.mockRejectedValue(new Error('connection reset'));
 
     const result = await authConfig.callbacks!.signIn!({
       account: { provider: 'cognito' },
