@@ -187,7 +187,10 @@ def sign_in(email: str, base: str, prefix: str, workdir: str) -> str | None:
 
 def verify(email: str, base: str, prefix: str, workdir: str) -> bool:
     jar = sign_in(email, base, prefix, workdir)
-    if jar is None:
+    # sign_in() returns False on most failures and None only when it never got
+    # that far; both mean "no session", and passing either to subprocess as a
+    # cookie jar crashes instead of reporting FAIL.
+    if not jar:
         return False
     s = Session(jar)
 
