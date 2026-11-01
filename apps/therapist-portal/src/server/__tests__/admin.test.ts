@@ -170,6 +170,16 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
         chatAccessGranted: false,
       }),
     ).rejects.toThrow(/no client found/i);
+    // The message names the number the operator typed and points at the one
+    // path that works for someone who has not signed up — an unidentified
+    // "no client found" reads like a typo they cannot see.
+    await expect(
+      caller.admin.assignClient({
+        therapistId: THERAPIST.id,
+        clientPhoneNumber: '+910000000000',
+        chatAccessGranted: false,
+      }),
+    ).rejects.toThrow(/\+910000000000.*Invite a new client/s);
   });
 
   it('rejects a clientPhoneNumber not in E.164 format', async () => {
