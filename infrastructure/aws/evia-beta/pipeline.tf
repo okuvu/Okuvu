@@ -180,7 +180,7 @@ data "aws_iam_policy_document" "codebuild" {
     sid       = "PassTaskRoles"
     effect    = "Allow"
     actions   = ["iam:PassRole"]
-    resources = [aws_iam_role.ecs_execution.arn, aws_iam_role.api_task.arn, aws_iam_role.worker_task.arn]
+    resources = [aws_iam_role.ecs_execution.arn, aws_iam_role.api_task.arn, aws_iam_role.worker_task.arn, aws_iam_role.portal_task.arn]
   }
 
   statement {
