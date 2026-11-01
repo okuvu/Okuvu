@@ -292,8 +292,8 @@
 
 .mk-logo img {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
 }
 
 /* Two marks, one shown. The .mk-logo img rule above is more specific than a
@@ -314,8 +314,8 @@
 
 .mk-logo-word {
   font-family: var(--font-poppins-semibold), system-ui, sans-serif;
-  font-size: 0.9375rem;
-  letter-spacing: 0.16em;
+  font-size: 1.0625rem;
+  letter-spacing: 0.15em;
   color: var(--mk-text);
 }
 
@@ -542,25 +542,194 @@
   min-height: 320px;
 }
 
-.mk-blob {
-  position: absolute;
-  inset: 2% -6%;
-  border-radius: 52% 48% 44% 56% / 46% 52% 48% 54%;
-  background: radial-gradient(60% 54% at 28% 24%, rgba(124, 158, 143, 0.5) 0%, rgba(124, 158, 143, 0.18) 48%, rgba(237, 230, 251, 0) 72%),
-    linear-gradient(152deg, rgba(124, 158, 143, 0.42) 0%, rgba(237, 230, 251, 0.8) 54%, rgba(232, 163, 61, 0.2) 100%);
-  filter: blur(2px);
-  animation: mk-breathe 8s ease-in-out infinite;
-  animation-play-state: paused;
-  will-change: transform;
+/* ── hero mark ─────────────────────────────────────────────────────────── */
+/* The master spiral, large. Every layer below is decoration behind or around
+   the artwork: the halo and the rings sit at z-index 0, the mark itself at 1,
+   the wordmark after it in flow. */
+
+.mk-mark-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.9rem;
+  width: 100%;
+  min-height: clamp(320px, 42vw, 470px);
 }
 
-.mk-blob[data-inview='1'] {
+/* The square the mark lives in. Everything decorative is anchored here rather
+   than to the stage, so the halo stays centred on the artwork and not on the
+   wordmark below it. */
+.mk-mark-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(240px, 30vw, 400px);
+  aspect-ratio: 1;
+}
+
+/* Sage-to-lavender light the mark sits in. Two soft radials rather than a
+   filled shape: a filled blob reads as a grey disc behind the logo, which is
+   exactly the thing this is meant not to look like. The blur finishes the job
+   at the edges. */
+.mk-mark-aura {
+  position: absolute;
+  z-index: 0;
+  inset: -4%;
+  border-radius: 50%;
+  background: radial-gradient(36% 36% at 52% 50%, rgba(196, 181, 253, 0.5) 0%, rgba(196, 181, 253, 0.12) 56%, rgba(196, 181, 253, 0) 80%),
+    radial-gradient(30% 30% at 24% 62%, rgba(124, 158, 143, 0.26) 0%, rgba(124, 158, 143, 0) 72%),
+    radial-gradient(22% 22% at 58% 22%, rgba(232, 163, 61, 0.14) 0%, rgba(232, 163, 61, 0) 74%);
+  filter: blur(14px);
+  animation: mk-mark-halo 12s ease-in-out infinite;
+  animation-play-state: paused;
+  will-change: transform, opacity;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mk-mark-aura {
+    background: radial-gradient(36% 36% at 52% 50%, rgba(167, 139, 250, 0.34) 0%, rgba(167, 139, 250, 0.08) 56%, rgba(43, 21, 80, 0) 80%),
+      radial-gradient(30% 30% at 24% 62%, rgba(124, 158, 143, 0.22) 0%, rgba(124, 158, 143, 0) 72%),
+      radial-gradient(22% 22% at 58% 22%, rgba(232, 163, 61, 0.16) 0%, rgba(232, 163, 61, 0) 74%);
+  }
+}
+
+/* Two rings that swell out and fade: water, not a scanner. Invisible at rest
+   (opacity 0), so stopping the animation hides them rather than freezing them
+   mid-ripple. */
+.mk-mark-ripple {
+  position: absolute;
+  z-index: 0;
+  width: 100%;
+  aspect-ratio: 1;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  border: 1px solid var(--sage);
+  opacity: 0;
+  animation: mk-mark-ripple 12s ease-out infinite;
+  animation-play-state: paused;
+  will-change: transform, opacity;
+}
+
+.mk-mark-ripple--b {
+  animation-delay: 6s;
+}
+
+.mk-mark-rotor {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  animation: mk-mark-swim 18s ease-in-out infinite;
+  animation-play-state: paused;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* The master file is drawn on a 800-unit canvas with generous margins: the
+   spiral itself fills 42.3% x 46.0% of it, centred at 47.4% / 48.2% (measured
+   with getBBox on the file, not guessed). At 100% the logo sits in a ring of
+   empty canvas, so it is scaled to 185% and offset until the artwork's centre
+   lands on the box centre. Nothing is redrawn and nothing is clipped — the
+   overflow is the canvas's own transparent margin, which is why this is a
+   frame rather than a new cut of the mark. */
+.mk-mark-big {
+  position: absolute;
+  display: block;
+  width: 185%;
+  /* globals.css caps every img at max-width:100%, which would frame the art
+     back into its padded canvas. The mark overflows on purpose. */
+  max-width: none;
+  height: auto;
+  left: -37.6%;
+  top: -39.2%;
+}
+
+/* The honey dot's halo, in rotor coordinates after that framing (54.7%, 4.2%),
+   offset by half its own width. It rides inside the rotor, so it turns with the
+   artwork instead of drifting off it. */
+.mk-mark-dot {
+  position: absolute;
+  width: 24%;
+  aspect-ratio: 1;
+  left: 42.7%;
+  top: -7.8%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232, 163, 61, 0.5) 0%, rgba(232, 163, 61, 0.2) 44%, rgba(232, 163, 61, 0) 72%);
+  animation: mk-mark-dot 6.5s ease-in-out infinite;
+  animation-play-state: paused;
+  will-change: transform, opacity;
+}
+
+.mk-mark-word {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  margin-top: 0.15rem;
+  /* Tracking leaves a gap after the final U; the negative margin pulls the
+     optical centre back over the mark. */
+  margin-right: -0.4em;
+  font-family: var(--font-poppins-semibold), system-ui, sans-serif;
+  font-size: clamp(1.25rem, 3.2vw, 1.95rem);
+  line-height: 1.1;
+  letter-spacing: 0.4em;
+  color: var(--mk-text);
+}
+
+.mk-mark-stage[data-inview='1'] :is(.mk-mark-aura, .mk-mark-ripple, .mk-mark-rotor, .mk-mark-dot) {
   animation-play-state: running;
 }
 
-.mk-hero-art .mk-slot {
-  position: relative;
-  z-index: 1;
+@keyframes mk-mark-swim {
+  0%,
+  100% {
+    transform: rotate(-3.5deg) scale(1);
+  }
+  50% {
+    transform: rotate(3.5deg) scale(1.035);
+  }
+}
+
+@keyframes mk-mark-halo {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.88;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes mk-mark-ripple {
+  0% {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.22;
+  }
+  64%,
+  100% {
+    transform: scale(1.16);
+    opacity: 0;
+  }
+}
+
+@keyframes mk-mark-dot {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.82;
+  }
 }
 
 /* ── waves ─────────────────────────────────────────────────────────────── */
@@ -1733,11 +1902,19 @@
   }
 
   .mk-wave,
-  .mk-blob,
   .mk-orb,
   .mk-glow,
-  .mk-topo-line {
+  .mk-topo-line,
+  .mk-mark-rotor,
+  .mk-mark-aura,
+  .mk-mark-dot {
     transform: none !important;
+  }
+
+  /* The ripples are opacity 0 at rest, so with the animation off they simply
+     are not there — nothing is frozen mid-swell. */
+  .mk-mark-ripple {
+    display: none;
   }
 
   .mk-squiggle-path,

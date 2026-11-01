@@ -17,6 +17,7 @@ import ScreenSlot from './_marketing/ScreenSlot';
 import {
   MarkWatermark,
   ChatArt,
+  HeroMark,
   HeroWaves,
   InviteArt,
   MoodSparkline,
@@ -88,9 +89,8 @@ export default async function LandingPage() {
             <p className="mk-gate">{copy.hero.gate}</p>
           </div>
 
-          <div className="mk-hero-art" data-anim>
-            <span className="mk-blob" aria-hidden="true" />
-            <ScreenSlot name="chat" priority />
+          <div className="mk-hero-art">
+            <HeroMark />
           </div>
         </div>
         <HeroWaves />

@@ -39,6 +39,61 @@ export function HeroWaves() {
 }
 
 /**
+ * The hero visual: the master mark itself, large, with the wordmark under it.
+ *
+ * This replaces the phone mock that used to hold the hero. The brand was the
+ * least visible thing on its own page, so the largest piece of art in the hero
+ * is now the real logo rather than a drawing of the product.
+ *
+ * The artwork is `public/brand/okuvu-mark.svg` — the master file, unchanged,
+ * not a redraw and not a simplified cut. `<picture>` picks the lavender cut on
+ * a dark ground, so only one of the two files is ever downloaded.
+ *
+ * The motion is calm on purpose: the spiral drifts a few degrees and breathes,
+ * a soft halo behind it swells, two sage rings ripple out, and the honey dot
+ * glows. That is a mark that is alive, not a loading spinner. All of it is
+ * transform/opacity, it pauses off-screen (MarketingMotion sets data-inview),
+ * and it stops entirely under prefers-reduced-motion.
+ *
+ * The honey dot's halo is placed from the mark's own geometry, not by eye: the
+ * dot sits at 399.5,187.5 of the 800-unit canvas, which after the framing in
+ * marketing.css (the art is scaled 185% to fill the box) lands at 54.7% / 4.2%
+ * of the frame. It rides inside the rotor, so it turns with the artwork instead
+ * of drifting off it. If the master file is ever re-cut, those numbers move
+ * with it.
+ */
+export function HeroMark() {
+  return (
+    <div className="mk-mark-stage" data-anim>
+      <div className="mk-mark-frame">
+        <span className="mk-mark-aura" aria-hidden="true" />
+        <span className="mk-mark-ripple mk-mark-ripple--a" aria-hidden="true" />
+        <span className="mk-mark-ripple mk-mark-ripple--b" aria-hidden="true" />
+        <div className="mk-mark-rotor" aria-hidden="true">
+          <picture>
+            <source srcSet="/brand/okuvu-mark-dark.svg" media="(prefers-color-scheme: dark)" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative SVG, next/image adds nothing */}
+            <img
+              className="mk-mark-big"
+              src="/brand/okuvu-mark.svg"
+              alt=""
+              width={800}
+              height={800}
+              fetchPriority="high"
+              decoding="async"
+            />
+          </picture>
+          <span className="mk-mark-dot" />
+        </div>
+      </div>
+      <span className="mk-mark-word" aria-hidden="true">
+        OKUVU
+      </span>
+    </div>
+  );
+}
+
+/**
  * Faint contour lines behind "How it works".
  *
  * Three copies of the same contour set are cross-faded and very slowly scaled;
