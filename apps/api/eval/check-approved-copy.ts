@@ -28,7 +28,7 @@ import {
   MEDICAL_EMERGENCY_CRISIS_RESPONSE,
 } from '../src/pipeline/fallbacks.js';
 import { hasSelfIngestion, hasThirdPartyCrisisLanguage } from '../src/agents/a1/crisis-keywords.js';
-import { scoreScenario, type GoldSet, type ServedPath } from './gate-scoring.js';
+import { scoreScenario, type GoldSet, type ServedPath } from '../src/eval/gate-scoring.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const apiRoot = resolve(here, '..');
@@ -137,7 +137,7 @@ const ok = allPass && controlsOk && identity.s3 && identity.s4;
 
 const report = {
   story: 'E17-S7',
-  what: 'The gate\'s own scorer (eval/gate-scoring.ts, shared with run-gate.ts) applied to the two clinically signed replies.',
+  what: 'The gate\'s own scorer (src/eval/gate-scoring.ts, shared with run-gate.ts) applied to the two clinically signed replies.',
   when: new Date().toISOString(),
   gold_set: { version: goldSet.version, scenarios_scored: crisisScenarios.length, score_rows: rows.length },
   signed_copy: identity,

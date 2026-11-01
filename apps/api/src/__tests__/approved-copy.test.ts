@@ -38,7 +38,7 @@ import {
   A2_DEGRADED_RESPONSE,
 } from '../pipeline/fallbacks.js';
 import { buildA9PostPrompt } from '../agents/a9-post/prompts.js';
-import { scoreScenario } from '../../eval/gate-scoring.js';
+import { scoreScenario } from '../eval/gate-scoring.js';
 import { hasSelfIngestion, hasThirdPartyCrisisLanguage } from '../agents/a1/crisis-keywords.js';
 
 const here = dirname(fileURLToPath(import.meta.url));

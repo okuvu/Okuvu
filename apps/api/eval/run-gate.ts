@@ -80,7 +80,7 @@ import {
   type Scenario,
   type RubricGroup,
   type ServedPath,
-} from './gate-scoring.js';
+} from '../src/eval/gate-scoring.js';
 import {
   CRISIS_RESPONSE,
   A8_S3_GROUNDING_RESPONSE,
@@ -115,7 +115,8 @@ const CALL_TIMEOUT_MS = 60_000;
 const TASK_DEFINITION_FAMILY = 'evia-beta-api';
 const TASK_DEFINITION_REGION = 'ap-south-1';
 
-// The rubric types and the scorer live in ./gate-scoring.ts so that the
+// The rubric types and the scorer live in ../src/eval/gate-scoring.ts (inside
+// the api tsconfig's rootDir, so the approved-copy test can import them) so that the
 // approved-copy check (check-approved-copy.ts) scores text with the same code
 // the gate uses, rather than a copy of it.
 
@@ -213,7 +214,7 @@ function readApiTaskEnvironment(): ApiEnvironment {
 
 // ─── rubric matching ────────────────────────────────────────────────────────
 
-// Rubric matching is imported (./gate-scoring.ts) — see the note above.
+// Rubric matching is imported (../src/eval/gate-scoring.ts) — see the note above.
 
 // ─── execution ──────────────────────────────────────────────────────────────
 
