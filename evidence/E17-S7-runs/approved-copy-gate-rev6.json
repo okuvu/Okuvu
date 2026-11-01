@@ -1,7 +1,7 @@
 {
  "story": "E17-S7",
  "what": "The gate's own scorer (eval/gate-scoring.ts, shared with run-gate.ts) applied to the two clinically signed replies.",
- "when": "2026-11-01T08:51:41.995Z",
+ "when": "2026-11-01T08:54:39.121Z",
  "gold_set": {
   "version": "1.1.2",
   "scenarios_scored": 10,

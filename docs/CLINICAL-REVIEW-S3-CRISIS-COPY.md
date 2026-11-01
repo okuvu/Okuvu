@@ -5,7 +5,7 @@
 | Story | E17-S7 (clinical sign-off), following E17-S5b |
 | Clinical owner asked to sign | Dr Shubhangi Goswami |
 | Prepared | 30 October 2026 |
-| Status | **DRAFT — UNSIGNED.** Nothing in this pack has been clinically approved. |
+| Status | **SUPERSEDED FOR THE COPY, 31 OCT 2026.** Dr Goswami signed the five items in this pack on 31 Oct 2026, with replacement text for §3.2 and Appendix B, a corrected helpline order (§4) and one added phrase (§5.6). The approved wording lives in `docs/Okuvu-Clinical-Sign-Off-Record-S3-S4-E17-S7.docx` and `docs/CLINICAL-DECISION-RECORD.md`. This pack is kept unchanged as the record of what she was asked. |
 | Code this describes | `origin/develop` at `d0cd49a` |
 | What this signature would authorise | §7. In short: one reply text, one list of phrases, one decision about precedence, and two proposed exceptions. |
 | What it would **not** authorise | §7.3 — the S4 crisis card, the medical-emergency cards, the A1 classifier prompt, and any public claim about clinical review. |
