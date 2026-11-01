@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { AddClientWizard } from './AddClientWizard';
 import { RemoveClientDialog, type RemoveClientTarget } from './RemoveClientDialog';
+import { PHONE_FORMAT_HINT, toE164 } from '@/lib/phone';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -504,9 +505,17 @@ export function AdminContent() {
                   onSubmit={(e) => {
                     e.preventDefault();
                     setAssignMsg(null);
+                    const phone = toE164(assignPhone);
+                    if (!phone) {
+                      setAssignMsg({
+                        kind: 'err',
+                        text: `That phone number isn't in a format we recognise. Use the ${PHONE_FORMAT_HINT}.`,
+                      });
+                      return;
+                    }
                     assignClient.mutate({
                       therapistId: assignTherapistId,
-                      clientPhoneNumber: assignPhone.trim(),
+                      clientPhoneNumber: phone,
                       chatAccessGranted: assignChatAccessGranted,
                       languageMode: assignLanguageMode ? (assignLanguageMode as 'english' | 'mirror') : undefined,
                     });
@@ -546,10 +555,13 @@ export function AdminContent() {
                         required
                         value={assignPhone}
                         onChange={(e) => setAssignPhone(e.target.value)}
-                        placeholder="+91XXXXXXXXXX"
+                        placeholder="9432936553 or +919432936553"
                         disabled={assignClient.isPending}
                         className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-charcoal-ink outline-none focus:border-violet focus:ring-1 focus:ring-violet disabled:opacity-60"
                       />
+                      <p id="assign-phone-hint" className="mt-1 text-xs text-ink-soft">
+                        {PHONE_FORMAT_HINT}. Country code +91 is added automatically.
+                      </p>
                     </div>
                     <div className="flex-1">
                       <label htmlFor="assign-language" className="mb-1 block text-xs font-medium text-ink-soft">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
+import { PHONE_FORMAT_HINT, toE164 } from '@/lib/phone';
 
 // Mirrors the backend's PRESENTING_ISSUES enum in admin.ts — these are
 // the only values createClientWithInvite will accept.
@@ -96,7 +97,9 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
     }));
   }
 
-  const canContinueStep1 = Boolean(state.therapistId && state.fullName.trim() && state.phoneNumber.trim() && state.email.trim());
+  const canContinueStep1 = Boolean(
+    state.therapistId && state.fullName.trim() && toE164(state.phoneNumber) && state.email.trim(),
+  );
   const canContinueStep3 = Boolean(state.carePlanId);
   const canSubmit = state.ageAttested && !create.isPending;
 
@@ -217,9 +220,16 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
               type="tel"
               value={state.phoneNumber}
               onChange={(e) => update('phoneNumber', e.target.value)}
-              placeholder="+91XXXXXXXXXX"
+              placeholder="9432936553 or +919432936553"
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
             />
+            {state.phoneNumber.trim() && !toE164(state.phoneNumber) ? (
+              <p className="mt-1 text-xs text-danger">
+                Not a phone number we can read — use {PHONE_FORMAT_HINT}.
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-400">{PHONE_FORMAT_HINT}. +91 added automatically.</p>
+            )}
           </div>
           <div>
             <label htmlFor="wiz-email" className="mb-1 block text-xs font-medium text-gray-500">Email</label>
@@ -393,11 +403,17 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
           <button
             type="button"
             disabled={!canSubmit}
-            onClick={() =>
+            onClick={() => {
+              const phoneNumber = toE164(state.phoneNumber);
+              if (!phoneNumber) {
+                setError(`That phone number isn't in a format we recognise. Use the ${PHONE_FORMAT_HINT}.`);
+                return;
+              }
+              setError(null);
               create.mutate({
                 therapistId: state.therapistId,
                 fullName: state.fullName.trim(),
-                phoneNumber: state.phoneNumber.trim(),
+                phoneNumber,
                 email: state.email.trim(),
                 dateOfBirth: state.dateOfBirth || undefined,
                 gender: state.gender.trim() || undefined,
@@ -405,8 +421,8 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
                 carePlanId: state.carePlanId as 'CP1' | 'CP2' | 'CP3',
                 welcomeNote: state.welcomeNote.trim() || undefined,
                 displayAbbreviation: state.displayAbbreviation.trim() || undefined,
-              })
-            }
+              });
+            }}
             className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
             {create.isPending ? 'Sending invite...' : 'Add client & send invite'}
