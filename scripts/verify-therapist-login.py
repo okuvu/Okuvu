@@ -42,6 +42,11 @@ SEED_EMAILS = [
     "rohan.mehta@okuvu.in",
 ]
 
+# email -> SSM slug, for accounts whose password parameter was created with a
+# name that is not the email local part (e.g. the operator account admin@okuvu.in
+# is stored under /evia-beta/admin/password). Filled from --slug EMAIL=SLUG.
+SLUG_OVERRIDES: dict[str, str] = {}
+
 HOSTED_UI = "https://okuvu-therapists.auth.ap-south-1.amazoncognito.com"
 
 
@@ -81,8 +86,10 @@ class Session:
 
 
 def password_for(email: str, prefix: str) -> str:
-    slug = email.split("@")[0]
-    name = f"{prefix}/{slug}/password"
+    slug = SLUG_OVERRIDES.get(email.lower()) or email.split("@")[0]
+    # A slug starting with "/" is a full path, e.g. /evia-beta/admin for the
+    # operator account, whose parameter does not live under --prefix.
+    name = f"{slug}/password" if slug.startswith("/") else f"{prefix}/{slug}/password"
     p = subprocess.run(
         ["aws", "ssm", "get-parameter", "--name", name, "--with-decryption",
          "--query", "Parameter.Value", "--output", "text"],
@@ -219,7 +226,21 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="verify the three seed therapists")
     ap.add_argument("--base", default="https://okuvu.in")
     ap.add_argument("--prefix", default="/evia-beta/therapists")
+    ap.add_argument(
+        "--slug",
+        action="append",
+        default=[],
+        metavar="EMAIL=SLUG",
+        help="SSM slug override when the password parameter is not named after the "
+             "email local part (e.g. admin@okuvu.in=/evia-beta/admin)",
+    )
     a = ap.parse_args()
+
+    for pair in a.slug:
+        email, _, slug = pair.partition("=")
+        if not email or not slug:
+            ap.error(f"--slug expects EMAIL=SLUG, got {pair!r}")
+        SLUG_OVERRIDES[email.lower()] = slug
 
     emails = a.emails or (SEED_EMAILS if a.all else [])
     if not emails:
