@@ -31,7 +31,14 @@ export default function MarketingNav({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="mk-nav" data-stuck={stuck ? 'true' : 'false'}>
       <div className="mk-wrap mk-nav-inner">
-        <LogoLink />
+        {/* Lockup: mark + wordmark, and the brand line directly beneath it, so
+            the name and what it means are read in one glance at the top of the
+            page. The line sits outside the link, so it never becomes part of
+            the link's accessible name. */}
+        <div className="mk-brand">
+          <LogoLink />
+          <span className="mk-brand-tagline">{copy.hero.eyebrowTop}</span>
+        </div>
         <nav className="mk-nav-links" aria-label="Sections">
           <a href="#how-it-works">{copy.nav.howItWorks}</a>
           <a href="#who-sees-what">{copy.nav.whoSeesWhat}</a>

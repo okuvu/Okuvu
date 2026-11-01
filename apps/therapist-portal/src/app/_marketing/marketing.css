@@ -363,6 +363,39 @@
   border-radius: 12px;
 }
 
+/* The brand block: mark + wordmark, with the brand line directly beneath it.
+   The line is part of the lockup, not a section label, so it borrows the
+   display face and the sage text token rather than the tracked uppercase
+   label style — and it stays outside the home link so it never joins the
+   link's accessible name. */
+.mk-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.mk-brand-tagline {
+  font-family: var(--mk-display);
+  font-variation-settings: 'SOFT' 100;
+  font-style: italic;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: var(--sage-ink);
+  white-space: nowrap;
+}
+
+/* On a 390px phone the lockup and the two nav actions share the row; the line
+   shrinks slightly rather than pushing the sign-in pill off the edge. */
+@media (max-width: 420px) {
+  .mk-brand-tagline {
+    font-size: 0.6875rem;
+    letter-spacing: 0;
+  }
+}
+
 /* ── nav ───────────────────────────────────────────────────────────────── */
 
 .mk-nav {
@@ -497,17 +530,6 @@
   .mk-hero-grid {
     grid-template-columns: 1.15fr 0.85fr;
   }
-}
-
-.mk-eyebrow-top {
-  display: block;
-  font-family: var(--mk-display);
-  font-variation-settings: 'SOFT' 100;
-  font-size: clamp(1rem, 1.4vw, 1.25rem);
-  font-style: italic;
-  letter-spacing: 0.01em;
-  color: var(--sage-ink);
-  margin-bottom: 0.9rem;
 }
 
 .mk-badge {

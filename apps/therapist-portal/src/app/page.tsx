@@ -80,7 +80,6 @@ export default async function LandingPage() {
       <section className="mk-hero">
         <div className="mk-wrap mk-hero-grid">
           <div>
-            <span className="mk-eyebrow-top">{copy.hero.eyebrowTop}</span>
             <p className="mk-badge">
               <span className="mk-badge-dot" aria-hidden="true" />
               {copy.hero.eyebrow}
