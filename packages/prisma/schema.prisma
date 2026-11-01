@@ -413,13 +413,24 @@ model EmergencyContact {
 }
 
 // S6 (waitlist) — captured when a phone number with no invite/account hits
-// /auth/verify-otp's NO_ACCOUNT path. Follow-up (sending an invite) is a
-// manual therapist/ops action against this table, not automated.
+// /auth/verify-otp's NO_ACCOUNT path, and by the landing page's own form.
+// Follow-up (sending an invite) is a manual therapist/ops action against this
+// table, not automated.
+//
+// Copy revision v1 (§13) split the landing form in two: a client asking for a
+// place, and a therapist asking for a walkthrough. The extra columns are the
+// therapist's answers and are NULL on every client row, so the split is
+// backfill-free and the old single-email rows stay valid as `kind = 'client'`.
 model WaitlistEntry {
-  id           String   @id @default(uuid())
-  email        String
-  phone_number String?
-  created_at   DateTime @default(now())
+  id            String   @id @default(uuid())
+  email         String
+  phone_number  String?
+  kind          String   @default("client")
+  name          String?
+  organisation  String?
+  caseload      String?
+  has_therapist Boolean?
+  created_at    DateTime @default(now())
 }
 
 model MoodLog {

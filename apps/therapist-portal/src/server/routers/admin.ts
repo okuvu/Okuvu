@@ -339,6 +339,13 @@ export const adminRouter = router({
       id: row.id,
       email: row.email,
       phone: row.phone_number,
+      // Copy revision v1 §13: two kinds of enquiry now land here, and a
+      // therapist one is answered with a walkthrough rather than a place.
+      kind: row.kind,
+      name: row.name,
+      organisation: row.organisation,
+      caseload: row.caseload,
+      hasTherapist: row.has_therapist,
       createdAt: row.created_at.toISOString(),
     }));
   }),

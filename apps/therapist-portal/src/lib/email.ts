@@ -94,6 +94,25 @@ export interface SendWaitlistNotificationParams {
   email: string;
   /** true when the address was already on the list — the operator sees repeats. */
   repeat: boolean;
+  /**
+   * Copy revision v1 §13: a therapist enquiry carries the answers the client
+   * form does not ask for. They go in the operator email so the reply can be
+   * useful even if the row is never opened — and they are HTML-escaped, since
+   * these are free-text strings typed by a stranger.
+   */
+  kind?: 'client' | 'therapist';
+  name?: string | null;
+  organisation?: string | null;
+  caseload?: string | null;
+  hasTherapist?: boolean | null;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export async function sendWaitlistNotification(
@@ -107,11 +126,30 @@ export async function sendWaitlistNotification(
   // operator inboxes are not necessarily the same mailbox.
   const toEmail = process.env.WAITLIST_NOTIFY_EMAIL || 'admin@okuvu.in';
 
-  const label = params.repeat ? 'Waitlist — already listed' : 'Waitlist — new place requested';
+  const therapist = params.kind === 'therapist';
+  const label = therapist
+    ? params.repeat
+      ? 'Therapist enquiry — already listed'
+      : 'Therapist enquiry — walkthrough requested'
+    : params.repeat
+      ? 'Waitlist — already listed'
+      : 'Waitlist — new place requested';
+
+  const detail = therapist
+    ? `
+    <p><strong>Name:</strong> ${escapeHtml(params.name ?? '—')}</p>
+    <p><strong>Practice:</strong> ${escapeHtml(params.organisation || '—')}</p>
+    <p><strong>Caseload:</strong> ${escapeHtml(params.caseload || '—')}</p>
+  `
+    : params.hasTherapist === undefined || params.hasTherapist === null
+      ? ''
+      : `<p><strong>Already has a therapist:</strong> ${params.hasTherapist ? 'yes' : 'no'}</p>`;
+
   const htmlContent = `
     <p><strong>${label}</strong></p>
-    <p style="font-size:18px">${params.email}</p>
-    <p>${params.repeat ? 'This address was already on the list; the person asked again.' : 'New address on the list.'}</p>
+    <p style="font-size:18px">${escapeHtml(params.email)}</p>
+    ${detail}
+    <p>${params.repeat ? 'This address was already on the list; the person asked again.' : 'New entry on the list.'}</p>
     <p>Reply to this email to answer them directly.</p>
   `;
 

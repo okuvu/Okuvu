@@ -2213,3 +2213,354 @@ html[data-mk-paused='1'] .mk-root * {
 :root[data-theme='dark'] .mk-mark-big--dark {
   display: block;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Copy revision v1 (1 Nov 2026) — the AI section, the closing lines, the
+   urgent block, who's behind it, and the two-form waitlist.
+
+   Added at the end on purpose: these are additions, not overrides of the
+   redesign, and nothing here animates, so the reduced-motion block above
+   keeps the last word on motion.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── the hero's primary pill ────────────────────────────────────────────
+   §2 makes the therapist walkthrough the primary action while access is
+   therapist-gated. Amber stays on the waitlist alone, so the primary is a
+   solid royal-filled pill: white on #5e2e91 is 8.2:1, and in dark mode the
+   cut inverts to orchid-soft with royal-night text (9.7:1). */
+
+.mk-pill--ink {
+  background: var(--royal);
+  color: #fff;
+  border: 1.5px solid transparent;
+  padding-inline: 1.5rem;
+}
+
+.mk-pill--ink:hover {
+  background: var(--night);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .mk-pill--ink {
+    background: var(--orchid-soft);
+    color: var(--night);
+  }
+  :root:not([data-theme='light']) .mk-pill--ink:hover {
+    background: var(--lav-tint);
+    color: var(--night);
+  }
+}
+
+:root[data-theme='dark'] .mk-pill--ink {
+  background: var(--orchid-soft);
+  color: var(--night);
+}
+
+:root[data-theme='dark'] .mk-pill--ink:hover {
+  background: var(--lav-tint);
+  color: var(--night);
+}
+
+/* ── the closing line under the three steps (§4) ───────────────────────── */
+
+.mk-steps-close {
+  margin-top: clamp(2rem, 4vw, 2.75rem);
+  max-width: 34ch;
+  font-size: clamp(1.1rem, 2.1vw, 1.45rem);
+  line-height: 1.35;
+  color: var(--sage-ink);
+}
+
+/* ── yes, it's AI (§5) ───────────────────────────────────────────────────
+   Two columns on desktop: the claim on the left, the six qualifications on
+   the right, so the H2 and the sentence that limits it are read together
+   rather than the qualifications arriving as fine print. */
+
+.mk-ai-grid {
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 3rem);
+}
+
+@media (min-width: 900px) {
+  .mk-ai-grid {
+    grid-template-columns: 0.85fr 1.15fr;
+    align-items: start;
+  }
+}
+
+.mk-ai-head h2 {
+  margin-top: 0.75rem;
+}
+
+.mk-ai-lead {
+  margin-top: 0.9rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 40ch;
+}
+
+.mk-ai-points {
+  display: grid;
+  gap: 0;
+}
+
+.mk-ai-point {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 0.9rem;
+  padding-block: 1.15rem;
+  border-top: 1px solid var(--mk-border);
+}
+
+.mk-ai-point:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.mk-ai-num {
+  font-family: var(--mk-display);
+  font-size: 1.35rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--sage-ink);
+  padding-top: 0.15rem;
+}
+
+.mk-ai-point h3 {
+  margin-bottom: 0.3rem;
+}
+
+.mk-ai-point p {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--mk-text-soft);
+}
+
+/* ── who's behind it (§12) ──────────────────────────────────────────────
+   The company statement sits next to the no-certification line on purpose:
+   one supports the other, and splitting them lets the first be quoted
+   without the second. */
+
+.mk-behind-grid {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+@media (min-width: 860px) {
+  .mk-behind-grid {
+    grid-template-columns: 1.35fr 1fr;
+    align-items: start;
+  }
+}
+
+.mk-behind-body {
+  margin-top: 0.9rem;
+  max-width: 58ch;
+}
+
+.mk-behind-note {
+  border: 1px solid var(--mk-border);
+  border-left: 3px solid var(--sage);
+  border-radius: 4px var(--mk-radius) var(--mk-radius) 4px;
+  background: var(--mk-surface);
+  padding: 1.25rem 1.35rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--mk-text-soft);
+  box-shadow: var(--mk-shadow);
+}
+
+/* ── if it's urgent (§10) ───────────────────────────────────────────────
+   A flat royal-night band with no gradient, no grain, no glow, no motion and
+   no watermark. The other bands are allowed decoration; this one is the part
+   someone reads at 3am, so it keeps the highest contrast on the page
+   (lavender tint on #2a0f4e is 14.4:1) and nothing is layered over it. */
+
+.mk-urgent {
+  background: var(--night);
+  color: var(--lav-tint);
+  padding-block: clamp(2.5rem, 6vw, 4rem);
+}
+
+.mk-urgent-inner h2 {
+  color: #fff;
+}
+
+.mk-urgent-h2 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+}
+
+.mk-urgent-lead {
+  margin-top: 0.65rem;
+  max-width: 52ch;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: rgba(237, 233, 254, 0.86);
+}
+
+.mk-urgent-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.75rem;
+}
+
+@media (min-width: 780px) {
+  .mk-urgent-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mk-urgent-row {
+  display: grid;
+  gap: 0.4rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid rgba(237, 233, 254, 0.24);
+  border-radius: 18px;
+  background: rgba(237, 233, 254, 0.05);
+}
+
+.mk-urgent-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--orchid-soft);
+}
+
+.mk-urgent-body {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #fff;
+}
+
+.mk-urgent-call {
+  /* An inline number rather than a separate button: the sentence already says
+     "call", so a pill repeating it reads as two instructions. Padding gives the
+     link a thumb-sized hit area without changing the line box. */
+  display: inline-block;
+  padding: 0.15rem 0.35rem;
+  margin-inline: -0.35rem;
+  border-radius: 6px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.mk-urgent-call:hover {
+  background: rgba(237, 233, 254, 0.14);
+}
+
+/* The band is dark, so the ring uses the light end of the palette to stay a
+   3:1 indicator against it. */
+.mk-urgent :where(a, button):focus-visible {
+  outline: 2px solid var(--orchid-soft);
+  outline-offset: 3px;
+}
+
+/* ── footer sign-off (§14) ──────────────────────────────────────────────── */
+
+.mk-footer-signoff {
+  margin-top: 1.5rem;
+  max-width: 46ch;
+  font-family: var(--mk-display);
+  font-size: 1.0625rem;
+  line-height: 1.45;
+  color: var(--mk-heading);
+}
+
+/* ── the two waitlist forms (§13) ───────────────────────────────────────
+   Both live in the same white card, behind a two-button switch. The buttons
+   are buttons, not links: nothing navigates, and aria-pressed carries the
+   state for a screen reader. */
+
+.mk-form-card {
+  margin-top: 1.5rem;
+}
+
+.mk-form-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgba(42, 15, 78, 0.07);
+}
+
+.mk-form-tab {
+  min-height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.45rem 1rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: rgba(42, 15, 78, 0.72);
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.mk-form-tab[aria-pressed='true'] {
+  background: var(--royal);
+  color: #fff;
+}
+
+.mk-form-tab[aria-pressed='false']:hover {
+  background: rgba(42, 15, 78, 0.08);
+  color: var(--indigo);
+}
+
+.mk-form .mk-form-label {
+  margin-top: 1.05rem;
+}
+
+.mk-form .mk-form-label:first-child,
+.mk-form .mk-form-pair .mk-form-label {
+  margin-top: 0;
+}
+
+.mk-form > .mk-input {
+  margin-top: 0.4rem;
+}
+
+/* A field outside .mk-form-row has no flex parent to fill, and an <input>
+   defaults to its own intrinsic width — the two therapist fields rendered at
+   half width on a phone until this. */
+.mk-form :where(.mk-input, .mk-select) {
+  width: 100%;
+}
+
+.mk-form-row {
+  margin-top: 0.4rem;
+}
+
+.mk-form-pair {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.05rem;
+}
+
+@media (min-width: 520px) {
+  .mk-form-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mk-select {
+  width: 100%;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%232A0F4E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.4rem;
+}
+
+.mk-form .mk-submit {
+  width: 100%;
+  margin-top: 1.1rem;
+  min-height: 46px;
+}

@@ -3,11 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 /**
  * The landing page's only public write.
  *
- * These tests pin the three behaviours that are not obvious from reading the
- * form: the honeypot is silent, a duplicate looks identical to a first-time
+ * These tests pin the behaviours that are not obvious from reading the form:
+ * the honeypot is silent, a duplicate looks identical to a first-time
  * submission (so the endpoint cannot be used to test whether an address is
  * already on a list that reveals someone is seeking support), and consent is
  * enforced server-side rather than only in the UI.
+ *
+ * Copy revision v1 (§13) added a second form. The extra cases below cover what
+ * that split makes possible and must not quietly allow: a therapist row with no
+ * name, a `kind` nobody defined, and a client posting therapist fields (or the
+ * reverse) into the wrong kind of row.
  */
 
 const findFirst = vi.fn();
@@ -38,6 +43,21 @@ function post(body: unknown, ip?: string): Request {
   });
 }
 
+/** The shape a client submission stores, with every field spelled out. */
+function clientRow(email: string, over: Record<string, unknown> = {}) {
+  return {
+    data: {
+      email,
+      kind: 'client',
+      name: null,
+      organisation: null,
+      caseload: null,
+      has_therapist: null,
+      ...over,
+    },
+  };
+}
+
 describe('POST /api/waitlist', () => {
   beforeEach(() => {
     findFirst.mockReset();
@@ -53,7 +73,10 @@ describe('POST /api/waitlist', () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
-    expect(create).toHaveBeenCalledWith({ data: { email: 'person@example.com' } });
+    expect(create).toHaveBeenCalledWith(clientRow('person@example.com'));
+    // The duplicate check is per kind, or a therapist enquiry would be
+    // swallowed by an older client row from the same address.
+    expect(findFirst).toHaveBeenCalledWith({ where: { email: 'person@example.com', kind: 'client' } });
   });
 
   it('returns the same ok for a duplicate without creating a second row', async () => {
@@ -82,10 +105,14 @@ describe('POST /api/waitlist', () => {
   });
 
   it('answers a filled honeypot with success and stores nothing', async () => {
-    const res = await POST(post({ email: 'bot@example.com', consent: true, company: 'Acme' }));
+    // Both honeypot names: `website` is the current one, `company` the
+    // pre-revision one, still honoured so a stale bundle is not a bypass.
+    for (const honeypot of [{ website: 'acme.test' }, { company: 'Acme' }]) {
+      const res = await POST(post({ email: 'bot@example.com', consent: true, ...honeypot }));
 
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true });
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ ok: true });
+    }
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -107,6 +134,11 @@ describe('POST /api/waitlist', () => {
     expect(sendWaitlistNotification).toHaveBeenCalledWith({
       email: 'person@example.com',
       repeat: false,
+      kind: 'client',
+      name: null,
+      organisation: null,
+      caseload: null,
+      hasTherapist: null,
     });
   });
 
@@ -120,13 +152,19 @@ describe('POST /api/waitlist', () => {
     expect(sendWaitlistNotification).toHaveBeenCalledWith({
       email: 'person@example.com',
       repeat: true,
+      kind: 'client',
+      name: null,
+      organisation: null,
+      caseload: null,
+      hasTherapist: null,
     });
   });
 
   it('never notifies the operator about a refusal', async () => {
     await POST(post({ email: 'nope', consent: true }));
     await POST(post({ email: 'person@example.com', consent: false }));
-    await POST(post({ email: 'bot@example.com', consent: true, company: 'Acme' }));
+    await POST(post({ email: 'bot@example.com', consent: true, website: 'acme.test' }));
+    await POST(post({ email: 'therapist@example.com', consent: true, kind: 'therapist' }));
 
     expect(sendWaitlistNotification).not.toHaveBeenCalled();
   });
@@ -154,6 +192,80 @@ describe('POST /api/waitlist', () => {
     expect(sendWaitlistNotification).toHaveBeenCalledWith({
       email: 'person@example.com',
       repeat: false,
+      kind: 'client',
+      name: null,
+      organisation: null,
+      caseload: null,
+      hasTherapist: null,
     });
+  });
+
+  // ── the therapist form (§13) ─────────────────────────────────────────
+
+  it('stores a therapist enquiry with the answers the client form does not ask for', async () => {
+    const res = await POST(
+      post({
+        kind: 'therapist',
+        email: 'Therapist@Example.com',
+        consent: true,
+        name: '  A Therapist ',
+        organisation: 'Quiet Practice',
+        caseload: '12',
+        // A therapist form has no such question; if one is posted anyway it
+        // must not be stored.
+        has_therapist: true,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        email: 'therapist@example.com',
+        kind: 'therapist',
+        name: 'A Therapist',
+        organisation: 'Quiet Practice',
+        caseload: '12',
+        has_therapist: null,
+      },
+    });
+    expect(sendWaitlistNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'therapist', name: 'A Therapist', caseload: '12' }),
+    );
+  });
+
+  it('refuses a therapist enquiry with no name, whatever the UI sends', async () => {
+    for (const name of [undefined, '', '   ']) {
+      const res = await POST(post({ kind: 'therapist', email: 'therapist@example.com', consent: true, name }));
+      expect(res.status, String(name)).toBe(400);
+      await expect(res.json()).resolves.toEqual({ error: 'name_required' });
+    }
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('treats an unknown kind as a client rather than trusting the string', async () => {
+    const res = await POST(post({ kind: 'admin', email: 'person@example.com', consent: true }));
+
+    expect(res.status).toBe(200);
+    expect(create).toHaveBeenCalledWith(clientRow('person@example.com'));
+  });
+
+  it('records the client answer about having a therapist, and only for clients', async () => {
+    await POST(post({ email: 'person@example.com', consent: true, has_therapist: true }));
+
+    expect(create).toHaveBeenCalledWith(clientRow('person@example.com', { has_therapist: true }));
+  });
+
+  it('keeps a therapist enquiry separate from a client row for the same address', async () => {
+    // A person can legitimately be both: already in therapy, and a therapist.
+    await POST(post({ email: 'person@example.com', consent: true }));
+    await POST(post({ kind: 'therapist', email: 'person@example.com', consent: true, name: 'A Therapist' }));
+
+    expect(findFirst).toHaveBeenNthCalledWith(1, {
+      where: { email: 'person@example.com', kind: 'client' },
+    });
+    expect(findFirst).toHaveBeenNthCalledWith(2, {
+      where: { email: 'person@example.com', kind: 'therapist' },
+    });
+    expect(create).toHaveBeenCalledTimes(2);
   });
 });

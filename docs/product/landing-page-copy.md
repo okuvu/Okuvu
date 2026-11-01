@@ -327,3 +327,59 @@ export const crisis = {
 
 `hero.gate` is not decorative. It is the first of the three objection answers (spec §1.3) and the
 only sentence in the hero that a competitor could not copy without changing their product.
+
+---
+
+## 14. Copy revision v1 — applied 1 Nov 2026
+
+The founder's `Okuvu Website — Copy Revision v1` is now the operative version of this page.
+Everything in §1–§11 above that it contradicts is superseded; everything it does not mention is
+unchanged. Applied in `apps/therapist-portal/src/lib/marketing/copy.ts`, deployed with the page.
+
+**New sections:** §3 the becoming story, §5 `Yes, it's AI`, §10 `If it's urgent`, §12 `Who's
+behind it`.
+**New order:** hero → becoming → how it works → AI → for therapists (§11 P1: therapists are the
+only route in during beta) → what's in it → who sees what → what this isn't → your data → who's
+behind it → waitlist → if it's urgent → footer.
+**Changed:** meta/OG (§1), hero eyebrow + sub + therapist-first CTAs (§2), steps 2 and 3 (§4),
+`Five things… working in the beta today` plus card bodies (§6), the AI column in who-sees-what and
+the `chats as they happen` line (§7), `Not a person` first in what-this-isn't (§8), data line 3
+(§9), two waitlist forms (§13), footer line, crisis line and sign-off (§14).
+
+### 14a. Still blocked — the step-3 safety line (§4, P0)
+
+The revision offers two sentences and asks for `[CONFIRM]` before either ships. Neither is true of
+this build, which is why the page carries no safety line under step 3 yet:
+
+- *"…your therapist is told, separately from the summary."* — **false.** No notification consumer
+  exists. `crisis_flag_detected` is written to `SessionLog`, counted in the admin overview, and
+  carried in the summary's `safety_flags`; nothing is pushed when it happens.
+- *"Conversations where our safety checks pick up danger are not summarised."* — **also false.**
+  The worker summary prompt makes `safety_flags.crisis_language_detected` mandatory and requires
+  the surrounding user words, quoted. S3/S4 threads are summarised *and* flagged.
+
+What is true, and what the clinical authority can approve or reject:
+
+> Conversations where our safety checks pick up danger are summarised with a safety flag and the
+> words you used, so your therapist sees them before your next session. Nothing is sent the moment
+> it happens.
+
+Until that is signed, the line stays absent. `marketing-copy.test.ts` fails if either of the
+revision's two options is pasted back in.
+
+### 14b. Crisis block (§10, §14) — signed, and now used
+
+`crisis.line` is unchanged. The page now also carries **Tele-MANAS 14416**, worded `(free, 24
+hours)` — the clinical lead's phrasing from the block signed 31 Oct 2026 (block final 1 Nov 2026),
+not a new "24×7" variant. The block is rendered twice: the `If it's urgent` band above the footer
+and the compact footer line. The other three signed entries (Vandrevala, SNEHA, iCall) are
+deliberately not on a marketing page; the test asserts nothing outside the signed set appears at
+all.
+
+### 14c. Two deviations from the revision, both deliberate
+
+1. **`Your data, in five lines`** became `Your data, in four lines`. The revision says five and
+   lists four items; the heading counts what is under it. When the fifth line exists, the heading
+   changes with it in the same commit.
+2. **The eyebrow keeps `·` separators** (`AI companion · in beta · places open by therapist
+   invitation`) rather than the revision's comma-free spacing, to match the existing chip.

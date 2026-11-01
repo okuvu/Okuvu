@@ -49,6 +49,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 /** The four "your data" rows, in brief order, with the icon for each. */
 const DATA_ICONS = [MapPin, ShieldOff, Smartphone, Trash2] as const;
 
+/**
+ * Section order is copy revision v1's, not the older page's:
+ *
+ *   hero → the becoming story → how it works → yes, it's AI →
+ *   for therapists (§11 asks for this directly after the AI section, because
+ *   therapists are the only route in during beta) → what's in it →
+ *   who sees what → what this isn't → your data → who's behind it →
+ *   waitlist → if it's urgent → footer.
+ */
 export default async function LandingPage() {
   // portal.okuvu.in keeps behaving as the app entry point it has always been,
   // so a therapist's existing bookmark does not land on marketing copy.
@@ -87,10 +96,10 @@ export default async function LandingPage() {
             <h1 className="mk-display mk-h1">{copy.hero.h1}</h1>
             <p className="mk-lede mk-hero-lede">{copy.hero.sub}</p>
             <div className="mk-cta-row">
-              <a href="#waitlist" className="mk-pill mk-pill--amber">
+              <a href="#for-therapists" className="mk-pill mk-pill--ink">
                 {copy.hero.ctaPrimary}
               </a>
-              <a href="#who-sees-what" className="mk-link-arrow">
+              <a href="#waitlist" className="mk-link-arrow">
                 {copy.hero.ctaSecondary}
               </a>
             </div>
@@ -146,13 +155,77 @@ export default async function LandingPage() {
               </li>
             ))}
           </ol>
+
+          <p className="mk-steps-close mk-display">{copy.how.close}</p>
         </div>
       </section>
 
-      <Squiggle />
+      {/* ── Yes, it's AI ─────────────────────────────────────────────── */}
+      <section id="ai" className="mk-sec mk-sec--lavender" style={{ scrollMarginTop: '80px' }}>
+        <div className="mk-wrap mk-ai-grid">
+          <div className="mk-ai-head">
+            <SectionLabel>{copy.ai.eyebrow}</SectionLabel>
+            <h2 className="mk-display mk-h2">{copy.ai.h2}</h2>
+            <p className="mk-body mk-ai-lead">{copy.ai.lead}</p>
+          </div>
+
+          <ol className="mk-ai-points">
+            {copy.ai.points.map((point, i) => (
+              <li key={point.title} className="mk-ai-point">
+                <span className="mk-ai-num" aria-hidden="true">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div>
+                  <h3 className="mk-h3">{point.title}</h3>
+                  <p>{point.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* ── For therapists ───────────────────────────────────────────── */}
+      <section
+        id="for-therapists"
+        className="mk-sec mk-sec--evening"
+        style={{ scrollMarginTop: '80px' }}
+      >
+        <MarkWatermark />
+        <span className="mk-glow" aria-hidden="true" data-anim />
+        <div className="mk-wrap mk-therapist-grid">
+          <div className="mk-therapist-copy">
+            <SectionLabel>{copy.nav.forTherapists}</SectionLabel>
+            <h2 className="mk-display mk-h2">{copy.forTherapists.h2}</h2>
+            <p>{copy.forTherapists.body1}</p>
+            <p>{copy.forTherapists.body2}</p>
+            <p>{copy.forTherapists.body3}</p>
+            <a
+              href="mailto:admin@okuvu.in?subject=Okuvu%20walkthrough"
+              className="mk-pill mk-pill--ghost"
+            >
+              {copy.forTherapists.walkthrough}
+            </a>
+            <p className="mk-micro">{copy.forTherapists.micro}</p>
+
+            <div className="mk-signin">
+              <h3 className="mk-h3">{copy.forTherapists.signInTitle}</h3>
+              <p>{copy.forTherapists.signInBody}</p>
+              <LandingSignIn googleConfigured={googleOn} cognitoConfigured={cognitoOn} />
+              <p className="mk-signin-note">
+                {signedIn ? 'You are already signed in.' : 'Administrator: admin@okuvu.in'}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <ScreenSlot name="portal" />
+          </div>
+        </div>
+      </section>
 
       {/* ── Inside the app ───────────────────────────────────────────── */}
-      <section className="mk-sec mk-sec--lavender">
+      <section className="mk-sec mk-sec--stone">
         <div className="mk-wrap">
           <div className="mk-how-head">
             <SectionLabel>Inside the app</SectionLabel>
@@ -223,7 +296,7 @@ export default async function LandingPage() {
       </section>
 
       {/* ── Who sees what ────────────────────────────────────────────── */}
-      <section id="who-sees-what" className="mk-sec mk-sec--stone" style={{ scrollMarginTop: '80px' }}>
+      <section id="who-sees-what" className="mk-sec mk-sec--lavender" style={{ scrollMarginTop: '80px' }}>
         <div className="mk-wrap">
           <div className="mk-how-head">
             <SectionLabel>Privacy, concretely</SectionLabel>
@@ -285,7 +358,7 @@ export default async function LandingPage() {
       </section>
 
       {/* ── What this isn't ──────────────────────────────────────────── */}
-      <section className="mk-sec mk-sec--lavender">
+      <section className="mk-sec mk-sec--stone">
         <div className="mk-wrap">
           <h2 className="mk-display mk-h2">{copy.isnt.h2}</h2>
           <ul className="mk-isnt-list">
@@ -293,7 +366,7 @@ export default async function LandingPage() {
               <li key={item.title} className="mk-isnt-row">
                 <span className="mk-dash" aria-hidden="true" />
                 <h3 className="mk-h3">{item.title}</h3>
-                <p className={i === 1 ? 'mk-isnt-crisis' : undefined}>{item.body}</p>
+                <p className={i === 2 ? 'mk-isnt-crisis' : undefined}>{item.body}</p>
               </li>
             ))}
           </ul>
@@ -301,7 +374,7 @@ export default async function LandingPage() {
       </section>
 
       {/* ── Your data ────────────────────────────────────────────────── */}
-      <section className="mk-sec mk-sec--stone">
+      <section className="mk-sec mk-sec--lavender">
         <div className="mk-wrap">
           <h2 className="mk-display mk-h2">{copy.data.h2}</h2>
           <ul className="mk-data-grid">
@@ -326,41 +399,14 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ── For therapists ───────────────────────────────────────────── */}
-      <section
-        id="for-therapists"
-        className="mk-sec mk-sec--evening"
-        style={{ scrollMarginTop: '80px' }}
-      >
-        <MarkWatermark />
-        <span className="mk-glow" aria-hidden="true" data-anim />
-        <div className="mk-wrap mk-therapist-grid">
-          <div className="mk-therapist-copy">
-            <SectionLabel>{copy.nav.forTherapists}</SectionLabel>
-            <h2 className="mk-display mk-h2">{copy.forTherapists.h2}</h2>
-            <p>{copy.forTherapists.body1}</p>
-            <p>{copy.forTherapists.body2}</p>
-            <a
-              href="mailto:admin@okuvu.in?subject=Okuvu%20for%20my%20practice"
-              className="mk-pill mk-pill--ghost"
-            >
-              {copy.forTherapists.mailto}
-            </a>
-            <p className="mk-micro">{copy.forTherapists.micro}</p>
-
-            <div className="mk-signin">
-              <h3 className="mk-h3">{copy.forTherapists.signInTitle}</h3>
-              <p>{copy.forTherapists.signInBody}</p>
-              <LandingSignIn googleConfigured={googleOn} cognitoConfigured={cognitoOn} />
-              <p className="mk-signin-note">
-                {signedIn ? 'You are already signed in.' : 'Administrator: admin@okuvu.in'}
-              </p>
-            </div>
-          </div>
-
+      {/* ── Who's behind it ──────────────────────────────────────────── */}
+      <section className="mk-sec mk-sec--stone">
+        <div className="mk-wrap mk-behind-grid">
           <div>
-            <ScreenSlot name="portal" />
+            <h2 className="mk-display mk-h2">{copy.behind.h2}</h2>
+            <p className="mk-body mk-behind-body">{copy.behind.body}</p>
           </div>
+          <p className="mk-behind-note">{copy.behind.disclaimer}</p>
         </div>
       </section>
 
@@ -386,17 +432,45 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ── If it's urgent ───────────────────────────────────────────── */}
+      {/* Nothing decorative is layered over this block: no grain, no glow, no
+          watermark, no motion. It is the one part of the page that must be
+          readable at a glance on a bad night. */}
+      <section id="urgent" className="mk-urgent">
+        <div className="mk-wrap mk-urgent-inner">
+          <h2 className="mk-display mk-urgent-h2">{copy.crisis.h2}</h2>
+          <p className="mk-urgent-lead">{copy.crisis.lead}</p>
+          <ul className="mk-urgent-list">
+            {copy.crisis.items.map((item) => (
+              <li key={item.title} className="mk-urgent-row">
+                <span className="mk-urgent-title">{item.title}</span>
+                <span className="mk-urgent-body">
+                  {item.lead}{' '}
+                  <a href={`tel:${item.number}`} className="mk-urgent-call">
+                    {item.number}
+                  </a>
+                  {item.note ? ` ${item.note}` : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       {/* ── Footer ───────────────────────────────────────────────────── */}
       <footer className="mk-footer">
         <div className="mk-wrap">
           <p className="mk-footer-line">{copy.footer.line}</p>
-          <p className="mk-crisis">{copy.crisis.line}</p>
+          <p className="mk-crisis">
+            {copy.crisis.line} {copy.crisis.helpline}
+          </p>
           <div className="mk-footer-links">
             <Link href="/privacy">{copy.footer.privacy}</Link>
             <a href="#for-therapists">{copy.footer.therapists}</a>
             <a href="mailto:admin@okuvu.in">{copy.footer.contact}</a>
           </div>
           <p className="mk-footer-note">{copy.footer.disclaimer}</p>
+          <p className="mk-footer-signoff">{copy.footer.signoff}</p>
           <p className="mk-copyright">{copy.footer.copyright}</p>
         </div>
       </footer>

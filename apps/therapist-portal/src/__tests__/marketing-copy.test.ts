@@ -74,6 +74,9 @@ const BANNED = {
     'trusted by',
     'thousands of users',
     '₹',
+    // The page states that what it describes works in the beta today, so
+    // nothing on it may promise a feature that does not exist yet.
+    'coming soon',
   ],
   // Tone.
   tone: ['journey', 'safe space', 'seamless', 'empower', 'unlock', 'revolutionise', 'holistic'],
@@ -98,10 +101,39 @@ describe('landing page copy — claim guard', () => {
 
   it('states the crisis number plainly and does not invent others', () => {
     expect(copy.crisis.line).toBe('If someone is in danger right now, call 112.');
-    // No other helpline is authored on this page: the expanded list is a
-    // clinical deliverable (decision record item 1), not a copywriting task.
+    // Copy revision v1 §10/§14 adds Tele-MANAS 14416 to the page. Both numbers
+    // are in the block the clinical lead signed on 31 Oct 2026 (block final
+    // 1 Nov 2026, five entries), and the wording keeps her phrasing rather than
+    // inventing "24×7".
+    expect(copy.crisis.helpline).toContain('Tele-MANAS');
+    expect(copy.crisis.helpline).toContain('14416');
+    // The rest of the signed set is deliberately not on the page: a marketing
+    // footer is not a crisis card, and two actable numbers are enough. Nothing
+    // outside the signed set may appear at all.
     expect(haystack).not.toContain('icall');
     expect(haystack).not.toContain('vandrevala');
-    expect(haystack).not.toContain('14416');
+    expect(haystack).not.toContain('sneha');
+    expect(haystack).not.toContain('9152987821');
+    expect(haystack).not.toContain('044-24640050');
+  });
+
+  it('says it is AI, and says it is not a person, before anything else', () => {
+    // Copy revision v1 §5/§8. These are the two claims that must survive any
+    // future edit: the product is software, and the page says so plainly.
+    expect(copy.ai.h2).toContain('Okuvu is AI');
+    expect(copy.isnt.items[0].title).toBe('Not a person');
+    expect(copy.footer.line).toContain('AI wellbeing companion');
+    expect(copy.footer.line).toContain('not a person');
+  });
+
+  it('keeps the therapist-readable summary claim exact', () => {
+    // The step-3 safety line (§4) is absent on purpose: both options the
+    // revision offers are false of this build — crisis turns are summarised
+    // with a safety flag, and no real-time alert exists. This test is here so
+    // that an editor cannot paste either one back in without deleting a test
+    // that says why.
+    const how = copy.how.steps.map((step) => step.body).join(' ').toLowerCase();
+    expect(how).not.toContain('your therapist is told, separately from the summary');
+    expect(how).not.toContain('are not summarised');
   });
 });
