@@ -3,7 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { Eye, EyeOff, MapPin, ShieldOff, Smartphone, Trash2 } from 'lucide-react';
+import { Bot, Eye, EyeOff, MapPin, ShieldOff, Smartphone, Trash2 } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { isGoogleConfigured } from '@/lib/google-config';
 import { isCognitoConfigured } from '@/lib/cognito-config';
@@ -102,6 +102,22 @@ export default async function LandingPage() {
           </div>
         </div>
         <HeroWaves />
+      </section>
+
+      {/* ── The story spine ──────────────────────────────────────────── */}
+      <section className="mk-sec mk-sec--lavender mk-becoming">
+        <div className="mk-wrap">
+          <div className="mk-becoming-inner">
+            <SectionLabel>{copy.becoming.eyebrow}</SectionLabel>
+            <h2 className="mk-display mk-h2">{copy.becoming.h2}</h2>
+            <div className="mk-becoming-body">
+              {copy.becoming.body.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+            <p className="mk-becoming-close mk-display">{copy.becoming.close}</p>
+          </div>
+        </div>
       </section>
 
       {/* ── How it works ─────────────────────────────────────────────── */}
@@ -237,6 +253,20 @@ export default async function LandingPage() {
               </h3>
               <ul>
                 {copy.who.right.map((item) => (
+                  <li key={item}>
+                    <span className="mk-tick" aria-hidden="true" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="mk-panel mk-panel--ai">
+              <h3 className="mk-panel-head">
+                <Bot size={18} strokeWidth={1.8} aria-hidden="true" />
+                {copy.who.aiTitle}
+              </h3>
+              <ul>
+                {copy.who.ai.map((item) => (
                   <li key={item}>
                     <span className="mk-tick" aria-hidden="true" />
                     <span>{item}</span>

@@ -1296,6 +1296,40 @@
   stroke-width: 1.6;
 }
 
+/* ── the story spine (copy revision v1) ───────────────────────────────── */
+
+.mk-becoming-inner {
+  max-width: 46rem;
+}
+
+.mk-becoming .mk-h2 {
+  max-width: 22ch;
+}
+
+.mk-becoming-body {
+  margin-top: clamp(1.25rem, 2.4vw, 1.75rem);
+  display: grid;
+  gap: 1.05rem;
+}
+
+.mk-becoming-body p {
+  font-size: clamp(1rem, 1.15vw, 1.075rem);
+  line-height: 1.7;
+  color: var(--mk-text);
+}
+
+/* Set larger, per the revision — the argument of the page, not a caption. */
+.mk-becoming-close {
+  margin-top: clamp(2rem, 4vw, 2.75rem);
+  padding-top: clamp(1.25rem, 2.4vw, 1.75rem);
+  border-top: 1px solid var(--mk-border-strong);
+  font-size: clamp(1.4rem, 3.1vw, 2.05rem);
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+  color: var(--mk-heading);
+  text-wrap: balance;
+}
+
 /* ── who sees what ─────────────────────────────────────────────────────── */
 
 .mk-who-grid {
@@ -1307,6 +1341,20 @@
 @media (min-width: 780px) {
   .mk-who-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  /* Two columns is the wrong shape for three panels: the third would leave a
+     hole beside it, which reads as a missing panel rather than a column. */
+  .mk-panel--ai {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1080px) {
+  .mk-who-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .mk-panel--ai {
+    grid-column: auto;
   }
 }
 
@@ -1326,6 +1374,25 @@
   color: var(--mk-on-dark);
 }
 
+/* The AI column: neither white nor night, because it is a third kind of
+   access — it holds its own tint so it does not read as either neighbour. */
+.mk-panel--ai {
+  background: var(--lilac);
+  border: 1px solid rgba(94, 46, 145, 0.18);
+}
+
+.mk-panel--ai .mk-panel-head {
+  color: var(--royal);
+}
+
+.mk-panel--ai li {
+  color: var(--ink);
+}
+
+.mk-panel--ai .mk-tick {
+  background: var(--violet);
+}
+
 @media (prefers-color-scheme: dark) {
   /* On the dark page, indigo-on-indigo collapsed the two panels into one.
      Deepen this one below the page and give it a lavender hairline so the
@@ -1336,12 +1403,48 @@
   }
 }
 
-/* The same theme, reachable by the toggle: forcing dark must not depend
-   on the operating system agreeing. */
+/* The same theme, reachable by the toggle: forcing dark must not depend on
+   the operating system agreeing. */
   :root[data-theme='dark'] .mk-panel--not {
       background: #140725;
       border: 1px solid rgba(237, 230, 251, 0.22);
   }
+
+/* The AI column in dark: lilac would sit as a white block on the dark page,
+   so it drops to a violet surface that is still distinguishable from both
+   the white card (.mk-panel--sees → #2b1550) and the night panel (#140725). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .mk-panel--ai {
+    background: #34195f;
+    border-color: rgba(196, 181, 253, 0.26);
+  }
+  :root:not([data-theme='light']) .mk-panel--ai .mk-panel-head {
+    color: var(--orchid-soft);
+  }
+  :root:not([data-theme='light']) .mk-panel--ai li {
+    color: rgba(237, 233, 254, 0.88);
+  }
+  :root:not([data-theme='light']) .mk-panel--ai .mk-tick {
+    background: var(--orchid);
+  }
+}
+
+:root[data-theme='dark'] .mk-panel--ai {
+  background: #34195f;
+  border-color: rgba(196, 181, 253, 0.26);
+}
+
+:root[data-theme='dark'] .mk-panel--ai .mk-panel-head {
+  color: var(--orchid-soft);
+}
+
+:root[data-theme='dark'] .mk-panel--ai li {
+  color: rgba(237, 233, 254, 0.88);
+}
+
+:root[data-theme='dark'] .mk-panel--ai .mk-tick {
+  background: var(--orchid);
+}
 
 .mk-panel-head {
   display: flex;

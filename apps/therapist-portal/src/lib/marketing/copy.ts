@@ -49,6 +49,22 @@ export const hero = {
   ctaSecondary: 'See who sees what',
 } as const;
 
+/**
+ * The story spine (copy revision v1, 1 Nov 2026). Sits directly under the hero:
+ * the tagline was a header ornament, and here it becomes the argument of the
+ * page. Wording is the revision's, verbatim.
+ */
+export const becoming = {
+  eyebrow: 'You are always becoming',
+  h2: 'Nobody changes in the therapy room.',
+  body: [
+    'You change on the walk home. In the argument you handled a little differently. On the flat Tuesday you got through anyway.',
+    "Therapy gives you the map. The becoming happens in the 167 hours in between, mostly when no one is watching. Those are also the hours that slip away: the good day blurs into the bad week, and by Thursday you're explaining yourself from scratch.",
+    "Okuvu is built for those hours. Somewhere to put the day down when it happens, so what you worked through doesn't go missing, and your next session picks up from where you really are.",
+  ],
+  close: 'You are always becoming. Okuvu is where that becoming lives.',
+} as const;
+
 export const how = {
   h2: "Three steps, and the first one isn't yours.",
   sub: 'Okuvu works the way care already works: someone qualified takes you on, and then you do the week.',
@@ -82,15 +98,18 @@ export const benefits = {
     },
     {
       title: 'A journal nobody else reads',
-      body: 'Journal entries are yours. They are not shown to your therapist, and they are not part of the summary.',
+      // "not read by the AI" is a claim, not a flourish: no code path passes a
+      // JournalEntry row to a model (only routes/journal.ts and account
+      // deletion read the table), so it is stated plainly rather than hedged.
+      body: 'Some becoming is just for you. Journal entries are not shown to your therapist, not read by the AI, and not part of any summary.',
     },
     {
       title: 'Five two-minute exercises',
       body: 'Breathing and grounding you can open on your own, or that your therapist can set for the week with a reminder attached.',
     },
     {
-      title: 'The admin of care, in one place',
-      body: 'Appointments, homework and reminders, so nothing depends on you remembering it at the right moment.',
+      title: 'Homework and reminders, in one place',
+      body: "Appointments, the practice your therapist sets, and a nudge when it's due, so nothing depends on you remembering at the right moment.",
     },
   ],
 } as const;
@@ -110,6 +129,15 @@ export const who = {
     'Your journal, ever',
     'Your raw messages, unless you switch chat access on',
     'Anything you write after you switch it off',
+  ],
+  // Copy revision v1 §7 — P0. The page counted the therapist's access and
+  // stayed silent about the model's, which is the gap this column closes.
+  // Both lines are true of the build: A2 receives the turn plus the
+  // UserMemory it extracted from earlier chats.
+  aiTitle: "Okuvu's AI sees",
+  ai: [
+    'Your chat messages, so it can reply',
+    "Context it has kept from earlier chats, so you don't repeat yourself",
   ],
   note: "Every time a therapist opens your record, it's written into an access log.",
   link: 'The full detail is in the privacy policy.',
@@ -229,6 +257,7 @@ export const copy = {
   meta,
   nav,
   hero,
+  becoming,
   how,
   benefits,
   who,
