@@ -131,10 +131,12 @@ resource "aws_ecs_task_definition" "portal" {
   cpu                      = var.portal_cpu
   memory                   = var.portal_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
+  task_role_arn            = aws_iam_role.portal_task.arn
 
-  # No task role: the portal holds no AWS credentials at run time. It reaches
-  # Cognito over its public HTTPS endpoints and Postgres over the VPC, so a task
-  # role would only widen blast radius.
+  # A task role exists, but it carries no policy (see `portal_task` in iam.tf):
+  # it supplies credentials for SigV4-signing the Cognito ChangePassword call,
+  # and Cognito's public user APIs ignore the caller's IAM identity. Everything
+  # else the portal does — the OAuth code flow, Postgres — needs no AWS identity.
   runtime_platform {
     operating_system_family = "LINUX"
     cpu_architecture        = var.cpu_architecture
