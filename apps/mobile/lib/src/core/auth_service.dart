@@ -251,9 +251,11 @@ class AuthService {
         throw const AuthException('Cancelled', 'Sign-in cancelled.');
       }
       Logger.debug('[AuthService] Google sign-in failed: ${e.code} ${e.description}');
-      throw const AuthException(
+      throw AuthException(
         'GoogleSignInFailed',
-        "Google sign-in didn't complete. Please try again.",
+        GoogleConfig.diag
+            ? 'Google sign-in failed [${e.code.name}] ${e.description ?? 'no detail'}'
+            : "Google sign-in didn't complete. Please try again.",
       );
     }
   }

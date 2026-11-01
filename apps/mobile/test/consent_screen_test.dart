@@ -70,17 +70,23 @@ void main() {
   AppConfig.init('dev');
 
   group('ConsentRequest', () {
-    test('toJson maps fields to snake_case keys', () {
+    test('toJson maps all four contract fields to snake_case keys', () {
       const request = ConsentRequest(
         safetyMonitoring: true,
         moodInference: false,
+        assessment: false,
+        emergencyContact: false,
       );
 
       final json = request.toJson();
 
+      // Pinned to the API's UserConsent contract: all four keys must be
+      // present as booleans or POST /users/me/consent returns 400.
       expect(json, {
         'safety_monitoring': true,
         'mood_inference': false,
+        'assessment': false,
+        'emergency_contact': false,
       });
     });
   });
@@ -164,8 +170,10 @@ void main() {
       final body = adapter.lastRequest!.data as Map<String, dynamic>;
       expect(body['safety_monitoring'], true);
       expect(body['mood_inference'], true);
-      expect(body.containsKey('assessment'), isFalse);
-      expect(body.containsKey('emergency_contact'), isFalse);
+      // The single onboarding toggle covers both derived-from-chat signals.
+      expect(body['assessment'], true);
+      // Never asked at onboarding, so always false here — not absent.
+      expect(body['emergency_contact'], false);
     });
 
     testWidgets('on success navigates to /home', (WidgetTester tester) async {
