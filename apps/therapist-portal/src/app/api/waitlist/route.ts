@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { sendWaitlistNotification } from '@/lib/email';
 import { checkRateLimit } from '@/server/rate-limit';
 
 /**
@@ -56,18 +57,38 @@ export async function POST(request: Request) {
   if (body.consent !== true) {
     return NextResponse.json({ error: 'consent_required' }, { status: 400 });
   }
-  if (!prisma) {
-    return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+  // Store it, then tell a person. Both halves end at admin@okuvu.in, because a
+  // row nobody reads and a lost lead look identical to whoever filled the form.
+  // A missing DATABASE_URL (prisma === null) therefore skips only the store:
+  // the enquiry still reaches the operator inbox, and only both failing is a 503.
+  let stored = false;
+  let repeat = false;
+
+  if (prisma) {
+    try {
+      const existing = await prisma.waitlistEntry.findFirst({ where: { email } });
+      repeat = Boolean(existing);
+      if (!existing) {
+        await prisma.waitlistEntry.create({ data: { email } });
+      }
+      stored = true;
+    } catch (error) {
+      console.error('[WAITLIST] failed to store entry', error);
+    }
   }
 
-  try {
-    const existing = await prisma.waitlistEntry.findFirst({ where: { email } });
-    if (!existing) {
-      await prisma.waitlistEntry.create({ data: { email } });
+  // Awaited rather than fired and forgotten: an unawaited promise can be
+  // dropped once the response is sent. It never throws, so it cannot fail the
+  // request — the person in front of the form has done their part.
+  const notified = await sendWaitlistNotification({ email, repeat });
+
+  if (stored || notified.sent) {
+    if (!notified.sent) {
+      console.warn('[WAITLIST] stored but operator not notified', { repeat });
     }
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error('[WAITLIST] failed to store entry', error);
-    return NextResponse.json({ error: 'unavailable' }, { status: 503 });
   }
+
+  console.error('[WAITLIST] neither stored nor notified');
+  return NextResponse.json({ error: 'unavailable' }, { status: 503 });
 }

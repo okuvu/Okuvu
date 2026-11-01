@@ -168,6 +168,7 @@ export const wait = {
   successBody:
     "We'll email you when a therapist has room. If you'd rather not wait, write to admin@okuvu.in.",
   errorEmail: "That email doesn't look complete.",
+  errorConsent: 'We need this box ticked before we can keep your email.',
   errorNetwork: "That didn't go through. Try again, or write to admin@okuvu.in.",
   consentPrefix: 'I agree that Okuvu may email me once when a place opens, and not for anything else.',
 } as const;

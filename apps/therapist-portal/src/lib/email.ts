@@ -77,3 +77,83 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<{ 
     return { sent: false };
   }
 }
+
+/**
+ * Where an enquiry about Okuvu goes: the operator inbox, not a database table
+ * nobody opens.
+ *
+ * The waitlist route stores the address first and calls this second, so a
+ * missing or expired API key costs a *notification*, never a lead — but it does
+ * mean "it returned ok" and "somebody was told" are two different facts, which
+ * is why the send result is logged.
+ *
+ * Reply-To is the visitor: hitting reply answers them directly instead of
+ * asking the operator to copy an address out of the body.
+ */
+export interface SendWaitlistNotificationParams {
+  email: string;
+  /** true when the address was already on the list — the operator sees repeats. */
+  repeat: boolean;
+}
+
+export async function sendWaitlistNotification(
+  params: SendWaitlistNotificationParams,
+): Promise<{ sent: boolean }> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
+  const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
+  // One place to change the address, and the same one the page tells people to
+  // write to. Variables, not a constant, because the beta and production
+  // operator inboxes are not necessarily the same mailbox.
+  const toEmail = process.env.WAITLIST_NOTIFY_EMAIL || 'admin@okuvu.in';
+
+  const label = params.repeat ? 'Waitlist — already listed' : 'Waitlist — new place requested';
+  const htmlContent = `
+    <p><strong>${label}</strong></p>
+    <p style="font-size:18px">${params.email}</p>
+    <p>${params.repeat ? 'This address was already on the list; the person asked again.' : 'New address on the list.'}</p>
+    <p>Reply to this email to answer them directly.</p>
+  `;
+
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — waitlist entry stored, operator not notified', {
+      toRef: identityRef('c', params.email),
+      toEmail,
+    });
+    return { sent: false };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email: toEmail }],
+        replyTo: { email: params.email },
+        subject: `${label}: ${params.email}`,
+        htmlContent,
+        // The notification is an internal message about a person, not marketing.
+        tags: ['waitlist-notify'],
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('[email] Brevo waitlist notification failed', {
+        status: response.status,
+        body: redactEmails(body).slice(0, 500),
+      });
+      return { sent: false };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Brevo waitlist notification threw', err);
+    return { sent: false };
+  }
+}
