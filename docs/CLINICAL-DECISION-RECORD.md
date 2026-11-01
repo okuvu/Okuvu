@@ -23,10 +23,18 @@ belongs on.
 
 What is signed and what is not, plainly: the words of the S3 reply and the S4 card are approved,
 the phrase list is approved with additions, the idiom guards are approved, and the precedence rule
-is approved. **All of it is now built** — branch `feat/e17-s7-approved-copy`, commit `b7aca89`,
-gate re-run on her exact texts (18/18, evidence/E17-S7.md) — but none of it is merged or deployed,
-so the live service still serves the pre-signature copy at `c3caa7a`. Nothing in this record
-authorises a public claim of clinical review — that remains D-G, and her own sequencing puts it last.
+is approved. **All of it is now built** — branch `feat/e17-s7-approved-copy`, gate re-run on her exact
+texts (18/18, evidence/E17-S7.md) — but none of it is merged or deployed, so the live service still
+serves the pre-signature copy at `c3caa7a`. Nothing in this record authorises a public claim of
+clinical review — that remains D-G, and her own sequencing puts it last.
+
+**Revision 6 build (1 Nov 2026):** all twelve strings, the final five-line block, the promise rule and
+the third-party cost-cap bypass are now in code on the same branch, replacing the `b7aca89` copy. The
+pinned fixture is regenerated from rev 6 by a script that fails unless every string is present verbatim
+in her documents. `SAFE_FALLBACK` is removed from the API entirely: the provider failure path carries
+`SAFETY_UNAVAILABLE_RESPONSE` instead, and a test fails if the old sentence reappears anywhere in
+`src/`. Gate: 18/18, all three negative controls failing as required. Suite: 1582 API tests, 272
+mobile tests. Still not merged, not deployed.
 
 **Second message of 31 Oct 2026 — revision 2.** She answered all seven points this record had listed
 as open, in eight numbered instructions: keep NIMHANS 080-46110007; keep Emergency 112; reply for a
@@ -427,7 +435,7 @@ request.
 | Play Console developer account (personal vs organisation) | Rajwant | unknown — the 14-day closed test hinges on it |
 | Therapist provisioning on the portal | build | open |
 | Model route | decided | `qwen.qwen3-32b-v1:0` on Bedrock ap-south-1 |
-| Building the approved copy (E17-S7) | build | open — precedence, guards, 11 phrases, S3 reply, S4 card, third-party reply, self-injury reply and the final helpline block are all approved and none of it is in code; rev 5 of the sign-off record §4 lists the shipping text for all twelve decisions and §6 the four one-word answers outstanding |
+| Building the approved copy (E17-S7) | build | **built** at rev 6 on `feat/e17-s7-approved-copy` — all twelve strings, the five-line block, the promise rule, `SAFE_FALLBACK` removed, third-party cap bypass. Gate 18/18. **Not merged, not deployed.** Three one-word items still hers (rev 6 §8.1); harm-intrusion (E17-S15) still unsent |
 
 ## Revision 6 (1 Nov 2026, IST) — final: all twelve closed
 

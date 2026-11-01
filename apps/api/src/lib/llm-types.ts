@@ -54,9 +54,9 @@ export interface GenerateContentParams {
   useCanned?: boolean;
   /**
    * Schema-appropriate canned text for this specific call, supplied by the
-   * calling agent. Without this every agent got the same generic SAFE_FALLBACK
-   * prose in canned mode, which none of them can parse as their own expected
-   * JSON shape.
+   * calling agent. Without this every agent got the same generic
+   * safety-unavailable prose in canned mode, which none of them can parse as
+   * their own expected JSON shape.
    */
   cannedResponse?: string;
 }

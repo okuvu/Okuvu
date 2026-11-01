@@ -27,18 +27,18 @@ import '../../support/safety_harness.dart';
 /// E17-S7: the clinical lead's corrected set, in her order.
 const crisisCardNumbers = <String>[
   '14416',
-  '+91 9999666555',
+  '+91 9999 666 555',
+  '112',
   '044-24640050',
   '9152987821',
-  '112',
 ];
 
 const crisisCardNames = <String>[
   'Tele-MANAS',
   'Vandrevala Foundation',
-  'Sneha, Chennai',
+  'Emergency services',
+  'SNEHA, Chennai',
   'iCall (TISS)',
-  'Emergency Services',
 ];
 
 void main() {
@@ -193,12 +193,12 @@ void main() {
         //    text as laid out, and the raw blob of every rendered paragraph.
         final rendered = renderedParagraphs(tester).join('\n');
         expect(rendered, contains('14416'));
-        expect(rendered, contains('+91 9999666555'));
+        expect(rendered, contains('+91 9999 666 555'));
 
         // 3. A crisis line the user can actually dial: the number is in the
         //    same paragraph run with its label, not split off or dropped.
         expect(rendered, contains('Tele-MANAS: 14416'));
-        expect(rendered, contains('Vandrevala Foundation: +91 9999666555'));
+        expect(rendered, contains('Vandrevala Foundation: +91 9999 666 555'));
         expect(rendered, contains('iCall (TISS): 9152987821'));
 
         // 4. The closing line survives too — the copy is not clipped at the
@@ -262,32 +262,32 @@ void main() {
         expect(rendered, contains('112'));
         expect(rendered, contains('14416'));
         expect(rendered, contains('9152987821'));
-        expect(rendered, contains('+91 9999666555'));
+        expect(rendered, contains('+91 9999 666 555'));
         expect(rendered, isNot(contains('1860-2662-345')));
       },
     );
   });
 
   group('degraded outcomes (AGENT_TURN with a safety notice)', () {
-    testWidgets('SAFE_FALLBACK renders as a visible assistant message',
+    testWidgets('the A9-post degraded copy renders as a visible assistant message',
         (tester) async {
       final ws = FrameDrivenWebSocketService();
       await pumpChatScreen(tester, ws: ws);
       ws.handleRawFrame(openSessionFrame());
       await tester.pumpAndSettle();
 
-      // The generic canned-response line, on the wire exactly as
-      // apps/api/src/lib/canned-response.ts defines it.
+      // E17-S7 rev 6 §4.4, on the wire exactly as fallbacks.ts defines it.
+      // (The old generic canned line is gone from the product entirely.)
       ws.handleRawFrame(agentTurnFrame(
-        message: safeFallback,
+        message: a9PostDegradedResponse,
         safety: {'code': 'MODEL_UNAVAILABLE', 'reason': 'llm_throttled'},
       ));
       await tester.pumpAndSettle();
 
-      expectVisibleAndComplete(tester, safeFallback);
+      expectVisibleAndComplete(tester, a9PostDegradedResponse);
     });
 
-    testWidgets('SAFE_FALLBACK with no safety field at all still renders',
+    testWidgets('the degraded copy with no safety field at all still renders',
         (tester) async {
       final ws = FrameDrivenWebSocketService();
       await pumpChatScreen(tester, ws: ws);
@@ -296,10 +296,10 @@ void main() {
 
       // An older server, or the canned-response path, sends no notice. The
       // client must render the text regardless — the notice is metadata.
-      ws.handleRawFrame(agentTurnFrame(message: safeFallback));
+      ws.handleRawFrame(agentTurnFrame(message: a9PostDegradedResponse));
       await tester.pumpAndSettle();
 
-      expectVisibleAndComplete(tester, safeFallback);
+      expectVisibleAndComplete(tester, a9PostDegradedResponse);
     });
 
     testWidgets('the two degraded copies keep their helpline digits',
@@ -328,7 +328,7 @@ void main() {
 
       final rendered = renderedParagraphs(tester).join('\n');
       expect(rendered, contains('9152987821'));
-      expect(rendered, contains('+91 9999666555'));
+      expect(rendered, contains('+91 9999 666 555'));
     });
   });
 

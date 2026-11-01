@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import http2 from 'node:http2';
 import type { AddressInfo } from 'node:net';
+import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 
 /**
  * E17-S1 — the agent runtime calls Bedrock through the **Converse** API.
@@ -24,7 +25,7 @@ import type { AddressInfo } from 'node:net';
  * `AWS_ENDPOINT_URL` (the same override E17-S2 used) and the stub answers in-process.
  */
 
-const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";
+const SAFE_FALLBACK = SAFETY_UNAVAILABLE_RESPONSE;
 
 interface RecordedRequest {
   method: string;

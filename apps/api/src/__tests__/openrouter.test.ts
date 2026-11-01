@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateContent } from '../lib/openrouter.js';
+import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 
-const SAFE_FALLBACK = "I'm here to support you. Could you tell me more about how you're feeling?";
+const SAFE_FALLBACK = SAFETY_UNAVAILABLE_RESPONSE;
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return {
@@ -66,7 +67,7 @@ describe('openrouter generateContent', () => {
     ]);
   });
 
-  it('returns SAFE_FALLBACK on non-2xx HTTP response', async () => {
+  it('returns the governed fallback on non-2xx HTTP response', async () => {
     global.fetch = vi.fn().mockResolvedValue(jsonResponse({ error: { message: 'bad request' } }, false, 400));
 
     const result = await generateContent({
@@ -80,7 +81,7 @@ describe('openrouter generateContent', () => {
     expect(result.canned).toBe(false);
   });
 
-  it('returns SAFE_FALLBACK when choices/message content is empty', async () => {
+  it('returns the governed fallback when choices/message content is empty', async () => {
     global.fetch = vi.fn().mockResolvedValue(jsonResponse({ choices: [{ finish_reason: 'content_filter' }] }));
 
     const result = await generateContent({
@@ -93,7 +94,7 @@ describe('openrouter generateContent', () => {
     expect(result.failureReason).toBe('api_error');
   });
 
-  it('returns SAFE_FALLBACK with failureReason timeout when the call exceeds timeoutMs', async () => {
+  it('returns the governed fallback with failureReason timeout when the call exceeds timeoutMs', async () => {
     global.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
 
     const result = await generateContent({

@@ -15,7 +15,7 @@ import type { AddressInfo } from 'node:net';
  *
  * The stub answers exactly the way the service answers when a quota bites: HTTP
  * 429 with `x-amzn-ErrorType: ThrottlingException`. Before this story that
- * produced `SAFE_FALLBACK` — "I'm here to support you. Could you tell me more
+ * produced `SAFETY_UNAVAILABLE_RESPONSE` — "I'm here to support you. Could you tell me more
  * about how you're feeling?" — for every message, including an explicit
  * disclosure (E17-S2 §465). The assertions below are the ones that would have
  * failed on the base commit.
@@ -82,7 +82,6 @@ vi.mock('../lib/prisma.js', async () => {
 import { buildApp } from '../app.js';
 import { clearBedrockClient } from '../lib/bedrock.js';
 import { CRISIS_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
-import { SAFE_FALLBACK } from '../lib/canned-response.js';
 
 interface ServerFrame {
   type: string;
@@ -303,7 +302,7 @@ describe('E17-S4: an unreachable model fails closed over a real WebSocket', () =
 
     // Never an error frame, and never the generic supportive sentence.
     expect(frames.filter((f) => f.type === 'ERROR')).toHaveLength(0);
-    expect(crisis[0].payload.message).not.toBe(SAFE_FALLBACK);
+    expect(crisis[0].payload.message).not.toBe(SAFETY_UNAVAILABLE_RESPONSE);
 
     // The classifier really was attempted over Converse, and really did fail.
     expect(stub?.paths).toContain('POST /model/qwen.qwen3-32b-v1%3A0/converse');
@@ -317,7 +316,6 @@ describe('E17-S4: an unreachable model fails closed over a real WebSocket', () =
     const turns = frames.filter((f) => f.type === 'AGENT_TURN');
     expect(turns).toHaveLength(1);
     expect(turns[0].payload.message).toBe(SAFETY_UNAVAILABLE_RESPONSE);
-    expect(turns[0].payload.message).not.toBe(SAFE_FALLBACK);
     expect(String(turns[0].payload.message)).toContain('9152987821');
     expect(turns[0].payload.safety).toEqual({ code: 'SAFETY_UNAVAILABLE', reason: 'llm_throttled' });
 

@@ -50,7 +50,6 @@ import {
   MEDICAL_EMERGENCY_CRISIS_RESPONSE,
   SAFETY_UNAVAILABLE_RESPONSE,
 } from '../pipeline/fallbacks.js';
-import { SAFE_FALLBACK } from '../lib/canned-response.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import type { SafetyState } from '@okuvu/shared-types';
 
@@ -93,7 +92,7 @@ function model(options: { a1?: ModelReply; a2?: ModelReply; a9pre?: ModelReply; 
 
     if (which.kind === 'failed') {
       return {
-        text: SAFE_FALLBACK,
+        text: SAFETY_UNAVAILABLE_RESPONSE,
         fallbackUsed: true,
         failureReason: which.failureKind === 'timeout' ? 'timeout' : 'api_error',
         failureKind: which.failureKind,
@@ -244,7 +243,7 @@ describe('E17-S13 — level 3: the copy the user receives', () => {
   // iCall must not be reached first.
   it.each([
     ['Tele-MANAS', '14416'],
-    ['Vandrevala', '+91 9999666555'],
+    ['Vandrevala', '+91 9999 666 555'],
     ['Sneha, Chennai', '044-24640050'],
     ['iCall (TISS)', '9152987821'],
     ['emergency', '112'],
@@ -258,7 +257,7 @@ describe('E17-S13 — level 3: the copy the user receives', () => {
     // would be quoting a list she does not stand behind.
     expect(CRISIS_THIRD_PARTY_RESPONSE).not.toContain('1860-2662-345');
     expect(CRISIS_THIRD_PARTY_RESPONSE).not.toContain('080-46110007');
-    const order = ['14416', '+91 9999666555', '044-24640050', '9152987821'].map((n) =>
+    const order = ['14416', '+91 9999 666 555', 'Emergency services: 112', '044-24640050', '9152987821'].map((n) =>
       CRISIS_THIRD_PARTY_RESPONSE.indexOf(n),
     );
     expect(order).toEqual([...order].sort((a, b) => a - b));

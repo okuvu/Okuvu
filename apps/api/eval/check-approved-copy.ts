@@ -35,13 +35,24 @@ const apiRoot = resolve(here, '..');
 const goldSet = JSON.parse(readFileSync(join(apiRoot, 'eval/gold-set.json'), 'utf-8')) as GoldSet;
 const approved = JSON.parse(
   readFileSync(join(apiRoot, 'src/__tests__/fixtures/e17-s7-approved-copy.json'), 'utf-8'),
-) as { s3_reply_paragraphs: string[]; s4_card_paragraphs: string[]; source_docx_sha256: string };
+) as {
+  helpline_block: string;
+  s3_opening: string;
+  s3_lead: string;
+  s3_closing: string;
+  s4_lead: string;
+  s4_closing: string;
+  source_docx_sha256: string;
+};
 
 const outFlag = process.argv.indexOf('--out');
 const outPath = outFlag > -1 ? resolve(process.argv[outFlag + 1]) : null;
 
-const signedS3 = approved.s3_reply_paragraphs.join('\n\n');
-const signedS4 = approved.s4_card_paragraphs.join('\n\n');
+// Revision 6 does not restate the S3 and S4 sentences — it replaces the block
+// inside them — so the signed text is rebuilt here exactly as the fixture
+// generator rebuilds it from her documents.
+const signedS3 = [approved.s3_opening, `${approved.s3_lead}\n${approved.helpline_block}`, approved.s3_closing].join('\n\n');
+const signedS4 = [`${approved.s4_lead}\n${approved.helpline_block}`, approved.s4_closing].join('\n\n');
 
 type Row = {
   id: string;
@@ -100,7 +111,10 @@ const controls = [
   },
   {
     label: 'the S3 reply with the helplines stripped',
-    text: A8_S3_GROUNDING_RESPONSE.replace(/Please reach a person.*$/m, ''),
+    // Strip from the lead-in to the end of the reply: the block is five lines
+    // now, so a line-anchored `.*$` would leave four of them behind and the
+    // control would pass for the wrong reason.
+    text: A8_S3_GROUNDING_RESPONSE.split('Please reach a person')[0],
     path: 'grounding' as ServedPath,
   },
   {

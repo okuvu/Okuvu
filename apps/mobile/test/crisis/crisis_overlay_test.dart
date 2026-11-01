@@ -46,9 +46,9 @@ void main() {
         // Tele-MANAS first (iCall is not 24x7), iCall last with its hours.
         expect(find.text('Tele-MANAS'), findsOneWidget);
         expect(find.text('Vandrevala Foundation'), findsOneWidget);
-        expect(find.text('Sneha, Chennai'), findsOneWidget);
+        expect(find.text('Emergency services'), findsOneWidget);
+        expect(find.text('SNEHA, Chennai'), findsOneWidget);
         expect(find.text('iCall (TISS)'), findsOneWidget);
-        expect(find.text('Emergency Services'), findsOneWidget);
 
         // The retired name and number are gone from this screen entirely.
         expect(find.text('NIMHANS'), findsNothing);
@@ -57,30 +57,43 @@ void main() {
 
         // Phone numbers
         expect(find.text('14416'), findsOneWidget);
-        expect(find.text('+91 9999666555'), findsOneWidget);
+        expect(find.text('+91 9999 666 555'), findsOneWidget);
         expect(find.text('044-24640050'), findsOneWidget);
         expect(find.text('9152987821'), findsOneWidget);
         expect(find.text('112'), findsOneWidget);
 
-        // iCall's hours are stated on the card, per her §4 correction.
-        expect(find.textContaining('8 am\u20139 pm'), findsOneWidget);
+        // Her parentheticals, verbatim (rev 6 §4.11: descriptions = her
+        // parentheticals). iCall's hours are the ones TISS publishes.
+        expect(find.text('free, 24 hours'), findsOneWidget);
+        expect(find.text('24 hours, call or WhatsApp'), findsOneWidget);
+        expect(find.text('10am-10pm, every day'), findsOneWidget);
+        expect(find.text('Monday to Saturday, 10am-8pm'), findsOneWidget);
+        expect(find.textContaining('8 am'), findsNothing);
+
+        // Footer and exit button, §4.11.
+        expect(
+          find.text("You can come back to OKUVU whenever you're ready."),
+          findsOneWidget,
+        );
+        expect(find.text('Close'), findsOneWidget);
+        expect(find.text("I'm safe for now"), findsNothing);
 
         // Order, measured by position on screen. Her correction is about
         // order as much as numbers: the same cards in a different sequence
         // still fail it.
         double dy(String text) => tester.getTopLeft(find.text(text)).dy;
         expect(dy('Tele-MANAS'), lessThan(dy('Vandrevala Foundation')));
-        expect(dy('Vandrevala Foundation'), lessThan(dy('Sneha, Chennai')));
-        expect(dy('Sneha, Chennai'), lessThan(dy('iCall (TISS)')));
-        expect(dy('iCall (TISS)'), lessThan(dy('Emergency Services')));
+        expect(dy('Vandrevala Foundation'), lessThan(dy('Emergency services')));
+        expect(dy('Emergency services'), lessThan(dy('SNEHA, Chennai')));
+        expect(dy('SNEHA, Chennai'), lessThan(dy('iCall (TISS)')));
 
-        // Call buttons (+1 InkWell from the "I'm safe for now" TextButton)
+        // Call buttons (+1 InkWell from the "Close" TextButton)
         expect(find.byType(InkWell), findsNWidgets(6));
       },
     );
 
     testWidgets(
-      'tapping "I\'m safe for now" calls crisisOverlayProvider.hide()',
+      'tapping "Close" calls crisisOverlayProvider.hide()',
       (WidgetTester tester) async {
         tester.view.physicalSize = const Size(1080, 2400);
         tester.view.devicePixelRatio = 1.0;

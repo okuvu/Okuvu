@@ -32,52 +32,50 @@ class CrisisOverlay extends ConsumerWidget {
                         padding: EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
                           children: [
-                            // E17-S7 — the clinical lead's corrected helpline list,
-                            // signed 31 Oct 2026. Same order, names, numbers and iCall
-                            // hours as HELPLINE_INLINE and the S4 card in
-                            // apps/api/src/pipeline/fallbacks.ts: Tele-MANAS first
-                            // because iCall is not 24×7, iCall last with its hours
-                            // stated, Sneha (not "Snehi"), and the retired Vandrevala
-                            // number 1860-2662-345 gone. 112 is kept as the emergency
-                            // number: her list does not include it, and removing the
-                            // ambulance number from a crisis screen is a decision for
-                            // her, not for this change — it is an open question in
-                            // evidence/E17-S7.md.
+                            // E17-S7 rev 6 §2 — the final five-line block, in her
+                            // order, with her descriptions. Same names, numbers,
+                            // format and hours as HELPLINE_BLOCK and the S4 card in
+                            // apps/api/src/pipeline/fallbacks.ts. Two 24-hour lines
+                            // lead, 112 sits third rather than last, SNEHA is
+                            // fourth, iCall last because it is not a 24-hour
+                            // service. NIMHANS (080-46110007) is retired by clinical
+                            // decision, 1 November 2026; the 1860-2662-345
+                            // Vandrevala number stays retired.
                             //
-                            // Descriptions state only what is known. Vandrevala carries
-                            // no hours claim because her list does not give one; iCall's
-                            // hours are the ones she wrote, and the exact hours are her
-                            // own open question (TISS's page says 10 am–8 pm).
+                            // The descriptions are her parentheticals, verbatim.
+                            // 112 carries the one description she did not write
+                            // ("Ambulance, police and fire") because the line she
+                            // supplied is the name and number only.
                             _ResourceCard(
                               name: 'Tele-MANAS',
-                              description: 'Toll-free national helpline, 24×7.',
+                              description: 'free, 24 hours',
                               phone: '14416',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
                               name: 'Vandrevala Foundation',
-                              description: 'Crisis intervention and mental health support.',
-                              phone: '919999666555',
-                              displayPhone: '+91 9999666555',
+                              description: '24 hours, call or WhatsApp',
+                              phone: '+919999666555',
+                              displayPhone: '+91 9999 666 555',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
-                              name: 'Sneha, Chennai',
-                              description: 'Emotional and mental health support.',
+                              name: 'Emergency services',
+                              description: 'Ambulance, police and fire.',
+                              phone: '112',
+                            ),
+                            SizedBox(height: 8),
+                            _ResourceCard(
+                              name: 'SNEHA, Chennai',
+                              description: '10am-10pm, every day',
                               phone: '04424640050',
                               displayPhone: '044-24640050',
                             ),
                             SizedBox(height: 8),
                             _ResourceCard(
                               name: 'iCall (TISS)',
-                              description: 'Mon–Sat, 8 am–9 pm. Not 24×7.',
+                              description: 'Monday to Saturday, 10am-8pm',
                               phone: '9152987821',
-                            ),
-                            SizedBox(height: 8),
-                            _ResourceCard(
-                              name: 'Emergency Services',
-                              description: 'Ambulance, police and fire.',
-                              phone: '112',
                             ),
                           ],
                         ),
@@ -85,7 +83,7 @@ class CrisisOverlay extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                         child: Text(
-                          "Your next session with OKUVU will be here when you're ready.",
+                          "You can come back to OKUVU whenever you're ready.",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.7),
@@ -96,9 +94,12 @@ class CrisisOverlay extends ConsumerWidget {
                       ),
                       // A deliberate, low-key way out — not a prominent CTA,
                       // since dialing a helpline should read as the primary
-                      // action. hide() was previously dead code: nothing
-                      // called it, so once shown this screen could not be
-                      // dismissed short of logging out.
+                      // action.
+                      //
+                      // E17-S7 rev 6 §4.11: the label is "Close". It used to read
+                      // "I'm safe for now", which made the screen require a person
+                      // in crisis to certify their own safety before it would let
+                      // them leave. "Close" removes the certification entirely.
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: TextButton(
@@ -109,7 +110,7 @@ class CrisisOverlay extends ConsumerWidget {
                             foregroundColor: Colors.white.withValues(alpha: 0.6),
                           ),
                           child: const Text(
-                            "I'm safe for now",
+                            "Close",
                             style: TextStyle(
                               fontSize: 13,
                               decoration: TextDecoration.underline,

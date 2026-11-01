@@ -1,137 +1,220 @@
 /**
  * E17-S7 — the signed copy, pinned.
  *
- * Dr Shubhangi Goswami's sign-off of 31 October 2026 says the S3 and S4 texts
- * are approved *as written* and that "any later edit to the approved texts or
- * the phrase list voids this sign-off for the edited text" (§7.2). A comment in
- * the source file cannot enforce that: a well-meaning sharpening of one sentence
- * would ship and nobody would know the signature no longer covered it.
+ * Dr Shubhangi Goswami's record revision 6 (1 November 2026, IST) is the
+ * document of record. It supersedes revisions 1–5 and the returned signed form
+ * of 31 October, and §9 says any later edit to the approved texts voids the
+ * approval for the edited text: it goes back to her before it changes.
  *
- * So this test compares the served strings against the *paragraphs of her
- * signed document*, extracted verbatim into
- * `fixtures/e17-s7-approved-copy.json` (sha256 of the docx is recorded in the
- * fixture and in evidence/shubhangi-signoff/MANIFEST.txt). If the fixture and
- * the code disagree, the copy changed after signature and this fails.
+ * A comment in the source file cannot enforce that. So this test compares the
+ * served strings against the paragraphs of her documents, extracted verbatim
+ * into `fixtures/e17-s7-approved-copy.json` by
+ * `fixtures/build_e17s7_fixture.py` (which fails if a string is not in the
+ * document). If the fixture and the code disagree, the copy changed after
+ * approval and this fails.
  *
- * Do not "fix" a failure here by regenerating the fixture. Regenerating it is
+ * Do NOT "fix" a failure here by regenerating the fixture. Regenerating it is
  * only correct when a *new* signed document exists; otherwise the code is what
  * is wrong.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import * as fallbacks from '../pipeline/fallbacks.js';
 import {
   A8_S3_GROUNDING_RESPONSE,
   CRISIS_RESPONSE,
   CRISIS_THIRD_PARTY_RESPONSE,
-  HELPLINE_INLINE,
+  HELPLINE_BLOCK,
+  HELPLINE_SHORT_LINE,
+  COME_BACK_CLOSING,
   BUDGET_PAUSED_RESPONSE,
   SAFETY_UNAVAILABLE_RESPONSE,
   MODEL_UNAVAILABLE_RESPONSE,
   MEDICAL_EMERGENCY_CRISIS_RESPONSE,
+  A9_POST_S2_FALLBACK,
+  A2_DEGRADED_RESPONSE,
 } from '../pipeline/fallbacks.js';
 import { buildA9PostPrompt } from '../agents/a9-post/prompts.js';
 import { scoreScenario } from '../../eval/gate-scoring.js';
 import { hasSelfIngestion, hasThirdPartyCrisisLanguage } from '../agents/a1/crisis-keywords.js';
-import {
-  CRISIS_THIRD_PARTY_RESPONSE as THIRD_PARTY,
-  MEDICAL_EMERGENCY_CRISIS_RESPONSE as MEDICAL_CRISIS,
-} from '../pipeline/fallbacks.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const approved = JSON.parse(
   readFileSync(join(here, 'fixtures', 'e17-s7-approved-copy.json'), 'utf-8'),
 ) as {
   source_docx_sha256: string;
-  helpline_inline: string;
-  s3_reply_paragraphs: string[];
-  s4_card_paragraphs: string[];
+  s3_s4_source_docx_sha256: string;
+  helpline_block: string;
+  helpline_block_lines: string[];
+  helpline_short_line: string;
+  come_back_closing: string;
+  s3_opening: string;
+  s3_lead: string;
+  s3_closing: string;
+  s4_lead: string;
+  s4_closing: string;
+  shipping_texts: Record<string, string>;
 };
 
-/** Numbers her correction retires, everywhere they used to appear. */
-const RETIRED = ['1860-2662-345', '18602662345', '080-46110007', '08046110007'];
+/** The two signed replies, rebuilt from the document's own pieces. */
+const signedS3 = [approved.s3_opening, `${approved.s3_lead}\n${approved.helpline_block}`, approved.s3_closing].join('\n\n');
+const signedS4 = [`${approved.s4_lead}\n${approved.helpline_block}`, approved.s4_closing].join('\n\n');
 
-/** Her list, in her order. */
-const APPROVED_NUMBERS = ['14416', '+91 9999666555', '044-24640050', '9152987821'];
+/** Numbers her decision retires, everywhere they used to appear. */
+const RETIRED = ['1860-2662-345', '18602662345', '080-46110007', '08046110007', 'NIMHANS'];
 
-describe('E17-S7 — the two signed replies', () => {
-  it('serves the S3 reply exactly as signed, paragraph for paragraph', () => {
-    expect(A8_S3_GROUNDING_RESPONSE).toBe(approved.s3_reply_paragraphs.join('\n\n'));
+/** Her block, in her order. 112 is third, not last. */
+const APPROVED_NUMBERS = [
+  '14416',
+  '+91 9999 666 555',
+  'Emergency services: 112',
+  '044-24640050',
+  '9152987821',
+];
+
+/** The three phrases the promise rule strikes, failure paths included (§1.1). */
+const PROMISES = ["I'm not going anywhere", "I'll stay with you", "I'm still here with you"];
+
+/** Every governed constant in fallbacks.ts — the set the rules apply to. */
+const GOVERNED = Object.entries(fallbacks).filter(
+  ([name, value]) => typeof value === 'string' && name !== 'HELPLINE_SHORT_LINE',
+) as Array<[string, string]>;
+
+describe('E17-S7 rev 6 — the helpline block', () => {
+  it('is the five lines she wrote, in her order, one service per line', () => {
+    expect(HELPLINE_BLOCK).toBe(approved.helpline_block);
+    expect(HELPLINE_BLOCK.split('\n')).toEqual(approved.helpline_block_lines);
   });
 
-  it('serves the S4 card exactly as signed, paragraph for paragraph', () => {
-    expect(CRISIS_RESPONSE).toBe(approved.s4_card_paragraphs.join('\n\n'));
+  it('carries her hours, not the old ones', () => {
+    // iCall: TISS's own page says 10am–8pm; the shipped copy said 8am–9pm.
+    expect(HELPLINE_BLOCK).toContain('iCall (TISS): 9152987821 (Monday to Saturday, 10am-8pm)');
+    expect(HELPLINE_BLOCK).not.toContain('8 am');
+    expect(HELPLINE_BLOCK).not.toContain('9 pm');
+    expect(HELPLINE_BLOCK).toContain('SNEHA, Chennai: 044-24640050 (10am-10pm, every day)');
+    expect(HELPLINE_BLOCK).toContain('Vandrevala Foundation: +91 9999 666 555 (24 hours, call or WhatsApp)');
   });
 
-  it('matches the helpline sentence she wrote into both cards', () => {
-    expect(HELPLINE_INLINE).toBe(approved.helpline_inline);
-    expect(A8_S3_GROUNDING_RESPONSE).toContain(HELPLINE_INLINE);
-    expect(CRISIS_RESPONSE).toContain(HELPLINE_INLINE);
-  });
-
-  it('is pinned to the document the sign-off was received in', () => {
-    // sha256 of "Okuvu E17-S7 — Clinical Sign-off Response.docx", received by
-    // email on 31 Oct 2026. Recorded so the fixture cannot drift from the
-    // document it claims to quote.
+  it('is pinned to the document that approved it', () => {
     expect(approved.source_docx_sha256).toBe(
-      'af36ceb9ca7b3995d2299670d9d4d32a515f67190da810a212d7903d5290a1c9',
+      'bd352726ad83fdac3aa21e73508edc0a7f9c66853ecdb01b1d3f65317658c67b',
+    );
+    expect(approved.s3_s4_source_docx_sha256).toBe(
+      'a0204cd69850dee7464c1a91d6dd2d7aa30e2c020fc9078543c308fb40af8e7c',
     );
   });
 
-  it('keeps the four things her text deliberately removed out of the S3 reply', () => {
-    // Her §"Removed:" paragraph. "112" is included on purpose: she struck the
-    // "if anyone is in immediate danger, call 112" sentence from S3, and it must
-    // not creep back in.
-    expect(A8_S3_GROUNDING_RESPONSE).not.toContain("I'm not going anywhere");
-    expect(A8_S3_GROUNDING_RESPONSE).not.toContain('if one is closed or busy');
-    expect(A8_S3_GROUNDING_RESPONSE).not.toMatch(/112/);
-    expect(A8_S3_GROUNDING_RESPONSE).toContain('You can keep writing here as well');
+  it('carries the short line and the closing line she specified', () => {
+    expect(HELPLINE_SHORT_LINE).toBe(approved.helpline_short_line);
+    expect(COME_BACK_CLOSING).toBe(approved.come_back_closing);
+    expect(A9_POST_S2_FALLBACK).toContain(HELPLINE_SHORT_LINE);
+    expect(A2_DEGRADED_RESPONSE).toContain(HELPLINE_SHORT_LINE);
+  });
+});
+
+describe('E17-S7 rev 6 — the twelve strings', () => {
+  // §4.1–§4.9 are API constants. Each is asserted byte-for-byte against the
+  // paragraph of her document, so a sharpened sentence fails here rather than
+  // shipping under an approval it no longer has.
+  const shipping = Object.entries(approved.shipping_texts);
+  it.each(shipping)('%s is served exactly as approved', (name, text) => {
+    expect((fallbacks as unknown as Record<string, unknown>)[name], name).toBe(text);
+  });
+
+  it('serves the S3 reply exactly as signed, with the block inside it', () => {
+    expect(A8_S3_GROUNDING_RESPONSE).toBe(signedS3);
+    expect(A8_S3_GROUNDING_RESPONSE).toContain(HELPLINE_BLOCK);
+  });
+
+  it('serves the S4 card exactly as signed, with the block inside it', () => {
+    expect(CRISIS_RESPONSE).toBe(signedS4);
+    expect(CRISIS_RESPONSE).toContain(HELPLINE_BLOCK);
+  });
+
+  it('keeps 112 in the S3 reply, which she has since stated is intended (§5.2)', () => {
+    expect(A8_S3_GROUNDING_RESPONSE).toContain('Emergency services: 112');
+    expect(CRISIS_RESPONSE).toContain('Emergency services: 112');
   });
 
   it('keeps the therapist referral she added to the S4 card', () => {
     expect(CRISIS_RESPONSE).toContain(
       'I would suggest that you let your therapist or someone you trust know.',
     );
-    expect(CRISIS_RESPONSE).not.toMatch(/NIMHANS|080-46110007/);
-    expect(CRISIS_RESPONSE).not.toMatch(/112/);
+  });
+
+  it('gives the friend card her block and keeps 112 in the body', () => {
+    expect(CRISIS_THIRD_PARTY_RESPONSE).toContain(HELPLINE_BLOCK);
+    expect(CRISIS_THIRD_PARTY_RESPONSE).toContain('call 112 for emergency help');
   });
 });
 
-describe('E17-S7 — her condition: the corrected list replaces the old one everywhere', () => {
-  // Her condition names four fixed replies by function, plus the third-party
-  // card, the A9-post list and the app's crisis screen. The app is checked in
-  // the Flutter suite (test/features/safety/approved_copy_test.dart); the rest
-  // is here.
-  const fixedReplies: Array<[string, string]> = [
-    ['classifier-unavailable', SAFETY_UNAVAILABLE_RESPONSE],
-    ['budget-paused', BUDGET_PAUSED_RESPONSE],
-    ['reply-model-unavailable', MODEL_UNAVAILABLE_RESPONSE],
-    ['medical + crisis overlap', MEDICAL_EMERGENCY_CRISIS_RESPONSE],
-    ['third-party crisis', CRISIS_THIRD_PARTY_RESPONSE],
-  ];
+describe('E17-S7 rev 6 — the promise rule (§1.1)', () => {
+  it.each(GOVERNED)('%s makes no promise the product cannot keep', (_name, text) => {
+    for (const promise of PROMISES) expect(text).not.toContain(promise);
+  });
 
-  it.each(fixedReplies)('%s names Tele-MANAS and no retired number', (_label, text) => {
-    expect(text).toContain('14416');
+  it('closes on the invitation she specified, not on a claim of presence', () => {
+    for (const text of [BUDGET_PAUSED_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE]) {
+      expect(text.endsWith(COME_BACK_CLOSING)).toBe(true);
+    }
+    expect(MODEL_UNAVAILABLE_RESPONSE).not.toContain('still be here');
+    expect(MODEL_UNAVAILABLE_RESPONSE).not.toContain("I'm here with you");
+  });
+});
+
+describe('E17-S7 rev 6 — retired numbers stay retired, everywhere', () => {
+  it.each(GOVERNED)('%s names no retired number', (_name, text) => {
     for (const retired of RETIRED) expect(text).not.toContain(retired);
   });
 
-  it.each(fixedReplies)('%s keeps the numbers in her order', (_label, text) => {
-    const positions = APPROVED_NUMBERS.map((n) => text.indexOf(n));
-    // Some replies name a subset; whatever they name must be in her order.
-    const present = positions.filter((i) => i > -1);
-    expect(present.length).toBeGreaterThan(0);
-    expect(present).toEqual([...present].sort((a, b) => a - b));
+  it('names the four services in her order wherever it names them', () => {
+    const replies = [A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, BUDGET_PAUSED_RESPONSE,
+      SAFETY_UNAVAILABLE_RESPONSE, MODEL_UNAVAILABLE_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE,
+      CRISIS_THIRD_PARTY_RESPONSE];
+    for (const text of replies) {
+      const positions = APPROVED_NUMBERS.map((n) => text.indexOf(n)).filter((i) => i > -1);
+      expect(positions.length).toBe(APPROVED_NUMBERS.length);
+      expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    }
   });
 
   it('gives the A9-post reviewer the corrected approved set, not the retired one', () => {
     const prompt = buildA9PostPrompt('a draft', 'S1', 'no care plan');
-    for (const number of APPROVED_NUMBERS) expect(prompt).toContain(number);
+    // The prompt names services and numbers inline ("Emergency services (112)"),
+    // so it is checked on the numbers themselves.
+    const promptNumbers = ['14416', '+91 9999 666 555', '112', '044-24640050', '9152987821'];
+    for (const number of promptNumbers) expect(prompt).toContain(number);
+    const positions = promptNumbers.map((n) => prompt.indexOf(n));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
     for (const retired of RETIRED) expect(prompt).not.toContain(retired);
-    // NIMHANS is dropped from the set, and the prompt must say so rather than
-    // leave a reviewer guessing whether its absence is an oversight.
-    expect(prompt).not.toMatch(/NIMHANS/);
+    // She retired one service from the set; the prompt must say the set is
+    // closed and current, without naming the retired number back to the model.
+    expect(prompt).toContain('1 November 2026');
+  });
+});
+
+describe('E17-S7 rev 6 §4.10 — SAFE_FALLBACK is gone', () => {
+  it('is not in the code anywhere, so no user can receive the old wording', () => {
+    const root = join(here, '..');
+    const hits: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir)) {
+        const path = join(dir, entry);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (path.endsWith('.ts') && !path.includes('__tests__')) {
+          if (readFileSync(path, 'utf-8').includes("I'm here to support you")) hits.push(path);
+        }
+      }
+    };
+    walk(root);
+    expect(hits).toEqual([]);
+  });
+
+  it('has no SAFE_FALLBACK export left to reach for', () => {
+    expect('SAFE_FALLBACK' in fallbacks).toBe(false);
   });
 });
 
@@ -145,8 +228,8 @@ describe('E17-S7 — the gate still scores the signed copy as passing', () => {
   const crisis = goldSet.scenarios.filter((s) => s.category === 'crisis_self_harm');
 
   function servedTexts(message: string): Array<[string, string, 'crisis' | 'grounding']> {
-    if (hasThirdPartyCrisisLanguage(message)) return [['third-party', THIRD_PARTY, 'crisis']];
-    if (hasSelfIngestion(message)) return [['medical overlap', MEDICAL_CRISIS, 'crisis']];
+    if (hasThirdPartyCrisisLanguage(message)) return [['third-party', CRISIS_THIRD_PARTY_RESPONSE, 'crisis']];
+    if (hasSelfIngestion(message)) return [['medical overlap', MEDICAL_EMERGENCY_CRISIS_RESPONSE, 'crisis']];
     return [
       ['S4 card', CRISIS_RESPONSE, 'crisis'],
       ['S3 reply', A8_S3_GROUNDING_RESPONSE, 'grounding'],

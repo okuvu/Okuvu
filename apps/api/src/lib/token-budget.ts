@@ -42,7 +42,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { BudgetNotice } from '@okuvu/shared-types';
 import { getRedisClient } from './redis.js';
 import type { TokenUsage } from './llm-types.js';
-import { hasCrisisLanguage } from '../agents/a1/crisis-keywords.js';
+import { hasCrisisLanguage, hasThirdPartyCrisisLanguage } from '../agents/a1/crisis-keywords.js';
 
 /** ap-south-1 on-demand list price for qwen.qwen3-32b-v1:0, per 1K tokens. */
 export const INPUT_PRICE_PER_1K_TOKENS_USD = 0.00018;
@@ -455,13 +455,17 @@ export async function checkBudget(input: {
 export type TurnAdmission =
   | { action: 'proceed'; budget: BudgetAllowance }
   /**
-   * Over budget, but the message carries explicit crisis language. The turn
-   * runs anyway. This is the only bypass, it is free (a regex, no model call),
-   * and it exists because refusing a disclosure of intent to die in order to
-   * protect a cost ceiling inverts the product's entire priority order. The
-   * cost of the bypass is one turn's spend, now visible in the usage log as
+   * Over budget, but the message carries explicit crisis language — the
+   * user's own, or (E17-S7 rev 6 §3.4, her instruction) someone else's risk
+   * described in the message. The turn runs anyway. This is the only bypass,
+   * it is free (both predicates are regexes, no model call), and it exists
+   * because refusing a disclosure of intent to die in order to protect a cost
+   * ceiling inverts the product's entire priority order. The cost of the
+   * bypass is one turn's spend, now visible in the usage log as
    * `budget_bypass: 'crisis_language'`; the cost of not having it is a message
-   * that never reaches the safety path.
+   * that never reaches the safety path — and, before §3.4, a message about
+   * someone else at risk answered with the pause card instead of the friend
+   * card.
    */
   | { action: 'crisis_bypass'; budget: BudgetRefusal; reason: 'crisis_language' }
   | { action: 'refuse'; budget: BudgetRefusal };
@@ -486,7 +490,9 @@ export async function admitTurn(input: {
 
   if (budget.allowed) return { action: 'proceed', budget };
 
-  if (hasCrisisLanguage(input.message)) {
+  // E17-S7 rev 6 §3.4: the bypass covers a message about someone else's risk
+  // as well as the user's own. Both are regexes, so this still costs nothing.
+  if (hasCrisisLanguage(input.message) || hasThirdPartyCrisisLanguage(input.message)) {
     return { action: 'crisis_bypass', budget, reason: 'crisis_language' };
   }
 

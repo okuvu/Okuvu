@@ -61,7 +61,7 @@ void main() {
       // Verify crisis content loaded
       await $('You\'re not alone.').waitUntilVisible();
       expect($('14416').visible, isTrue);
-      expect($('+91 9999666555').visible, isTrue);
+      expect($('+91 9999 666 555').visible, isTrue);
       expect($('9152987821').visible, isTrue);
       expect($('1860-2662-345').visible, isFalse);
       expect($('080-46110007').visible, isFalse);
@@ -74,7 +74,7 @@ void main() {
 
       // Assert all crisis content is still visible without network
       expect($('14416').visible, isTrue);
-      expect($('+91 9999666555').visible, isTrue);
+      expect($('+91 9999 666 555').visible, isTrue);
       expect($('9152987821').visible, isTrue);
       expect($('1860-2662-345').visible, isFalse);
       expect($('080-46110007').visible, isFalse);

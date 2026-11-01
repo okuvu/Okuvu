@@ -756,13 +756,14 @@ describe('processTurn — deterministic grounding (A8 agent="deterministic-groun
       expect(result.fallbackUsed).toBe(true);
       // E17-S10: the copy the user is served, verbatim, including a crisis
       // line — S3 is no longer allowed to answer with only a breathing prompt.
-      // E17-S7: the copy is now the clinical lead's signed text, so the
-      // assertions follow her list (Tele-MANAS first) and her removal of the
-      // 112 sentence from the S3 card. 112 on this card is a deliberate
-      // absence, not a regression — see the sign-off's "Removed:" paragraph.
+      // E17-S7 rev 6: the copy is the clinical lead's signed text with her
+      // final five-line block, so the assertions follow her list (Tele-MANAS
+      // first, iCall last with TISS's hours). 112 is now *in* the S3 reply —
+      // her §5.2 statement that this is intended, not the drift rev 5 flagged.
       expect(result.message).toBe(A8_S3_GROUNDING_RESPONSE);
       expect(result.message).toContain('14416');
-      expect(result.message).toContain('+91 9999666555');
+      expect(result.message).toContain('+91 9999 666 555');
+      expect(result.message).toContain('Emergency services: 112');
       expect(result.message).not.toContain('1860-2662-345');
     }
     expect(handleTurn).not.toHaveBeenCalled();
