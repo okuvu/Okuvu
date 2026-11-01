@@ -29,6 +29,25 @@ export const SAFETY_LABELS: Record<SafetyState, string> = {
 
 export type GovernanceState = 'Active' | 'Restricted' | 'Blocked'
 
+/**
+ * Every value `RouterDecision.agent` can take, in one place.
+ *
+ * The test harness validates `injectRouter` against this list and renders it as
+ * a dropdown, so a duplicated copy of the list is a build break waiting for the
+ * next agent added to the router — which is exactly what happened when
+ * 'crisis-third-party' (E17-S13) landed in the union but not in the harness.
+ * Derive, never restate.
+ */
+export const ROUTER_AGENTS = [
+  'crisis',
+  'crisis-third-party',
+  'medical-emergency',
+  'deterministic-grounding',
+  'A2',
+] as const
+
+export type RouterAgent = (typeof ROUTER_AGENTS)[number]
+
 export interface RouterInput {
   safety_state: SafetyState | null | undefined
   governance_state?: GovernanceState | null
@@ -71,7 +90,7 @@ export interface RouterDecision {
    * 112 first if the person is in immediate danger. A first-person disclosure
    * always wins over this path.
    */
-  agent: 'crisis' | 'crisis-third-party' | 'medical-emergency' | 'deterministic-grounding' | 'A2'
+  agent: RouterAgent
   /**
    * 'blocked' means A9-pre (governance/policy) rejected the message but A1
    * (clinical safety) did NOT find crisis-level risk (safetyState !== 'S4'
