@@ -387,7 +387,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             disabled={(step === 1 && !canContinueStep1) || (step === 3 && !canContinueStep3)}
             className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {step === 2 || step === 4 || step === 5 ? 'Skip for now' : 'Continue'}
+            Continue
           </button>
         ) : (
           <button

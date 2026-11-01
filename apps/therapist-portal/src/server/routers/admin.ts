@@ -443,7 +443,14 @@ export const adminRouter = router({
         select: { id: true },
       });
       if (!client) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'No client found with that phone number' });
+        // The operator reaches this form with a number off an intake sheet, so
+        // "No client found" alone leaves them guessing whether the number is
+        // wrong or the person simply has not signed up. Name the number and the
+        // one path that does work for someone who has not installed the app.
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `No client found with ${input.clientPhoneNumber} — nobody has signed up with that number yet. Check it, or use "Invite a new client" to create them and send an invite.`,
+        });
       }
 
       const therapist = await ctx.db.therapist.findUnique({
