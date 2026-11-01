@@ -27,7 +27,9 @@ if (keystorePropertiesFile.exists()) {
 }
 def hasReleaseKeystore = keystorePropertiesFile.exists() &&
         keystoreProperties['storeFile'] != null &&
-        project.file(keystoreProperties['storeFile'].toString()).exists()
+        project.file(keystoreProperties['storeFile'].toString()).exists() &&
+        keystoreProperties['storePassword'] != null &&
+        keystoreProperties['keyAlias'] != null
 
 android {
     namespace "ai.okuvu.app"
@@ -94,25 +96,27 @@ android {
     }
 
     signingConfigs {
-        // Only defined when android/keystore.properties exists (gitignored, see
-        // keystore.properties.example). Without it, debug flavours still build but a
-        // release bundle fails fast with a clear message instead of producing an
-        // unsigned .aab that Play Console would reject.
+        // Only defined when android/keystore.properties exists and points at a real key
+        // file (gitignored, see keystore.properties.example). The upload key itself is
+        // NOT in the repo: it lives at /opt/data/okuvu/keys/okuvu-upload.p12 and its
+        // password is in AWS Secrets Manager as evia-beta/android-upload-keystore.
         if (hasReleaseKeystore) {
             release {
                 keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
+                keyPassword keystoreProperties['keyPassword'] ?: keystoreProperties['storePassword']
                 storeFile file(keystoreProperties['storeFile'])
                 storePassword keystoreProperties['storePassword']
+                storeType keystoreProperties['storeType'] ?: 'PKCS12'
             }
         }
     }
 
     buildTypes {
         release {
-            if (hasReleaseKeystore) {
-                signingConfig signingConfigs.release
-            }
+            // Real upload key when keystore.properties is present; otherwise fall back to
+            // the debug key so a local `flutter build apk --release` still works. A
+            // debug-signed artifact must never reach Play, so bundle tasks fail fast below.
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -120,15 +124,23 @@ android {
     }
 }
 
-// Fail fast if a release bundle is requested with no signing config, rather than
-// emitting an unsigned artifact that Play Console will reject on upload.
+// Warn loudly when a release build is signed with the debug key (no upload key on this
+// machine), and fail fast if a release *bundle* is requested: an unsigned or
+// debug-signed .aab is rejected by Play Console and must not be produced by accident.
 tasks.configureEach { t ->
     if (t.name ==~ /bundle.*Release/ && !hasReleaseKeystore) {
         t.doFirst {
             throw new GradleException(
                 "Release signing is not configured. Create apps/mobile/android/keystore.properties " +
-                "(copy keystore.properties.example) and point storeFile at a real .jks. " +
-                "See apps/mobile/android/PLAY_RELEASE_CHECKLIST.md")
+                "(copy keystore.properties.example) and point storeFile at the Okuvu upload key " +
+                "(/opt/data/okuvu/keys/okuvu-upload.p12; password in AWS Secrets Manager " +
+                "evia-beta/android-upload-keystore). See apps/mobile/android/PLAY_RELEASE_CHECKLIST.md")
+        }
+    }
+    if (t.name ==~ /assemble.*Release/ && !hasReleaseKeystore) {
+        t.doFirst {
+            logger.warn("WARNING: no upload keystore found — this release build is signed with " +
+                    "the DEBUG key and must not be uploaded to Play Console.")
         }
     }
 }
