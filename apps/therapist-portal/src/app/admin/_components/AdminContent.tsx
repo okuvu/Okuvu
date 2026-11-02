@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { AddClientWizard } from './AddClientWizard';
+import { ClientIdDialog, type ClientIdTarget } from './ClientIdDialog';
 import { RemoveClientDialog, type RemoveClientTarget } from './RemoveClientDialog';
 
 function formatDate(iso: string): string {
@@ -162,6 +163,12 @@ export function AdminContent() {
   // rather than an id, so the dialog names the person it is about to delete.
   const [removeTarget, setRemoveTarget] = useState<RemoveClientTarget | null>(null);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
+
+  // A client with no record number yet — the row whose "Set ID details" action
+  // was clicked. Same shape as removeTarget: hold the row, not just the id, so
+  // the dialog names the person.
+  const [clientIdTarget, setClientIdTarget] = useState<ClientIdTarget | null>(null);
+  const [clientIdMsg, setClientIdMsg] = useState<string | null>(null);
 
   // Portal P0 — the operator's half of the invite handover. Keyed by client id
   // so the row that is sending shows it, and the result is reported next to
@@ -642,13 +649,19 @@ export function AdminContent() {
                   type="search"
                   value={clientSearch}
                   onChange={(e) => setClientSearch(e.target.value)}
-                  placeholder="Search by name, email or phone"
+                  placeholder="Search by name, email, phone or client ID"
                   className="w-full max-w-sm rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-charcoal-ink outline-none focus:border-violet focus:ring-1 focus:ring-violet"
                 />
               </div>
               {removeMsg && (
                 <p role="status" aria-live="polite" className="bg-sage-tint px-6 py-3 text-xs text-sage-deep">
                   {removeMsg}
+                </p>
+              )}
+              {/* Same banner slot: the result of issuing a record number. */}
+              {!removeMsg && clientIdMsg && (
+                <p role="status" aria-live="polite" className="bg-sage-tint px-6 py-3 text-xs text-sage-deep">
+                  {clientIdMsg}
                 </p>
               )}
               {testerMsg && (
@@ -692,6 +705,14 @@ export function AdminContent() {
                         <tr key={c.id} className="border-b border-gray-100 last:border-b-0">
                           <Td>
                             <div className="font-medium">{c.name ?? c.phoneMasked}</div>
+                            {/* The client's record number — the identifier a
+                                therapist quotes. Shown here too, because the
+                                console is where a number gets looked up. */}
+                            {c.clientCode ? (
+                              <div className="font-mono text-xs tracking-wide text-ink-soft">{c.clientCode}</div>
+                            ) : (
+                              <div className="text-xs text-honey-deep">No ID yet</div>
+                            )}
                             <div className="text-xs text-ink-soft">{c.email ?? c.phoneMasked}</div>
                           </Td>
                           <Td>
@@ -716,6 +737,27 @@ export function AdminContent() {
                           <Td className="text-xs text-ink-soft">{formatDate(c.joinedAt)}</Td>
                           <Td className="text-right">
                             <div className="flex items-center justify-end gap-3">
+                              {/* No record number yet: the only repair path.
+                                  Hidden for numbered clients — the number is
+                                  frozen, so there is nothing to set. */}
+                              {c.needsNumber && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setClientIdMsg(null);
+                                    setClientIdTarget({
+                                      id: c.id,
+                                      label: c.name ?? c.email ?? c.phoneMasked,
+                                      fullName: c.name,
+                                      email: c.email,
+                                    });
+                                  }}
+                                  aria-label={`Set ID details for ${c.name ?? c.email ?? c.phoneMasked}`}
+                                  className="whitespace-nowrap text-xs font-medium text-royal-purple hover:underline"
+                                >
+                                  Set ID details
+                                </button>
+                              )}
                               {/* Portal P0 — the invite handover. The app is on
                                   Play internal testing, so this button is the
                                   only path that emails a client: their address
@@ -981,6 +1023,19 @@ export function AdminContent() {
           </div>
         )}
       </div>
+
+      {clientIdTarget && (
+        <ClientIdDialog
+          target={clientIdTarget}
+          onClose={() => setClientIdTarget(null)}
+          onIssued={(summary) => {
+            setClientIdMsg(summary);
+            setClientIdTarget(null);
+            utils.admin.listClients.invalidate();
+            utils.admin.overview.invalidate();
+          }}
+        />
+      )}
 
       {removeTarget && (
         <RemoveClientDialog

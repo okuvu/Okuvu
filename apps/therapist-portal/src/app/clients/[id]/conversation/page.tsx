@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createCaller } from '@/server/caller';
-import { formatClientLabel } from '@/lib/format';
 import type {
   ConversationPage as ConversationPageData,
   ConversationTurn,
@@ -140,7 +139,10 @@ export default async function ClientConversationPage({ params, searchParams }: P
   const rawCursor = query.cursor;
   const cursor = typeof rawCursor === 'string' && rawCursor.length > 0 ? rawCursor : undefined;
 
-  const clientLabel = formatClientLabel(clientId);
+  // The therapist's own name for this client. Filled in from clients.header
+  // once a caller exists — the local-development refusal below renders before
+  // that point, and it must not need a database to say "no access".
+  let clientLabel = 'Client';
 
   if (process.env.LOCAL_DEV_BYPASS_AUTH === 'true') {
     // No fixtures: a fabricated transcript in local dev would be the one
@@ -157,6 +159,12 @@ export default async function ClientConversationPage({ params, searchParams }: P
   }
 
   const caller = await createCaller(await headers());
+
+  // The heading, from the same caller as the transcript. A failure here must
+  // not turn a readable conversation into an error page, so it falls back to
+  // the neutral word rather than throwing.
+  const header = await caller.clients.header({ clientUserId: clientId }).catch(() => null);
+  if (header) clientLabel = header.clientLabel;
 
   let data: ConversationPageData | null = null;
   let refusal: 'no_window' | 'unavailable' | null = null;

@@ -42,6 +42,18 @@ model User {
   age_confirmed_at    DateTime?
   age_declined_at     DateTime?
   gender              String?
+  /// The client's system-generated record number, minted once at registration
+  /// and never rewritten: `<initials><birth YY><gender letter><serial>`, e.g.
+  /// `SG88F0001`. Initials are the first letter of the first and last word of
+  /// `full_name` (a single word gets `X` as its second letter); the gender
+  /// letter is M, F or X; the serial is global and padded to four digits.
+  ///
+  /// Nullable because two things legitimately have no number yet: rows that
+  /// predate the scheme and are missing a birth year or gender (the admin
+  /// console fixes those in place), and client rows created by a path that
+  /// never asked for a name. `lib/client-code.ts` owns the rules; this column
+  /// only stores the result. Frozen on purpose — see docs/portal-client-id.md.
+  client_code         String?             @unique
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
   deleted_at          DateTime?
@@ -76,6 +88,19 @@ model User {
   invite_tokens       InviteToken[]
   tool_preferences    UserToolPreference[]
   safety_flags        SafetyFlag[]
+}
+
+/// The single global counter behind `User.client_code`'s four-digit serial.
+///
+/// A row rather than `count(client_code) + 1`: two registrations a moment
+/// apart would both read the same count and collide on the unique index.
+/// Incrementing one locked row inside the creation transaction serialises
+/// them, and the row survives deletions, so a removed client's number is
+/// never reissued to someone else.
+model ClientCodeSequence {
+  /// Fixed value, `client_code` — one row, so there is nothing to vary.
+  id         String @id
+  last_value Int    @default(0)
 }
 
 model Therapist {

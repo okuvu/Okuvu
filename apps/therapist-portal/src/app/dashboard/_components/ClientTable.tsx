@@ -182,6 +182,15 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                     <Link href={`/clients/${client.id}`} className="hover:underline">
                       {client.clientLabel}
                     </Link>
+                    {/* The record number, under the name it belongs to. This
+                        replaced the masked phone number: one identifier the
+                        therapist can quote, and it does not expose contact
+                        details in a list that is on screen all day. */}
+                    {client.clientCode && (
+                      <div className="mt-0.5 font-mono text-[11px] font-normal tracking-wide text-gray-500">
+                        {client.clientCode}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-3.5">
                     {client.carePlan ? (
@@ -217,10 +226,9 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                           disabled={endClient.isPending}
                           onClick={() => {
                             // Decisions doc round, 15 Sep 2026 §11 — exact
-                            // confirm copy. No client name field exists on
-                            // ClientListItem, so the masked phone (already
-                            // this table's own identifier for the client)
-                            // fills the [client] slot.
+                            // confirm copy. `clientLabel` is the therapist's
+                            // own name for the client, which is what the
+                            // sentence should say.
                             if (
                               window.confirm(
                                 `End care for ${client.clientLabel}? They'll see a quiet close message — no error, no accusation. Crisis support stays open to them, and you can add them again later.`,

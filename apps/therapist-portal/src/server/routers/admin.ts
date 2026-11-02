@@ -7,6 +7,14 @@ import { sendInviteEmail, sendClientInviteEmail } from '@/lib/email';
 import { hashInviteToken } from '@/lib/invite-token-hash';
 import { isAdminEmail } from '@/lib/admin-allowlist';
 import { maskPhone } from '@/lib/format';
+import {
+  GENDER_OPTIONS,
+  buildClientCode,
+  hasNumberableProfile,
+  issueClientCode,
+  nextClientSerial,
+  type ClientCodeCounterDb,
+} from '@/lib/client-code';
 
 const CARE_PLANS = ['CP1', 'CP2', 'CP3'] as const;
 const INVITE_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I — easy to read aloud/type
@@ -15,7 +23,6 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // can actually send, but the backend shouldn't take that on faith.
 const PRESENTING_ISSUES = ['Anxiety', 'Low mood', 'Stress', 'Sleep', 'Grief'] as const;
 const MAX_NAME_LENGTH = 200;
-const MAX_GENDER_LENGTH = 100;
 const MAX_WELCOME_NOTE_LENGTH = 2000;
 const MAX_DISPLAY_ABBREVIATION_LENGTH = 50;
 const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
@@ -150,6 +157,11 @@ export const adminRouter = router({
                   { full_name: { contains: search, mode: 'insensitive' as const } },
                   { email: { contains: search, mode: 'insensitive' as const } },
                   { phone_number: { contains: search } },
+                  // The record number is quoted over the phone and written on
+                  // paper files, so it is the fastest way to find one row. Case
+                  // is insensitive because nobody reads "SG88F0001" aloud with
+                  // its capitalisation.
+                  { client_code: { contains: search, mode: 'insensitive' as const } },
                 ],
               }
             : {}),
@@ -161,6 +173,9 @@ export const adminRouter = router({
           full_name: true,
           email: true,
           phone_number: true,
+          client_code: true,
+          date_of_birth: true,
+          gender: true,
           created_at: true,
           language_mode: true,
           clinical_config: { select: { care_plan_id: true, assignment_state: true } },
@@ -187,6 +202,11 @@ export const adminRouter = router({
           name: c.full_name,
           email: c.email,
           phoneMasked: maskPhone(c.phone_number),
+          clientCode: c.client_code,
+          // No number yet: the rows that predate the scheme and are missing a
+          // birth year or gender. Drives the console's "Set ID details" action,
+          // never the display — an unnumbered client shows an em dash.
+          needsNumber: !c.client_code,
           joinedAt: c.created_at.toISOString(),
           languageMode: c.language_mode,
           carePlan: c.clinical_config?.care_plan_id ?? null,
@@ -508,6 +528,27 @@ export const adminRouter = router({
         },
       });
 
+      // Attaching an existing account is the other way a client arrives. If the
+      // row already carries a name, birth date and gender — they set their own
+      // profile in the app before a therapist found them — number them now
+      // rather than leaving the Dashboard row without an ID until someone
+      // notices. Best effort: the assignment has already happened, and a
+      // numbering failure must not undo it.
+      try {
+        const profile = await ctx.db.user.findUnique({
+          where: { id: client.id },
+          select: { full_name: true, date_of_birth: true, gender: true, client_code: true },
+        });
+        if (profile && !profile.client_code && hasNumberableProfile(profile)) {
+          const code = await issueClientCode(ctx.db as unknown as ClientCodeCounterDb, profile);
+          if (code) {
+            await ctx.db.user.update({ where: { id: client.id }, data: { client_code: code } });
+          }
+        }
+      } catch (err) {
+        console.error('[ADMIN] could not issue a client record number', err);
+      }
+
       if (input.languageMode) {
         await ctx.db.user.update({
           where: { id: client.id },
@@ -551,10 +592,22 @@ export const adminRouter = router({
         fullName: z.string().trim().min(1).max(MAX_NAME_LENGTH),
         phoneNumber: z.string().trim().regex(PHONE_REGEX, 'phoneNumber must be in E.164 format (e.g. +1234567890)'),
         email: z.string().trim().email(),
-        dateOfBirth: z.string().refine((v) => !Number.isNaN(new Date(v).getTime()), {
-          message: 'dateOfBirth must be a valid date',
-        }).optional(),
-        gender: z.string().trim().max(MAX_GENDER_LENGTH).optional(),
+        // Required, not optional: the record number is stamped from the birth
+        // year, and a number with an invented `00` in it is worse than no
+        // number at all (lib/client-code.ts).
+        dateOfBirth: z
+          .string()
+          .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+            message: 'dateOfBirth must be a valid date',
+          })
+          .refine((v) => {
+            const year = new Date(v).getUTCFullYear();
+            return year >= 1900 && year <= new Date().getUTCFullYear();
+          }, { message: 'dateOfBirth must be a real birth date' }),
+        // A fixed set rather than free text: the record number carries a letter
+        // derived from this answer, so "Woman" and "Female" must not be two
+        // different letters on two clients.
+        gender: z.enum(GENDER_OPTIONS),
         presentingIssues: z.array(z.enum(PRESENTING_ISSUES)).default([]),
         carePlanId: z.enum(CARE_PLANS),
         welcomeNote: z.string().trim().max(MAX_WELCOME_NOTE_LENGTH).optional(),
@@ -591,14 +644,29 @@ export const adminRouter = router({
         });
       }
 
-      const { client } = await ctx.db.$transaction(async (tx) => {
+      const dob = new Date(input.dateOfBirth);
+
+      const { client, clientCode } = await ctx.db.$transaction(async (tx) => {
+        // The number is minted inside the transaction, next to the insert it
+        // belongs to. A create that rolls back does spend its serial — a gap in
+        // the sequence is harmless, and the alternative (allocating after the
+        // insert) would let two clients share one number under a retry.
+        const serial = await nextClientSerial(tx as unknown as ClientCodeCounterDb);
+        const code = buildClientCode({
+          fullName: input.fullName,
+          dateOfBirth: dob,
+          gender: input.gender,
+          serial,
+        });
+
         const client = await tx.user.create({
           data: {
             phone_number: input.phoneNumber,
             email,
             full_name: input.fullName,
-            date_of_birth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
-            gender: input.gender || null,
+            date_of_birth: dob,
+            gender: input.gender,
+            client_code: code,
           },
           select: { id: true },
         });
@@ -626,10 +694,95 @@ export const adminRouter = router({
           },
         });
 
-        return { client };
+        return { client, clientCode: code };
       });
 
-      return { success: true, clientId: client.id, email };
+      return { success: true, clientId: client.id, email, clientCode };
+    }),
+
+  /**
+   * The console's repair path for a client who has no record number.
+   *
+   * Two kinds of row need it: clients registered before the numbering scheme
+   * existed with no birth year or gender on file, and rows created by a path
+   * that only took an email. Both are numbered the moment an operator supplies
+   * what the rule needs — the number is never invented from a placeholder.
+   *
+   * An already-numbered client is not renumbered. Their demographics can be
+   * corrected here, but the number stays: it is the record's identity, and a
+   * therapist may already have written it down.
+   */
+  completeClientProfile: adminMutation
+    .input(
+      z.object({
+        clientUserId: z.string().min(1),
+        fullName: z.string().trim().min(1).max(MAX_NAME_LENGTH).optional(),
+        dateOfBirth: z
+          .string()
+          .refine((v) => !Number.isNaN(new Date(v).getTime()), {
+            message: 'dateOfBirth must be a valid date',
+          })
+          .refine((v) => {
+            const year = new Date(v).getUTCFullYear();
+            return year >= 1900 && year <= new Date().getUTCFullYear();
+          }, { message: 'dateOfBirth must be a real birth date' }),
+        gender: z.enum(GENDER_OPTIONS),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const client = await ctx.db.user.findUnique({
+        where: { id: input.clientUserId },
+        select: { id: true, full_name: true, client_code: true },
+      });
+      if (!client) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Client not found' });
+      }
+
+      const dob = new Date(input.dateOfBirth);
+      const fullName = input.fullName ?? client.full_name;
+
+      if (client.client_code) {
+        await ctx.db.user.update({
+          where: { id: client.id },
+          data: {
+            date_of_birth: dob,
+            gender: input.gender,
+            ...(input.fullName ? { full_name: input.fullName } : {}),
+          },
+        });
+        return { success: true, clientCode: client.client_code, alreadyNumbered: true };
+      }
+
+      if (!hasNumberableProfile({ full_name: fullName, date_of_birth: dob, gender: input.gender })) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'This client has no name on file, so there is nothing to build an ID from. Enter their full name with the birth date and gender.',
+        });
+      }
+
+      const clientCode = await ctx.db.$transaction(async (tx) => {
+        const code = await issueClientCode(tx as unknown as ClientCodeCounterDb, {
+          full_name: fullName,
+          date_of_birth: dob,
+          gender: input.gender,
+        });
+        if (!code) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Could not build an ID from those details.' });
+        }
+        await tx.user.update({
+          where: { id: client.id },
+          data: {
+            date_of_birth: dob,
+            gender: input.gender,
+            ...(input.fullName ? { full_name: input.fullName } : {}),
+            client_code: code,
+          },
+        });
+        return code;
+      });
+
+      return { success: true, clientCode, alreadyNumbered: false };
     }),
 
   // Dashboard "Resend" for a still-Pending client (wireframes C-07) —

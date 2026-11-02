@@ -3,7 +3,6 @@
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/trpc/client';
-import { maskPhone, formatClientLabel } from '@/lib/format';
 import { SAFETY_LABELS, type AssignmentState, type SafetyState } from '@okuvu/shared-types';
 import { TabStrip } from './_components/TabStrip';
 import { ConsentChip } from './_components/ConsentChip';
@@ -139,7 +138,12 @@ export default function ClientDetailPage() {
   }
 
   const summaryStatus = data.summary?.status;
-  const clientLabel = formatClientLabel(clientId);
+  // The name the therapist gave this client, and their record number. Both come
+  // from clients.detail — `formatClientLabel` can only return the word "Client"
+  // because it has no access to the row, which is why every heading used to
+  // read "Client".
+  const clientLabel = data.clientLabel;
+  const clientCode = data.clientCode;
 
   return (
     <div className="min-h-screen bg-oat">
@@ -152,9 +156,15 @@ export default function ClientDetailPage() {
             </Link>
             <span className="text-gray-300">/</span>
             <span className="text-gray-900 font-medium">{clientLabel}</span>
+            {clientCode && (
+              <span className="font-mono text-xs tracking-wide text-gray-500">{clientCode}</span>
+            )}
           </div>
 
-          <h1 className="sr-only">{clientLabel} — Profile</h1>
+          <h1 className="sr-only">
+            {clientLabel}
+            {clientCode ? ` (${clientCode})` : ''} — Profile
+          </h1>
 
           <TabStrip clientId={clientId} active="profile" />
 

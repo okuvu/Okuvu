@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
+import { GENDER_OPTIONS } from '@/lib/client-code';
 
 // Mirrors the backend's PRESENTING_ISSUES enum in admin.ts — these are
 // the only values createClient will accept.
@@ -65,13 +66,13 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
-  const [result, setResult] = useState<{ email: string } | null>(null);
+  const [result, setResult] = useState<{ email: string; clientCode: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
   const create = trpc.admin.createClient.useMutation({
     onSuccess: (res) => {
-      setResult({ email: res.email });
+      setResult({ email: res.email, clientCode: res.clientCode ?? null });
       setError(null);
       utils.admin.listTherapists.invalidate();
     },
@@ -98,6 +99,10 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
   }
 
   const canContinueStep1 = Boolean(state.therapistId && state.fullName.trim() && state.phoneNumber.trim() && state.email.trim());
+  // Step 2 is now the one that cannot be skipped: the client's ID is stamped
+  // from the birth year and gender, and an ID with a placeholder year is one
+  // nobody can trust. Presenting issues on the same step stay optional.
+  const canContinueStep2 = Boolean(state.dateOfBirth && state.gender);
   const canContinueStep3 = Boolean(state.carePlanId);
   const canSubmit = state.ageAttested && !create.isPending;
 
@@ -134,6 +139,18 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             {state.fullName} is registered as{' '}
             <span className="font-medium text-royal-purple">{result.email}</span>.
           </p>
+          {/* The record number, issued at registration. It is the identifier
+              the therapist quotes from now on — the Dashboard shows it under
+              the client's name. */}
+          {result.clientCode && (
+            <p className="text-sm text-gray-700">
+              Client ID:{' '}
+              <span className="font-mono font-medium tracking-wide text-gray-900">{result.clientCode}</span>
+              <span className="block text-xs text-gray-500">
+                Fixed for the life of the record — it is built from their initials, birth year and gender.
+              </span>
+            </p>
+          )}
           <p className="text-sm text-gray-700">
             Nothing to send. They install the OKUVU app and tap &ldquo;Continue with Google&rdquo; — signing in with
             that same email opens their account straight away.
@@ -225,13 +242,17 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
 
       {step === 2 && (
         <div className="space-y-3">
-          <p className="text-xs text-gray-500">All optional — fill it now, later, or never.</p>
+          <p className="text-xs text-gray-500">
+            Birth date and gender build this client&rsquo;s ID (for example <span className="font-mono">SG88F0001</span>),
+            so both are needed now. Presenting issues are optional — fill them now, later, or never.
+          </p>
           <div className="flex gap-3">
             <div className="flex-1">
               <label htmlFor="wiz-dob" className="mb-1 block text-xs font-medium text-gray-500">Date of birth</label>
               <input
                 id="wiz-dob"
                 type="date"
+                required
                 value={state.dateOfBirth}
                 onChange={(e) => update('dateOfBirth', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
@@ -239,13 +260,18 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
             </div>
             <div className="flex-1">
               <label htmlFor="wiz-gender" className="mb-1 block text-xs font-medium text-gray-500">Gender</label>
-              <input
+              <select
                 id="wiz-gender"
-                type="text"
+                required
                 value={state.gender}
                 onChange={(e) => update('gender', e.target.value)}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-violet focus:ring-1 focus:ring-violet"
-              />
+              >
+                <option value="" disabled>Select</option>
+                {GENDER_OPTIONS.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div>
@@ -373,7 +399,7 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
           <button
             type="button"
             onClick={() => setStep(step + 1)}
-            disabled={(step === 1 && !canContinueStep1) || (step === 3 && !canContinueStep3)}
+            disabled={(step === 1 && !canContinueStep1) || (step === 2 && !canContinueStep2) || (step === 3 && !canContinueStep3)}
             className="rounded-lg bg-violet px-4 py-2 text-sm font-medium text-white hover:bg-royal-purple transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
             Continue
@@ -388,8 +414,8 @@ export function AddClientWizard({ therapists }: { therapists: Therapist[] }) {
                 fullName: state.fullName.trim(),
                 phoneNumber: state.phoneNumber.trim(),
                 email: state.email.trim(),
-                dateOfBirth: state.dateOfBirth || undefined,
-                gender: state.gender.trim() || undefined,
+                dateOfBirth: state.dateOfBirth,
+                gender: state.gender as (typeof GENDER_OPTIONS)[number],
                 presentingIssues: state.issues,
                 carePlanId: state.carePlanId as 'CP1' | 'CP2' | 'CP3',
                 welcomeNote: state.welcomeNote.trim() || undefined,

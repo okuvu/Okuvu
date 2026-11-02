@@ -339,6 +339,36 @@ export const clientsRouter = router({
       return { success: true, emailSent: result.sent };
     }),
 
+  /**
+   * The client's name and record number, and nothing else.
+   *
+   * Every client sub-page renders a breadcrumb ("Dashboard / <name> / Notes")
+   * that used to read "Client" because it had no way to fetch a label. This is
+   * that way: two fields, the same two the Dashboard shows, so a therapist
+   * reading a paper file against the screen matches on the number.
+   */
+  header: therapistProcedure
+    .input(z.object({ clientUserId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      if (isBypassEnabled()) {
+        return { clientLabel: 'Client', clientCode: null as string | null };
+      }
+      await assertClientAssigned(ctx.db, ctx.therapistId, input.clientUserId);
+      const assignment = await ctx.db.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: ctx.therapistId,
+            client_user_id: input.clientUserId,
+          },
+        },
+        select: { client_label: true, client: { select: { client_code: true } } },
+      });
+      return {
+        clientLabel: assignment?.client_label ?? 'Client',
+        clientCode: assignment?.client.client_code ?? null,
+      };
+    }),
+
   list: therapistProcedure.query(async ({ ctx }) => {
     const db = ctx.db;
     const therapistId = ctx.therapistId;
@@ -367,6 +397,9 @@ export const clientsRouter = router({
       // the redesign removes, and omitting them from the wire type is what
       // stops them reappearing in a third surface.
       clientLabel: assignment.client_label,
+      // The client's record number — `SG88F0001`. Null only for a row that has
+      // no birth year or gender on file yet (see admin.completeClientProfile).
+      clientCode: assignment.client.client_code,
       carePlan: assignment.client.clinical_config
         ? {
             care_plan_id: assignment.client.clinical_config.care_plan_id,
@@ -398,6 +431,7 @@ export const clientsRouter = router({
         return {
           id: input.clientUserId,
           clientLabel: "Client",
+          clientCode: null as string | null,
           carePlan: null,
           reasoningNote: null,
           safetyState: null,
@@ -486,6 +520,7 @@ export const clientsRouter = router({
       return {
         id: client.id,
         clientLabel: assignment?.client_label ?? client.full_name ?? "Client",
+        clientCode: client.client_code,
         carePlan: client.clinical_config
           ? {
               care_plan_id: client.clinical_config.care_plan_id,

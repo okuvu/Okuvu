@@ -202,7 +202,7 @@ export default function PrivacyPolicyPage() {
               rows={[
                 [
                   <strong key="a">Account and identity</strong>,
-                  'Mobile number (the sign-in identifier), and — when a therapist invites someone through the portal — email address, full name as recorded by the therapist, date of birth and gender as entered at intake.',
+                  'Mobile number (the sign-in identifier), and — when a therapist invites someone through the portal — email address, full name as recorded by the therapist, date of birth and gender as entered at intake. From the name, birth year and gender we also generate a client reference number (for example SG88F0001), which the therapist uses instead of your phone number when referring to your file.',
                   'Creating the account, signing in, matching a client to their therapist.',
                 ],
                 [

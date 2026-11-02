@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { trpc } from '@/trpc/client';
-import { formatClientLabel } from '@/lib/format';
+import { useClientHeader } from '../_components/useClientHeader';
 import { TabStrip } from '../_components/TabStrip';
 
 const CARE_PLANS = [
@@ -66,7 +66,7 @@ export default function ProgramPage() {
   const currentCarePlan = carePlanQuery.data?.care_plan_id ?? 'CP1';
   const assignmentState = carePlanQuery.data?.assignment_state ?? 'provisional';
   const createdAt = carePlanQuery.data?.created_at ?? null;
-  const clientLabel = formatClientLabel(clientId);
+  const { label: clientLabel } = useClientHeader(clientId);
 
   useEffect(() => {
     const saved = carePlanQuery.data?.care_plan_id;

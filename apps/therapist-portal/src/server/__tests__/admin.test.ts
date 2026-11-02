@@ -25,6 +25,9 @@ function buildTxClient() {
     clinicalConfig: { create: vi.fn().mockResolvedValue({}) },
     therapistClient: { create: vi.fn().mockResolvedValue({}) },
     inviteToken: { create: vi.fn().mockResolvedValue({ token: 'GENERATED1' }) },
+    // The record-number counter. One row, incremented inside the same
+    // transaction as the insert it numbers.
+    clientCodeSequence: { upsert: vi.fn().mockResolvedValue({ last_value: 1 }) },
   };
 }
 
@@ -209,11 +212,20 @@ describe('admin.createClient (therapist-portal wireframes C-01..C-06)', () => {
     vi.clearAllMocks();
   });
 
+  // Computed, never typed: transcript output redacts phone literals, and a
+  // hand-copied one lands in source as asterisks that only the E.164 regex
+  // check notices.
+  const BASE_PHONE = `+91${'9'.repeat(10)}`;
+
   const BASE_INPUT = {
     therapistId: THERAPIST.id,
     fullName: 'Shubhangi Rao',
-    phoneNumber: '+919876500000',
+    phoneNumber: BASE_PHONE,
     email: 'shubhangi@example.com',
+    // Birth date and gender are required since the record number is built from
+    // them (lib/client-code.ts): initials + birth year + gender letter.
+    dateOfBirth: '1995-04-12',
+    gender: 'Female' as const,
     carePlanId: 'CP2' as const,
   };
 
@@ -282,7 +294,7 @@ describe('admin.createClient (therapist-portal wireframes C-01..C-06)', () => {
       ...BASE_INPUT,
       email: 'Shubhangi@Gmail.com',
       dateOfBirth: '1995-04-12',
-      gender: 'female',
+      gender: 'Female',
       presentingIssues: ['Anxiety', 'Sleep'],
       welcomeNote: 'Looking forward to working with you.',
       displayAbbreviation: 'S.',
@@ -301,9 +313,13 @@ describe('admin.createClient (therapist-portal wireframes C-01..C-06)', () => {
           phone_number: BASE_INPUT.phoneNumber,
           email: 'shubhangi@gmail.com',
           full_name: BASE_INPUT.fullName,
+          // Initials SR + birth year 95 + Female + the first serial. The exact
+          // shape is what a therapist reads out and writes on a file.
+          client_code: 'SR95F0001',
         }),
       }),
     );
+    expect(result.clientCode).toBe('SR95F0001');
     expect(tx.clinicalConfig.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

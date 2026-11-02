@@ -6,18 +6,11 @@ export function maskPhone(phone: string | null | undefined): string {
 }
 
 /**
- * Retired: `User #E7D8`.
+ * `formatClientLabel` used to live here and returned the word "Client".
  *
- * A generated id is not a name, and the redesign removes it from every
- * therapist surface — the therapist's own label (TherapistClient.client_label)
- * is the only identifier the portal shows.
- *
- * Sub-pages that have not been through the redesign yet (homework, reminders,
- * notes, report, tools, program) still call this helper; they get a neutral
- * word rather than an id until each page passes its real label from
- * clients.detail. Returning the label is each page's own change — this
- * function cannot fetch one.
+ * It took a user id and had no data, so every client heading and breadcrumb in
+ * the portal read "Dashboard / Client / Notes". Names come from the router now:
+ * `clients.list`/`clients.detail` for pages that already fetch a client, and
+ * `clients.header` via `components/useClientHeader` for the rest. Do not
+ * reintroduce a formatter that cannot see the row.
  */
-export function formatClientLabel(_id: string): string {
-  return "Client";
-}

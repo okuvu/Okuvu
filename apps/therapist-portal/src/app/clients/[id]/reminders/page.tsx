@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
-import { formatClientLabel } from '@/lib/format';
+import { useClientHeader } from '../_components/useClientHeader';
 import { TabStrip } from '../_components/TabStrip';
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -82,7 +82,7 @@ export default function ClientRemindersPage() {
     });
   }
 
-  const clientLabel = formatClientLabel(clientId);
+  const { label: clientLabel } = useClientHeader(clientId);
 
   return (
     <div className="min-h-screen bg-oat">

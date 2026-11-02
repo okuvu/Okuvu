@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/trpc/client';
-import { formatClientLabel } from '@/lib/format';
+import { useClientHeader } from '../_components/useClientHeader';
 import { TabStrip } from '../_components/TabStrip';
 
 function formatDate(iso: string): string {
@@ -23,7 +23,7 @@ export default function ClientReportPage() {
     { enabled: Boolean(clientId) },
   );
 
-  const clientLabel = formatClientLabel(clientId);
+  const { label: clientLabel, code: clientCode } = useClientHeader(clientId);
 
   return (
     <div className="min-h-screen bg-oat">
@@ -37,6 +37,9 @@ export default function ClientReportPage() {
             <Link href={`/clients/${clientId}`} className="hover:text-royal-purple transition-colors">
               {clientLabel}
             </Link>
+            {clientCode && (
+              <span className="font-mono text-xs tracking-wide text-gray-500">{clientCode}</span>
+            )}
             <span className="text-gray-300">/</span>
             <span className="text-gray-900 font-medium">Report</span>
           </div>

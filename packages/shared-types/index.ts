@@ -573,6 +573,12 @@ export interface ClientListItem {
    * a generated "User #E7D8".
    */
   clientLabel: string
+  /**
+   * The client's system-generated record number — `SG88F0001`. Shown under the
+   * name on the Dashboard so a therapist can quote one identifier that is not
+   * a phone number. Null until the client's birth year and gender are on file.
+   */
+  clientCode: string | null
   carePlan: ClientCarePlan | null
   lastSessionDate: string | null
   safetyState: SafetyState | null
