@@ -12,6 +12,7 @@ import { incrementTurnCount, isSessionClosed, getSessionCount, getSessionConvers
 import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-retrieval.js';
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, CRISIS_THIRD_PARTY_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
+import { flagSafetyEvent } from '../lib/safety-flags.js';
 import { hasCrisisLanguage, hasSelfIngestion } from '../agents/a1/crisis-keywords.js';
 import { recordAuditEvent } from '../lib/audit-log.js';
 import type { SafetyNotice } from '@okuvu/shared-types';
@@ -375,6 +376,18 @@ export async function processTurn(
     });
     recordTiming(timing, 'crisis_third_party_persistence', persistStart, now());
 
+    // Portal P0 — the therapist-visible record of this event. The client
+    // received CRISIS_THIRD_PARTY_RESPONSE, which is a crisis screen, so this
+    // is a flag whenever their own state is S3/S4. Never throws, never
+    // changes the reply (lib/safety-flags.ts).
+    await flagSafetyEvent({
+      userId: user.id,
+      level: safetyState,
+      source: 'third_party_crisis',
+      sessionId,
+      turnId: tpAssistantTurn?.id ?? null,
+    });
+
     await recordAuditEvent({
       actor: 'A8',
       action: 'SAFETY_CRISIS_THIRD_PARTY_ROUTED',
@@ -467,6 +480,17 @@ export async function processTurn(
     }
     recordTiming(timing, 'crisis_persistence', persistStart, now());
 
+    // Portal P0 — the flag the therapist's Safety card shows, and the email
+    // that reaches them. Awaited only for the insert; the email is
+    // fire-and-forget, and a failure in either is logged rather than served.
+    await flagSafetyEvent({
+      userId: user.id,
+      level: safetyState,
+      source: 'crisis_card',
+      sessionId,
+      turnId: crisisAssistantTurn?.id ?? null,
+    });
+
     // The audit row is written before the turn returns, so `/audit/verify`
     // cannot be read as "no crisis happened" for a crisis the user was served.
     await recordAuditEvent({
@@ -551,6 +575,18 @@ export async function processTurn(
       });
     }
     recordTiming(timing, 'medical_emergency_persistence', persistStart, now());
+
+    // Portal P0 — a medical emergency at S3/S4 is a flag. At S0–S2 (the
+    // ordinary "call 112" branch) it is not: the therapist-visible history is
+    // the S3/S4 record, and a flag list padded with every chest-pain message
+    // stops being read.
+    await flagSafetyEvent({
+      userId: user.id,
+      level: safetyState,
+      source: 'medical_emergency',
+      sessionId,
+      turnId: medicalAssistantTurn?.id ?? null,
+    });
 
     await recordAuditEvent({
       actor: 'A8',
@@ -964,6 +1000,21 @@ export async function processTurn(
     await prisma.sessionLog.update({
       where: { id: sessionId },
       data: { crisis_flag_detected: true },
+    });
+  }
+
+  // Portal P0 — the S3 grounding card is served from this path (A8 routes
+  // 'deterministic-grounding' before A2 is called), so this is where an S3
+  // flag belongs. S4 normally returns from the crisis branch far above; the
+  // level/source pair is computed from the state rather than assumed so a
+  // future route change cannot label a crisis card as grounding.
+  if (safetyState === 'S3' || safetyState === 'S4') {
+    await flagSafetyEvent({
+      userId: user.id,
+      level: safetyState,
+      source: safetyState === 'S4' ? 'crisis_card' : 's3_grounding',
+      sessionId,
+      turnId: assistantTurn?.id ?? null,
     });
   }
 

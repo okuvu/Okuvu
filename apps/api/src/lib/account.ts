@@ -31,6 +31,11 @@ export const SUBJECT_TABLES = [
   'userMemory',
   'engagementProfile',
   'safetyState',
+  // Portal P0 — the per-event S3/S4 record the therapist's Safety card reads.
+  // Erased with the rest: a flag names a subject and their level, and the
+  // therapist-visible record must not outlive the relationship the same way
+  // the current-state row doesn't.
+  'safetyFlag',
   'clinicalConfig',
   'therapistNote',
   'clinicalAccessLog',
@@ -155,6 +160,7 @@ export async function deleteAccount(
         await tx.engagementProfile.deleteMany({ where: { user_id: user.id } }),
       );
       record('safetyState', await tx.safetyState.deleteMany({ where: { user_id: user.id } }));
+      record('safetyFlag', await tx.safetyFlag.deleteMany({ where: { user_id: user.id } }));
       record(
         'clinicalConfig',
         await tx.clinicalConfig.deleteMany({ where: { user_id: user.id } }),

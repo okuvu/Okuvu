@@ -61,9 +61,11 @@ function StatusBadge({ state }: { state: string }) {
 // wireframes C-07 — invite/relationship lifecycle. Kept visually distinct
 // from StatusBadge (care-plan assignment_state) above; different concept.
 const LIFECYCLE_STYLES: Record<ClientLifecycleStatus, { label: string; bg: string; text: string }> = {
-  pending: { label: 'Pending', bg: 'bg-honey-tint', text: 'text-honey-deep' },
+  waiting_app_access: { label: 'Waiting for app access', bg: 'bg-honey-tint', text: 'text-honey-deep' },
+  invited: { label: 'Invited', bg: 'bg-honey-tint', text: 'text-honey-deep' },
   active: { label: 'Active', bg: 'bg-sage-tint', text: 'text-sage-deep' },
   ended: { label: 'Ended', bg: 'bg-oat', text: 'text-ink-soft' },
+  age_blocked: { label: "Couldn't activate: age", bg: 'bg-danger/10', text: 'text-danger' },
 };
 
 function LifecycleStatusBadge({ status }: { status: ClientLifecycleStatus }) {
@@ -178,7 +180,7 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                 >
                   <td className="px-6 py-3.5 text-sm font-medium text-gray-900">
                     <Link href={`/clients/${client.id}`} className="hover:underline">
-                      {maskPhone(client.phoneNumber)}
+                      {client.clientLabel}
                     </Link>
                   </td>
                   <td className="px-6 py-3.5">
@@ -221,7 +223,7 @@ export function ClientTable({ clients }: { clients: ClientListItem[] }) {
                             // fills the [client] slot.
                             if (
                               window.confirm(
-                                `End care for ${maskPhone(client.phoneNumber)}? They'll see a quiet close message — no error, no accusation. Crisis support stays open to them, and you can add them again later.`,
+                                `End care for ${client.clientLabel}? They'll see a quiet close message — no error, no accusation. Crisis support stays open to them, and you can add them again later.`,
                               )
                             ) {
                               endClient.mutate({ clientUserId: client.id });

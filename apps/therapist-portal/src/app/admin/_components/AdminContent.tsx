@@ -163,6 +163,30 @@ export function AdminContent() {
   const [removeTarget, setRemoveTarget] = useState<RemoveClientTarget | null>(null);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
 
+  // Portal P0 — the operator's half of the invite handover. Keyed by client id
+  // so the row that is sending shows it, and the result is reported next to
+  // the table rather than in a toast nobody reads.
+  const [testerMsg, setTesterMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const markTesterAccessAdded = trpc.admin.markTesterAccessAdded.useMutation({
+    onSuccess: async (result) => {
+      setTesterMsg(
+        result.emailSent
+          ? {
+              kind: 'ok',
+              text: `Invite sent to ${result.clientLabel}. They can install from the Play link now.`,
+            }
+          : {
+              kind: 'err',
+              text: `Tester access recorded for ${result.clientLabel}, but the invite email did NOT send. They will not appear as invited until it does.`,
+            },
+      );
+      await clientsQuery.refetch();
+    },
+    onError: (err) => {
+      setTesterMsg({ kind: 'err', text: err.message || 'Could not send the invite.' });
+    },
+  });
+
   const [assignTherapistId, setAssignTherapistId] = useState('');
   const [assignPhone, setAssignPhone] = useState('');
   const [assignLanguageMode, setAssignLanguageMode] = useState('');
@@ -627,6 +651,19 @@ export function AdminContent() {
                   {removeMsg}
                 </p>
               )}
+              {testerMsg && (
+                <p
+                  role={testerMsg.kind === 'err' ? 'alert' : 'status'}
+                  aria-live="polite"
+                  className={
+                    testerMsg.kind === 'err'
+                      ? 'bg-danger/10 px-6 py-3 text-xs text-danger'
+                      : 'bg-sage-tint px-6 py-3 text-xs text-sage-deep'
+                  }
+                >
+                  {testerMsg.text}
+                </p>
+              )}
               {clientsQuery.isLoading ? (
                 <div role="status" aria-busy="true" className="px-6 py-8 text-sm text-ink-soft">
                   Loading clients…
@@ -678,21 +715,58 @@ export function AdminContent() {
                           <Td className="text-xs text-ink-soft">{c.carePlan ?? '—'}</Td>
                           <Td className="text-xs text-ink-soft">{formatDate(c.joinedAt)}</Td>
                           <Td className="text-right">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRemoveMsg(null);
-                                setRemoveTarget({
-                                  id: c.id,
-                                  label: c.name ?? c.email ?? c.phoneMasked,
-                                  email: c.email,
-                                });
-                              }}
-                              aria-label={`Remove ${c.name ?? c.email ?? c.phoneMasked}`}
-                              className="whitespace-nowrap text-xs font-medium text-danger hover:underline"
-                            >
-                              Remove
-                            </button>
+                            <div className="flex items-center justify-end gap-3">
+                              {/* Portal P0 — the invite handover. The app is on
+                                  Play internal testing, so this button is the
+                                  only path that emails a client: their address
+                                  has to be on the tester Google Group first,
+                                  and only a human can add it. Hidden once the
+                                  client has activated or the invite has gone
+                                  out. */}
+                              {c.therapists.length > 0 &&
+                                !c.therapists.some((t) => t.activated) &&
+                                !c.therapists[0]?.inviteSent && (
+                                  <button
+                                    type="button"
+                                    disabled={markTesterAccessAdded.isPending}
+                                    onClick={() => {
+                                      setTesterMsg(null);
+                                      const label = c.name ?? c.email ?? c.phoneMasked;
+                                      const alreadyAdded = c.therapists[0]?.testerAccessAdded === true;
+                                      if (
+                                        window.confirm(
+                                          alreadyAdded
+                                            ? `Send the invite email to ${c.email ?? label} again?`
+                                            : `Only continue if you have already added ${c.email ?? label} to the Okuvu Play internal-testing Google Group.\n\nThis sends them the one invite email with the Play link.`,
+                                        )
+                                      ) {
+                                        markTesterAccessAdded.mutate({ clientUserId: c.id });
+                                      }
+                                    }}
+                                    aria-label={`Mark tester access added for ${c.name ?? c.email ?? c.phoneMasked}`}
+                                    className="whitespace-nowrap text-xs font-medium text-royal-purple hover:underline disabled:opacity-60"
+                                  >
+                                    {c.therapists[0]?.testerAccessAdded
+                                      ? 'Send invite again'
+                                      : 'Mark tester access added'}
+                                  </button>
+                                )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRemoveMsg(null);
+                                  setRemoveTarget({
+                                    id: c.id,
+                                    label: c.name ?? c.email ?? c.phoneMasked,
+                                    email: c.email,
+                                  });
+                                }}
+                                aria-label={`Remove ${c.name ?? c.email ?? c.phoneMasked}`}
+                                className="whitespace-nowrap text-xs font-medium text-danger hover:underline"
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </Td>
                         </tr>
                       ))}

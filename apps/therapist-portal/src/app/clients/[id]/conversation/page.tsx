@@ -209,7 +209,8 @@ export default async function ClientConversationPage({ params, searchParams }: P
       );
     }
 
-    const askedAt = detail.consent.chatAccessRequestedAt;
+    const askedAt =
+      detail.chatAccess.state === 'waiting_for_client' ? detail.chatAccess.requestedAt : null;
 
     return (
       <Shell clientId={clientId} clientLabel={clientLabel}>
@@ -217,14 +218,14 @@ export default async function ClientConversationPage({ params, searchParams }: P
           {askedAt ? (
             <>
               You asked this client to share their chat on{' '}
-              <span className="font-medium">{formatTimestamp(askedAt)}</span>. A read window
-              is open for 30 days from that request and it has closed — ask again to reopen
-              it.
+              <span className="font-medium">{formatTimestamp(askedAt)}</span>. The read window
+              opens when they approve it in the app, and runs for 30 days from that approval — it
+              has not opened yet.
             </>
           ) : (
             <>
               Chat access has not been requested for this client. Asking opens a 30-day
-              window in which you can read their conversation with the agent.
+              read-only window, but only once the client approves it in the app.
             </>
           )}
         </Notice>
@@ -236,7 +237,8 @@ export default async function ClientConversationPage({ params, searchParams }: P
           <ConsentChip
             clientUserId={clientId}
             clientLabel={clientLabel}
-            consent={detail.consent}
+            chatAccess={detail.chatAccess}
+            moodShared={detail.moodShared}
           />
           <p className="mt-3 text-xs text-gray-500">
             This view is read-only. You can read the conversation; you can never send a
@@ -270,7 +272,7 @@ export default async function ClientConversationPage({ params, searchParams }: P
             CONVERSATION WITH AGENT
           </h2>
           <p className="text-xs text-gray-500">
-            Access window: requested {formatTimestamp(data.window.requestedAt)} · open until{' '}
+            Access window: approved {formatTimestamp(data.window.grantedAt)} · open until{' '}
             {formatTimestamp(data.window.expiresAt)}
           </p>
         </div>

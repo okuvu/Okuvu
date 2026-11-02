@@ -5,6 +5,7 @@ import { getAgentContextBundle } from '../lib/agent-context.js';
 import { getTodayCard } from '../lib/today-card.js';
 import { completeHomework } from '../lib/homework.js';
 import { updateCarePlan, type CarePlanBody } from '../lib/care-plan.js';
+import { recordAgeAttestation } from '../lib/age-attestation.js';
 import type { UserConsent, CarePlanId, AssignmentState } from '@okuvu/shared-types';
 
 interface ChatAccessBody {
@@ -83,6 +84,41 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       );
 
       reply.send({ success: true });
+    },
+  });
+
+  app.post<{ Body: { adult: boolean } }>('/users/me/age-attestation', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = request.body;
+
+      if (typeof body?.adult !== 'boolean') {
+        return reply.status(400).send({
+          error: { code: 'INVALID_BODY', message: 'adult (boolean) is required' },
+        });
+      }
+
+      const result = await recordAgeAttestation(uid, body.adult);
+
+      if (result.status === 'user_not_found') {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      request.log.info(
+        { event: 'age_attestation', adult: body.adult, status: result.status },
+        'Client answered the 18+ attestation',
+      );
+
+      if (result.status === 'declined') {
+        // 200, not an error: the client answered, and the answer is recorded.
+        // The app reads `accountActive: false` and shows the closing screen.
+        return reply.send({ adultConfirmed: false, accountActive: false });
+      }
+
+      return reply.send({ adultConfirmed: true, accountActive: true });
     },
   });
 
@@ -207,9 +243,26 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
+      // Portal P0 — chat access is the client's decision, and the 30-day
+      // read window is measured from THIS approval (chat_access_granted_at),
+      // never from the therapist's ask. A request the client has not answered
+      // opens nothing. Revoking closes the window immediately
+      // (chat_access_closed_at), which the portal's read gate checks before
+      // the 30-day expiry.
       await prisma.therapistClient.update({
         where: { id: assignment.id },
-        data: { chat_access_granted: body.granted, chat_access_requested_at: null },
+        data: body.granted
+          ? {
+              chat_access_granted: true,
+              chat_access_requested_at: null,
+              chat_access_granted_at: new Date(),
+              chat_access_closed_at: null,
+            }
+          : {
+              chat_access_granted: false,
+              chat_access_requested_at: null,
+              chat_access_closed_at: new Date(),
+            },
       });
 
       request.log.info(

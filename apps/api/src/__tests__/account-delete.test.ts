@@ -20,6 +20,7 @@ const { USER_FK_TABLES, STRING_REF_TABLES, ALL_TABLES, prismaMock } = vi.hoisted
     'engagementProfile',
     'clinicalConfig',
     'safetyState',
+    'safetyFlag',
     'turn',
     'sessionSummary',
     'moodLog',
@@ -146,6 +147,7 @@ describe('POST /account/delete', () => {
         engagementProfile: { user_id: MOCK_USER_ID },
         clinicalConfig: { user_id: MOCK_USER_ID },
         safetyState: { user_id: MOCK_USER_ID },
+        safetyFlag: { user_id: MOCK_USER_ID },
         moodLog: { user_id: MOCK_USER_ID },
         journalEntry: { user_id: MOCK_USER_ID },
         userMemory: { user_id: MOCK_USER_ID },
@@ -397,7 +399,7 @@ describe('erasure coverage vs packages/prisma/schema.prisma', () => {
 
   it('finds the schema and the known set of subject tables', () => {
     expect(models.length).toBeGreaterThan(30);
-    expect(modelsWithUserFk.length).toBe(18);
+    expect(modelsWithUserFk.length).toBe(19);
   });
 
   it('every relation to User declares onDelete: Cascade', () => {

@@ -6,7 +6,10 @@ const ORIGINAL_ENV = { ...process.env };
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
-    user: { findUnique: vi.fn() },
+    // Portal P0: activation now consults the 18+ attestation, so the
+    // client-activation path reads User.age_declined_at before stamping
+    // activated_at. Null here means "not declined".
+    user: { findUnique: vi.fn(), findFirst: vi.fn().mockResolvedValue(null) },
     reminder: { findMany: vi.fn() },
     therapistClient: {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -284,9 +287,17 @@ describe('PATCH /users/me/chat-access (therapist-portal wireframes — client gr
     });
 
     expect(response.statusCode).toBe(200);
+    // Portal P0 — approval starts the 30-day read window, and the window is
+    // measured from THIS moment (chat_access_granted_at), not from the
+    // therapist's request. Re-approving after a revocation reopens it.
     expect(prisma.therapistClient.update).toHaveBeenCalledWith({
       where: { id: 'tc_1' },
-      data: { chat_access_granted: true, chat_access_requested_at: null },
+      data: {
+        chat_access_granted: true,
+        chat_access_requested_at: null,
+        chat_access_granted_at: expect.any(Date),
+        chat_access_closed_at: null,
+      },
     });
   });
 
@@ -303,9 +314,16 @@ describe('PATCH /users/me/chat-access (therapist-portal wireframes — client gr
     });
 
     expect(response.statusCode).toBe(200);
+    // Portal P0 — revoking closes the window immediately, so the portal's
+    // read gate stops at chat_access_closed_at rather than waiting out the
+    // 30 days. granted stays false for the record.
     expect(prisma.therapistClient.update).toHaveBeenCalledWith({
       where: { id: 'tc_1' },
-      data: { chat_access_granted: false, chat_access_requested_at: null },
+      data: {
+        chat_access_granted: false,
+        chat_access_requested_at: null,
+        chat_access_closed_at: expect.any(Date),
+      },
     });
   });
 

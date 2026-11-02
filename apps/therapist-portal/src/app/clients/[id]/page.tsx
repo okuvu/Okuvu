@@ -158,8 +158,13 @@ export default function ClientDetailPage() {
 
           <TabStrip clientId={clientId} active="profile" />
 
-          {/* Consent chip — wireframes C-08 */}
-          <ConsentChip clientUserId={clientId} clientLabel={clientLabel} consent={data.consent} />
+          {/* Consent chip — wireframes C-08, Portal P0's client-approval gate */}
+          <ConsentChip
+            clientUserId={clientId}
+            clientLabel={clientLabel}
+            chatAccess={data.chatAccess}
+            moodShared={data.moodShared}
+          />
 
           {/* Appointments — wireframes P-02/P-03/P-04 */}
           <AppointmentsCard clientUserId={clientId} />
@@ -194,8 +199,8 @@ export default function ClientDetailPage() {
             </h2>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-gray-500">Phone</span>
-                <p className="mt-0.5 font-medium text-gray-900">{maskPhone(data.phoneNumber)}</p>
+                <span className="text-gray-500">Sign-in email</span>
+                <p className="mt-0.5 font-medium text-gray-900">{data.email ?? "—"}</p>
               </div>
               <div>
                 <span className="text-gray-500">Safety state</span>

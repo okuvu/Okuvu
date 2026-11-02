@@ -195,3 +195,184 @@ export async function sendWaitlistNotification(
     return { sent: false };
   }
 }
+
+/**
+ * ── Portal P0 — invite after tester access ───────────────────────────────
+ *
+ * The app is on Play internal testing, and internal testing only works for
+ * Google accounts on the tester list. So a therapist adding a client does NOT
+ * email them: an invite sent before the operator adds the address is a dead
+ * link the client cannot use, and the client has no way to tell anyone.
+ *
+ * The handover is therefore three steps, in this order:
+ *   1. therapist adds the client            → row, no email, status
+ *                                             "waiting for app access"
+ *   2. operator adds the address to the
+ *      tester group and marks it in /admin  → admin.markTesterAccessAdded
+ *   3. that action sends this email         → status "invited · not signed
+ *                                             in yet"
+ *
+ * No Play Developer API call: the tester-list step is manual on purpose for
+ * beta, and pretending otherwise would hide a step the operator still has to
+ * take.
+ */
+
+/** The one download URL. Never invented, never defaulted: absent in
+ * production is a hard failure, because an invite email with no link is a
+ * promise the team cannot see failing. */
+export function requirePlayTestUrl(): string {
+  const url = (process.env.PLAY_INTERNAL_TEST_URL ?? '').trim();
+  if (!url) {
+    console.error(
+      '[email] PLAY_INTERNAL_TEST_URL is not set — refusing to send an invite email with no way to install Okuvu',
+    );
+    throw new Error('PLAY_INTERNAL_TEST_URL is not set');
+  }
+  return url;
+}
+
+export interface SendClientInviteEmailParams {
+  /** The client's Google address — the identity their sign-in binds to. */
+  to: string;
+  therapistName: string;
+}
+
+/**
+ * Note what is NOT in this email: the therapist's label for the client, and
+ * any clinical content. The label is one therapist's private name for a
+ * person and the client must never see it (they set their own name in the
+ * app), so the greeting carries no name at all.
+ */
+export async function sendClientInviteEmail(
+  params: SendClientInviteEmailParams,
+): Promise<{ sent: boolean }> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
+  const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
+  const downloadUrl = requirePlayTestUrl();
+
+  const htmlContent = `
+    <p>Hi,</p>
+    <p>${escapeHtml(params.therapistName)} has invited you to Okuvu, a wellbeing companion you can use between sessions.</p>
+    <p>Open this link on your Android phone while signed in to ${escapeHtml(params.to)}:</p>
+    <p><a href="${escapeHtml(downloadUrl)}">${escapeHtml(downloadUrl)}</a></p>
+    <p>Sign in with the same Google account (${escapeHtml(params.to)}). If you use a different address, the app will not recognise you.</p>
+    <p>Okuvu is for adults 18 and over. You will be asked to confirm this the first time you sign in.</p>
+    <p>Okuvu is not an emergency service. If you are in danger now, call 112.</p>
+  `;
+
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — skipping invite send', {
+      toRef: identityRef('c', params.to),
+    });
+    return { sent: false };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email: params.to }],
+        subject: `${params.therapistName} has invited you to Okuvu`,
+        htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('[email] Brevo invite send failed', {
+        status: response.status,
+        body: redactEmails(body).slice(0, 500),
+      });
+      return { sent: false };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Brevo invite send threw', err);
+    return { sent: false };
+  }
+}
+
+/** Where "add this address to the tester group" notifications go. */
+export function testerRequestRecipient(): string {
+  const allowlist = (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return process.env.TESTER_GROUP_NOTIFY_EMAIL || allowlist[0] || 'admin@okuvu.in';
+}
+
+export interface SendAdminTesterRequestEmailParams {
+  /** The address the operator has to add to the Play tester Google Group. */
+  clientEmail: string;
+  /** The therapist's private label — fine here: the recipient is the operator,
+   * who already sees it in the console, not the client. */
+  clientLabel: string;
+  therapistName: string;
+  therapistEmail: string;
+}
+
+export async function sendAdminTesterRequestEmail(
+  params: SendAdminTesterRequestEmailParams,
+): Promise<{ sent: boolean }> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
+  const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
+  const to = testerRequestRecipient();
+
+  const htmlContent = `
+    <p>A therapist added a client and is waiting for app access.</p>
+    <ul>
+      <li><strong>Add this address to the Play internal-testing Google Group:</strong> ${escapeHtml(params.clientEmail)}</li>
+      <li>Client label: ${escapeHtml(params.clientLabel)}</li>
+      <li>Therapist: ${escapeHtml(params.therapistName)} &lt;${escapeHtml(params.therapistEmail)}&gt;</li>
+    </ul>
+    <p>Once the address is on the tester list, open the client in the admin console and use
+    “Mark tester access added” — that sends the invite email with the download link.</p>
+  `;
+
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — tester request stored in the console only', {
+      toRef: identityRef('c', to),
+    });
+    return { sent: false };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email: to }],
+        subject: `Add to Play tester group: ${params.clientEmail}`,
+        htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('[email] Brevo tester-request send failed', {
+        status: response.status,
+        body: redactEmails(body).slice(0, 500),
+      });
+      return { sent: false };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Brevo tester-request send threw', err);
+    return { sent: false };
+  }
+}

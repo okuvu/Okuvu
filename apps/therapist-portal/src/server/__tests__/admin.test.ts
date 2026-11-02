@@ -317,7 +317,13 @@ describe('admin.createClient (therapist-portal wireframes C-01..C-06)', () => {
       }),
     );
     expect(tx.therapistClient.create).toHaveBeenCalledWith({
-      data: { therapist_id: THERAPIST.id, client_user_id: 'new_client_1' },
+      data: {
+        therapist_id: THERAPIST.id,
+        client_user_id: 'new_client_1',
+        // Portal P0 — the therapist's own label is NOT NULL on every creation
+        // path, and the wizard's name field is what a therapist typed.
+        client_label: 'Shubhangi Rao',
+      },
     });
 
     // The whole handover is the row: `resolveGoogleAccount` binds the client's

@@ -2,32 +2,38 @@
 
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
+import type { ChatAccessState } from '@/server/routers/clients';
 
 interface ConsentChipProps {
   clientUserId: string;
   clientLabel: string;
-  consent: {
-    safety: boolean;
-    mood: boolean;
-    chatAccess: boolean;
-    chatAccessRequestedAt: string | null;
-  };
+  /**
+   * Portal P0 — the four-state chat-access value, straight from
+   * clients.detail. It is the same value the read gate uses, so this chip
+   * cannot claim an access that is not open.
+   */
+  chatAccess: ChatAccessState;
+  moodShared: boolean;
 }
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-function Dot({ on }: { on: boolean }) {
-  return <span className={`inline-block h-1.5 w-1.5 rounded-full ${on ? 'bg-sage-deep' : 'bg-gray-300'}`} />;
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 /**
- * Therapist-portal wireframes C-08, copy locked by the decisions doc round
- * (15 Sep 2026 §9) — "Ask to share" → confirm dialog → "Asked · waiting" /
- * "Shared" / "Not shared". Portal can only indicate + request chat access;
- * the client owns the actual grant/deny via the mobile app's own
- * PATCH /users/me/chat-access.
+ * Chat access, in plain words.
+ *
+ * The rule the therapist reads here is the rule the gate enforces: the
+ * therapist asks, the CLIENT approves in the app, and a 30-day read-only
+ * window runs from that approval. An unanswered request opens nothing, and a
+ * revocation closes it immediately.
+ *
+ * (Page 2 replaces this chip with a one-line consent sentence; the component
+ * survives on the Conversation page, where the request button belongs.)
  */
-export function ConsentChip({ clientUserId, clientLabel, consent }: ConsentChipProps) {
+export function ConsentChip({ clientUserId, clientLabel, chatAccess, moodShared }: ConsentChipProps) {
   const utils = trpc.useUtils();
   const [justRequested, setJustRequested] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -43,36 +49,43 @@ export function ConsentChip({ clientUserId, clientLabel, consent }: ConsentChipP
   });
 
   const askedRecently =
-    Boolean(consent.chatAccessRequestedAt) &&
-    Date.now() - new Date(consent.chatAccessRequestedAt as string).getTime() < THIRTY_DAYS_MS;
+    chatAccess.state === 'waiting_for_client' &&
+    Date.now() - new Date(chatAccess.requestedAt).getTime() < THIRTY_DAYS_MS;
 
-  const chatLabel = consent.chatAccess
-    ? 'Shared'
-    : consent.chatAccessRequestedAt || justRequested
-      ? 'Asked · waiting'
-      : 'Not shared';
+  const chatLabel =
+    chatAccess.state === 'open'
+      ? `open until ${formatDate(chatAccess.expiresAt)}`
+      : chatAccess.state === 'waiting_for_client' || justRequested
+        ? 'waiting for the client'
+        : chatAccess.state === 'closed'
+          ? 'closed'
+          : 'not requested';
+
+  const canAsk = chatAccess.state === 'not_requested' || chatAccess.state === 'closed';
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg bg-oat px-3 py-2">
       <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
-        <Dot on={consent.safety} /> safety {consent.safety ? '✓' : '✗'}
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${moodShared ? 'bg-sage-deep' : 'bg-gray-300'}`}
+        />
+        mood check-ins {moodShared ? 'shared' : 'not shared'}
       </span>
       <span className="text-gray-300">·</span>
       <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
-        <Dot on={consent.mood} /> mood {consent.mood ? '✓' : '✗'}
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${chatAccess.state === 'open' ? 'bg-sage-deep' : 'bg-gray-300'}`}
+        />
+        chat access: {chatLabel}
       </span>
-      <span className="text-gray-300">·</span>
-      <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
-        <Dot on={consent.chatAccess} /> {chatLabel}
-      </span>
-      {!consent.chatAccess && (
+      {canAsk && (
         <button
           type="button"
           disabled={requestChatAccess.isPending || askedRecently || justRequested}
           onClick={() => setConfirming(true)}
           className="ml-auto text-xs font-medium text-royal-purple hover:underline disabled:cursor-not-allowed disabled:text-gray-500 disabled:no-underline"
         >
-          {consent.chatAccessRequestedAt || justRequested ? 'Asked · waiting' : 'Ask to share'}
+          Ask to share
         </button>
       )}
 
@@ -84,8 +97,9 @@ export function ConsentChip({ clientUserId, clientLabel, consent }: ConsentChipP
         >
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-lg">
             <p className="text-sm text-gray-800">
-              Ask {clientLabel} to share chat summaries? They get one quiet prompt. Only they can
-              change it — you&rsquo;ll just see their answer here.
+              Ask {clientLabel} to share their chat? They get one quiet prompt in the app. Only
+              they can approve it, a read-only window of 30 days starts when they do, and they
+              can revoke it at any time.
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <button

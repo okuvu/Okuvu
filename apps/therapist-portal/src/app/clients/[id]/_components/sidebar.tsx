@@ -204,7 +204,7 @@ export default function Sidebar({
                             : 'text-gray-500 hover:text-gray-700 hover:bg-lavender-wash'
                         }`}
                       >
-                        {maskPhone(client.phoneNumber)}
+                        {client.clientLabel}
                       </Link>
                     );
                   })

@@ -16,7 +16,14 @@ model User {
   /// Still unique — Postgres treats multiple NULLs as distinct, so this
   /// doesn't weaken the constraint for rows that do have one.
   auth_subject        String?             @unique
-  phone_number        String
+  /// Optional as of 20261102_portal_p0_safety_plumbing. Email is the
+  /// identity for every client the therapist portal registers (Google
+  /// sign-in binds on it), and the portal's Add-client form no longer
+  /// collects a phone number at all. The column stays because the legacy
+  /// phone-OTP sign-in path (auth-otp.ts, /invites/redeem), the therapist
+  /// console's phone search and account.ts's erasure sweep still read it.
+  /// A full drop is a later migration, once OTP is retired.
+  phone_number        String?
   /// Therapist-portal wireframes C-01 — dual-channel OTP invite (phone +
   /// email both required at wizard step 1). Null for pre-wizard users.
   email               String?
@@ -26,6 +33,14 @@ model User {
   /// of themselves in the app.
   full_name           String?
   date_of_birth       DateTime?
+  /// The CLIENT's own 18+ attestation, set from the app at first sign-in
+  /// (contract: docs/app-contracts/age-attestation.md). Confirmed and
+  /// declined are separate timestamps rather than a boolean so the
+  /// therapist-facing record can say *when* — an age refusal that carries no
+  /// time reads as a guess. Declined means the account never activates and
+  /// the therapist's roster row reads "Couldn't activate: age".
+  age_confirmed_at    DateTime?
+  age_declined_at     DateTime?
   gender              String?
   created_at          DateTime            @default(now())
   updated_at          DateTime            @updatedAt
@@ -60,6 +75,7 @@ model User {
   appointments        Appointment[]       @relation("ClientToAppointment")
   invite_tokens       InviteToken[]
   tool_preferences    UserToolPreference[]
+  safety_flags        SafetyFlag[]
 }
 
 model Therapist {
@@ -112,6 +128,47 @@ model SafetyState {
   safety_state_at_last_session_end SafetyStateEnum?
   updated_at                       DateTime         @updatedAt
   user                             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+/// One therapist-visible safety event. `SafetyState` is current-state only
+/// (one row per user, overwritten each turn), so it cannot answer "what
+/// happened, when, and has anyone looked at it" — which is the whole of the
+/// portal's Safety card. Written by apps/api/src/lib/safety-flags.ts at the
+/// moment an S3 or S4 turn is persisted.
+///
+/// Deliberately owns no message content: the card must show the event, never
+/// the conversation. `source` names which screen the client received so the
+/// therapist can be told the crisis card was actually shown.
+///
+/// Acknowledgement is permanent by construction — no code path clears
+/// `acknowledged_at` (see the safety router's acknowledge mutation).
+model SafetyFlag {
+  id                        String          @id @default(uuid())
+  user_id                   String
+  level                     SafetyFlagLevel
+  occurred_at               DateTime        @default(now())
+  /// The S3 grounding card / S4 crisis card served for this turn. Always
+  /// true today; a column rather than an assumption so a future
+  /// detect-only path cannot silently claim a screen was shown.
+  crisis_screen_shown       Boolean         @default(true)
+  /// Which deterministic screen the client saw.
+  source                    String?
+  session_id                String?
+  /// The assistant Turn row this flag belongs to, when one exists. Unique:
+  /// one turn produces at most one flag, so a retried insert cannot
+  /// double-count a single crisis as two events.
+  turn_id                   String?         @unique
+  acknowledged_at           DateTime?
+  acknowledged_by_therapist_id String?
+  user                      User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, occurred_at])
+  @@index([user_id, acknowledged_at])
+}
+
+enum SafetyFlagLevel {
+  S3
+  S4
 }
 
 model SessionLog {
@@ -249,6 +306,27 @@ model TherapistClient {
   therapist_id   String
   client_user_id String
   created_at     DateTime  @default(now())
+  /// The therapist's OWN label for this client — the only name the portal
+  /// shows. Lives here, not on User, because it is per-relationship (two
+  /// therapists may label the same person differently) and because the
+  /// client's own display name is a separate, client-owned field:
+  /// ClinicalConfig.display_abbreviation. Neither side ever sees the other's.
+  /// Never included in any agent prompt — pinned by
+  /// apps/api/src/__tests__/agent-context-privacy.test.ts.
+  client_label   String
+  /// The therapist's own 18+ attestation, captured from the Add-client form
+  /// with the therapist who gave it. An audit record, never a gate on its
+  /// own: the client attests separately in the app (User.age_confirmed_at),
+  /// and a client refusal is what blocks activation.
+  age_confirmed_by_therapist_at DateTime?
+  age_confirmed_by_therapist_id String?
+  /// Registration → invite is a two-step handover while the app is on Play
+  /// internal testing: a therapist adding a client does not email them (the
+  /// address has to be on the tester list first, or the Play link is a dead
+  /// end). `tester_access_added_at` is the operator's "Mark tester access
+  /// added" action; `invite_sent_at` is the email that follows it.
+  tester_access_added_at DateTime?
+  invite_sent_at         DateTime?
   /// OKUVU v2.0: client's consent for this therapist to view raw chat
   /// content (vs. summaries only). Defaults false (opt-in). Enforced on
   /// Report Card, Session Prep, and clients.detail's careReviewFlagged.
@@ -261,6 +339,15 @@ model TherapistClient {
   /// chat access" (clients.requestChatAccess). Cleared by the client's own
   /// grant/deny via PATCH /users/me/chat-access. Null = never requested.
   chat_access_requested_at DateTime?
+  /// When the CLIENT approved the request above. The 30-day read-only window
+  /// is measured from this timestamp, not from the ask — an ask the client
+  /// never answered opens nothing (see clients.ts#chatAccessWindow).
+  chat_access_granted_at DateTime?
+  /// When the window closed: the client revoked, or the migration that made
+  /// approval mandatory closed a window that had only ever been asked for.
+  /// The window is half-open on [granted_at, min(granted_at+30d,
+  /// closed_at)) — a closed_at in the past closes it immediately.
+  chat_access_closed_at  DateTime?
   /// Status lifecycle (wireframes C-07/C-08) is DERIVED, not stored, from
   /// created_at/activated_at/ended_at — see clients.ts's deriveStatus() —
   /// to avoid a redundant field that can drift from the timestamps.

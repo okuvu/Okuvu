@@ -3,12 +3,15 @@ import type { PrismaClient } from '@okuvu/prisma';
 import { appRouter } from '../routers/_app';
 
 /**
- * E16-S9 — clients.conversation.
+ * E16-S9 / Portal P0 — clients.conversation.
  *
- * Mirrors clients-chat-access.test.ts's 30-day boundary suite (29 days in,
- * 31 days out) from the read side, then covers the two clauses that are
- * specific to this story: a client with no access row is refused, and a
- * successful read appends exactly one ClinicalAccessLog row.
+ * The read window is the CLIENT's approval, not the therapist's request:
+ * 30 days from chat_access_granted_at, closed early by
+ * chat_access_closed_at (a revocation). A request the client never answered
+ * opens nothing. These are the boundary cases for that rule, from the read
+ * side, plus the two clauses specific to this story: a client with no access
+ * row is refused, and a successful read appends exactly one
+ * ClinicalAccessLog row.
  *
  * Unlike the chat-access suite these run with the bypass OFF — the bypass
  * short-circuits both assertClientAssigned and logClinicalAccess, which
@@ -32,10 +35,14 @@ interface Overrides {
 function buildPrisma(overrides: Overrides = {}) {
   // `in`-checks so an explicit `null` (a real lookup miss) isn't treated as
   // "not provided" — same convention as authorization.test.ts.
+  // Portal P0 default: the client approved a day ago, nothing has closed it.
   const assignment =
     'assignment' in overrides
       ? overrides.assignment
-      : { chat_access_requested_at: new Date(Date.now() - 24 * 60 * 60 * 1000) };
+      : {
+          chat_access_granted_at: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          chat_access_closed_at: null,
+        };
 
   return {
     therapist: { findUnique: vi.fn().mockResolvedValue(THERAPIST) },
@@ -100,9 +107,12 @@ afterEach(() => {
 });
 
 describe('clients.conversation — access window boundaries', () => {
-  it('allows the read when chat access was requested 29 days ago', async () => {
+  it('allows the read when the client approved 29 days ago', async () => {
     const prisma = buildPrisma({
-      assignment: { chat_access_requested_at: new Date(Date.now() - TWENTY_NINE_DAYS_MS) },
+      assignment: {
+        chat_access_granted_at: new Date(Date.now() - TWENTY_NINE_DAYS_MS),
+        chat_access_closed_at: null,
+      },
       turns: [turnRow(0, 'user', 'I felt anxious today'), turnRow(1, 'assistant', 'What happened?')],
     });
     const caller = callerWith(prisma);
@@ -113,9 +123,12 @@ describe('clients.conversation — access window boundaries', () => {
     expect(prisma.turn.findMany).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses the read when chat access was requested 31 days ago', async () => {
+  it('refuses the read when the client approved 31 days ago', async () => {
     const prisma = buildPrisma({
-      assignment: { chat_access_requested_at: new Date(Date.now() - THIRTY_ONE_DAYS_MS) },
+      assignment: {
+        chat_access_granted_at: new Date(Date.now() - THIRTY_ONE_DAYS_MS),
+        chat_access_closed_at: null,
+      },
       turns: [turnRow(0, 'user', 'I felt anxious today')],
     });
     const caller = callerWith(prisma);
@@ -130,12 +143,14 @@ describe('clients.conversation — access window boundaries', () => {
   });
 
   it('refuses at the exact 30-day boundary (window is half-open)', async () => {
-    const requestedAt = new Date(Date.now() - THIRTY_DAYS_MS);
-    const prisma = buildPrisma({ assignment: { chat_access_requested_at: requestedAt } });
+    const grantedAt = new Date(Date.now() - THIRTY_DAYS_MS);
+    const prisma = buildPrisma({
+      assignment: { chat_access_granted_at: grantedAt, chat_access_closed_at: null },
+    });
     const caller = callerWith(prisma);
 
     // Freeze the clock at the instant the window closes.
-    const now = requestedAt.getTime() + THIRTY_DAYS_MS;
+    const now = grantedAt.getTime() + THIRTY_DAYS_MS;
     vi.useFakeTimers();
     vi.setSystemTime(new Date(now));
     try {
@@ -147,8 +162,49 @@ describe('clients.conversation — access window boundaries', () => {
     }
   });
 
+  it('refuses when the therapist asked but the client never answered', async () => {
+    // The consent bug this rule fixes: an unanswered request used to open a
+    // 30-day window on its own.
+    const prisma = buildPrisma({
+      assignment: {
+        chat_access_requested_at: new Date(Date.now() - 60 * 60 * 1000),
+        chat_access_granted_at: null,
+        chat_access_closed_at: null,
+      },
+    });
+    const caller = callerWith(prisma);
+
+    await expect(caller.clients.conversation({ clientUserId: CLIENT_ID })).rejects.toThrow(
+      /chat access is not available/i,
+    );
+    expect(prisma.turn.findMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the client revoked, even inside the 30 days', async () => {
+    const prisma = buildPrisma({
+      assignment: {
+        chat_access_granted_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        chat_access_closed_at: new Date(Date.now() - 60 * 60 * 1000),
+      },
+      turns: [turnRow(0, 'user', 'still here')],
+    });
+    const caller = callerWith(prisma);
+
+    await expect(caller.clients.conversation({ clientUserId: CLIENT_ID })).rejects.toThrow(
+      /chat access is not available/i,
+    );
+    expect(prisma.turn.findMany).not.toHaveBeenCalled();
+    expect(prisma.clinicalAccessLog.create).not.toHaveBeenCalled();
+  });
+
   it('refuses when chat access was never requested', async () => {
-    const prisma = buildPrisma({ assignment: { chat_access_requested_at: null } });
+    const prisma = buildPrisma({
+      assignment: {
+        chat_access_requested_at: null,
+        chat_access_granted_at: null,
+        chat_access_closed_at: null,
+      },
+    });
     const caller = callerWith(prisma);
 
     await expect(caller.clients.conversation({ clientUserId: CLIENT_ID })).rejects.toThrow(

@@ -255,7 +255,7 @@ describe('authorization: an assigned therapist can read their own client', () =>
     expect(result.careReviewFlagged).toBe(false);
   });
 
-  it('clients.detail surfaces the consent chip fields (therapist-portal wireframes C-08)', async () => {
+  it('clients.detail surfaces the consent line and the two-sided age attestation', async () => {
     const prisma = buildPrisma({
       therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_requested_at: null },
       user: {
@@ -275,12 +275,18 @@ describe('authorization: an assigned therapist can read their own client', () =>
 
     const result = await caller.clients.detail({ clientUserId: 'client_1' });
 
-    expect(result.consent).toEqual({
-      safety: true,
-      mood: false,
-      chatAccess: true,
-      chatAccessRequestedAt: null,
-    });
+    // Portal P0 — the old four-boolean `consent` object (safety · mood ·
+    // chatAccess) is gone. Mood sharing is a plain boolean and chat access is
+    // a four-state value that the read gate also uses, so the sentence the
+    // therapist reads cannot disagree with the gate. This client has
+    // chat_access_granted = true but no approval timestamp, i.e. a grant from
+    // before approval recorded a time: it opens nothing.
+    expect(result.moodShared).toBe(false);
+    expect(result.chatAccess).toEqual({ state: 'not_requested' });
+    expect(result.ageConfirmedByTherapistAt).toBeNull();
+    expect(result.ageConfirmedByClientAt).toBeNull();
+    // The masked phone is no longer part of the client's wire shape at all.
+    expect(result).not.toHaveProperty('phoneNumber');
   });
 
   it('clients.detail derives status from activated_at/ended_at (therapist-portal wireframes C-07)', async () => {
@@ -325,7 +331,9 @@ describe('authorization: an assigned therapist can read their own client', () =>
     expect(result).toEqual({ success: true });
     expect(prisma.therapistClient.update).toHaveBeenCalledWith({
       where: { therapist_id_client_user_id: { therapist_id: THERAPIST.id, client_user_id: 'client_1' } },
-      data: { ended_at: expect.any(Date) },
+      // Portal P0 — ending care also closes the chat read window, which is now
+      // the client's approval rather than the therapist's request.
+      data: { ended_at: expect.any(Date), chat_access_closed_at: expect.any(Date) },
     });
     expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
       data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'END_CLIENT' },

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { randomInt } from 'node:crypto';
 import { protectedProcedure, router } from '../trpc';
 import { checkRateLimit } from '../rate-limit';
-import { sendInviteEmail } from '@/lib/email';
+import { sendInviteEmail, sendClientInviteEmail } from '@/lib/email';
 import { hashInviteToken } from '@/lib/invite-token-hash';
 import { isAdminEmail } from '@/lib/admin-allowlist';
 import { maskPhone } from '@/lib/format';
@@ -169,6 +169,11 @@ export const adminRouter = router({
               activated_at: true,
               ended_at: true,
               chat_access_granted: true,
+              // Portal P0 — the invite handover: the console shows "mark tester
+              // access added" until tester_access_added_at is set, and "invited"
+              // only once the email actually went out.
+              tester_access_added_at: true,
+              invite_sent_at: true,
               therapist: { select: { id: true, name: true, email: true } },
             },
           },
@@ -191,6 +196,8 @@ export const adminRouter = router({
             label: a.therapist.name ?? a.therapist.email,
             activated: a.activated_at !== null,
             chatAccess: a.chat_access_granted,
+            testerAccessAdded: a.tester_access_added_at !== null,
+            inviteSent: a.invite_sent_at !== null,
           })),
           therapyState:
             current.length === 0
@@ -447,7 +454,7 @@ export const adminRouter = router({
     .mutation(async ({ ctx, input }) => {
       const client = await ctx.db.user.findFirst({
         where: { phone_number: input.clientPhoneNumber },
-        select: { id: true },
+        select: { id: true, full_name: true, email: true },
       });
       if (!client) {
         // The operator reaches this form with a number off an intake sheet, so
@@ -494,6 +501,10 @@ export const adminRouter = router({
           therapist_id: therapist.id,
           client_user_id: client.id,
           chat_access_granted: input.chatAccessGranted,
+          // Portal P0 — NOT NULL. The console has no "label" field of its own,
+          // so the legal name it already collected is the therapist's own
+          // record of who this is; that is exactly what client_label means.
+          client_label: client.full_name ?? client.email ?? client.id,
         },
       });
 
@@ -604,7 +615,15 @@ export const adminRouter = router({
         });
 
         await tx.therapistClient.create({
-          data: { therapist_id: therapist.id, client_user_id: client.id },
+          data: {
+            therapist_id: therapist.id,
+            client_user_id: client.id,
+            // Portal P0 — the therapist's own name for this client, and the
+            // only name the portal shows. NOT NULL, so every creation path has
+            // to supply one; the wizard's name field is what a therapist
+            // typed, which is exactly the meaning this column carries.
+            client_label: input.fullName,
+          },
         });
 
         return { client };
@@ -654,6 +673,72 @@ export const adminRouter = router({
       });
 
       return { success: true, inviteCode, emailSent: emailResult.sent };
+    }),
+
+  /**
+   * Portal P0 — the operator's half of the invite handover.
+   *
+   * Play internal testing only admits Google accounts on the tester list, so
+   * a client added by a therapist cannot use a download link until someone
+   * has added their address to that group by hand. This is the "I did it"
+   * button: it records the action, then sends the one invite email the client
+   * ever receives.
+   *
+   * Not idempotent on purpose — a re-click re-sends, which is what an
+   * operator does when a client says the email never arrived. `invite_sent_at`
+   * is only written when the send actually succeeded, so the roster keeps
+   * showing "waiting for app access" rather than claiming an email that never
+   * went out.
+   */
+  markTesterAccessAdded: adminMutation
+    .input(z.object({ clientUserId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const assignment = await ctx.db.therapistClient.findFirst({
+        where: { client_user_id: input.clientUserId, ended_at: null },
+        select: {
+          id: true,
+          client_label: true,
+          therapist: { select: { name: true, email: true } },
+          client: { select: { email: true } },
+        },
+      });
+
+      if (!assignment) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'No active therapist relationship for that client',
+        });
+      }
+      const email = assignment.client.email;
+      if (!email) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'That client has no sign-in address on file — the invite has nowhere to go.',
+        });
+      }
+
+      await ctx.db.therapistClient.update({
+        where: { id: assignment.id },
+        data: { tester_access_added_at: new Date() },
+      });
+
+      const result = await sendClientInviteEmail({
+        to: email,
+        therapistName: assignment.therapist?.name ?? assignment.therapist?.email ?? 'Your therapist',
+      });
+
+      if (result.sent) {
+        await ctx.db.therapistClient.update({
+          where: { id: assignment.id },
+          data: { invite_sent_at: new Date() },
+        });
+      }
+
+      return {
+        success: true,
+        emailSent: result.sent,
+        clientLabel: assignment.client_label,
+      };
     }),
 
   // ── Removing a client ─────────────────────────────────────────────────

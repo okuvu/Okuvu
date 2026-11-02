@@ -100,7 +100,13 @@ async function main() {
           },
         },
         update: {},
-        create: { therapist_id: therapist.id, client_user_id: client.id },
+        create: {
+          therapist_id: therapist.id,
+          client_user_id: client.id,
+          // Portal P0: NOT NULL. A seed has no therapist-typed label, so the
+          // client's own name stands in.
+          client_label: client.full_name ?? client.email ?? client.id,
+        },
       });
       created += 1;
       console.log(`Assigned ${clientUserId} -> ${therapistEmail}`);

@@ -5,7 +5,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
-    user: {
+    user: { findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn(),
     },
     therapistClient: {

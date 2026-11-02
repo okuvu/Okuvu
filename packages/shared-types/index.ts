@@ -542,11 +542,37 @@ export type ClientCarePlan = {
   assignment_state: AssignmentState
 }
 
-export type ClientLifecycleStatus = 'pending' | 'active' | 'ended'
+/**
+ * The invite/relationship lifecycle the portal's Last-active column renders.
+ *
+ *   waiting_app_access — added by a therapist, not yet on the Play tester
+ *                        list. "Waiting for app access".
+ *   invited            — the invite email went out. "Invited · not signed in
+ *                        yet".
+ *   active             — the client has signed in and pulled their first
+ *                        context.
+ *   ended              — care ended; read-only.
+ *   age_blocked        — the client declined the 18+ attestation in the app.
+ *                        "Couldn't activate: age".
+ *
+ * 'pending' is retired: it conflated "added but not yet emailed" with
+ * "emailed and not yet signed in", which are two different operator actions.
+ */
+export type ClientLifecycleStatus =
+  | 'waiting_app_access'
+  | 'invited'
+  | 'active'
+  | 'ended'
+  | 'age_blocked'
 
 export interface ClientListItem {
   id: string
-  phoneNumber: string
+  /**
+   * The therapist's own label for this client — the only name the portal
+   * shows. Never the client's own display name, never a masked phone, never
+   * a generated "User #E7D8".
+   */
+  clientLabel: string
   carePlan: ClientCarePlan | null
   lastSessionDate: string | null
   safetyState: SafetyState | null

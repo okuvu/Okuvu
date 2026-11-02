@@ -26,8 +26,8 @@ import { prisma } from './prisma.js';
  */
 
 export type GoogleAccountResult =
-  | { status: 'existing_user'; userId: string; phoneNumber: string; email: string | null }
-  | { status: 'linked'; userId: string; phoneNumber: string; email: string | null }
+  | { status: 'existing_user'; userId: string; phoneNumber: string | null; email: string | null }
+  | { status: 'linked'; userId: string; phoneNumber: string | null; email: string | null }
   | { status: 'email_in_use' }
   | { status: 'account_deleted' }
   | { status: 'no_account'; email: string };
