@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/providers.dart';
@@ -10,28 +11,23 @@ import '../models/tool_card_config.dart';
 import '../models/breathing_session.dart';
 import '../../../theme/app_colors.dart';
 import '../../home/breathing_content.dart';
-import 'box_breathing_visual.dart';
+import 'breathing_visuals.dart';
 
-/// One breathing exercise, played as three rounds of ten breaths.
+/// One breathing exercise, played as three rounds and paused between them.
 ///
-/// Owner round 2 (4 Nov 2026) rewrote this card around three defects the owner
-/// reported from the handset:
+/// Owner round 2 (4 Nov 2026) came in three passes: the two handset defects
+/// (a count on a different clock from the shape; an ending inherited by an
+/// exercise nobody had started), then Dr Goswami's approved changes of 3 Nov —
+/// four clearly different techniques, one pace each, a per-technique visual,
+/// five breaths a round for the sigh, three taps instead of a text box, and a
+/// rest at the end rather than a hard wall.
 ///
-/// 1. *The count and the shape disagreed.* Phase timing ticked every 900 ms
-///    while the circle animated over `seconds` seconds, so a 4-second inhale
-///    counted to 4 in 3.6 s and the shape was still growing when the number
-///    reset. Both now come off one duration: the number shown is the seconds
-///    left in the phase, the animation runs exactly that long, and the number
-///    changes on the same frame the shape starts moving.
-/// 2. *"Done. How do you feel now?" appeared on exercises nobody had started.*
-///    The card kept `complete` in its State while the parent rebuilt it with a
-///    different exercise, so a technique switched into mid-session inherited
-///    the previous one's ending. The state now lives in [BreathSession] and
-///    [didUpdateWidget] resets it whenever the exercise changes.
-/// 3. *The exercise ran its preset's cycle count and then stopped for good.*
-///    It now runs ten breaths, pauses to ask how the client feels, offers
-///    Continue or Stop for now, and ends the sitting by itself after the third
-///    round (30 breaths) with a recommendation to take a break.
+/// Both defects were the same shape of bug: state outliving its context. The
+/// count ticked every 900 ms while the circle animated over the full phase, and
+/// the card kept `complete` while the parent swapped the exercise underneath
+/// it. Now every number on screen is the time actually left in the phase, the
+/// shape animates over exactly that long, and [didUpdateWidget] throws the
+/// sitting away when the technique changes.
 ///
 /// [tick] exists so tests can run thirty breaths in milliseconds. Every
 /// duration on screen is a multiple of it; the app always uses one second.
@@ -53,22 +49,28 @@ class GuidedBreathingCard extends ConsumerStatefulWidget {
 class _Phase {
   final String label;
   final int seconds;
+
+  /// Lung posture at the start and end of the phase, 0..1. The visual reads it
+  /// as `fill`; the box uses only the phase index.
   final double from;
   final double to;
 
-  /// Edge index for [BoxBreathingVisual]: 0 inhale, 1 hold, 2 exhale,
-  /// 3 second hold.
-  final int boxPhase;
-
-  const _Phase(this.label, this.seconds, this.from, this.to, this.boxPhase);
+  const _Phase(this.label, this.seconds, this.from, this.to);
 }
 
 class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse;
   final FlutterTts _tts = FlutterTts();
-  final BreathSession _session = BreathSession();
-  final TextEditingController _feeling = TextEditingController();
+
+  /// Rebuilt in [didUpdateWidget] when the exercise changes: a `late final`
+  /// here would keep the first technique's round length and visual for every
+  /// later exercise in the same slot — the same class of bug as the ending
+  /// that appeared on an exercise nobody had started.
+  late BreathingTechnique? _technique;
+  late BreathSession _session;
+
+  BreathFeeling? _feeling;
 
   /// Bumped whenever a running loop must abandon ship (stop, restart, a new
   /// exercise, dispose). Every await inside the loop re-checks it: a `mounted`
@@ -77,27 +79,34 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
 
   /// The one-second wait between counts, held so [._halt] can cancel it. A
   /// bare `Future.delayed` cannot be cancelled, so a stopped session would
-  /// leave a live timer behind it — visible in the app as a count that lands
-  /// after the screen changed, and in tests as a pending timer at teardown.
+  /// leave a live timer behind it.
   Timer? _tickTimer;
   Completer<void>? _tickDone;
 
   String _phaseLabel = 'Ready';
   int _secondsLeft = 0;
-  int _boxPhase = 0;
+  int _phaseIndex = 0;
   bool _running = false;
 
-  Tween<double> _scaleTween = Tween<double>(begin: _minScale, end: _minScale);
+  Tween<double> _fillTween = Tween<double>(begin: 0.15, end: 0.15);
 
   static const _teal = AppColors.violet;
   static const _lteal = AppColors.sageTint;
-  static const double _minScale = 0.45;
+
+  BreathVisual get _visual => _technique?.visual ?? BreathVisual.swell;
+  bool get _showsNumbers => _technique?.showsNumbers ?? true;
 
   @override
   void initState() {
     super.initState();
     _pulse = AnimationController(vsync: this, duration: widget.tick);
+    _bindTechnique();
     unawaited(_configureVoice());
+  }
+
+  void _bindTechnique() {
+    _technique = breathingTechniqueFor(widget.config.type.jsonValue);
+    _session = BreathSession(breathsPerRound: _technique?.breathsPerRound ?? 10);
   }
 
   Future<void> _configureVoice() async {
@@ -117,7 +126,9 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
       // A different exercise now occupies this slot. Nothing from the previous
       // sitting may carry over — that is what made an ending appear on an
       // exercise the client had not even started.
-      _resetToReady();
+      _bindTechnique();
+      _feeling = null;
+      _halt();
     }
   }
 
@@ -126,7 +137,6 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
     _runId += 1;
     _cancelTick();
     _pulse.dispose();
-    _feeling.dispose();
     unawaited(_tts.stop().catchError((Object _) => 0));
     super.dispose();
   }
@@ -150,32 +160,43 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
       widget.config.breathingConfig ??
       const BreathingConfig(
         inhaleSeconds: 4,
-        holdSeconds: 2,
-        exhaleSeconds: 6,
-        cycles: 3,
+        holdSeconds: 0,
+        exhaleSeconds: 8,
+        cycles: 1,
         label: 'Breathing Exercise',
       );
 
-  /// The breath broken into phases, with the shape's scale at each end.
+  /// The breath broken into phases, shaped by the technique's own visual.
   List<_Phase> get _phases {
     final cfg = _cfg;
     final secondInhale = cfg.secondInhaleSeconds ?? 0;
-    final secondHold = cfg.secondHoldSeconds ?? 0;
-    final phases = <_Phase>[];
-    if (secondInhale > 0) {
-      phases.add(_Phase('Breathe in', cfg.inhaleSeconds, _minScale, 0.72, 0));
-      phases.add(_Phase('Breathe in again', secondInhale, 0.72, 1.0, 0));
-    } else {
-      phases.add(_Phase('Breathe in', cfg.inhaleSeconds, _minScale, 1.0, 0));
+    switch (_visual) {
+      case BreathVisual.box:
+        return [
+          _Phase('Breathe in', cfg.inhaleSeconds, 0.45, 1.0),
+          if (cfg.holdSeconds > 0) _Phase('Hold', cfg.holdSeconds, 1.0, 1.0),
+          _Phase('Breathe out', cfg.exhaleSeconds, 1.0, 0.45),
+          if ((cfg.secondHoldSeconds ?? 0) > 0)
+            _Phase('Hold', cfg.secondHoldSeconds!, 0.45, 0.45),
+        ];
+      case BreathVisual.swell:
+        return [
+          _Phase('Fill your lungs… in', cfg.inhaleSeconds, 0.15, 0.62),
+          if (secondInhale > 0) _Phase('and a little more', secondInhale, 0.62, 1.0),
+          _Phase('now breathe out', cfg.exhaleSeconds, 1.0, 0.15),
+        ];
+      case BreathVisual.ripples:
+        return [
+          _Phase('Breathe in', cfg.inhaleSeconds, 0.2, 0.9),
+          _Phase('Hum out', cfg.exhaleSeconds, 0.9, 0.2),
+        ];
+      case BreathVisual.wave:
+        return [
+          _Phase('Breathe in', cfg.inhaleSeconds, 0.15, 1.0),
+          if (cfg.holdSeconds > 0) _Phase('Hold', cfg.holdSeconds, 1.0, 1.0),
+          _Phase('Breathe out', cfg.exhaleSeconds, 1.0, 0.15),
+        ];
     }
-    if (cfg.holdSeconds > 0) {
-      phases.add(_Phase('Hold', cfg.holdSeconds, 1.0, 1.0, 1));
-    }
-    phases.add(_Phase('Breathe out', cfg.exhaleSeconds, 1.0, _minScale, 2));
-    if (secondHold > 0) {
-      phases.add(_Phase('Hold', secondHold, _minScale, _minScale, 3));
-    }
-    return phases;
   }
 
   Future<void> _start() async {
@@ -207,18 +228,19 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
   }
 
   Future<void> _runBreath(int runId) async {
-    for (final phase in _phases) {
+    final phases = _phases;
+    for (var i = 0; i < phases.length; i++) {
       if (!_isCurrent(runId) || !_session.isActive) return;
-      await _runPhase(phase, runId);
+      await _runPhase(phases[i], i, phases.length, runId);
     }
   }
 
-  Future<void> _runPhase(_Phase phase, int runId) async {
+  Future<void> _runPhase(_Phase phase, int index, int count, int runId) async {
     _say(phase.label);
-    _scaleTween = Tween<double>(begin: phase.from, end: phase.to);
+    _fillTween = Tween<double>(begin: phase.from, end: phase.to);
     setState(() {
       _phaseLabel = phase.label;
-      _boxPhase = phase.boxPhase;
+      _phaseIndex = index;
       _secondsLeft = phase.seconds;
     });
     _pulse.duration = widget.tick * phase.seconds;
@@ -272,21 +294,29 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
     _halt();
   }
 
-  void _resetToReady() {
+  void _restart() {
     _session.restart();
-    _feeling.clear();
+    _feeling = null;
     _halt();
   }
 
   void _continue() {
     _session.continueSession();
+    _feeling = null;
     setState(() {});
     unawaited(_runSitting());
   }
 
+  void _openChat() {
+    context.push('/chat');
+  }
+
+  void _openHelplines() {
+    ref.read(crisisOverlayProvider.notifier).show();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cfg = _cfg;
     final stage = _session.stage;
     final showingBreath =
         stage == BreathSessionStage.active || stage == BreathSessionStage.ready;
@@ -305,7 +335,7 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
             const Icon(LucideIcons.wind, color: _teal, size: 18),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(cfg.label,
+              child: Text(_cfg.label,
                   style: const TextStyle(
                       color: _teal, fontWeight: FontWeight.w600, fontSize: 15)),
             ),
@@ -316,11 +346,17 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
           ]),
           const SizedBox(height: 16),
           if (showingBreath) ...[
-            _visual(isBox: cfg.isBoxVisual),
+            _visualAndCount(),
             const SizedBox(height: 10),
             Text(
-              _session.isActive ? _phaseLabel : 'Ten breaths, then a pause',
-              style: TextStyle(color: _teal.withValues(alpha: 0.75), fontSize: 13),
+              _session.isActive
+                  ? _phaseLabel
+                  : '${_session.breathsPerRound} breaths, then a pause',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: _teal.withValues(alpha: 0.85),
+                  fontSize: _showsNumbers ? 13 : 16,
+                  fontWeight: _showsNumbers ? FontWeight.w400 : FontWeight.w500),
             ),
             if (_session.isActive) ...[
               const SizedBox(height: 4),
@@ -328,35 +364,22 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
                   style: TextStyle(
                       color: _teal.withValues(alpha: 0.55), fontSize: 12)),
             ],
-            const SizedBox(height: 10),
-            Text(_timingLine(cfg),
-                style: TextStyle(color: _teal.withValues(alpha: 0.5), fontSize: 12)),
+            if (_showsNumbers) ...[
+              const SizedBox(height: 6),
+              Text(_timingLine(_cfg),
+                  style: TextStyle(
+                      color: _teal.withValues(alpha: 0.45), fontSize: 12)),
+            ],
           ],
           if (stage == BreathSessionStage.paused) _pauseBlock(),
-          if (stage == BreathSessionStage.finished) ...[
-            const Icon(LucideIcons.checkCircle, color: _teal, size: 40),
-            const SizedBox(height: 8),
-            const Text(breathFinishedHeadline,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: _teal, fontWeight: FontWeight.w600, fontSize: 15)),
-            const SizedBox(height: 6),
-            Text(breathFinishedBody,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: _teal.withValues(alpha: 0.8), fontSize: 13)),
-          ],
+          if (stage == BreathSessionStage.finished) ..._finishedBlock(),
           if (stage == BreathSessionStage.stopped) ...[
             const Icon(LucideIcons.pauseCircle, color: _teal, size: 40),
             const SizedBox(height: 8),
-            Text(breathStoppedHeadline(_session.breathsAtStop),
+            Text(breathStoppedCopy,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: _teal, fontWeight: FontWeight.w600, fontSize: 15)),
-            const SizedBox(height: 6),
-            Text('Come back whenever you like.',
                 style: TextStyle(
-                    color: _teal.withValues(alpha: 0.8), fontSize: 13)),
+                    color: _teal.withValues(alpha: 0.85), fontSize: 14)),
           ],
           const SizedBox(height: 16),
           if (stage == BreathSessionStage.ready)
@@ -377,7 +400,7 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
               stage == BreathSessionStage.stopped)
             TextButton(
               key: const Key('breathing_restart_button'),
-              onPressed: _resetToReady,
+              onPressed: _restart,
               child: Text('Start again',
                   style: TextStyle(color: _teal.withValues(alpha: 0.6))),
             ),
@@ -386,6 +409,40 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
     );
   }
 
+  Widget _visualAndCount() {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, _) {
+        final value = _pulse.value.clamp(0.0, 1.0);
+        final fill = _fillTween.transform(value);
+        final phases = _phases.length;
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            BreathingVisual(
+              kind: _visual,
+              phaseIndex: _phaseIndex,
+              phaseCount: phases,
+              progress: value,
+              fill: fill,
+              color: _teal,
+              trackColor: _teal.withValues(alpha: 0.18),
+              size: 200,
+            ),
+            if (_session.isActive && _showsNumbers && _secondsLeft > 0)
+              Text('$_secondsLeft',
+                  style: const TextStyle(
+                      color: _teal,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w300)),
+          ],
+        );
+      },
+    );
+  }
+
+  /// "4-4-4-4", "4-8", "4-6" — the pace line for the techniques that show
+  /// numbers. The sigh shows words instead, so this is never drawn for it.
   String _timingLine(BreathingConfig cfg) =>
       '${cfg.inhaleSeconds}'
       '${(cfg.secondInhaleSeconds ?? 0) > 0 ? '+${cfg.secondInhaleSeconds}' : ''}'
@@ -393,56 +450,34 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
       '-${cfg.exhaleSeconds}'
       '${(cfg.secondHoldSeconds ?? 0) > 0 ? '-${cfg.secondHoldSeconds}' : ''}';
 
-  Widget _visual({required bool isBox}) {
-    return AnimatedBuilder(
-      animation: _pulse,
-      builder: (context, _) {
-        final value = _pulse.value.clamp(0.0, 1.0);
-        final scale = _scaleTween.transform(value);
-        if (isBox) {
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              BoxBreathingVisual(
-                phase: _boxPhase,
-                progress: value,
-                color: _teal,
-                trackColor: _teal.withValues(alpha: 0.2),
-              ),
-              if (_session.isActive) _ring(120, scale),
-            ],
-          );
-        }
-        return _ring(160, scale);
-      },
-    );
-  }
-
-  Widget _ring(double size, double scale) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Center(
-        child: Container(
-          width: size * scale,
-          height: size * scale,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _teal.withValues(alpha: 0.15),
-            border: Border.all(color: _teal, width: 2),
-          ),
-          child: Center(
-            child: _secondsLeft > 0
-                ? Text('$_secondsLeft',
-                    style: const TextStyle(
-                        color: _teal,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w300))
-                : const SizedBox.shrink(),
-          ),
-        ),
+  List<Widget> _finishedBlock() {
+    return [
+      const Icon(LucideIcons.sunrise, color: _teal, size: 40),
+      const SizedBox(height: 8),
+      Text(breathFinishedHeadline(_session.totalPlanned),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+              color: _teal, fontWeight: FontWeight.w600, fontSize: 15)),
+      const SizedBox(height: 6),
+      Text(breathBreakBody,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: _teal.withValues(alpha: 0.8), fontSize: 13)),
+      const SizedBox(height: 14),
+      FilledButton(
+        key: const Key('breathing_done_button'),
+        onPressed: _restart,
+        style: FilledButton.styleFrom(
+            backgroundColor: _teal, minimumSize: const Size.fromHeight(46)),
+        child: const Text(breathDoneLabel),
       ),
-    );
+      const SizedBox(height: 4),
+      TextButton(
+        key: const Key('breathing_talk_button'),
+        onPressed: _openChat,
+        child: Text(breathTalkLabel,
+            style: TextStyle(color: _teal.withValues(alpha: 0.75))),
+      ),
+    ];
   }
 
   Widget _pauseBlock() {
@@ -454,30 +489,46 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
         const Text(breathPauseQuestion,
             style: TextStyle(
                 color: _teal, fontWeight: FontWeight.w600, fontSize: 15)),
-        const SizedBox(height: 4),
-        Text('${_session.totalBreaths} breaths so far.',
-            style: TextStyle(color: _teal.withValues(alpha: 0.8), fontSize: 13)),
-        const SizedBox(height: 10),
-        TextField(
-          key: const Key('breathing_feeling_field'),
-          controller: _feeling,
-          maxLines: 3,
-          minLines: 2,
-          decoration: InputDecoration(
-            hintText: breathPauseHint,
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.6),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _teal.withValues(alpha: 0.2)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _teal.withValues(alpha: 0.2)),
-            ),
-          ),
-        ),
         const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: _feelingTap(BreathFeeling.calmer, breathCalmerLabel)),
+          const SizedBox(width: 8),
+          Expanded(child: _feelingTap(BreathFeeling.same, breathSameLabel)),
+          const SizedBox(width: 8),
+          Expanded(child: _feelingTap(BreathFeeling.worse, breathWorseLabel)),
+        ]),
+        if (_feeling == BreathFeeling.worse) ...[
+          const SizedBox(height: 12),
+          Text(breathWorseCopy,
+              style: TextStyle(color: _teal.withValues(alpha: 0.9), fontSize: 13)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const Key('breathing_talk_okuva_button'),
+                onPressed: _openChat,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _teal,
+                  side: BorderSide(color: _teal.withValues(alpha: 0.5)),
+                ),
+                child: const Text(breathTalkLabel),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton(
+                key: const Key('breathing_helplines_button'),
+                onPressed: _openHelplines,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.crisis,
+                  side: BorderSide(color: AppColors.crisis.withValues(alpha: 0.5)),
+                ),
+                child: const Text('Helplines'),
+              ),
+            ),
+          ]),
+        ],
+        const SizedBox(height: 14),
         Row(children: [
           Expanded(
             child: FilledButton(
@@ -501,6 +552,24 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
           ),
         ]),
       ],
+    );
+  }
+
+  Widget _feelingTap(BreathFeeling feeling, String label) {
+    final selected = _feeling == feeling;
+    return OutlinedButton(
+      key: Key('breathing_feeling_${feeling.name}'),
+      onPressed: () => setState(() => _feeling = feeling),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _teal,
+        backgroundColor: selected ? _teal.withValues(alpha: 0.12) : null,
+        side: BorderSide(
+            color: _teal.withValues(alpha: selected ? 0.8 : 0.3),
+            width: selected ? 2 : 1),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+      ),
+      child: Text(label,
+          textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
     );
   }
 }

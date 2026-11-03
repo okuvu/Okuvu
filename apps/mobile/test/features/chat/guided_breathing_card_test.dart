@@ -8,19 +8,17 @@ import 'package:okuvu/src/features/chat/widgets/guided_breathing_card.dart';
 import 'package:okuvu/src/features/home/breathing_content.dart';
 
 /// The breathing card's behaviour, driven with a millisecond tick so thirty
-/// breaths take milliseconds instead of eight minutes. Owner round 2
-/// (4 Nov 2026): the count must match the shape, the end must not appear on an
-/// exercise nobody started, and a sitting is three rounds of ten.
+/// breaths take milliseconds instead of several minutes.
+///
+/// Owner round 2 (4 Nov 2026), building to Dr Goswami's approved v2.0.0: the
+/// count must match the shape, an ending must never appear on an exercise
+/// nobody started, a sitting is three rounds, the sigh pauses after five, the
+/// answer is three taps rather than a text box, and the end offers a rest with
+/// "Done" plus a smaller "Talk to Okuvu" instead of a hard wall.
 void main() {
-  ToolCardConfig boxConfig() => ToolCardConfig(
-        type: ToolCardType.boxBreathing,
-        breathingConfig: breathingConfigFor(ToolCardType.boxBreathing, BreathingPace.standard),
-      );
-
-  ToolCardConfig sighConfig() => ToolCardConfig(
-        type: ToolCardType.physiologicalSigh,
-        breathingConfig:
-            breathingConfigFor(ToolCardType.physiologicalSigh, BreathingPace.standard),
+  ToolCardConfig configFor(ToolCardType type) => ToolCardConfig(
+        type: type,
+        breathingConfig: breathingConfigFor(type),
       );
 
   Widget app(ToolCardConfig config, {Duration tick = const Duration(milliseconds: 1)}) {
@@ -48,19 +46,20 @@ void main() {
     fail('Never found $finder');
   }
 
-  testWidgets('starts with Start and a ten-breath promise, and no Done screen', (tester) async {
-    await tester.pumpWidget(app(boxConfig()));
+  testWidgets('starts with Start and a ten-breath promise, and no question already open',
+      (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.boxBreathing)));
 
     expect(find.text('Start'), findsOneWidget);
-    expect(find.text('Ten breaths, then a pause'), findsOneWidget);
-    expect(find.text('Done. How do you feel now?'), findsNothing);
+    expect(find.text('10 breaths, then a pause'), findsOneWidget);
+    expect(find.text(breathPauseQuestion), findsNothing);
     expect(find.text('4-4-4-4'), findsOneWidget);
   });
 
   testWidgets('the countdown is the seconds left in the phase, and the shape shares its clock',
       (tester) async {
     await tester.pumpWidget(
-      app(boxConfig(), tick: const Duration(milliseconds: 100)),
+      app(configFor(ToolCardType.boxBreathing), tick: const Duration(milliseconds: 100)),
     );
     await tester.tap(find.text('Start'));
     await tester.pump();
@@ -87,34 +86,33 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('after ten breaths it asks how they feel, with a free-text box and two buttons',
+  testWidgets('after ten breaths it asks how they feel, with three taps and no text box',
       (tester) async {
-    await tester.pumpWidget(app(boxConfig()));
+    await tester.pumpWidget(app(configFor(ToolCardType.boxBreathing)));
     await tester.tap(find.text('Start'));
     await tester.pump();
 
     await pumpUntil(tester, find.text(breathPauseQuestion));
 
     expect(find.text(breathPauseQuestion), findsOneWidget);
-    expect(find.byKey(const Key('breathing_feeling_field')), findsOneWidget);
+    expect(find.byKey(const Key('breathing_feeling_calmer')), findsOneWidget);
+    expect(find.byKey(const Key('breathing_feeling_same')), findsOneWidget);
+    expect(find.byKey(const Key('breathing_feeling_worse')), findsOneWidget);
+    // Her instruction: no free-text channel at 2 a.m.
+    expect(find.byType(TextField), findsNothing);
     expect(find.byKey(const Key('breathing_continue_button')), findsOneWidget);
     expect(find.byKey(const Key('breathing_stop_for_now_button')), findsOneWidget);
-    expect(find.text('10 breaths so far.'), findsOneWidget);
     // Nothing else claims the sitting is over.
-    expect(find.text('Done. How do you feel now?'), findsNothing);
     expect(find.byKey(const Key('breathing_restart_button')), findsNothing);
   });
 
-  testWidgets('the typed answer is accepted and does not block continuing', (tester) async {
-    await tester.pumpWidget(app(boxConfig()));
+  testWidgets('a tap is recorded and does not block continuing', (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.boxBreathing)));
     await tester.tap(find.text('Start'));
     await tester.pump();
-    await pumpUntil(tester, find.byKey(const Key('breathing_feeling_field')));
+    await pumpUntil(tester, find.byKey(const Key('breathing_feeling_calmer')));
 
-    await tester.enterText(
-      find.byKey(const Key('breathing_feeling_field')),
-      'Lighter than before.',
-    );
+    await tester.tap(find.byKey(const Key('breathing_feeling_calmer')));
     await tester.pump();
 
     await tester.tap(find.byKey(const Key('breathing_continue_button')));
@@ -126,48 +124,68 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('continue gives a second and third round, then stops at thirty for a break',
-      (tester) async {
-    await tester.pumpWidget(app(boxConfig()));
+  testWidgets('"Worse" offers Okuvu and the helplines', (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.boxBreathing)));
     await tester.tap(find.text('Start'));
     await tester.pump();
+    await pumpUntil(tester, find.byKey(const Key('breathing_feeling_worse')));
 
-    await pumpUntil(tester, find.text('10 breaths so far.'));
-    await tester.tap(find.byKey(const Key('breathing_continue_button')));
+    expect(find.byKey(const Key('breathing_talk_okuva_button')), findsNothing);
+    await tester.tap(find.byKey(const Key('breathing_feeling_worse')));
     await tester.pump();
 
-    await pumpUntil(tester, find.text('20 breaths so far.'));
-    await tester.tap(find.byKey(const Key('breathing_continue_button')));
-    await tester.pump();
-
-    await pumpUntil(tester, find.text(breathFinishedHeadline));
-
-    expect(find.text(breathFinishedHeadline), findsOneWidget);
-    expect(find.text(breathFinishedBody), findsOneWidget);
-    // No way to carry on past thirty in this sitting.
-    expect(find.byKey(const Key('breathing_continue_button')), findsNothing);
-    expect(find.text(breathPauseQuestion), findsNothing);
-    expect(find.byKey(const Key('breathing_restart_button')), findsOneWidget);
+    expect(find.text(breathWorseCopy), findsOneWidget);
+    expect(find.byKey(const Key('breathing_talk_okuva_button')), findsOneWidget);
+    expect(find.byKey(const Key('breathing_helplines_button')), findsOneWidget);
   });
 
-  testWidgets('stop for now ends the sitting and says how many breaths were done',
-      (tester) async {
-    await tester.pumpWidget(app(boxConfig()));
+  testWidgets('continue gives a second and third round, then rests at thirty', (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.boxBreathing)));
     await tester.tap(find.text('Start'));
     await tester.pump();
 
-    await pumpUntil(tester, find.text('10 breaths so far.'));
+    await pumpUntil(tester, find.text(breathPauseQuestion));
+    await tester.tap(find.byKey(const Key('breathing_continue_button')));
+    await tester.pump();
+
+    await pumpUntil(tester, find.text(breathPauseQuestion));
+    // The second pause closes round two; round three only starts on continue.
+    expect(find.text('Round 3 of 3'), findsNothing);
+    await tester.tap(find.byKey(const Key('breathing_continue_button')));
+    await tester.pump();
+    expect(find.text('Round 3 of 3'), findsOneWidget);
+
+    await pumpUntil(tester, find.text(breathFinishedHeadline(30)));
+
+    expect(find.text(breathFinishedHeadline(30)), findsOneWidget);
+    expect(find.text(breathBreakBody), findsOneWidget);
+    // No way to carry on past the ceiling in this sitting...
+    expect(find.byKey(const Key('breathing_continue_button')), findsNothing);
+    expect(find.text(breathPauseQuestion), findsNothing);
+    // ...but it is a rest, not a wall: Done is the main button, and a smaller
+    // route to her "Talk to Okuvu" exists.
+    expect(find.byKey(const Key('breathing_done_button')), findsOneWidget);
+    expect(find.byKey(const Key('breathing_talk_button')), findsOneWidget);
+  });
+
+  testWidgets('stop for now ends the sitting without showing a score', (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.boxBreathing)));
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+
+    await pumpUntil(tester, find.text(breathPauseQuestion));
     await tester.tap(find.byKey(const Key('breathing_stop_for_now_button')));
     await tester.pump();
 
-    expect(find.text(breathStoppedHeadline(10)), findsOneWidget);
-    expect(find.text('Come back whenever you like.'), findsOneWidget);
+    expect(find.text(breathStoppedCopy), findsOneWidget);
+    // "Please do not show the breath count here – it reads like a score."
+    expect(find.textContaining('10 breaths'), findsNothing);
     expect(find.byKey(const Key('breathing_restart_button')), findsOneWidget);
   });
 
   testWidgets('Stop during a breath ends it at once, without a phantom pause', (tester) async {
     await tester.pumpWidget(
-      app(boxConfig(), tick: const Duration(milliseconds: 10)),
+      app(configFor(ToolCardType.boxBreathing), tick: const Duration(milliseconds: 10)),
     );
     await tester.tap(find.text('Start'));
     await tester.pump();
@@ -180,26 +198,62 @@ void main() {
     await tester.tap(find.byKey(const Key('breathing_stop_button')));
     await tester.pump();
 
-    expect(find.text(breathStoppedHeadline(2)), findsOneWidget);
+    expect(find.text(breathStoppedCopy), findsOneWidget);
     // The abandoned loop must not count a third breath behind the screen.
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text(breathStoppedHeadline(2)), findsOneWidget);
+    expect(find.text(breathStoppedCopy), findsOneWidget);
     expect(find.text(breathPauseQuestion), findsNothing);
   });
 
-  testWidgets('switching exercise clears the previous exercise ending', (tester) async {
-    await tester.pumpWidget(app(boxConfig()));
+  testWidgets('the sigh pauses after five breaths and is guided by words, not numbers',
+      (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.physiologicalSigh)));
+    expect(find.text('5 breaths, then a pause'), findsOneWidget);
+
     await tester.tap(find.text('Start'));
     await tester.pump();
-    await pumpUntil(tester, find.text('10 breaths so far.'));
+
+    expect(find.text('Fill your lungs… in'), findsOneWidget);
+    // No number anywhere in the shape, and no pace line either.
+    expect(find.text('4'), findsNothing);
+    expect(find.text('4+1-8'), findsNothing);
+
+    await pumpUntil(tester, find.text(breathPauseQuestion));
+    expect(find.text(breathPauseQuestion), findsOneWidget);
+  });
+
+  testWidgets('humming breath names the hum, and its ceiling is thirty', (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.hummingBreath)));
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+
+    expect(find.text('4-6'), findsOneWidget);
+    expect(find.text('Breathe in'), findsOneWidget);
+
+    await pumpUntil(
+      tester,
+      find.text('Hum out'),
+      step: const Duration(milliseconds: 1),
+    );
+    expect(find.text('Hum out'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('breathing_stop_button')));
+    await tester.pump();
+  });
+
+  testWidgets('switching exercise clears the previous exercise ending', (tester) async {
+    await tester.pumpWidget(app(configFor(ToolCardType.boxBreathing)));
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+    await pumpUntil(tester, find.text(breathPauseQuestion));
 
     // The parent swaps the exercise in place: same slot, different type.
-    await tester.pumpWidget(app(sighConfig()));
+    await tester.pumpWidget(app(configFor(ToolCardType.physiologicalSigh)));
     await tester.pump();
 
     expect(find.text(breathPauseQuestion), findsNothing);
-    expect(find.text('10 breaths so far.'), findsNothing);
     expect(find.text('Start'), findsOneWidget);
     expect(find.text('Physiological Sigh'), findsOneWidget);
+    expect(find.text('5 breaths, then a pause'), findsOneWidget);
   });
 }

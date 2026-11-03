@@ -141,15 +141,15 @@ class _BreathingScreenState extends ConsumerState<BreathingScreen> {
     return assigned ? '$withDefault · from your therapist' : withDefault;
   }
 
-  /// One normal pace per technique: the `standard` preset table. There is no
+  /// One normal pace per technique, fixed by Dr Goswami's review. There is no
   /// picker, so nothing here reads the saved preference — an older saved
-  /// non-standard pace no longer changes what is shown.
+  /// Slower/Faster choice no longer changes what is shown.
   ToolCardConfig _configFor(String toolId) {
     final type = toolCardTypeFromJson(toolId);
     if (!isTunable(type)) return ToolCardConfig(type: type);
     return ToolCardConfig(
       type: type,
-      breathingConfig: breathingConfigFor(type, BreathingPace.standard),
+      breathingConfig: breathingConfigFor(type),
     );
   }
 

@@ -4,17 +4,30 @@
 /// Owner round 2 (4 Nov 2026) replaced the old "run the preset's cycle count
 /// and say Done" shape with three counted rounds:
 ///
-/// * a round is 10 breaths;
-/// * finishing a round pauses the session and asks how the client feels;
+/// * a round is [breathsPerRound] breaths — ten, or five for the physiological
+///   sigh, which is Dr Goswami's ceiling for that technique (repeated sighing
+///   can cause light-headedness);
+/// * finishing a round pauses the sitting and asks how the client feels;
 /// * "Continue" starts the next round, "Stop for now" ends the sitting;
-/// * the third round ends the sitting on its own with a recommendation to
-///   take a break, so nobody is walked into 40+ breaths by one more tap.
+/// * the third round ends the sitting on its own, so nobody is walked into a
+///   fourth round by one more tap.
+///
+/// She asked for the ceiling to stop *the sitting*, not the person: the end
+/// screen offers "Done" as the main button and a smaller "Talk to Okuvu" rather
+/// than a hard wall, because "at 2 a.m. in distress, a hard stop can feel like
+/// being left alone".
 ///
 /// The screen reads [stage] to decide what to show; it never counts breaths
-/// itself, so the pause and the hard stop cannot drift from the display.
+/// itself, so the pause and the ending cannot drift from the display.
 class BreathSession {
-  static const int breathsPerRound = 10;
+  /// Ten breaths, or five for the sigh. Fixed per technique.
+  final int breathsPerRound;
+
+  /// Three comebacks, then the sitting ends.
   static const int maxRounds = 3;
+
+  BreathSession({this.breathsPerRound = 10})
+      : assert(breathsPerRound > 0, 'a round needs at least one breath');
 
   BreathSessionStage _stage = BreathSessionStage.ready;
   int _round = 1;
@@ -33,10 +46,11 @@ class BreathSession {
   /// Breaths completed in this sitting, 0..[totalPlanned].
   int get totalBreaths => _totalBreaths;
 
-  /// Breaths completed when the client stopped early, for the closing line.
+  /// Breaths completed when the client stopped early, kept for tests and
+  /// diagnostics only — the closing line deliberately never shows a count.
   int get breathsAtStop => _breathsAtStop;
 
-  /// 30 by construction: 3 rounds of 10.
+  /// 30 for most techniques, 15 for the sigh: three rounds of [breathsPerRound].
   int get totalPlanned => breathsPerRound * maxRounds;
 
   bool get isActive => _stage == BreathSessionStage.active;
@@ -76,7 +90,7 @@ class BreathSession {
         : BreathSessionStage.paused;
   }
 
-  /// The client asked for another ten breaths.
+  /// The client asked for another round.
   void continueSession() {
     if (!canContinue) return;
     _round += 1;
@@ -108,12 +122,16 @@ enum BreathSessionStage {
   /// A breath is in progress.
   active,
 
-  /// Ten breaths done, more available: ask how they feel.
+  /// A round is done, more available: ask how they feel.
   paused,
 
-  /// All three rounds done: recommend a break, no way back in.
+  /// All three rounds done: offer a rest, no way back in without a restart.
   finished,
 
   /// The client stopped before the end.
   stopped,
 }
+
+/// The three taps that replaced the free-text box, and the value sent to the
+/// server. Null means the client skipped the question.
+enum BreathFeeling { calmer, same, worse }

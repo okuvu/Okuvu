@@ -75,9 +75,12 @@ void main() {
     await tester.tap(find.byKey(const Key('breathing_exercise_dropdown')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Guided breathing'), findsOneWidget);
+    expect(find.text('Humming breath'), findsOneWidget);
     expect(find.text('Physiological sigh'), findsOneWidget);
     expect(find.text('Extended exhale'), findsOneWidget);
+    // Guided breathing is gone: it and Extended exhale were the same exercise
+    // (Dr Goswami, 3 Nov 2026).
+    expect(find.text('Guided breathing'), findsNothing);
   });
 
   testWidgets('there is no Slower / Standard / Faster picker left', (tester) async {
@@ -101,8 +104,8 @@ void main() {
     await _select(tester, 'Extended exhale');
 
     expect(find.text('Extended Exhale'), findsOneWidget);
-    // Standard extended exhale: 4-2-8.
-    expect(find.text('4-2-8'), findsOneWidget);
+    // Normal extended exhale is her 4 in, 8 out — no hold.
+    expect(find.text('4-8'), findsOneWidget);
     // A saved non-standard pace from an older build no longer changes it.
     expect(find.text('3-4-8'), findsNothing);
   });
@@ -134,7 +137,7 @@ void main() {
     // fold on a phone, and on the 800x600 test surface too.
     await tester.drag(find.byType(ListView).last, const Offset(0, -400));
     await tester.pumpAndSettle();
-    expect(find.text('Why it is taught'), findsOneWidget);
+    expect(find.text('Why it helps'), findsOneWidget);
 
     await tester.drag(find.byType(ListView).last, const Offset(0, -1200));
     await tester.pumpAndSettle();
@@ -153,7 +156,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Physiological Sigh'), findsWidgets);
-    expect(find.textContaining('second small sip'), findsOneWidget);
+    expect(find.textContaining('small extra sip'), findsOneWidget);
     expect(find.textContaining('Four equal parts'), findsNothing);
   });
 

@@ -4,9 +4,10 @@
 technique, plus new pause/break wording. Rajwant's instruction on 4 Nov 2026 was explicit: send the
 explanations to Dr Shubhangi Goswami and only put them in the app once she approves the script.
 
-**State: SENT, AWAITING REPLY.** Nothing in this document is approved copy yet. The text below is
-byte-for-byte what the app renders (`apps/mobile/lib/src/features/home/breathing_content.dart`), so an
-approval of this document covers what ships; any edit needs a new version and a fresh review.
+**State: APPROVED WITH CHANGES — v2.0.0 (3 Nov 2026, 19:15 UTC).** She approved the drop-down and
+the (i) panel as described, replaced the technique set and the wording, and answered all three
+questions. Her text, as it now ships, is in the appendix at the end of this document; v1.0.0 below is
+kept only as the record of what was sent.
 
 | Item | Value |
 | --- | --- |
@@ -17,7 +18,7 @@ approval of this document covers what ships; any edit needs a new version and a 
 | From | okuvu &lt;admin@okuvu.in&gt; |
 | Gmail message id | `1a1a2c3077d1bc02` |
 | Bounce check | none (searched mailer-daemon / postmaster / Delivery Status Notification, no hits) |
-| Reply | **none yet** |
+| Reply | **Yes — 3 Nov 2026 19:15 UTC**, message id `1a1a2d6769fe9e01`: "Approved with changes" |
 
 ## What was asked of her
 
@@ -101,3 +102,122 @@ Record her own words and the message id here and in `breathingCopyReview`
 (`breathing_content.dart`: `approvedOn`, `approvalMessageId`), then flip change-log row 10 from
 `In progress` to `Ready`. If she changes any wording, bump the version to 1.1.0 and re-send — an old
 sign-off must never be spent on new words.
+
+---
+
+# Appendix — v2.0.0, approved with changes (3 Nov 2026, 19:15 UTC)
+
+Message id `1a1a2d6769fe9e01`, thread `1a1a2c3077d1bc02`, from alphashubhangi@gmail.com. What she
+changed, in her own framing:
+
+> "Guided breathing (4-2-6) and Extended exhale (4-2-8) are essentially the same exercise, so I would
+> like four that are clearly different from each other, both to do and to watch. Please use the text
+> below exactly."
+
+The set: **Box breathing**, **Physiological sigh**, **Extended exhale** (replacing both Guided and
+Extended) and **Humming breath** (new). The app's rendering of each is `breathing_content.dart`
+version 2.0.0.
+
+## Visuals (hers, one per technique)
+
+- Box breathing: a dot travelling around the four sides of a square.
+- Physiological sigh: a circle that fills, swells a little more, then empties slowly — guided by
+  words, not numbers.
+- Extended exhale: a wave that rises quickly and falls slowly, like a tide going out.
+- Humming breath: ripples spreading outward from the centre during the hum.
+
+## 1. Box breathing — 4 in, 4 hold, 4 out, 4 hold
+
+**What it is:** Four equal parts – breathe in, hold, breathe out, hold – like walking around the four
+sides of a square.
+
+**How to do it:** Breathe in through your nose for 4. Hold for 4. Breathe out for 4. Hold for 4. Then
+begin again. Follow the dot as it moves around the square, so you do not have to count.
+
+**Why it helps:** Counting gives your attention something steady to hold on to, and an even rhythm is
+easier to keep when your mind is not. Use it when you notice yourself tensing, before something you
+are dreading, or when you want to come back to the room you are in.
+
+**If 4 feels too long:** keep the same shape with 3. If holding your breath feels uncomfortable, skip
+the holds.
+
+## 2. Physiological sigh — a full breath in, a little more, a long breath out
+
+**What it is:** A deep breath in through the nose until your lungs feel full, a small extra sip of air
+on top, then one long sigh out through the mouth. It is the breath your body takes by itself after
+crying or a fright.
+
+**How to do it:** Breathe in through your nose and fill your lungs – take as long as you need. When you
+feel full, take one more small sip of air on top. Then let it all go in a long, slow breath out through
+your mouth, longer than your breath in. No holding. Go at your own pace; the screen is a guide, not a
+rule.
+
+**Why it helps:** When you are already wound up, a slow counted breath can feel impossible. This one
+works with how your body already wants to breathe, and the long sigh out is the release. Use it when
+you are already activated – not when you are calm. A few sighs are usually enough.
+
+**If you feel light-headed:** stop and breathe normally for a moment.
+
+Build note from her: no numbers on screen; three word cues in sequence — "Fill your lungs… in", "and a
+little more", "now breathe out" — with the timing unhurried (roughly 4 seconds in, 1 for the top-up,
+8 out).
+
+## 3. Extended exhale — 4 in, 8 out
+
+**What it is:** A slow breath where the out-breath is twice as long as the in-breath. No hold.
+
+**How to do it:** Breathe in through your nose for 4. Breathe out slowly through your mouth or nose for
+8, gently, without forcing it. Follow the wave – it rises as you breathe in and falls slowly as you
+breathe out.
+
+**Why it helps:** A long out-breath is one of the simplest ways to slow fast, shallow breathing. Use it
+when your breathing has moved high into your chest, before sleep, or when you cannot settle.
+
+**If 8 feels too long:** breathe out for 6. Never push the last bit of air out.
+
+## 4. Humming breath — 4 in, 6 hum out
+
+**What it is:** Breathe in through your nose, then breathe out with a soft, steady hum, lips gently
+closed. You may know it from yoga as bhramari, the bee breath.
+
+**How to do it:** Breathe in through your nose for 4. Close your lips and breathe out with a low,
+comfortable hum for 6 – you should feel a gentle buzz in your face and chest. Watch the ripples spread
+while you hum. Then breathe in and begin again.
+
+**Why it helps:** The hum slows your out-breath for you without counting, and the buzz gives your mind
+something to feel instead of think. Use it when your thoughts are racing and counting is not working.
+
+**If you cannot make sound where you are:** hum very softly, or switch to Extended exhale.
+
+## Her answer on pacing, ceiling and the typed answer
+
+- **Pacing:** 10 breaths per pause for Box, Extended exhale and Humming (about 2–3 minutes). For the
+  Physiological sigh, **pause after 5**, as repeated sighing can cause light-headedness.
+- **Ceiling:** keep 30, but do not stop the person outright — "At 2 a.m. in distress, a hard stop can
+  feel like being left alone." At 30, show the break message with **Done** as the main button and a
+  smaller **Talk to Okuvu**.
+- **Typed answer:** replace the typing box with three taps — **Calmer**, **About the same**, **Worse**.
+  "A free-text box at 2 a.m. is a channel nobody is reading." If they tap **Worse**, offer **Talk to
+  Okuvu** and the helplines. If free text is kept for any reason it must go through the safety check
+  (A1) first.
+- **Storage:** store only the technique, number of breaths and the tap answer; show it to the
+  therapist only when breathing is assigned as homework, or when the client has agreed to share — the
+  same permission model as chat access.
+
+## Pause and break copy, as she wrote it
+
+- After every 10 breaths (5 for the sigh): **"Let's pause here. How are you feeling now?"** Buttons:
+  Calmer / About the same / Worse, then **Continue** and **Stop for now**.
+- After 30 breaths: **"That's 30 breaths. A good place to rest – come back to it whenever you need."**
+  Main button: **Done**. Smaller option: **Talk to Okuvu**.
+- Stopping early: **"You took a moment for yourself. Come back whenever you like."** No breath count —
+  "it reads like a score."
+
+## Open dependency — the sigh video (not built)
+
+She asked for a 20–30 second video for the physiological sigh only, opened from the (i) panel (no
+autoplay during the exercise), captions on by default, one person seated with belly and lower ribs
+expanding, labelled "AI-generated demonstration" if it is AI, **and she wants to see the final video
+before it goes in**: "AI video often gets breathing wrong (shoulders lifting, chest-only breaths, no
+visible top-up). If it does not pass, we film a real person instead." Her full script for it is in the
+reply. The app ships the (i) panel without a video rather than with an unapproved one.

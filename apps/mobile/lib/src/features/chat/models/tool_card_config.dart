@@ -4,6 +4,7 @@ enum ToolCardType {
   grounding5431,
   physiologicalSigh,
   extendedExhale,
+  hummingBreath,
 }
 
 ToolCardType toolCardTypeFromJson(String value) {
@@ -18,6 +19,8 @@ ToolCardType toolCardTypeFromJson(String value) {
       return ToolCardType.physiologicalSigh;
     case 'extended_exhale':
       return ToolCardType.extendedExhale;
+    case 'humming_breath':
+      return ToolCardType.hummingBreath;
     default:
       return ToolCardType.guidedBreathing;
   }
@@ -36,6 +39,8 @@ extension ToolCardTypeX on ToolCardType {
         return 'physiological_sigh';
       case ToolCardType.extendedExhale:
         return 'extended_exhale';
+      case ToolCardType.hummingBreath:
+        return 'humming_breath';
     }
   }
 }

@@ -147,4 +147,27 @@ void main() {
     expect(session.totalBreaths, 0);
     expect(session.breathsAtStop, 0);
   });
+
+  test('the sigh pauses after five breaths and ends at fifteen', () {
+    final session = BreathSession(breathsPerRound: 5)..start();
+    expect(session.totalPlanned, 15);
+    expect(session.breathLabel, 'Breath 1 of 5');
+
+    breathe(session, 4);
+    expect(session.stage, BreathSessionStage.active);
+
+    breathe(session, 1);
+    expect(session.stage, BreathSessionStage.paused);
+    expect(session.totalBreaths, 5);
+
+    session.continueSession();
+    breathe(session, 5);
+    expect(session.stage, BreathSessionStage.paused);
+
+    session.continueSession();
+    breathe(session, 5);
+    expect(session.stage, BreathSessionStage.finished);
+    expect(session.totalBreaths, 15);
+    expect(session.canContinue, isFalse);
+  });
 }
