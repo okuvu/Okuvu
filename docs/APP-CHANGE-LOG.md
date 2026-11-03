@@ -61,3 +61,16 @@ pipeline does not apply.
 **No row is user-visible yet.** Rows 1–7 are all screen changes and the phone still runs the
 previous app build; the app side of every row waits on an APK (`1.0.9+10`) that has not been built.
 Approval and runbook: `docs/APP-RELEASE-APPROVAL-ROUND-1.md` (PDF alongside it).
+
+## Documents sent
+
+**Approval pack, sent 3 Nov 2026 13:49 UTC** to Rajwant@suvoksystem.com (from `admin@okuvu.in`),
+subject "OKUVU app, round 1: all changes in one document (plain English + approvals needed)",
+Gmail message id `1a1a1ac2604ce507`. Attachment `Okuvu-App-Release-Approval-Round-1.pdf`,
+26,323 bytes, sha256 `da8842d409fd34c47212f03b4aacefbf3d913c6a4349439915ac9a3a35c8dbea` — the copy in
+`docs/` is byte-identical to what was sent. No delivery-failure notice in the sending mailbox at
+the time of send.
+
+**Journal prompt review, sent 3 Nov 2026 13:53 IST** to Dr Shubhangi Goswami, message id
+`1a1a081322a9bb6b`. Her reply (message id `1a1a16246ae223c3`, 12:28 UTC): *"All prompts approved.
+Add to repository."* — recorded as C1.
