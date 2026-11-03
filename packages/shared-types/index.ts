@@ -612,6 +612,35 @@ export interface CreateJournalEntryBody {
   content: string
 }
 
+// ─── Past Conversations ─────────────────────────────────────────
+// What the Chat screen's "Your conversation will be saved" promise reads back
+// as: GET /sessions lists them, GET /sessions/:id opens one.
+
+export interface PastSessionSummary {
+  id: string
+  started_at: string
+  /** null when the session was never explicitly ended (app closed mid-chat). */
+  ended_at: string | null
+  turn_count: number
+  /** Bubbles in the transcript (user + assistant rows), not turn pairs. */
+  message_count: number
+  /** First thing the user said, one line, trimmed. null if the opening turn is blank. */
+  preview: string | null
+}
+
+export interface SessionTranscriptTurn {
+  role: 'user' | 'assistant'
+  content: string
+  turn_number: number
+}
+
+export interface SessionTranscript {
+  id: string
+  started_at: string
+  ended_at: string | null
+  turns: SessionTranscriptTurn[]
+}
+
 // ─── Test Harness Types (TH-S03) ─────────────────────────────────
 
 export type TestEnvironment = 'sandbox' | 'staging' | 'beta'

@@ -189,7 +189,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('End this session?'),
-        content: const Text('Your conversation will be saved.'),
+        content: const Text(
+          'Your conversation will be saved. You can read it again any time '
+          'from Past conversations — the history icon at the top of this screen.',
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -367,6 +370,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ],
           ),
           actions: [
+            // The end-of-session dialog promises the conversation is saved.
+            // This is where it can be read back — without it the promise had
+            // no visible destination, which is exactly what users reported.
+            IconButton(
+              icon: const Icon(LucideIcons.history),
+              tooltip: 'Past conversations',
+              onPressed: () => context.push('/history'),
+            ),
             if (!isOnline)
               const Padding(
                 padding: EdgeInsets.only(left: 8),

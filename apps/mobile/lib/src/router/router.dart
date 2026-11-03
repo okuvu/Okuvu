@@ -11,6 +11,8 @@ import '../features/consent/consent_screen.dart';
 import '../features/intake/cold_start_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/chat/chat_screen.dart';
+import '../features/history/session_history_screen.dart';
+import '../features/history/session_transcript_screen.dart';
 import '../features/progress/progress_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/profile_screen.dart';
@@ -146,6 +148,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/chat',
         builder: (context, state) => const ChatScreen(),
+      ),
+      GoRoute(
+        path: '/history',
+        builder: (context, state) => const SessionHistoryScreen(),
+      ),
+      GoRoute(
+        path: '/history/:id',
+        builder: (context, state) =>
+            SessionTranscriptScreen(sessionId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/progress',
