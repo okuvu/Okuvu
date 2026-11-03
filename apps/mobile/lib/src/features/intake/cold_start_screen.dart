@@ -16,6 +16,17 @@ class ColdStartScreen extends ConsumerStatefulWidget {
 class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
   bool _navigated = false;
 
+  /// The greeting is a one-time, first-launch screen. Tapping "Let's begin" is
+  /// the moment the user has seen it, so onboarding-complete is persisted here.
+  /// Without this the flag was only ever written by ConsentScreen — a user who
+  /// got a care plan from their therapist and reached the greeting without
+  /// passing consent saw "Your space is ready" on every single launch.
+  Future<void> _begin() async {
+    await ref.read(hasCompletedOnboardingProvider.notifier).complete();
+    if (!mounted) return;
+    context.go('/chat');
+  }
+
   void _resolveNextScreen() {
     if (_navigated) return;
     _navigated = true;
@@ -130,7 +141,7 @@ class _ColdStartScreenState extends ConsumerState<ColdStartScreen> {
                     width: double.infinity,
                     height: 48,
                     child: FilledButton(
-                      onPressed: () => context.go('/chat'),
+                      onPressed: _begin,
                       child: const Text('Let\'s begin'),
                     ),
                   ),

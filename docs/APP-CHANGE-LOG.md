@@ -5,7 +5,7 @@ Nothing gets deployed until the list is finished; then everything is deployed to
 
 | S.No | What changes for you (user view) | Code / Git change needed | Status |
 |------|----------------------------------|--------------------------|--------|
-| 1 | In the chat, history was not available — added chat history so past conversations are still there. | *example row — not a real task* | Sample |
+| 1 | The "Your space is ready / Let's begin" welcome page was showing every time the app opened. Now it shows only on the first launch. After you tap "Let's begin" once, later opens go straight to the home page. | Branch `feat/app-change-round-1`. Tapping "Let's begin" now saves a "welcome seen" flag on the phone (`lib/src/features/intake/cold_start_screen.dart`). Two tests added: `test/features/intake/onboarding_provider_test.dart` (flag survives an app restart) and a new case in `test/features/intake/cold_start_screen_test.dart`. 6 tests pass. | Ready |
 
 ---
 

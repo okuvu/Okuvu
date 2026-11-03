@@ -88,6 +88,28 @@ void main() {
     );
 
     testWidgets(
+      'tapping Let\'s begin marks onboarding complete, so the next launch skips the greeting',
+      (tester) async {
+        await tester.pumpWidget(createTestApp(
+          hasCompletedOnboarding: false,
+          carePlan: const UserCarePlan(carePlanId: 'CP1', focusAreaName: 'Anxiety & Worry'),
+        ));
+        await tester.pumpAndSettle();
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ColdStartScreen)),
+        );
+        expect(container.read(hasCompletedOnboardingProvider), isFalse);
+
+        await tester.tap(find.text("Let's begin"));
+        await tester.pumpAndSettle();
+
+        expect(find.text('CHAT_MARKER'), findsOneWidget);
+        expect(container.read(hasCompletedOnboardingProvider), isTrue);
+      },
+    );
+
+    testWidgets(
       'no care plan and completed onboarding goes to Home, not consent',
       (tester) async {
         await tester.pumpWidget(createTestApp(
