@@ -5,6 +5,7 @@ import {
   getEmergencyContact,
   saveOrClearEmergencyContact,
   MAX_NAME_LENGTH,
+  PHONE_HINT,
   type EmergencyContactPatchBody,
 } from '../lib/emergency-contact.js';
 
@@ -60,7 +61,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
           return reply.status(400).send({
             error: {
               code: 'INVALID_PHONE_FORMAT',
-              message: 'Phone must be in E.164 format (e.g. +1234567890)',
+              message: PHONE_HINT,
             },
           });
         case 'name_too_long':

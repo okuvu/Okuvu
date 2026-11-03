@@ -3,8 +3,19 @@ import { encrypt, decrypt, getEncryptionKey } from '../crypto/emergency-contact-
 
 export type LogFn = (obj: Record<string, unknown>, msg: string) => void;
 
-const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
+// Ten digits, no country code (beta scope, round 2 — the owner asked for
+// "simply 10 digit number for now" after every E.164 save failed). Spaces,
+// dashes, dots and brackets are stripped first, so "98765 43210" saves as
+// "9876543210"; the stripped value is the one encrypted and stored.
+const PHONE_REGEX = /^\d{10}$/;
+export const PHONE_HINT = 'Enter a 10-digit phone number (e.g. 9876543210)';
 export const MAX_NAME_LENGTH = 200;
+
+/** Strip formatting only — never invent digits, never add a country code. */
+export function normalizePhone(raw: string): string {
+  return raw.replace(/[\s\-().]/g, '');
+}
+
 
 export interface SaveEmergencyContactBody {
   name: string;
@@ -123,7 +134,9 @@ export async function saveOrClearEmergencyContact(
       return { status: 'empty_contact' };
     }
 
-    if (body.phone.trim().length > 0 && !PHONE_REGEX.test(body.phone.trim())) {
+    const phone = normalizePhone(body.phone.trim());
+
+    if (phone.length > 0 && !PHONE_REGEX.test(phone)) {
       return { status: 'invalid_phone_format' };
     }
 
@@ -134,7 +147,7 @@ export async function saveOrClearEmergencyContact(
     try {
       const key = await getEncryptionKey();
       const encrypted_name = encrypt(body.name.trim(), key);
-      const encrypted_phone = encrypt(body.phone.trim(), key);
+      const encrypted_phone = encrypt(phone, key);
 
       await prisma.emergencyContact.upsert({
         where: { user_id: user.id },

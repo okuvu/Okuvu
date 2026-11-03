@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +25,7 @@ class _EmergencyContactScreenState
   String? _phoneError;
 
   static const int _maxNameLength = 200;
+  static const int _phoneDigits = 10;
 
   @override
   void dispose() {
@@ -61,23 +63,27 @@ class _EmergencyContactScreenState
 
     if (phone.isNotEmpty && !_isValidPhone(phone)) {
       setState(() {
-        _phoneError = 'Phone must be in international format (e.g. +1234567890)';
+        _phoneError = 'Enter a 10-digit phone number (e.g. 9876543210)';
       });
       return;
     }
 
     await ref
         .read(emergencyContactProvider.notifier)
-        .saveEmergencyContact(name, phone);
+        .saveEmergencyContact(name, _normalizePhone(phone));
     if (mounted) {
       setState(() => _isEditing = false);
     }
   }
 
-  bool _isValidPhone(String phone) {
-    final regex = RegExp(r'^\+[1-9]\d{6,14}$');
-    return regex.hasMatch(phone);
-  }
+  /// Ten digits, no country code (round 2). Formatting characters that a phone
+  /// keyboard or a paste can carry — spaces, dashes, dots, brackets — are
+  /// stripped rather than rejected, so the same number saves either way.
+  static String _normalizePhone(String phone) =>
+      phone.replaceAll(RegExp(r'[\s\-().]'), '');
+
+  bool _isValidPhone(String phone) =>
+      RegExp('^\\d{$_phoneDigits}\$').hasMatch(_normalizePhone(phone));
 
   String _maskPhone(String phone) {
     if (phone.length < 5) return phone;
@@ -176,13 +182,14 @@ class _EmergencyContactScreenState
           const SizedBox(height: 16),
           TextField(
             controller: _phoneController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
               labelText: 'Phone',
-              hintText: '+1234567890',
+              hintText: '10-digit number',
               border: const OutlineInputBorder(),
               errorText: _phoneError,
             ),
-            keyboardType: TextInputType.phone,
             onChanged: (_) {
               if (_phoneError != null) setState(() => _phoneError = null);
             },

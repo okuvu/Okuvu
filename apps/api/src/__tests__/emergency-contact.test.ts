@@ -44,7 +44,7 @@ describe('encryption roundtrip', () => {
   });
 
   it('handles phone numbers with special characters', () => {
-    const phone = '+1234567890';
+    const phone = '98765 43210';
     const encrypted = encrypt(phone, TEST_KEY);
     const decrypted = decrypt(encrypted, TEST_KEY);
     expect(decrypted).toBe(phone);
@@ -85,7 +85,7 @@ describe('GET /settings/emergency-contact', () => {
         id: 'ec-1',
         user_id: MOCK_USER_ID,
         encrypted_name: encrypt('Jane Doe', TEST_KEY),
-        encrypted_phone: encrypt('+1234567890', TEST_KEY),
+        encrypted_phone: encrypt('9876543210', TEST_KEY),
         created_at: new Date(),
       } as any);
       app = buildApp();
@@ -100,7 +100,7 @@ describe('GET /settings/emergency-contact', () => {
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({
         name: 'Jane Doe',
-        phone: '+1234567890',
+        phone: '9876543210',
       });
     });
   });
@@ -229,7 +229,7 @@ describe('PATCH /settings/emergency-contact', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: '/settings/emergency-contact',
-        payload: { name: 'Jane Doe', phone: '+1234567890' },
+        payload: { name: 'Jane Doe', phone: '9876543210' },
       });
 
       expect(response.statusCode).toBe(200);
@@ -253,7 +253,7 @@ describe('PATCH /settings/emergency-contact', () => {
       const callArgs = vi.mocked(prisma.emergencyContact.upsert).mock
         .calls[0][0] as any;
       expect(callArgs.create.encrypted_name).not.toBe('Jane Doe');
-      expect(callArgs.create.encrypted_phone).not.toBe('+1234567890');
+      expect(callArgs.create.encrypted_phone).not.toBe('9876543210');
     });
   });
 
@@ -287,6 +287,39 @@ describe('PATCH /settings/emergency-contact', () => {
     });
   });
 
+  describe('positive — a formatted 10-digit phone is stored as ten digits', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        id: MOCK_USER_ID,
+      } as any);
+      vi.mocked(prisma.emergencyContact.upsert).mockResolvedValue({
+        id: 'ec-1',
+        user_id: MOCK_USER_ID,
+        encrypted_name: 'encrypted',
+        encrypted_phone: 'encrypted',
+        created_at: new Date(),
+      } as any);
+      app = buildApp();
+    });
+
+    it('strips spaces before encrypting, so 98765 43210 is accepted', async () => {
+      const prisma = await importMocks();
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/emergency-contact',
+        payload: { name: 'Jane Doe', phone: '98765 43210' },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const callArgs = vi.mocked(prisma.emergencyContact.upsert).mock
+        .calls[0][0] as any;
+      expect(decrypt(callArgs.create.encrypted_phone, TEST_KEY)).toBe('9876543210');
+    });
+  });
+
   describe('negative — invalid phone format', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
@@ -309,6 +342,18 @@ describe('PATCH /settings/emergency-contact', () => {
       expect(response.json().error.code).toBe('INVALID_PHONE_FORMAT');
       expect(prisma.emergencyContact.upsert).not.toHaveBeenCalled();
     });
+
+    it('returns 400 for a number with a country code, and says what it wants', async () => {
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/settings/emergency-contact',
+        payload: { name: 'Jane', phone: '+919876543210' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_PHONE_FORMAT');
+      expect(response.json().error.message).toContain('10-digit');
+    });
   });
 
   describe('negative — name too long', () => {
@@ -326,7 +371,7 @@ describe('PATCH /settings/emergency-contact', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: '/settings/emergency-contact',
-        payload: { name: 'x'.repeat(201), phone: '+1234567890' },
+        payload: { name: 'x'.repeat(201), phone: '9876543210' },
       });
 
       expect(response.statusCode).toBe(400);
@@ -346,7 +391,7 @@ describe('PATCH /settings/emergency-contact', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: '/settings/emergency-contact',
-        payload: { name: 'Jane', phone: '+1234567890' },
+        payload: { name: 'Jane', phone: '9876543210' },
       });
 
       expect(response.statusCode).toBe(401);
@@ -417,7 +462,7 @@ describe('PATCH /settings/emergency-contact', () => {
       const response = await app.inject({
         method: 'PATCH',
         url: '/settings/emergency-contact',
-        payload: { name: 'Jane', phone: '+1234567890' },
+        payload: { name: 'Jane', phone: '9876543210' },
       });
 
       expect(response.statusCode).toBe(401);
