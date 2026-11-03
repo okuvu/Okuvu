@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
 import 'notification_settings_notifier.dart';
+import 'settings_save_feedback.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
@@ -36,9 +37,14 @@ class NotificationsScreen extends ConsumerWidget {
                     title: const Text('Appointment reminders'),
                     subtitle: const Text("We'll let you know before a session"),
                     value: settings.appointmentRemindersEnabled,
-                    onChanged: (v) => ref
-                        .read(notificationSettingsProvider.notifier)
-                        .setAppointmentReminders(v),
+                    onChanged: (v) async {
+                      final saved = await ref
+                          .read(notificationSettingsProvider.notifier)
+                          .setAppointmentReminders(v);
+                      if (!saved && context.mounted) {
+                        showSettingsSaveFailure(context, 'Appointment reminders');
+                      }
+                    },
                     activeThumbColor: AppColors.violet,
                     inactiveTrackColor: AppColors.hairline,
                   ),
@@ -48,9 +54,14 @@ class NotificationsScreen extends ConsumerWidget {
                     title: const Text('Chat nudges'),
                     subtitle: const Text('Gentle check-in reminders'),
                     value: settings.chatNudgesEnabled,
-                    onChanged: (v) => ref
-                        .read(notificationSettingsProvider.notifier)
-                        .setChatNudges(v),
+                    onChanged: (v) async {
+                      final saved = await ref
+                          .read(notificationSettingsProvider.notifier)
+                          .setChatNudges(v);
+                      if (!saved && context.mounted) {
+                        showSettingsSaveFailure(context, 'Chat nudges');
+                      }
+                    },
                     activeThumbColor: AppColors.violet,
                     inactiveTrackColor: AppColors.hairline,
                   ),

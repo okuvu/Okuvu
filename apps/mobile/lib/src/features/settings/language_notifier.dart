@@ -1,6 +1,4 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:async';
 
 import '../../core/logger.dart';
 import '../../core/providers.dart';
@@ -62,29 +60,29 @@ class LanguageSettingsNotifier extends Notifier<LanguageSettingsState> {
     }
   }
 
-  Future<void> setLanguageMode(String newValue) async {
+  /// Returns whether the server accepted the change; reverts on failure so a
+  /// language that was not stored is never shown as selected.
+  Future<bool> setLanguageMode(String newValue) async {
+    final previous = state.languageMode;
+
     state = state.copyWith(
       languageMode: newValue,
       error: null,
     );
 
-    final dio = ref.read(dioClientProvider);
-
-    unawaited(_persistLanguageMode(dio, newValue));
-  }
-
-  Future<void> _persistLanguageMode(Dio dio, String newValue) async {
     try {
+      final dio = ref.read(dioClientProvider);
       await dio.patch(
         '/settings/language',
         data: {
           'language_mode': newValue,
         },
       );
-    } on DioException catch (e) {
-      Logger.debug('Language mode persistence failed: ${e.response?.statusCode}');
+      return true;
     } catch (e) {
+      state = state.copyWith(languageMode: previous);
       Logger.debug('Language mode persistence failed: $e');
+      return false;
     }
   }
 }

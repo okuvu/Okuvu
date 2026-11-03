@@ -1,6 +1,4 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:async';
 
 import '../../core/logger.dart';
 import '../../core/providers.dart';
@@ -60,29 +58,31 @@ class VoiceSettingsNotifier extends Notifier<VoiceSettingsState> {
     }
   }
 
-  Future<void> toggleVoice(bool newValue) async {
+  /// Saves the new value and returns whether the server accepted it. On
+  /// failure the switch is put back where it was, so the screen never claims a
+  /// preference that was not stored (round 8: the owner's "nothing in Settings
+  /// saves" was partly a screen that kept showing a value the API had rejected).
+  Future<bool> toggleVoice(bool newValue) async {
+    final previous = state.voiceEnabled;
+
     state = state.copyWith(
       voiceEnabled: newValue,
       error: null,
     );
 
-    final dio = ref.read(dioClientProvider);
-
-    unawaited(_persistVoicePreference(dio, newValue));
-  }
-
-  Future<void> _persistVoicePreference(Dio dio, bool newValue) async {
     try {
+      final dio = ref.read(dioClientProvider);
       await dio.patch(
         '/settings/voice',
         data: {
           'voice_enabled': newValue,
         },
       );
-    } on DioException catch (e) {
-      Logger.debug('Voice preference persistence failed: ${e.response?.statusCode}');
+      return true;
     } catch (e) {
+      state = state.copyWith(voiceEnabled: previous);
       Logger.debug('Voice preference persistence failed: $e');
+      return false;
     }
   }
 }

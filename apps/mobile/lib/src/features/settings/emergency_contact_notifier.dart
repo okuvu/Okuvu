@@ -88,11 +88,9 @@ class EmergencyContactNotifier extends Notifier<EmergencyContactState> {
         error: null,
       );
     } on DioException catch (e) {
-      final message = e.response?.data?['error']?['message'] as String? ??
-          'Failed to save emergency contact';
       state = state.copyWith(
         isSaving: false,
-        error: message,
+        error: _saveErrorMessage(e, 'Failed to save emergency contact'),
       );
     } catch (e) {
       state = state.copyWith(
@@ -100,6 +98,19 @@ class EmergencyContactNotifier extends Notifier<EmergencyContactState> {
         error: 'Failed to save emergency contact',
       );
     }
+  }
+
+  /// A 4xx carries a message written for the person typing (bad phone format,
+  /// name too long), so it is shown as-is. A 5xx does not: the beta API's
+  /// failure here read "Failed to encrypt emergency contact data", which tells
+  /// the user nothing they can act on (round 8).
+  String _saveErrorMessage(DioException e, String fallback) {
+    final status = e.response?.statusCode ?? 0;
+    if (status >= 500) {
+      return "We couldn't save your emergency contact just now. "
+          'Please try again in a moment.';
+    }
+    return e.response?.data?['error']?['message'] as String? ?? fallback;
   }
 
   Future<void> clearEmergencyContact() async {

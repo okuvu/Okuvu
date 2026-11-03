@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/settings/quote_of_day_notifier.dart';
+import '../features/settings/settings_save_feedback.dart';
 import '../theme/app_colors.dart';
 
 /// okuvu-remaining-changes.md O6 — Settings toggle for the care-plan-aware
@@ -30,7 +31,14 @@ class QuoteOfDayToggle extends ConsumerWidget {
       title: const Text('Quote of the Day'),
       subtitle: const Text('A short supportive line on your Home screen'),
       value: quoteSettings.enabled,
-      onChanged: (value) => ref.read(quoteOfDaySettingsProvider.notifier).setEnabled(value),
+      onChanged: (value) async {
+        final saved = await ref
+            .read(quoteOfDaySettingsProvider.notifier)
+            .setEnabled(value);
+        if (!saved && context.mounted) {
+          showSettingsSaveFailure(context, 'Quote of the Day');
+        }
+      },
       activeThumbColor: AppColors.violet,
       inactiveTrackColor: AppColors.hairline,
     );

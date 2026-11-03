@@ -163,6 +163,30 @@ data "aws_iam_policy_document" "api_task" {
 
     resources = [aws_kms_key.contacts.arn]
   }
+
+  # The emergency-contact AES key lives in Secrets Manager, so the container
+  # needs to read that one secret — and decrypt it, because the secret itself is
+  # encrypted with the secrets CMK. Without this statement the api answers 500
+  # on every save with AccessDeniedException from GetSecretValue.
+  statement {
+    sid    = "ReadEmergencyContactKey"
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+    ]
+
+    resources = [aws_secretsmanager_secret.emergency_contact_key.arn]
+  }
+
+  statement {
+    sid    = "DecryptEmergencyContactKey"
+    effect = "Allow"
+
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.secrets.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "api_task" {

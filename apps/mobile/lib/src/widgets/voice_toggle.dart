@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/providers.dart';
+import '../features/settings/settings_save_feedback.dart';
 import '../theme/app_colors.dart';
 
 class VoiceToggle extends ConsumerStatefulWidget {
@@ -72,7 +73,13 @@ class _VoiceToggleState extends ConsumerState<VoiceToggle> {
     final voiceNotifier = ref.read(voiceSettingsProvider.notifier);
     final ttsService = ref.read(ttsServiceProvider);
 
-    await voiceNotifier.toggleVoice(value);
+    final saved = await voiceNotifier.toggleVoice(value);
+    if (!saved) {
+      // The switch has already been put back by the notifier; say why, so a
+      // rejected save is not mistaken for a successful one (round 8).
+      if (mounted) showSettingsSaveFailure(context, 'the Voice setting');
+      return;
+    }
     await ttsService.setVoiceEnabled(value);
   }
 }

@@ -4,8 +4,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'language_notifier.dart';
+import 'settings_save_feedback.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
+
+/// Selecting a language writes immediately; a rejected write reverts the tick
+/// and reports it instead of leaving a language selected that was never stored.
+Future<void> _selectLanguage(
+  BuildContext context,
+  WidgetRef ref,
+  String mode,
+  String label,
+) async {
+  final saved =
+      await ref.read(languageSettingsProvider.notifier).setLanguageMode(mode);
+  if (!saved && context.mounted) {
+    showSettingsSaveFailure(context, label);
+  }
+}
 
 class LanguageScreen extends ConsumerWidget {
   const LanguageScreen({super.key});
@@ -46,9 +62,7 @@ class LanguageScreen extends ConsumerWidget {
                     subtitle: 'OKUVU replies in English only.',
                     selected: languageState.languageMode == 'english',
                     theme: theme,
-                    onTap: () => ref
-                        .read(languageSettingsProvider.notifier)
-                        .setLanguageMode('english'),
+                    onTap: () => _selectLanguage(context, ref, 'english', 'English'),
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   _LanguageOptionTile(
@@ -56,9 +70,7 @@ class LanguageScreen extends ConsumerWidget {
                     subtitle: 'OKUVU mixes English and Hindi the way you do.',
                     selected: languageState.languageMode == 'mirror',
                     theme: theme,
-                    onTap: () => ref
-                        .read(languageSettingsProvider.notifier)
-                        .setLanguageMode('mirror'),
+                    onTap: () => _selectLanguage(context, ref, 'mirror', 'Mirror'),
                   ),
                 ],
               ),
