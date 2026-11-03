@@ -12,6 +12,7 @@ import 'widgets/quick_access_tile.dart';
 import 'widgets/today_card.dart';
 import 'widgets/pending_chat_access_banner.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
+import '../settings/profile_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -21,14 +22,17 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  String _greeting(String? displayAbbreviation) {
+  String _greeting({String? fullName, String? displayAbbreviation}) {
     final hour = DateTime.now().hour;
     final base = hour < 12
         ? 'Good morning'
         : hour < 17
             ? 'Good afternoon'
             : 'Good evening';
-    final name = displayAbbreviation?.trim();
+    // Owner round 7 (3 Nov 2026) — the profile name wins, because that is the
+    // name Settings > Profile shows and the one a user edits. The short name
+    // from the welcome screen only covers accounts with no profile name yet.
+    final name = greetingFirstName(fullName) ?? displayAbbreviation?.trim();
     return name != null && name.isNotEmpty ? '$base, $name' : base;
   }
 
@@ -63,8 +67,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final displayAbbreviation =
-        ref.watch(todayCardProvider).asData?.value.displayAbbreviation;
+    final todayCard = ref.watch(todayCardProvider).asData?.value;
+    // Owner round 7 (3 Nov 2026) — the greeting reads the same name the
+    // Profile screen shows. A failed profile fetch (offline, server hiccup)
+    // leaves it null and the today-card short name covers it.
+    final profileName = ref.watch(profileInfoProvider).asData?.value.fullName;
 
     return Scaffold(
       appBar: AppBar(
@@ -88,7 +95,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
           Text(
-            _greeting(displayAbbreviation),
+            _greeting(
+              fullName: profileName,
+              displayAbbreviation: todayCard?.displayAbbreviation,
+            ),
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 4),

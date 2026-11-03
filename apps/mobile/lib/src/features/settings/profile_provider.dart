@@ -1,6 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../home/providers/today_card_provider.dart';
+
+/// Owner round 7 (3 Nov 2026) — Home greeted with the short name saved on the
+/// welcome screen ("S") while Settings > Profile showed the account name
+/// ("Shubha G"), so a name the user edited in Profile never reached the
+/// greeting. The profile name is now the single source; this picks the part
+/// people actually greet each other with, and returns null when there is no
+/// usable name so the caller can fall back to the welcome-screen short name.
+String? greetingFirstName(String? fullName) {
+  final trimmed = fullName?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  final first = trimmed.split(RegExp(r'\s+')).first;
+  return first.isEmpty ? null : first;
+}
 
 class ProfileInfo {
   final String? fullName;
@@ -51,6 +65,11 @@ class ProfileSaveNotifier extends Notifier<void> {
         'date_of_birth': dateOfBirth?.toIso8601String(),
         'gender': gender,
       });
+      // Owner round 7 (3 Nov 2026) — the Home greeting now reads the profile
+      // name, and both providers cache their response. Without these the name
+      // a user just saved would only show up after a restart.
+      ref.invalidate(profileInfoProvider);
+      ref.invalidate(todayCardProvider);
       return true;
     } catch (_) {
       return false;
