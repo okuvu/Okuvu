@@ -132,6 +132,10 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
     nextAppointment: nextAppointment ? toAppointmentView(nextAppointment) : null,
     assignedExercises,
     defaultBoxBreathingPacePreset: pacePresetByToolId.get('box_breathing') ?? 'standard',
+    // Owner round 2 (3 Nov 2026) — the Breathe screen now offers every
+    // approved exercise, not just the box-breathing default, so each one
+    // needs its own saved pace back on the next launch.
+    toolPacePresets: Object.fromEntries(pacePresetByToolId),
     careEnded: endedRelationship !== null,
     careEndedByTherapistName: endedRelationship?.therapist.name ?? null,
     displayAbbreviation: user.clinical_config?.display_abbreviation ?? null,

@@ -75,6 +75,7 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
     const body = response.json();
     expect(body.assignedExercises).toEqual([]);
     expect(body.defaultBoxBreathingPacePreset).toBe('standard');
+    expect(body.toolPacePresets).toEqual({});
   });
 
   it('maps active tool-linked homework to assignedExercises, with per-exercise pace', async () => {
@@ -111,6 +112,12 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
       },
     ]);
     expect(body.defaultBoxBreathingPacePreset).toBe('slower');
+    // Owner round 2 (3 Nov 2026) — every saved pace, not just box breathing's,
+    // so each exercise on the Breathe screen keeps its own pace.
+    expect(body.toolPacePresets).toEqual({
+      physiological_sigh: 'faster',
+      box_breathing: 'slower',
+    });
   });
 
   it('filters the homework query to active rows with a non-null tool_id', async () => {

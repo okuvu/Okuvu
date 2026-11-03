@@ -506,8 +506,16 @@ export interface TodayCard {
   nextAppointment: AppointmentView | null
   /** Decisions doc round, 15 Sep 2026 §4 — active Homework rows with a tool_id link, i.e. real playable exercises (not just free-text homework). */
   assignedExercises: AssignedExerciseView[]
-  /** Decisions doc round, 15 Sep 2026 §4 — the client's own pace preset for their default box-breathing exercise (no Homework row needed for this one). Always one of slower/standard/faster. */
+  /** Decisions doc round, 15 Sep 2026 §4 — the client's own pace preset for their default box-breathing exercise (no Homework row needed for this one). Always one of slower/standard/faster. Retained for older clients; `toolPacePresets` supersedes it. */
   defaultBoxBreathingPacePreset: string
+  /**
+   * Owner round 2 (3 Nov 2026) — every saved pace preset, keyed by tool_id,
+   * so the Breathe screen can offer more than one exercise and still read
+   * each one's saved pace back on the next launch instead of resetting to
+   * standard. Values are always slower/standard/faster; a tool with no row
+   * is simply absent.
+   */
+  toolPacePresets: Record<string, string>
   /** Decisions doc round, 15 Sep 2026 §11 — true once the client's most recent therapist relationship has TherapistClient.ended_at set. */
   careEnded: boolean
   /** The therapist who ended care, for the close screen's copy. Null if careEnded is false. */

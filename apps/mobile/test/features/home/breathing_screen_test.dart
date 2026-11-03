@@ -39,7 +39,7 @@ Widget _buildApp(Dio dio) {
 }
 
 void main() {
-  testWidgets('defaults to box breathing with the saved pace preset, no assigned-exercise row',
+  testWidgets('offers every breathing exercise on first visit, box breathing selected by default',
       (tester) async {
     final recorder = _RecordingDio({
       'reminders': [],
@@ -49,8 +49,14 @@ void main() {
     await tester.pumpWidget(_buildApp(recorder.build()));
     await tester.pumpAndSettle();
 
+    // Owner round 2 (3 Nov 2026): the rest of the therapist portal's
+    // exercises are on the screen, not only the box-breathing default.
+    expect(find.text('Box breathing (default)'), findsOneWidget);
+    expect(find.text('Guided breathing'), findsOneWidget);
+    expect(find.text('Physiological sigh'), findsOneWidget);
+    expect(find.text('Extended exhale'), findsOneWidget);
+
     expect(find.text('Box Breathing'), findsOneWidget);
-    expect(find.text('From your therapist'), findsNothing);
     // Faster preset: 3-3-3-3
     expect(find.text('3-3-3-3'), findsOneWidget);
     final segmentedButton = tester
@@ -58,8 +64,74 @@ void main() {
     expect(segmentedButton.selected, {BreathingPace.faster});
   });
 
-  testWidgets('shows an assigned-exercise chip row and switches the active exercise on tap',
+  testWidgets('switching to another exercise plays that exercise', (tester) async {
+    final recorder = _RecordingDio({
+      'reminders': [],
+      'assignedExercises': [],
+      'defaultBoxBreathingPacePreset': 'standard',
+    });
+    await tester.pumpWidget(_buildApp(recorder.build()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Extended exhale'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Extended Exhale'), findsOneWidget);
+    // Standard extended exhale: 4-2-8
+    expect(find.text('4-2-8'), findsOneWidget);
+  });
+
+  testWidgets('reads each exercise back at its own saved pace', (tester) async {
+    final recorder = _RecordingDio({
+      'reminders': [],
+      'assignedExercises': [],
+      'defaultBoxBreathingPacePreset': 'faster',
+      'toolPacePresets': {'box_breathing': 'faster', 'extended_exhale': 'slower'},
+    });
+    await tester.pumpWidget(_buildApp(recorder.build()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('3-3-3-3'), findsOneWidget);
+
+    await tester.tap(find.text('Extended exhale'));
+    await tester.pumpAndSettle();
+
+    // Slower extended exhale: 3-4-8
+    expect(find.text('3-4-8'), findsOneWidget);
+    final segmentedButton = tester
+        .widget<SegmentedButton<BreathingPace>>(find.byType(SegmentedButton<BreathingPace>));
+    expect(segmentedButton.selected, {BreathingPace.slower});
+
+    // And back to box breathing without inheriting the sigh's pace.
+    await tester.tap(find.text('Box breathing (default)'));
+    await tester.pumpAndSettle();
+    expect(find.text('3-3-3-3'), findsOneWidget);
+  });
+
+  testWidgets('changing the pace of a non-default exercise saves it against that exercise',
       (tester) async {
+    final recorder = _RecordingDio({
+      'reminders': [],
+      'assignedExercises': [],
+      'defaultBoxBreathingPacePreset': 'standard',
+    });
+    await tester.pumpWidget(_buildApp(recorder.build()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Physiological sigh'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Faster'));
+    await tester.pumpAndSettle();
+
+    final patch = recorder.requests.firstWhere(
+      (r) => r.method == 'PATCH' && r.path == '/users/me/tool-preference',
+    );
+    expect(patch.data, {'tool_id': 'physiological_sigh', 'pace_preset': 'faster'});
+    // Faster physiological sigh: 2+2-5
+    expect(find.text('2+2-5'), findsOneWidget);
+  });
+
+  testWidgets('marks an exercise the therapist assigned', (tester) async {
     final recorder = _RecordingDio({
       'reminders': [],
       'assignedExercises': [
@@ -75,17 +147,13 @@ void main() {
     await tester.pumpWidget(_buildApp(recorder.build()));
     await tester.pumpAndSettle();
 
-    expect(find.text('From your therapist'), findsOneWidget);
-    expect(find.text('Physiological Sigh'), findsWidgets);
-
-    await tester.tap(find.text('Physiological Sigh').first);
-    await tester.pumpAndSettle();
-
-    // Standard physiological sigh: 2+2-8, 5 cycles
-    expect(find.text('2+2-8'), findsOneWidget);
+    expect(find.text('Physiological sigh · from your therapist'), findsOneWidget);
+    // Not listed twice: the built-in chip carries the marking instead of a
+    // second chip with the portal's own label.
+    expect(find.text('Physiological Sigh'), findsNothing);
   });
 
-  testWidgets('hides the pace picker for a non-tunable assigned exercise (grounding)',
+  testWidgets('keeps an assigned tool that is not a breathing exercise, without a pace picker',
       (tester) async {
     final recorder = _RecordingDio({
       'reminders': [],
@@ -109,7 +177,8 @@ void main() {
     expect(find.text('5-4-3-2-1 Grounding'), findsWidgets);
   });
 
-  testWidgets('changing the pace preset sends a PATCH /users/me/tool-preference', (tester) async {
+  testWidgets('changing the default exercise pace sends a PATCH /users/me/tool-preference',
+      (tester) async {
     final recorder = _RecordingDio({
       'reminders': [],
       'assignedExercises': [],

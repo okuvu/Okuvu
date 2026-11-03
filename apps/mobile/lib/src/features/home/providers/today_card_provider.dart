@@ -90,6 +90,10 @@ class TodayCardData {
   final AppointmentView? nextAppointment;
   final List<AssignedExercise> assignedExercises;
   final String defaultBoxBreathingPacePreset;
+  /// Owner round 2 (3 Nov 2026) — every saved pace preset keyed by tool_id,
+  /// so each exercise on the Breathe screen keeps its own pace across
+  /// launches now that there is more than one of them.
+  final Map<String, String> toolPacePresets;
   final bool careEnded;
   final String? careEndedByTherapistName;
   final String? displayAbbreviation;
@@ -104,6 +108,7 @@ class TodayCardData {
     required this.nextAppointment,
     required this.assignedExercises,
     required this.defaultBoxBreathingPacePreset,
+    this.toolPacePresets = const {},
     required this.careEnded,
     required this.careEndedByTherapistName,
     required this.displayAbbreviation,
@@ -145,6 +150,10 @@ class TodayCardData {
           .toList(),
       defaultBoxBreathingPacePreset:
           json['defaultBoxBreathingPacePreset'] as String? ?? 'standard',
+      // Owner round 2 (3 Nov 2026) — absent on older server builds, in which
+      // case the box-breathing default below is the only pace we know.
+      toolPacePresets: (json['toolPacePresets'] as Map<String, dynamic>? ?? const {})
+          .map((key, value) => MapEntry(key, value as String)),
       // Decisions doc round, 15 Sep 2026 §11 — surfaces a closed
       // TherapistClient relationship so the app can show the graceful-close
       // screen. Only ever true when there's no active relationship.
