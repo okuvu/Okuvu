@@ -38,6 +38,19 @@ All `Ready` rows are deployed together in one release at the end, not one at a t
 After the deploy, each row flips from `Ready` to `Live` and the release number is added
 under "Releases" below.
 
+## Approval pack
+
+This list is the record of what was built. For approval and the release steps, read
+`docs/APP-RELEASE-APPROVAL-ROUND-1.md` — it carries the plain-English version, the technical
+requirements, the three separate approvals (code / AWS / app), the clinical gate, and the
+runbook.
+
 ## Releases
 
-_None yet._
+**Build in flight (3 Nov 2026, 13:23 UTC).** Rows 1–7 were merged to `develop` before the
+approval pack was written, so the server half of them is deploying in build
+`evia-beta-build:cd2eaaf0` (source `d0a00f5`). It carries the journal migration and the three
+new endpoints. Row 8 is not in it — those two commits are still on the branch. The app side of
+every row needs a new APK (`1.0.9+10`), which has not been built.
+
+_No row is `Live` yet._
