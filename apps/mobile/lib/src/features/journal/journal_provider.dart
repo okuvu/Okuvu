@@ -66,6 +66,26 @@ class JournalEntryFormNotifier extends Notifier<JournalEntryFormState> {
     state = state.copyWith(emotion: () => emotion);
   }
 
+  /// Tapping the same mood twice clears it. A mood is optional, and a client
+  /// who picked one by accident (or changed their mind on rereading the page)
+  /// needs a way back to "no mood" that is discoverable — not a hidden gesture.
+  /// Clearing the mood clears the strength with it: a strength with no feeling
+  /// is not an answer, and the dots would otherwise stay filled under a chip
+  /// that is no longer selected.
+  void toggleEmotion(String emotion) {
+    final clearing = state.emotion == emotion;
+    state = state.copyWith(
+      emotion: () => clearing ? null : emotion,
+      intensity: clearing ? 0 : state.intensity,
+    );
+  }
+
+  /// Clears mood and strength together (the "Clear" control next to the
+  /// question). Writing stays untouched.
+  void clearMood() {
+    state = state.copyWith(emotion: () => null, intensity: 0);
+  }
+
   void setIntensity(int intensity) {
     state = state.copyWith(intensity: intensity);
   }

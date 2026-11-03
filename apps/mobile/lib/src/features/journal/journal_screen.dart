@@ -280,9 +280,28 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                'How are you feeling? (optional)',
-                style: theme.textTheme.titleMedium,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'How are you feeling? (optional)',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  // A visible way back to "no mood". The chips used to answer a
+                  // tap with a change of roughly one shade, so a client who had
+                  // selected one had no way of knowing it, and no way of undoing
+                  // it. Both are now on screen.
+                  if (formState.emotion != null)
+                    TextButton(
+                      key: const ValueKey('journal_clear_mood_button'),
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        ref.read(journalEntryFormProvider.notifier).clearMood();
+                      },
+                      child: const Text('Clear'),
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -291,33 +310,66 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 children: journalEmotions.map((emotion) {
                   final isSelected = formState.emotion == emotion;
                   final bgColor = emotionColors[emotion] ?? AppColors.lavenderWash;
+                  final label = journalEmotionLabels[emotion] ?? emotion;
 
-                  return GestureDetector(
-                    onTap: () => ref
-                        .read(journalEntryFormProvider.notifier)
-                        .setEmotion(emotion),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? bgColor
-                            : bgColor.withAlpha(128),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected
-                              ? theme.colorScheme.outline
-                              : theme.colorScheme.outline.withAlpha(64),
+                  return Semantics(
+                    button: true,
+                    selected: isSelected,
+                    label: label,
+                    child: GestureDetector(
+                      key: Key('emotionChip_$emotion'),
+                      // Taps must land on the whole chip, including the gap
+                      // around the label, and must be felt: the old chip gave
+                      // no sign a tap had registered at all.
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        ref
+                            .read(journalEntryFormProvider.notifier)
+                            .toggleEmotion(emotion);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        constraints: const BoxConstraints(minHeight: 48),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
                         ),
-                      ),
-                      child: Text(
-                        journalEmotionLabels[emotion] ?? emotion,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? bgColor
+                              : bgColor.withAlpha(90),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.violet
+                                : AppColors.hairline,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected) ...[
+                              const Icon(
+                                LucideIcons.check,
+                                size: 16,
+                                color: AppColors.violet,
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              label,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: isSelected
+                                    ? AppColors.charcoalInk
+                                    : theme.colorScheme.onSurface,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -337,23 +389,34 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
                   return GestureDetector(
                     key: Key('intensityDot_$dotIndex'),
-                    onTap: () => ref
-                        .read(journalEntryFormProvider.notifier)
-                        .setIntensity(dotIndex),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isFilled ? theme.colorScheme.primary : null,
-                          border: isFilled
-                              ? null
-                              : Border.all(
-                                  color: theme.colorScheme.outline.withAlpha(128),
-                                  width: 2,
-                                ),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      ref
+                          .read(journalEntryFormProvider.notifier)
+                          .setIntensity(dotIndex);
+                    },
+                    // 48x48 of tappable area around a 24px dot: the dot stays
+                    // the size the design asks for, but the target is a size a
+                    // thumb can actually hit.
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isFilled ? theme.colorScheme.primary : null,
+                            border: isFilled
+                                ? null
+                                : Border.all(
+                                    color:
+                                        theme.colorScheme.outline.withAlpha(128),
+                                    width: 2,
+                                  ),
+                          ),
                         ),
                       ),
                     ),

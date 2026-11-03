@@ -8,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/journal/journal_entry.dart';
 import 'package:okuvu/src/features/journal/journal_prompt_service.dart';
 import 'package:okuvu/src/features/journal/journal_screen.dart';
+import 'package:okuvu/src/theme/app_colors.dart';
 
 Dio _createMockDio({int statusCode = 200, Map<String, dynamic>? data}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
@@ -29,7 +31,16 @@ Dio _createMockDio({int statusCode = 200, Map<String, dynamic>? data}) {
   return dio;
 }
 
-Widget _buildJournalApp({Dio? dio}) {
+Widget _buildJournalApp(WidgetTester tester, {Dio? dio}) {
+  // Give the form one tall screen instead of the 800x600 test default. The
+  // form is a single scrolling page and a lazily-built ListView never builds
+  // children far below the fold, so the text box simply did not exist for the
+  // finders. Mood chips and strength dots are now thumb-sized, which is what
+  // pushed it under the old build extent.
+  tester.view.physicalSize = const Size(2400, 4200);
+  tester.view.devicePixelRatio = 3.0;
+  addTearDown(tester.view.reset);
+
   return ProviderScope(
     overrides: [
       dioClientProvider.overrideWithValue(dio ?? _createMockDio()),
@@ -72,7 +83,7 @@ void main() {
 
   group('JournalScreen layout', () {
     testWidgets('renders AppBar with Journal title', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       // "Journal" now also appears as the bottom-nav tab label (the
@@ -85,7 +96,7 @@ void main() {
     });
 
     testWidgets('renders How are you feeling? prompt', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       // "(optional)" is the visible answer to the reported complaint that a
@@ -94,7 +105,7 @@ void main() {
     });
 
     testWidgets('renders all 8 emotion chips', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       expect(find.text('Anxious'), findsOneWidget);
@@ -109,7 +120,7 @@ void main() {
 
     testWidgets('renders How strong is it? with 5 intensity dots',
         (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       expect(find.text('How strong is it? (optional)'), findsOneWidget);
@@ -123,7 +134,7 @@ void main() {
     });
 
     testWidgets('renders text area with placeholder', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       expect(find.text("What's on your mind?"), findsOneWidget);
@@ -134,7 +145,7 @@ void main() {
     });
 
     testWidgets('content field enforces a 10000-character max length', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       final textField = tester.widget<TextField>(find.byType(TextField).last);
@@ -152,7 +163,7 @@ void main() {
     });
 
     testWidgets('renders a mic button to talk instead of type (J1)', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       expect(
@@ -190,7 +201,7 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpWidget(_buildJournalApp(tester, dio: dio));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Get a prompt'));
@@ -213,7 +224,7 @@ void main() {
         },
       );
 
-      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpWidget(_buildJournalApp(tester, dio: dio));
       await tester.pumpAndSettle();
 
       final field = find.byType(TextField).last;
@@ -253,7 +264,7 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpWidget(_buildJournalApp(tester, dio: dio));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Get a prompt'));
@@ -271,7 +282,7 @@ void main() {
     });
 
     testWidgets('renders Save and Cancel buttons', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       // The persistent bottom nav now added to this screen shrinks the
@@ -286,22 +297,194 @@ void main() {
   });
 
   group('JournalScreen emotion selection', () {
-    testWidgets('tapping an emotion chip highlights it', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+    // The reported defect: "I am unable to click on them to select." A real tap
+    // does reach the handler (the previous version of this test proved nothing
+    // — it only checked the label was still on screen), but the chip answered
+    // it with a change of about one shade, so the screen looked dead. These
+    // tests assert what the client can actually see.
+    BoxDecoration chipDecoration(WidgetTester tester, String emotion) {
+      final container = tester.widget<AnimatedContainer>(
+        find.descendant(
+          of: find.byKey(Key('emotionChip_$emotion')),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      return container.decoration! as BoxDecoration;
+    }
+
+    testWidgets('tapping a chip selects it — state and visible marker',
+        (tester) async {
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Anxious'));
-      await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JournalScreen)),
+      );
+      expect(container.read(journalEntryFormProvider).emotion, isNull);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('emotionChip_anxious')),
+          matching: find.byIcon(LucideIcons.check),
+        ),
+        findsNothing,
+      );
 
-      // Save button should now be enabled (emotion selected, but content empty
-      // means still disabled — check that the chip was tapped without error)
-      expect(find.text('Anxious'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('emotionChip_anxious')));
+      await tester.pumpAndSettle();
+
+      expect(container.read(journalEntryFormProvider).emotion, 'anxious');
+      // A tick appears inside the chosen chip and its border thickens to the
+      // brand violet — the two cues that make the tap unmistakable.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('emotionChip_anxious')),
+          matching: find.byIcon(LucideIcons.check),
+        ),
+        findsOneWidget,
+      );
+      final border = chipDecoration(tester, 'anxious').border! as Border;
+      expect(border.top.color, AppColors.violet);
+      expect(border.top.width, 2);
+
+      // The others stay plain.
+      final unselected = chipDecoration(tester, 'sad').border! as Border;
+      expect(unselected.top.color, AppColors.hairline);
+      expect(unselected.top.width, 1);
+    });
+
+    testWidgets('tapping the chosen chip again clears it, strength included',
+        (tester) async {
+      await tester.pumpWidget(_buildJournalApp(tester, ));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JournalScreen)),
+      );
+
+      await tester.tap(find.byKey(const Key('emotionChip_anxious')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('intensityDot_4')));
+      await tester.pumpAndSettle();
+      expect(container.read(journalEntryFormProvider).intensity, 4);
+
+      await tester.tap(find.byKey(const Key('emotionChip_anxious')));
+      await tester.pumpAndSettle();
+
+      final state = container.read(journalEntryFormProvider);
+      expect(state.emotion, isNull);
+      // A strength with no feeling is not an answer — the dots must not stay
+      // filled under a chip that is no longer selected.
+      expect(state.intensity, 0);
+      expect(_isDotFilled(tester, 1), isFalse);
+    });
+
+    testWidgets('picking a second chip moves the selection, never doubles it',
+        (tester) async {
+      await tester.pumpWidget(_buildJournalApp(tester, ));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JournalScreen)),
+      );
+
+      await tester.tap(find.byKey(const Key('emotionChip_anxious')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('emotionChip_calm')));
+      await tester.pumpAndSettle();
+
+      expect(container.read(journalEntryFormProvider).emotion, 'calm');
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('emotionChip_calm')),
+          matching: find.byIcon(LucideIcons.check),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('emotionChip_anxious')),
+          matching: find.byIcon(LucideIcons.check),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Clear appears only once a mood is picked and resets both',
+        (tester) async {
+      await tester.pumpWidget(_buildJournalApp(tester, ));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JournalScreen)),
+      );
+      expect(
+        find.byKey(const ValueKey('journal_clear_mood_button')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('emotionChip_sad')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('intensityDot_5')));
+      await tester.pumpAndSettle();
+
+      final clear = find.byKey(const ValueKey('journal_clear_mood_button'));
+      expect(clear, findsOneWidget);
+
+      await tester.tap(clear);
+      await tester.pumpAndSettle();
+
+      final state = container.read(journalEntryFormProvider);
+      expect(state.emotion, isNull);
+      expect(state.intensity, 0);
+      expect(clear, findsNothing);
+    });
+
+    testWidgets('every chip and dot is thumb-sized (at least 48px tall)',
+        (tester) async {
+      await tester.pumpWidget(_buildJournalApp(tester, ));
+      await tester.pumpAndSettle();
+
+      for (final emotion in journalEmotions) {
+        final size = tester.getSize(find.byKey(Key('emotionChip_$emotion')));
+        expect(size.height, greaterThanOrEqualTo(48), reason: emotion);
+      }
+      for (var i = 1; i <= 5; i++) {
+        final size = tester.getSize(find.byKey(Key('intensityDot_$i')));
+        expect(size.width, greaterThanOrEqualTo(48), reason: 'dot $i');
+        expect(size.height, greaterThanOrEqualTo(48), reason: 'dot $i');
+      }
+    });
+
+    testWidgets('typing does not wipe the chosen mood', (tester) async {
+      await tester.pumpWidget(_buildJournalApp(tester, ));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(JournalScreen)),
+      );
+
+      await tester.tap(find.byKey(const Key('emotionChip_hopeful')));
+      await tester.pumpAndSettle();
+
+      final field = find.byType(TextField).last;
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'Small win today.');
+      await tester.pumpAndSettle();
+
+      expect(container.read(journalEntryFormProvider).emotion, 'hopeful');
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('emotionChip_hopeful')),
+          matching: find.byIcon(LucideIcons.check),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
   group('JournalScreen intensity selection', () {
     testWidgets('tapping intensity dot N fills N dots', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       // Tap dot 4 (intensity goes from 1 to 4)
@@ -316,7 +499,7 @@ void main() {
 
   group('JournalScreen privacy notice', () {
     testWidgets('shows privacy notice on first visit', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       expect(
@@ -328,7 +511,7 @@ void main() {
     });
 
     testWidgets('hides privacy notice after dismissal', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       // Dismiss the notice
@@ -346,7 +529,7 @@ void main() {
 
   group('JournalScreen navigation', () {
     testWidgets('Cancel button navigates back to /home', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(find.text('Cancel'), 200, scrollable: find.byType(Scrollable).first);
@@ -359,7 +542,7 @@ void main() {
     });
 
     testWidgets('save flow fills fields and navigates to /home', (tester) async {
-      await tester.pumpWidget(_buildJournalApp());
+      await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
       // Select emotion
@@ -407,7 +590,7 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpWidget(_buildJournalApp(tester, dio: dio));
       await tester.pumpAndSettle();
 
       final field = find.byType(TextField).last;

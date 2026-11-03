@@ -45,6 +45,57 @@ void main() {
       expect(state.intensity, 4);
     });
 
+    // Row 6: the chips looked dead. Tapping the same mood twice is now a
+    // deliberate second gesture — it clears the answer instead of being a
+    // tap that does visibly nothing.
+    test('toggleEmotion selects, then clears on a second tap', () {
+      final notifier = container.read(journalEntryFormProvider.notifier);
+
+      notifier.toggleEmotion('anxious');
+      expect(container.read(journalEntryFormProvider).emotion, 'anxious');
+
+      notifier.toggleEmotion('anxious');
+      expect(container.read(journalEntryFormProvider).emotion, isNull);
+    });
+
+    test('toggleEmotion clears the strength along with the mood', () {
+      final notifier = container.read(journalEntryFormProvider.notifier);
+
+      notifier.toggleEmotion('sad');
+      notifier.setIntensity(5);
+      notifier.toggleEmotion('sad');
+
+      final state = container.read(journalEntryFormProvider);
+      expect(state.emotion, isNull);
+      expect(state.intensity, 0);
+    });
+
+    test('toggleEmotion keeps the strength when switching mood', () {
+      final notifier = container.read(journalEntryFormProvider.notifier);
+
+      notifier.toggleEmotion('sad');
+      notifier.setIntensity(3);
+      notifier.toggleEmotion('calm');
+
+      final state = container.read(journalEntryFormProvider);
+      expect(state.emotion, 'calm');
+      expect(state.intensity, 3);
+    });
+
+    test('clearMood leaves the writing alone', () {
+      final notifier = container.read(journalEntryFormProvider.notifier);
+
+      notifier.toggleEmotion('numb');
+      notifier.setIntensity(2);
+      notifier.setContent('Words I want to keep.');
+      notifier.clearMood();
+
+      final state = container.read(journalEntryFormProvider);
+      expect(state.emotion, isNull);
+      expect(state.intensity, 0);
+      expect(state.content, 'Words I want to keep.');
+    });
+
     test('setContent updates content', () {
       container
           .read(journalEntryFormProvider.notifier)
