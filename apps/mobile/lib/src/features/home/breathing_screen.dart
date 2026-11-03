@@ -1,20 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../chat/models/tool_card_config.dart';
 import '../chat/models/breathing_presets.dart';
 import '../chat/widgets/tool_card_widget.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
+import 'breathing_content.dart';
 import 'providers/today_card_provider.dart';
 
-/// Owner round 2 (3 Nov 2026): the client kit is no longer limited to the
-/// single box-breathing default of the 15 Sep 2026 decisions round — every
-/// clinically-approved exercise the therapist portal can assign is offered
-/// here. Order is fixed so the default stays first; an exercise the therapist
-/// assigned is marked as such, and an assigned tool that isn't a breathing
-/// exercise (5-4-3-2-1 grounding) is appended rather than dropped.
+/// The Breathe screen.
+///
+/// Owner round 2 (4 Nov 2026) reshaped the top of this screen twice over:
+///
+/// * The four techniques were a `Wrap` of chips that grew to four rows and
+///   pushed the breathing guide off the bottom of the screen, which is the
+///   part of the page a client actually watches. They are now one drop-down.
+/// * The Slower / Standard / Faster picker is gone. Each technique has one
+///   normal pace (the `standard` preset), because three paces for each of four
+///   techniques gave the client twelve choices and no guidance.
+///
+/// The (i) beside the chooser opens the written explanation for whichever
+/// technique is showing — Dr Goswami's copy, in `breathing_content.dart`.
 class BreathingScreen extends ConsumerStatefulWidget {
   const BreathingScreen({super.key});
 
@@ -24,29 +32,8 @@ class BreathingScreen extends ConsumerStatefulWidget {
 
 const _defaultToolId = 'box_breathing';
 
-/// The breathing exercises, in the order they are offered. Kept in step with
-/// the therapist portal's exercise list (ToolRegistryEntry) and with the
-/// preset tables in breathing_presets.dart.
-const _breathingToolIds = <String>[
-  'box_breathing',
-  'guided_breathing',
-  'physiological_sigh',
-  'extended_exhale',
-];
-
-const _exerciseNames = <String, String>{
-  'box_breathing': 'Box breathing',
-  'guided_breathing': 'Guided breathing',
-  'physiological_sigh': 'Physiological sigh',
-  'extended_exhale': 'Extended exhale',
-};
-
 class _BreathingScreenState extends ConsumerState<BreathingScreen> {
   String _activeToolId = _defaultToolId;
-
-  /// Paces the client changed in this visit. Read before the saved presets, so
-  /// a change shows immediately while the PATCH is in flight.
-  final Map<String, BreathingPace> _paceOverride = {};
 
   @override
   Widget build(BuildContext context) {
@@ -62,182 +49,172 @@ class _BreathingScreenState extends ConsumerState<BreathingScreen> {
       ),
       body: todayAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _buildSession(
-          context,
-          assignedExercises: const [],
-          defaultPace: 'standard',
-          savedPaces: const {},
-        ),
-        data: (today) => _buildSession(
-          context,
-          assignedExercises: today.assignedExercises,
-          defaultPace: today.defaultBoxBreathingPacePreset,
-          savedPaces: today.toolPacePresets,
-        ),
+        error: (_, __) => _buildSession(const []),
+        data: (today) => _buildSession(today.assignedExercises),
       ),
     );
   }
 
-  Widget _buildSession(
-    BuildContext context, {
-    required List<AssignedExercise> assignedExercises,
-    required String defaultPace,
-    required Map<String, String> savedPaces,
-  }) {
+  Widget _buildSession(List<AssignedExercise> assignedExercises) {
     final assignedIds = assignedExercises.map((e) => e.toolId).toSet();
-    final extraAssigned =
-        assignedExercises.where((e) => !_breathingToolIds.contains(e.toolId)).toList();
-    final pacePreset = _paceFor(_activeToolId, savedPaces, defaultPace, assignedExercises);
-    final activeType = _toolCardTypeFor(_activeToolId);
-    final config = _configFor(activeType, pacePreset);
+    final extras =
+        assignedExercises.where((e) => breathingTechniqueFor(e.toolId) == null).toList();
+    final activeTechnique = breathingTechniqueFor(_activeToolId);
+    AssignedExercise? activeExtra;
+    for (final extra in extras) {
+      if (extra.toolId == _activeToolId) activeExtra = extra;
+    }
+
+    final items = <DropdownMenuItem<String>>[
+      for (final technique in breathingTechniques)
+        DropdownMenuItem(
+          value: technique.toolId,
+          child: Text(_exerciseLabel(
+            technique.name,
+            isDefault: technique.toolId == _defaultToolId,
+            assigned: assignedIds.contains(technique.toolId),
+          )),
+        ),
+      for (final extra in extras)
+        DropdownMenuItem(
+          value: extra.toolId,
+          child: Text(_exerciseLabel(extra.label, assigned: true)),
+        ),
+    ];
 
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text(
-                'Choose an exercise',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.inkSoft,
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: const Key('breathing_exercise_dropdown'),
+                  initialValue: _activeToolId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Exercise',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: items,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _activeToolId = value);
+                  },
                 ),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final toolId in _breathingToolIds)
-                    _ExerciseChip(
-                      label: _chipLabel(toolId, assigned: assignedIds.contains(toolId)),
-                      selected: _activeToolId == toolId,
-                      onTap: () => setState(() => _activeToolId = toolId),
-                    ),
-                  for (final exercise in extraAssigned)
-                    _ExerciseChip(
-                      label: exercise.label,
-                      assigned: true,
-                      selected: _activeToolId == exercise.toolId,
-                      onTap: () => setState(() => _activeToolId = exercise.toolId),
-                    ),
-                ],
+              const SizedBox(width: 8),
+              IconButton(
+                key: const Key('breathing_explain_button'),
+                tooltip: activeTechnique != null
+                    ? 'What is ${activeTechnique.name}?'
+                    : 'About this exercise',
+                icon: const Icon(LucideIcons.info, color: AppColors.violet),
+                onPressed: () => _showExplanation(
+                  technique: activeTechnique,
+                  extra: activeExtra,
+                ),
               ),
             ],
           ),
         ),
-        if (isTunable(activeType))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: _PacePicker(
-              current: pacePreset,
-              onChanged: (pace) {
-                final toolId = _activeToolId;
-                setState(() => _paceOverride[toolId] = pace);
-                ref.read(toolPreferenceProvider.notifier).setPacePreset(
-                      toolId: toolId,
-                      pacePreset: pace.jsonValue,
-                    );
-              },
+        Expanded(
+          child: SingleChildScrollView(
+            child: ToolCardWidget(
+              // A new exercise must start its own sitting: keying the card by
+              // tool id throws away the previous State, including any running
+              // count and any "Done" screen it had reached.
+              key: ValueKey(_activeToolId),
+              config: _configFor(_activeToolId),
             ),
           ),
-        // Scrollable since owner round 2 (3 Nov 2026): the exercise chips are
-        // always on screen now, so on a short device the card can no longer
-        // rely on the leftover height alone.
-        Expanded(
-          child: SingleChildScrollView(child: ToolCardWidget(config: config)),
         ),
       ],
     );
   }
 
-  /// Saved preset for this exercise, else the exercise's assigned preset, else
-  /// standard. Box breathing keeps falling back to the older single-default
-  /// field so existing clients read the same pace they always did.
-  BreathingPace _paceFor(
-    String toolId,
-    Map<String, String> savedPaces,
-    String defaultPace,
-    List<AssignedExercise> assignedExercises,
-  ) {
-    final changed = _paceOverride[toolId];
-    if (changed != null) return changed;
-
-    final saved = savedPaces[toolId] ?? (toolId == _defaultToolId ? defaultPace : null);
-    if (saved != null) return breathingPaceFromJson(saved);
-
-    for (final exercise in assignedExercises) {
-      if (exercise.toolId == toolId) return breathingPaceFromJson(exercise.pacePreset);
-    }
-    return BreathingPace.standard;
-  }
-
-  String _chipLabel(String toolId, {required bool assigned}) {
-    final name = _exerciseNames[toolId] ?? toolId;
-    final withDefault = toolId == _defaultToolId ? '$name (default)' : name;
+  String _exerciseLabel(String name, {bool isDefault = false, bool assigned = false}) {
+    final withDefault = isDefault ? '$name (default)' : name;
     return assigned ? '$withDefault · from your therapist' : withDefault;
   }
 
-  ToolCardType _toolCardTypeFor(String toolId) => toolCardTypeFromJson(toolId);
-
-  ToolCardConfig _configFor(ToolCardType type, BreathingPace pace) {
-    if (!isTunable(type)) {
-      return ToolCardConfig(type: type);
-    }
+  /// One normal pace per technique: the `standard` preset table. There is no
+  /// picker, so nothing here reads the saved preference — an older saved
+  /// non-standard pace no longer changes what is shown.
+  ToolCardConfig _configFor(String toolId) {
+    final type = toolCardTypeFromJson(toolId);
+    if (!isTunable(type)) return ToolCardConfig(type: type);
     return ToolCardConfig(
       type: type,
-      breathingConfig: breathingConfigFor(type, pace),
+      breathingConfig: breathingConfigFor(type, BreathingPace.standard),
     );
   }
-}
 
-class _ExerciseChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool assigned;
-  final VoidCallback onTap;
+  void _showExplanation({
+    required BreathingTechnique? technique,
+    required AssignedExercise? extra,
+  }) {
+    final sections = technique?.explanation ??
+        <BreathingSection>[
+          if ((extra?.text ?? '').isNotEmpty)
+            BreathingSection('About this exercise', extra!.text),
+        ];
+    final title = technique?.cardLabel ?? extra?.label ?? 'Exercise';
 
-  const _ExerciseChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.assigned = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      selectedColor: AppColors.lavenderTint,
-      labelStyle: TextStyle(
-        color: selected ? AppColors.royalPurple : AppColors.inkSoft,
-        fontWeight: selected || assigned ? FontWeight.w600 : FontWeight.normal,
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.35,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+          children: [
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.charcoalInk)),
+            if (technique != null) ...[
+              const SizedBox(height: 4),
+              Text(technique.paceLine,
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.charcoalInk.withValues(alpha: 0.55))),
+            ],
+            const SizedBox(height: 16),
+            for (final section in sections) ...[
+              Text(section.heading,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.violet)),
+              const SizedBox(height: 4),
+              Text(section.body,
+                  style: const TextStyle(
+                      fontSize: 15, height: 1.45, color: AppColors.charcoalInk)),
+              const SizedBox(height: 16),
+            ],
+            const SizedBox(height: 4),
+            FilledButton(
+              key: const Key('breathing_explanation_close'),
+              onPressed: () => Navigator.of(context).pop(),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                backgroundColor: AppColors.violet,
+              ),
+              child: const Text('Got it'),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-}
-
-class _PacePicker extends StatelessWidget {
-  final BreathingPace current;
-  final ValueChanged<BreathingPace> onChanged;
-
-  const _PacePicker({required this.current, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return SegmentedButton<BreathingPace>(
-      segments: const [
-        ButtonSegment(value: BreathingPace.slower, label: Text('Slower')),
-        ButtonSegment(value: BreathingPace.standard, label: Text('Standard')),
-        ButtonSegment(value: BreathingPace.faster, label: Text('Faster')),
-      ],
-      selected: {current},
-      onSelectionChanged: (selection) => onChanged(selection.first),
     );
   }
 }
