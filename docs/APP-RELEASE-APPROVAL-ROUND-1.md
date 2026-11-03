@@ -4,7 +4,8 @@
 the technical work that carries each one, and the exact steps to put them live. An approver
 should be able to sign this off without reading any code.
 
-**Prepared:** 3 November 2026, 13:30 UTC — **updated 13:40 UTC** after the server rollout completed
+**Prepared:** 3 November 2026, 13:30 UTC — **updated 13:55 UTC**, after the server rollout completed
+and Dr Goswami's clinical approval arrived
 **Branch:** `feat/app-change-round-1` (committed) → merges to `develop`
 **Companion file:** `docs/APP-CHANGE-LOG.md` (the running list, one row per change)
 
@@ -17,19 +18,19 @@ should be able to sign this off without reading any code.
 
 ## 1. What is being asked for
 
-Three separate approvals, not one. They are listed separately because they carry different
-risks and different people own each:
+Three separate approvals plus one clinical sign-off, not one. They are listed separately because they carry different risks and different people own each:
 
 | # | Approval | What it authorises | Risk if wrong |
 |---|----------|--------------------|---------------|
 | **A1** | **Code release** | Server (api), worker, therapist portal and one database change go live together | Therapy-facing service briefly rolls to the new version; a bad release is fixed by re-pointing to the previous version |
 | **A2** | **Cloud (AWS) change** | A new encrypted storage slot plus permission for the API to read it | Security-relevant: grants the API permission to decrypt one specific item. Scoped to that one item only |
 | **A3** | **App release** | A new Android build (APK) is produced and installed on the test phone | Only affects whoever installs it; the old build can be reinstalled if needed |
-| **C1** | **Clinical sign-off** *(Dr Shubhangi Goswami)* | The 52 journal prompts are acceptable for clients to read | Clinically unverified wording reaching a client. **This one is a hard gate for change 5** |
+| **C1** | **Clinical sign-off** *(Dr Shubhangi Goswami)* | The 52 journal prompts are acceptable for clients to read | Clinically unverified wording reaching a client. **Hard gate for change 5 — met on 3 November, see below** |
 
-If C1 has not arrived in writing by the time we are ready to build the app, the release
-proceeds with changes 1–4 and 6–8, and change 5 waits. That is a choice the approver makes
-here, not something decided later.
+**C1 is received, so nothing is held.** Dr Goswami replied on 3 November 2026 at 12:28 UTC:
+*"All prompts approved. Add to repository."* (message id `1a1a16246ae223c3`, in reply to the
+review email `1a1a081322a9bb6b`). Change 5 therefore ships in the same build as everything else,
+and the decision line that used to sit in §8 is no longer needed.
 
 ---
 
@@ -184,7 +185,7 @@ This is the part the code pipeline does not do. Changes live in
 | Infra plan | 3 add / 0 change / 0 destroy | Met |
 | **Server changes 1–7 deployed** | Build `cd2eaaf0` SUCCEEDED; api/worker/portal all serving it | **Met — 13:39 UTC 3 Nov** |
 | **Migration applied to production** | `Applying migration 20261103120000_…` in the build log | **Met — 13:31 UTC 3 Nov** |
-| **Clinical sign-off on the 52 prompts (C1)** | Dr Goswami's written reply | **Outstanding** |
+| **Clinical sign-off on the 52 prompts (C1)** | Dr Goswami's written reply | **Met — 12:28 UTC 3 Nov**, *"All prompts approved. Add to repository."*, msg `1a1a16246ae223c3` |
 | **On-device test** | A human installing and pressing the screens | **Outstanding — cannot be done on this host** (no phone, no emulator) |
 | **Live proof of the Emergency Contact fix** | A 200 on `PATCH /settings/emergency-contact` in the server log after the row 8 deploy | **Outstanding — needs a signed-in user token, which this host does not hold** |
 
@@ -274,10 +275,13 @@ number, which is a 20-minute rebuild, not a rollback.
 
 ## 7. Risks and open items
 
-1. **Change 5 is clinically unsigned.** Prompts written by me, not by Dr Goswami. Hard gate:
-   her written reply, or change 5 waits. *(The library is already live on the server, but no
-   released app can reach it — the button that calls it ships with the new APK. Holding change 5
-   therefore means holding the APK, not rolling anything back.)*
+1. **Change 5 is now clinically approved — closed.** Prompts were written by me and approved by
+   Dr Goswami on 3 November 2026 (*"All prompts approved. Add to repository."*, msg
+   `1a1a16246ae223c3`) against library version 1.0.0, the same 52 prompts listed in the review
+   email. The approval is recorded in code: `JOURNAL_PROMPT_CLINICAL_REVIEW` in
+   `prompt-library.ts` names the reviewer, the version and the date. If the list is ever edited,
+   the version must change and the approval must be taken again — an edit under version 1.0.0
+   would silently spend an approval it no longer matches.
 2. **The database migration is done** — applied in production at 13:31 UTC, no errors, no
    rollback needed. This one is closed.
 3. **No screen in this release has been seen on a phone.** This host has no device and no
@@ -295,21 +299,12 @@ number, which is a 20-minute rebuild, not a rollback.
 
 Tick and sign. One line per approval; C1 is Dr Goswami's.
 
-- [ ] **A1 — Code release approved (change 8).** Merge change 8 to `develop`; api, worker and
-      portal go live. *Changes 1–7 already deployed this way at 13:39 UTC and need no approval.*
-- [ ] **A2 — AWS infrastructure change approved.** Create `evia-beta/emergency-contact-key`,
-      grant the api role read + decrypt on that one secret, set `AWS_SECRETS_PREFIX`.
-- [ ] **A3 — App release approved.** Build `1.0.9+10`, pass the six release gates, install on
-      the test phone.
-- [ ] **C1 — Clinical sign-off received** (Dr Shubhangi Goswami) on prompt library v1.0.0,
-      52 prompts. Reference: email of 3 November 2026, message id `1a1a081322a9bb6b`.
-      *Reply "approved as listed", or name the ids to remove/edit (each prompt carries an id
-      such as ANX-01, SAD-02).*
+- [ ] **A1 — Code release approved (change 8).** Merge change 8 to `develop`; api, worker and portal go live. *Changes 1–7 already deployed this way at 13:39 UTC and need no approval.*
+- [ ] **A2 — AWS infrastructure change approved.** Create `evia-beta/emergency-contact-key`, grant the api role read + decrypt on that one secret, set `AWS_SECRETS_PREFIX`.
+- [ ] **A3 — App release approved.** Build `1.0.9+10`, pass the six release gates, install on the test phone.
+- [x] **C1 — Clinical sign-off received** (Dr Shubhangi Goswami) on prompt library v1.0.0, 52 prompts. Received 3 November 2026, 12:28 UTC, message id `1a1a16246ae223c3`: *"All prompts approved. Add to repository."* Nothing is held; change 5 ships with the rest.
 
-**If C1 is not ticked:** release changes 1–4 and 6–8; hold 5 for the next build.
-State that choice here, so it is not re-decided at the build step:
-
-> Decision on change 5 if C1 is outstanding:  hold  /  release as-is  (delete one)
+*No conditional decision is needed on change 5. Leave this section as it stands — it is the record that the clinical gate was passed before the build, not after it.*
 
 Approved by: ______________________  Role: ______________________  Date: ____________
 
