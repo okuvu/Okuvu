@@ -3,15 +3,18 @@ import '../../theme/app_colors.dart';
 
 class JournalEntry {
   final String id;
-  final String emotion;
-  final int intensity;
+
+  /// Null when the entry was written without picking a mood chip. The mood is
+  /// optional: the words are the point of the journal, the label is a helper.
+  final String? emotion;
+  final int? intensity;
   final String content;
   final DateTime createdAt;
 
   const JournalEntry({
     required this.id,
-    required this.emotion,
-    required this.intensity,
+    this.emotion,
+    this.intensity,
     required this.content,
     required this.createdAt,
   });
@@ -19,8 +22,10 @@ class JournalEntry {
   factory JournalEntry.fromJson(Map<String, dynamic> json) {
     return JournalEntry(
       id: json['id'] as String,
-      emotion: json['emotion'] as String,
-      intensity: json['intensity'] as int,
+      // Absent or null both mean "no mood recorded" — older rows always carry
+      // one, newer rows may not, and the history list has to render both.
+      emotion: json['emotion'] as String?,
+      intensity: json['intensity'] as int?,
       content: json['content'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
     );

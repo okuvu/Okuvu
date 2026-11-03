@@ -102,6 +102,28 @@ void main() {
       expect(find.text('Meditation helped.'), findsOneWidget);
     });
 
+    testWidgets('renders an entry with no mood recorded, without a chip',
+        (tester) async {
+      final dio = _createMockDio(entries: [
+        {
+          'id': 'entry-1',
+          'emotion': null,
+          'intensity': null,
+          'content': 'Just needed to put this somewhere.',
+          'created_at': '2026-11-03T08:00:00.000Z',
+        },
+      ]);
+      await tester.pumpWidget(_buildJournalListApp(dio: dio));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Just needed to put this somewhere.'), findsOneWidget);
+      // No mood chip, no empty rating dots — a blank label would read as a
+      // recorded mood nobody chose.
+      for (final label in ['Anxious', 'Sad', 'Angry', 'Overwhelmed', 'Numb', 'Calm', 'Hopeful', 'Other']) {
+        expect(find.text(label), findsNothing);
+      }
+    });
+
     testWidgets('tapping an entry expands full content', (tester) async {
       final dio = _createMockDio(entries: [
         {

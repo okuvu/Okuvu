@@ -600,16 +600,44 @@ export type JournalEmotion = 'anxious' | 'sad' | 'angry' | 'overwhelmed' | 'numb
 
 export interface JournalEntryView {
   id: string
-  emotion: JournalEmotion
-  intensity: number
+  /** null when the client wrote without labelling a feeling — allowed since
+   *  journaling is the point and the mood chips are optional. */
+  emotion: JournalEmotion | null
+  intensity: number | null
   content: string
   created_at: string
 }
 
 export interface CreateJournalEntryBody {
-  emotion: JournalEmotion
-  intensity: number
+  /** Optional. Absent or null means "wrote without picking a feeling". */
+  emotion?: JournalEmotion | null
+  /** Optional, and only meaningful with an emotion. 1–5 when present. */
+  intensity?: number | null
   content: string
+}
+
+/** One vetted sentence from the journal prompt library. */
+export interface JournalPromptView {
+  id: string
+  text: string
+}
+
+/**
+ * `GET /journal/prompts` — the library the "Get a prompt" button reads.
+ * `review.status` is 'pending' until the clinical lead signs the list off;
+ * the client is expected to keep serving it (it is the same copy either way),
+ * but a release is gated on 'approved'.
+ */
+export interface JournalPromptLibraryResponse {
+  version: string
+  review: {
+    status: 'pending' | 'approved' | 'amended'
+    reviewer: string
+    requestedOn: string
+    approvedOn: string | null
+    approvedVersion: string | null
+  }
+  prompts: JournalPromptView[]
 }
 
 // ─── Past Conversations ─────────────────────────────────────────

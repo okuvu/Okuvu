@@ -138,6 +138,73 @@ describe('POST /journal', () => {
     });
   });
 
+  // The client's complaint that made this change: Save stayed disabled until a
+  // mood was picked. Writing is the point of a journal; the mood chips are a
+  // helper, so content alone must be enough.
+  describe('positive — mood and intensity are optional (journaling only needs words)', () => {
+    beforeEach(async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+      vi.mocked(prisma.journalEntry.create).mockResolvedValue({ id: 'entry-words-only' } as any);
+      app = buildApp();
+    });
+
+    it('saves an entry with no emotion and no intensity', async () => {
+      const prisma = await importMocks();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/journal',
+        payload: { content: 'Just needed to put this somewhere.' },
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual({ success: true, id: 'entry-words-only' });
+      expect(vi.mocked(prisma.journalEntry.create)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            user_id: MOCK_USER_ID,
+            emotion: null,
+            intensity: null,
+            content: 'Just needed to put this somewhere.',
+          }),
+        }),
+      );
+    });
+
+    it('treats explicit nulls the same as absent fields', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/journal',
+        payload: { emotion: null, intensity: null, content: 'Blank mood, real words.' },
+      });
+
+      expect(response.statusCode).toBe(201);
+    });
+
+    it('still rejects a blank entry — the words are the required part', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/journal',
+        payload: { content: '   ' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('EMPTY_CONTENT');
+    });
+
+    it('still rejects an unknown emotion even when intensity is absent', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/journal',
+        payload: { emotion: 'happy', content: 'Test' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('INVALID_EMOTION');
+    });
+  });
+
   describe('negative — invalid emotion', () => {
     beforeEach(async () => {
       const prisma = await importMocks();
@@ -145,7 +212,7 @@ describe('POST /journal', () => {
       app = buildApp();
     });
 
-    it('returns 400 for missing emotion', async () => {
+    it('returns 400 for missing emotion when intensity is sent', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/journal',
@@ -153,7 +220,7 @@ describe('POST /journal', () => {
       });
 
       expect(response.statusCode).toBe(400);
-      expect(response.json().error.code).toBe('INVALID_EMOTION');
+      expect(response.json().error.code).toBe('INTENSITY_WITHOUT_EMOTION');
     });
 
     it('returns 400 for invalid emotion string', async () => {
@@ -219,15 +286,22 @@ describe('POST /journal', () => {
       expect(response.json().error.code).toBe('INVALID_INTENSITY');
     });
 
-    it('returns 400 for missing intensity', async () => {
+    it('returns 201 for an entry with an emotion and no intensity', async () => {
+      const prisma = await importMocks();
+      vi.mocked(prisma.journalEntry.create).mockResolvedValue({ id: 'entry-no-intensity' } as any);
+
       const response = await app.inject({
         method: 'POST',
         url: '/journal',
         payload: { emotion: 'anxious', content: 'Test' },
       });
 
-      expect(response.statusCode).toBe(400);
-      expect(response.json().error.code).toBe('INVALID_INTENSITY');
+      expect(response.statusCode).toBe(201);
+      expect(vi.mocked(prisma.journalEntry.create)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ emotion: 'anxious', intensity: null }),
+        }),
+      );
     });
 
     it('returns 400 for non-numeric intensity', async () => {

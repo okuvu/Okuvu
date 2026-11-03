@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import 'journal_entry.dart';
@@ -6,6 +7,9 @@ import 'journal_entry.dart';
 
 class JournalEntryFormState {
   final String? emotion;
+
+  /// 0 means "not answered". The mood and its strength are optional — only 1–5
+  /// is a real answer, and nothing is sent unless the client picked a dot.
   final int intensity;
   final String content;
   final bool isSaving;
@@ -14,7 +18,7 @@ class JournalEntryFormState {
 
   const JournalEntryFormState({
     this.emotion,
-    this.intensity = 1,
+    this.intensity = 0,
     this.content = '',
     this.isSaving = false,
     this.error,
@@ -23,7 +27,7 @@ class JournalEntryFormState {
 
   const JournalEntryFormState.initial()
       : emotion = null,
-        intensity = 1,
+        intensity = 0,
         content = '',
         isSaving = false,
         error = null,
@@ -47,7 +51,9 @@ class JournalEntryFormState {
     );
   }
 
-  bool get isValid => emotion != null && content.trim().isNotEmpty;
+  /// Writing is the point of a journal. A mood is a helper, never a gate: the
+  /// Save button must come alive as soon as there is something to save.
+  bool get isValid => content.trim().isNotEmpty;
 }
 
 class JournalEntryFormNotifier extends Notifier<JournalEntryFormState> {
@@ -79,14 +85,17 @@ class JournalEntryFormNotifier extends Notifier<JournalEntryFormState> {
 
     try {
       final dio = ref.read(dioClientProvider);
-      final response = await dio.post(
-        '/journal',
-        data: {
-          'emotion': state.emotion,
-          'intensity': state.intensity,
-          'content': state.content.trim(),
-        },
-      );
+      // Only send what the client actually answered. A blank mood stays
+      // blank all the way to the database instead of being defaulted into
+      // 'other' — a guess here would pollute every later reading of moods.
+      final data = <String, dynamic>{'content': state.content.trim()};
+      final emotion = state.emotion;
+      if (emotion != null) {
+        data['emotion'] = emotion;
+        if (state.intensity > 0) data['intensity'] = state.intensity;
+      }
+
+      final response = await dio.post('/journal', data: data);
 
       if (response.statusCode != null &&
           response.statusCode! >= 200 &&
@@ -101,9 +110,25 @@ class JournalEntryFormNotifier extends Notifier<JournalEntryFormState> {
         return false;
       }
     } catch (e) {
+      // Quote the server's own message when it sent one — "content must be a
+      // non-empty string" tells the client what to do; "Network error" does
+      // not, and only appears when the request genuinely never got an answer.
+      String? serverMessage;
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map) {
+          final error = data['error'];
+          if (error is Map) {
+            final message = error['message'];
+            if (message is String && message.trim().isNotEmpty) {
+              serverMessage = message;
+            }
+          }
+        }
+      }
       state = state.copyWith(
         isSaving: false,
-        error: () => 'Network error. Please try again.',
+        error: () => serverMessage ?? 'Network error. Please try again.',
       );
       return false;
     }

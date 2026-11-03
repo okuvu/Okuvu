@@ -618,8 +618,10 @@ enum SafetyStateEnum {
 model JournalEntry {
   id         String   @id @default(uuid())
   user_id    String
-  emotion    String
-  intensity  Int
+  // Nullable: journaling is the point, labelling the feeling is optional.
+  // A client must be able to write and save without picking a mood chip.
+  emotion    String?
+  intensity  Int?
   content    String
   created_at DateTime @default(now())
   user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -788,6 +790,53 @@ model TestResultRow {
   @@index([run_id])
 }
 
+/// A campaign (TH-S38, /campaign screen): one operator-created batch of
+/// simulated conversations — N personas × the same plan — uploaded from a
+/// persona sheet, run step by step against the in-process pipeline, and read
+/// back as per-conversation PASS / FAIL / UNGRADED / INCOMPLETE verdicts.
+///
+/// The row exists so a result is attributable to the conditions that produced
+/// it: the persona snapshot, the plan, the seed, the judge setting and the
+/// ceiling are all frozen here at start. Every conversation is a
+/// ConversationRun group pointing back at this row via `campaign_id`.
+model Campaign {
+  id                String          @id @default(uuid())
+  label             String
+  environment       TestEnvironment
+  /// Where the conversations actually ran: 'in-process' (this harness's real
+  /// pipeline) or 'live-websocket' (the deployed api.okuvu.in surface). Stored
+  /// rather than inferred — the two are different measurements and a results
+  /// table must never mix them.
+  target            String          @default("in-process")
+  /// Persona snapshot taken at start, so a later persona edit cannot rewrite
+  /// history: [{ caseId, personaId, personaVersion, expectedBehavior }].
+  personas          Json
+  sessions          Int
+  turns_min         Int
+  turns_max         Int
+  /// [gapBeforeMsForSession1, session2, ...] — gap[0] is 0 by convention.
+  gap_plan_ms       Int[]
+  scheduler_mode    String          @default("story-time")
+  seed              Int
+  /// 'english' is the only mode the in-process runner presents today; the
+  /// column exists so a live-driver run records its own mode honestly.
+  language_mode     String          @default("english")
+  /// Whether the LLM judge ran over the final reply of each session. Off
+  /// leaves every conversation UNGRADED — never a pass.
+  judge_enabled     Boolean         @default(true)
+  cost_ceiling_usd  Float
+  cost_estimates_usd Float          @default(0)
+  planned_turns     Int
+  /// planned | running | complete | incomplete | halt (rollup over groups).
+  status            String          @default("planned")
+  created_by        String?
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+  groups            ConversationRun[]
+
+  @@index([environment, created_at(sort: Desc)])
+}
+
 /// TH-S37 (OKUVU — Simulated-Conversation Runner Spec v1.1): the grouping row
 /// for one simulated-conversation run batch — N sessions × M turns of ONE
 /// synthetic persona driven across a planned gap schedule. Append-only,
@@ -845,6 +894,19 @@ model ConversationRun {
   /// Session-scoped LLM spend accumulator (USD), updated as turns complete.
   cost_so_far_usd Float              @default(0)
   canned          Boolean            @default(false)
+  /// TH-S38: the /campaign batch this group belongs to. Null for groups
+  /// created by the machine-triggered /api/run-batch path.
+  campaign_id     String?
+  /// TH-S38: why a group stopped early (cost ceiling, worker unreachable,
+  /// pipeline error, hard-fail rule). Null for a group that finished clean.
+  /// Persisted so the results table can say why, instead of only "incomplete".
+  incomplete_reason String?
+  /// Per-session judge verdicts, written once when the group reaches a
+  /// terminal status: [{ sessionIndex, judged, passed, rationale }]. Empty
+  /// when the campaign ran with the judge off (those conversations stay
+  /// UNGRADED) or when the run never reached a gradeable state.
+  judge_verdicts  Json               @default("[]")
+  campaign        Campaign?          @relation(fields: [campaign_id], references: [id], onDelete: SetNull)
   started_at      DateTime?
   completed_at    DateTime?
   created_at      DateTime           @default(now())
@@ -853,6 +915,7 @@ model ConversationRun {
   @@index([environment, created_at(sort: Desc)])
   @@index([persona_case_id])
   @@index([status])
+  @@index([campaign_id])
 }
 
 model CorpusCase {

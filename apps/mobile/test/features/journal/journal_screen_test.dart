@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:okuvu/src/core/providers.dart';
+import 'package:okuvu/src/features/journal/journal_prompt_service.dart';
 import 'package:okuvu/src/features/journal/journal_screen.dart';
 
 Dio _createMockDio({int statusCode = 200, Map<String, dynamic>? data}) {
@@ -87,7 +88,9 @@ void main() {
       await tester.pumpWidget(_buildJournalApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('How are you feeling?'), findsOneWidget);
+      // "(optional)" is the visible answer to the reported complaint that a
+      // mood looked mandatory.
+      expect(find.text('How are you feeling? (optional)'), findsOneWidget);
     });
 
     testWidgets('renders all 8 emotion chips', (tester) async {
@@ -109,12 +112,13 @@ void main() {
       await tester.pumpWidget(_buildJournalApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('How strong is it?'), findsOneWidget);
-      // 5 intensity dots, initially intensity 1: dot 1 filled, dots 2-5 outlined
+      expect(find.text('How strong is it? (optional)'), findsOneWidget);
+      // 5 intensity dots, none filled: nothing has been rated yet. The first
+      // dot used to come pre-filled at "1", recording a strength nobody chose.
       for (var i = 1; i <= 5; i++) {
         expect(find.byKey(Key('intensityDot_$i')), findsOneWidget);
       }
-      expect(_isDotFilled(tester, 1), isTrue);
+      expect(_isDotFilled(tester, 1), isFalse);
       expect(_isDotFilled(tester, 2), isFalse);
     });
 
@@ -158,13 +162,26 @@ void main() {
       expect(find.byIcon(LucideIcons.mic), findsOneWidget);
     });
 
-    testWidgets('Get a prompt fetches and shows a suggestion (J2)', (tester) async {
+    testWidgets('Get a prompt puts a real prompt into the text area (J2)',
+        (tester) async {
       final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
       dio.interceptors.add(
         InterceptorsWrapper(
           onRequest: (options, handler) {
-            final data = options.path.contains('/journal/prompt')
-                ? {'prompt': 'What made today different?'}
+            final data = options.path.contains('/journal/prompts')
+                ? {
+                    'version': '1.0.0',
+                    'review': {
+                      'status': 'pending',
+                      'reviewer': 'Dr Shubhangi Goswami',
+                      'requestedOn': '2026-11-03',
+                      'approvedOn': null,
+                      'approvedVersion': null,
+                    },
+                    'prompts': [
+                      {'id': 'any-01', 'text': 'What was one good moment today?'},
+                    ],
+                  }
                 : {'success': true, 'id': 'entry-1'};
             handler.resolve(
               Response(requestOptions: options, statusCode: 200, data: data),
@@ -179,16 +196,77 @@ void main() {
       await tester.tap(find.text('Get a prompt'));
       await tester.pumpAndSettle();
 
-      expect(find.text('What made today different?'), findsOneWidget);
+      // The client asked for the prompt to land in the journal text section,
+      // not in a suggestion he then has to tap.
+      final textField = tester.widget<TextField>(find.byType(TextField).last);
+      expect(textField.controller!.text, contains('What was one good moment today?'));
+      expect(find.text('Prompt added — write below it.'), findsOneWidget);
+    });
 
-      await tester.tap(find.text('What made today different?'));
+    testWidgets('Get a prompt appends and offers Undo, never overwriting (J2)',
+        (tester) async {
+      final dio = _createMockDio(
+        data: {
+          'prompts': [
+            {'id': 'any-01', 'text': 'What was one good moment today?'},
+          ],
+        },
+      );
+
+      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpAndSettle();
+
+      final field = find.byType(TextField).last;
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'I already wrote this.');
+      await tester.pump();
+
+      await tester.ensureVisible(find.text('Get a prompt'));
+      await tester.tap(find.text('Get a prompt'));
       await tester.pumpAndSettle();
 
       final textField = tester.widget<TextField>(find.byType(TextField).last);
-      expect(textField.controller!.text, contains('What made today different?'));
+      expect(textField.controller!.text, contains('I already wrote this.'));
+      expect(textField.controller!.text, contains('What was one good moment today?'));
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+
+      final afterUndo = tester.widget<TextField>(find.byType(TextField).last);
+      expect(afterUndo.controller!.text, 'I already wrote this.');
+    });
+
+    testWidgets('Get a prompt still answers when the request fails (J2)',
+        (tester) async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionError,
+                message: 'offline',
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Get a prompt'));
+      await tester.pumpAndSettle();
+
+      // The old button showed nothing at all here — this is the regression
+      // guard for "the button does not work".
+      final textField = tester.widget<TextField>(find.byType(TextField).last);
+      final text = textField.controller!.text;
+      expect(text.trim().isNotEmpty, isTrue);
       expect(
-        find.byKey(const ValueKey('journal_suggested_prompt')),
-        findsNothing,
+        JournalPromptService.offlineFloor.any((p) => text.contains(p)),
+        isTrue,
       );
     });
 
@@ -303,6 +381,59 @@ void main() {
       await tester.pumpAndSettle();
 
       // Should navigate away from JournalScreen
+      expect(find.byType(JournalScreen), findsNothing);
+    });
+
+    // The exact complaint: with no mood picked, Save never appeared as an
+    // option. Words alone must save, and the payload must not invent a mood.
+    testWidgets('words alone can be saved, with no mood and no intensity',
+        (tester) async {
+      Map<String, dynamic>? posted;
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.method == 'POST' && options.path == '/journal') {
+              posted = Map<String, dynamic>.from(options.data as Map);
+            }
+            handler.resolve(
+              Response(
+                requestOptions: options,
+                statusCode: 200,
+                data: {'success': true, 'id': 'entry-1'},
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.pumpWidget(_buildJournalApp(dio: dio));
+      await tester.pumpAndSettle();
+
+      final field = find.byType(TextField).last;
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'Just needed to put this somewhere.');
+      await tester.pump();
+
+      await tester.scrollUntilVisible(
+        find.text('Save'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      final save = tester.widget<FilledButton>(
+        find.ancestor(of: find.text('Save'), matching: find.byType(FilledButton)),
+      );
+      expect(save.onPressed, isNotNull, reason: 'Save must be enabled');
+
+      await tester.tap(find.text('Save'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(posted, isNotNull);
+      expect(posted!['content'], 'Just needed to put this somewhere.');
+      expect(posted!.containsKey('emotion'), isFalse);
+      expect(posted!.containsKey('intensity'), isFalse);
       expect(find.byType(JournalScreen), findsNothing);
     });
   });

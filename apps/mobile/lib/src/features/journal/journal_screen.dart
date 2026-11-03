@@ -8,10 +8,10 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 import 'journal_entry.dart';
 import 'journal_provider.dart';
+import 'journal_prompt_service.dart';
 import '../home/widgets/home_bottom_nav.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
-import '../../core/providers.dart';
 
 // Mirrors apps/api/src/routes/journal.ts's MAX_CONTENT_LENGTH — keep the
 // two in sync if either changes.
@@ -33,7 +33,6 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   bool _isListening = false;
   String _voiceBaseText = '';
 
-  String? _suggestedPrompt;
   bool _isFetchingPrompt = false;
 
   @override
@@ -121,40 +120,53 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     );
   }
 
-  // J2 — AI-generated writing prompt. Shown as a dismissible suggestion,
-  // never auto-filled into the field, so it can't silently overwrite
-  // something the user already typed.
+  // J2 — writing prompt. Serves a sentence from the vetted prompt library
+  // (server-side, journal-prompt/prompt-library.ts) and puts it straight into
+  // the text area, which is where the client asked to see it. Two properties
+  // matter and both used to be missing: it always answers — the library read
+  // is cheap, and an offline phone falls back to a built-in set rather than a
+  // dead tap — and it never destroys what was already written, because it
+  // appends and the confirmation offers Undo.
   Future<void> _fetchPrompt() async {
-    setState(() {
-      _isFetchingPrompt = true;
-      _suggestedPrompt = null;
-    });
-    try {
-      final response = await ref.read(dioClientProvider).post('/journal/prompt');
-      final prompt = response.data is Map ? response.data['prompt'] as String? : null;
-      if (mounted) {
-        setState(() {
-          _isFetchingPrompt = false;
-          _suggestedPrompt = prompt;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isFetchingPrompt = false);
-    }
+    if (_isFetchingPrompt) return;
+    setState(() => _isFetchingPrompt = true);
+
+    final prompt = await ref.read(journalPromptServiceProvider).next(
+          emotion: ref.read(journalEntryFormProvider).emotion,
+        );
+
+    if (!mounted) return;
+    setState(() => _isFetchingPrompt = false);
+    _insertPrompt(prompt);
   }
 
-  void _usePrompt() {
-    final prompt = _suggestedPrompt;
-    if (prompt == null) return;
-    final combined = _textController.text.isEmpty
-        ? prompt
-        : '${_textController.text}\n\n$prompt ';
+  void _insertPrompt(String prompt) {
+    final before = _textController.text;
+    final base = before.trimRight();
+    final combined = base.isEmpty ? '$prompt\n\n' : '$base\n\n$prompt\n\n';
+
     _textController.value = TextEditingValue(
       text: combined,
       selection: TextSelection.collapsed(offset: combined.length),
     );
     ref.read(journalEntryFormProvider.notifier).setContent(combined);
-    setState(() => _suggestedPrompt = null);
+    _textFocusNode.requestFocus();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Prompt added — write below it.'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            _textController.value = TextEditingValue(
+              text: before,
+              selection: TextSelection.collapsed(offset: before.length),
+            );
+            ref.read(journalEntryFormProvider.notifier).setContent(before);
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _loadPrivacyNotice() async {
@@ -269,7 +281,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'How are you feeling?',
+                'How are you feeling? (optional)',
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 12),
@@ -314,7 +326,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'How strong is it?',
+                'How strong is it? (optional)',
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 12),
@@ -369,39 +381,6 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                   ),
                 ],
               ),
-              if (_suggestedPrompt != null) ...[
-                const SizedBox(height: 4),
-                Container(
-                  key: const ValueKey('journal_suggested_prompt'),
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.lavenderTint,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _usePrompt,
-                          child: Text(
-                            _suggestedPrompt!,
-                            style: const TextStyle(
-                              color: AppColors.royalPurple,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(LucideIcons.x, size: 16),
-                        onPressed: () => setState(() => _suggestedPrompt = null),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _textController,

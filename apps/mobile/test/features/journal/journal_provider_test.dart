@@ -17,12 +17,14 @@ void main() {
       container.dispose();
     });
 
-    test('initial state has null emotion, intensity 1, empty content',
+    test('initial state has null emotion, intensity 0, empty content',
         () {
       final state = container.read(journalEntryFormProvider);
 
       expect(state.emotion, isNull);
-      expect(state.intensity, 1);
+      // 0 = "not answered". Previously this started at 1, which recorded a
+      // strength the client never chose and drew a filled first dot.
+      expect(state.intensity, 0);
       expect(state.content, '');
       expect(state.isSaving, isFalse);
       expect(state.error, isNull);
@@ -52,29 +54,38 @@ void main() {
       expect(state.content, 'Feeling okay today.');
     });
 
-    test('isValid is false when emotion is null', () {
+    // The reported defect: Save never came alive without a mood. Writing is
+    // the point of a journal, so words alone must be saveable.
+    test('isValid is true with content and no mood at all', () {
       container
           .read(journalEntryFormProvider.notifier)
           .setContent('Some content');
 
       final state = container.read(journalEntryFormProvider);
-      expect(state.isValid, isFalse);
+      expect(state.isValid, isTrue);
     });
 
-    test('isValid is false when content is empty', () {
-      container.read(journalEntryFormProvider.notifier).setEmotion('sad');
-
-      final state = container.read(journalEntryFormProvider);
-      expect(state.isValid, isFalse);
-    });
-
-    test('isValid is true when both emotion and content are set', () {
+    test('isValid is true when content and a mood are both set', () {
       final notifier = container.read(journalEntryFormProvider.notifier);
       notifier.setEmotion('calm');
       notifier.setContent('Peaceful moment.');
 
       final state = container.read(journalEntryFormProvider);
       expect(state.isValid, isTrue);
+    });
+
+    test('isValid stays false when only a mood is picked', () {
+      container.read(journalEntryFormProvider.notifier).setEmotion('sad');
+
+      final state = container.read(journalEntryFormProvider);
+      expect(state.isValid, isFalse);
+    });
+
+    test('isValid is false for whitespace-only content', () {
+      container.read(journalEntryFormProvider.notifier).setContent('   ');
+
+      final state = container.read(journalEntryFormProvider);
+      expect(state.isValid, isFalse);
     });
 
     test('reset returns to initial state', () {
@@ -87,7 +98,7 @@ void main() {
 
       final state = container.read(journalEntryFormProvider);
       expect(state.emotion, isNull);
-      expect(state.intensity, 1);
+      expect(state.intensity, 0);
       expect(state.content, '');
     });
   });
@@ -109,6 +120,32 @@ void main() {
       expect(entry.intensity, 2);
       expect(entry.content, 'Looking forward to tomorrow.');
       expect(entry.createdAt, DateTime.utc(2026, 7, 25, 22, 30, 0));
+    });
+
+    test('fromJson tolerates an entry with no mood recorded', () {
+      // New shape: a client can save words without picking a feeling.
+      final entry = JournalEntry.fromJson({
+        'id': 'entry-2',
+        'emotion': null,
+        'intensity': null,
+        'content': 'Just needed to write.',
+        'created_at': '2026-11-03T08:00:00.000Z',
+      });
+
+      expect(entry.emotion, isNull);
+      expect(entry.intensity, isNull);
+      expect(entry.content, 'Just needed to write.');
+    });
+
+    test('fromJson tolerates the fields being absent entirely', () {
+      final entry = JournalEntry.fromJson({
+        'id': 'entry-3',
+        'content': 'Older server payload.',
+        'created_at': '2026-11-03T08:00:00.000Z',
+      });
+
+      expect(entry.emotion, isNull);
+      expect(entry.intensity, isNull);
     });
   });
 

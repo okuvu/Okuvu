@@ -3,6 +3,12 @@ import type { CreateJournalEntryBody } from '@okuvu/shared-types';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { generateJournalPrompt } from '../agents/journal-prompt/agent.js';
+import {
+  JOURNAL_PROMPT_CLINICAL_REVIEW,
+  JOURNAL_PROMPT_LIBRARY_VERSION,
+  promptsForEmotion,
+  validatePromptLibrary,
+} from '../agents/journal-prompt/prompt-library.js';
 import { checkBudget, withUsageMetering } from '../lib/token-budget.js';
 
 const VALID_EMOTIONS = ['anxious', 'sad', 'angry', 'overwhelmed', 'numb', 'calm', 'hopeful', 'other'] as const;
@@ -16,22 +22,38 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
     preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
-      const { emotion, intensity, content } = request.body;
+      // Mood and intensity are optional. Writing is the point of a journal;
+      // a client who wants to write and not label the feeling must be able to
+      // save, so only the content is required. When a mood IS sent it still
+      // has to be one of the eight, and an intensity only makes sense
+      // alongside one — a strength with no feeling attached is a mistake, not
+      // a blank.
+      const body = request.body ?? ({} as CreateJournalEntryBody);
+      const { emotion = null, intensity = null, content } = body;
 
-      if (typeof emotion !== 'string' || !VALID_EMOTIONS.includes(emotion as typeof VALID_EMOTIONS[number])) {
+      if (emotion !== null && (typeof emotion !== 'string' || !VALID_EMOTIONS.includes(emotion as typeof VALID_EMOTIONS[number]))) {
         return reply.status(400).send({
           error: {
             code: 'INVALID_EMOTION',
-            message: `emotion must be one of: ${VALID_EMOTIONS.join(', ')}`,
+            message: `emotion must be null or one of: ${VALID_EMOTIONS.join(', ')}`,
           },
         });
       }
 
-      if (typeof intensity !== 'number' || !Number.isInteger(intensity) || intensity < INTENSITY_MIN || intensity > INTENSITY_MAX) {
+      if (intensity !== null && (typeof intensity !== 'number' || !Number.isInteger(intensity) || intensity < INTENSITY_MIN || intensity > INTENSITY_MAX)) {
         return reply.status(400).send({
           error: {
             code: 'INVALID_INTENSITY',
-            message: `intensity must be an integer between ${INTENSITY_MIN} and ${INTENSITY_MAX}`,
+            message: `intensity must be null or an integer between ${INTENSITY_MIN} and ${INTENSITY_MAX}`,
+          },
+        });
+      }
+
+      if (intensity !== null && emotion === null) {
+        return reply.status(400).send({
+          error: {
+            code: 'INTENSITY_WITHOUT_EMOTION',
+            message: 'intensity only applies when an emotion is given',
           },
         });
       }
@@ -129,6 +151,45 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
           content: e.content,
           created_at: e.created_at.toISOString(),
         })),
+      });
+    },
+  });
+
+  // The prompt library, over HTTP — what the journal screen's "Get a prompt"
+  // button reads. Deliberately a plain read: the prompts are fixed, vetted
+  // sentences (agents/journal-prompt/prompt-library.ts), so this route costs
+  // nothing to serve, is fast enough to answer inside a tap, and has no
+  // per-day budget gate — unlike POST /journal/prompt, which spends a model
+  // call on a personalised sentence.
+  //
+  // Fail closed: a library that breaks its own rules is a 503, never a
+  // half-reviewed sentence reaching a client.
+  app.get<{ Querystring: { emotion?: string } }>('/journal/prompts', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const violations = validatePromptLibrary();
+      if (violations.length > 0) {
+        request.log.error(
+          { event: 'journal_prompt_library_invalid', violations },
+          'journal prompt library refusing to serve an invalid library',
+        );
+        return reply.status(503).send({
+          error: {
+            code: 'PROMPT_LIBRARY_INVALID',
+            message: 'The journal prompt library fails its own content rules; refusing to serve it.',
+            violations,
+          },
+        });
+      }
+
+      const prompts = promptsForEmotion(undefined, {
+        emotion: request.query.emotion ?? null,
+      });
+
+      return reply.send({
+        version: JOURNAL_PROMPT_LIBRARY_VERSION,
+        review: JOURNAL_PROMPT_CLINICAL_REVIEW,
+        prompts: prompts.map((p) => ({ id: p.id, text: p.text })),
       });
     },
   });

@@ -145,49 +145,57 @@ class _JournalEntryCardState extends State<_JournalEntryCard> {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: emotionColors[entry.emotion] ?? AppColors.lavenderWash,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    journalEmotionLabels[entry.emotion] ?? entry.emotion,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+            // Mood is optional on an entry, so this row appears only when the
+            // client actually recorded one — a blank chip or five empty dots
+            // would read as "you rated this zero", which is not what happened.
+            if (entry.emotion != null)
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: emotionColors[entry.emotion] ??
+                          AppColors.lavenderWash,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      journalEmotionLabels[entry.emotion] ?? entry.emotion!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Row(
-                  children: List.generate(5, (index) {
-                    final isFilled = index < entry.intensity;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 3),
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isFilled ? theme.colorScheme.primary : null,
-                          border: isFilled
-                              ? null
-                              : Border.all(
-                                  color: theme.colorScheme.primary.withAlpha(128),
-                                  width: 1.5,
-                                ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            ),
+                  if (entry.intensity != null && entry.intensity! > 0) ...[
+                    const SizedBox(width: 10),
+                    Row(
+                      children: List.generate(5, (index) {
+                        final isFilled = index < entry.intensity!;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 3),
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isFilled ? theme.colorScheme.primary : null,
+                              border: isFilled
+                                  ? null
+                                  : Border.all(
+                                      color: theme.colorScheme.primary
+                                          .withAlpha(128),
+                                      width: 1.5,
+                                    ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ],
+              ),
             const SizedBox(height: 8),
             if (_expanded)
               Text(
