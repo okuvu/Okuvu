@@ -4,9 +4,14 @@
 the technical work that carries each one, and the exact steps to put them live. An approver
 should be able to sign this off without reading any code.
 
-**Prepared:** 3 November 2026, 13:30 UTC
+**Prepared:** 3 November 2026, 13:30 UTC — **updated 13:40 UTC** after the server rollout completed
 **Branch:** `feat/app-change-round-1` (committed) → merges to `develop`
 **Companion file:** `docs/APP-CHANGE-LOG.md` (the running list, one row per change)
+
+> **What changed since the first draft of this page:** the server half of changes 1–7 went live
+> while this document was being written (build `cd2eaaf0`, SUCCEEDED 13:39 UTC). The database
+> migration has been applied to the production database. Section 5 has the verified detail, and
+> the approvals below have been narrowed to what is still outstanding — A1 is now row 8 only.
 
 ---
 
@@ -112,7 +117,7 @@ Changed behaviour:
 - `POST /journal/prompt` (the AI-generated path) is left in place, unchanged and unadvertised.
   No feature calls it.
 
-### 3.2 Database — one migration, runs inside the same build
+### 3.2 Database — one migration, **already applied to production**
 
 - Folder: `packages/prisma/migrations/20261103120000_journal_entry_optional_mood/migration.sql`
 - Effect: drops the "must not be empty" rule on the two mood columns of the journal entries
@@ -120,13 +125,11 @@ Changed behaviour:
   blank mood is a real answer and is not backfilled into "other"/1.
 - Ordering: sorts after every existing migration on `develop`, verified.
 - Applied automatically by the pipeline's `prisma migrate deploy` step, before the services
-  roll. The build log prints `Applying migration …` and that line is the proof required at
-  verification time.
-- Reversible in the sense that the change is additive-tolerated: the previous server version
-  keeps working after it, so a rolled-back api does not require a database rollback.
-- **Not yet executed anywhere.** This host has no Postgres, so the SQL was reviewed and
-  typechecked, not run. First real execution will be during this release, which is why the
-  build log line is a mandatory verification step, not a formality.
+  roll. **Applied to the production database at 13:31 UTC on 3 November 2026** — the build log
+  records `Applying migration 20261103120000_journal_entry_optional_mood` followed by
+  `All migrations have been successfully applied.` (49 migrations in the set.)
+- Tolerated by the previous server version, so a rolled-back api does not require a database
+  rollback.
 
 ### 3.3 Phone app (Android) — approved as A3
 
@@ -179,31 +182,48 @@ This is the part the code pipeline does not do. Changes live in
 | Server typecheck | `tsc --noEmit` clean | Met |
 | Database migration reviewed and correctly ordered | Folder sorts after all existing migrations | Met |
 | Infra plan | 3 add / 0 change / 0 destroy | Met |
+| **Server changes 1–7 deployed** | Build `cd2eaaf0` SUCCEEDED; api/worker/portal all serving it | **Met — 13:39 UTC 3 Nov** |
+| **Migration applied to production** | `Applying migration 20261103120000_…` in the build log | **Met — 13:31 UTC 3 Nov** |
 | **Clinical sign-off on the 52 prompts (C1)** | Dr Goswami's written reply | **Outstanding** |
 | **On-device test** | A human installing and pressing the screens | **Outstanding — cannot be done on this host** (no phone, no emulator) |
-| **Live proof of the Emergency Contact fix** | A 200 on `PATCH /settings/emergency-contact` in the server log after deploy | **Outstanding — needs a signed-in user token, which this host does not hold** |
+| **Live proof of the Emergency Contact fix** | A 200 on `PATCH /settings/emergency-contact` in the server log after the row 8 deploy | **Outstanding — needs a signed-in user token, which this host does not hold** |
 
-Two honest limits worth stating plainly to whoever signs: the database migration has never
-run anywhere, and no screen in this release has been looked at on a real phone. Both are
-covered by verification steps in §6, but neither can be reported as already proven.
+Two honest limits worth stating plainly to whoever signs: no screen in this release has been
+looked at on a real phone, and the Emergency Contact fix cannot be proven from this host.
+Both are covered by verification steps in §6, but neither can be reported as already proven.
+The database migration, previously on this list as unexecuted, has now run in production.
 
 ---
 
-## 5. State of the world as of 13:30 UTC, 3 November
+## 5. State of the world as of 13:40 UTC, 3 November
 
-- Production api is running commit `d605a9252c9a` (from `GET /health`).
-- **Changes 1–7 are already merged into `develop`** — that merge happened before this document
-  was written, so the server half of them is deploying now: build `evia-beta-build:cd2eaaf0`
-  for `d0a00f5`, started 13:23 UTC, in progress at the time of writing. When it finishes, the
-  three new endpoints and the migration are live on the server.
-  **They are still invisible to the user**, because the phone is running an older app build.
+**Live now, verified from outside:**
+
+- Production api answers `GET /health` with commit `d0a00f5a859f` — the sha that was pushed.
+- Build `evia-beta-build:cd2eaaf0` finished `SUCCEEDED` at 13:39 UTC and its own log ends with
+  `OK api: …:65`, `OK worker: …:64`, `OK portal: …:66` and
+  `All three services are serving this build` — i.e. no service rolled back to an older version.
+  Those three revision numbers are the rollback targets for changes 1–7.
+- The database migration was applied at 13:31 UTC, before the services rolled.
+- The three new endpoints exist and are gated: `/sessions`, `/journal/prompts` and
+  `/users/me/today` all answer **401** without a token. A missing route would answer 404, so
+  this is the proof the routes are in the running image.
+
+**So changes 1–7 are live on the server.** They are still invisible to the user, because the
+phone is running an older app build and every one of these changes is a screen change.
+
+**Still outstanding:**
+
 - **Change 8 is not merged.** Its two commits sit on `feat/app-change-round-1`, which is
-  4 commits behind `develop`, so it needs a rebase and a re-gate before it can go.
-- No APK has been built from this round. The phone is on an older build; every app-side change
-  in §2 is on the server or in the branch, and none of it is on the handset.
+  4 commits behind `develop`, so it needs a rebase and a re-gate before it can go. Nothing in
+  change 8 (the AWS secret, the IAM permission, the honest save behaviour) is live.
+- **No APK has been built from this round.** The version on `develop` is `1.0.8+9`; the build
+  handed to the phone so far was `1.0.7+8`, so the release build must be `1.0.9+10`.
+- **The Emergency Contact fix is unproven end to end** until a signed-in save returns 200, and
+  it cannot be until change 8 ships.
 
-This matters for the approval: A1 for changes 1–7 is effectively already in motion. A2 and A3
-are fully open.
+This matters for the approval: A1 as it stands now covers **change 8 only** — the server half of
+changes 1–7 is already running. A2 and A3 are fully open.
 
 ---
 
@@ -220,7 +240,8 @@ permission to already exist.
 2. **Rebase change 8 onto `develop` and re-gate.** In a throwaway worktree:
    `pnpm install --frozen-lockfile --offline`, `prisma generate`, api `vitest run`,
    app `flutter test`, `flutter analyze`. Then push `develop` once. That push is the deploy:
-   one rollout of api + worker + portal, migration included.
+   one rollout of api + worker + portal. *Changes 1–7 already took this path and are live —
+   this step now carries change 8 alone.*
 3. **Bump the app version to `1.0.9+10`** on `develop` before building.
 4. **Build the app (A3)** from a dedicated worktree with
    `bash scripts/build-release.sh --bundle`, then `python3 scripts/verify-mobile-release.py`.
@@ -228,13 +249,18 @@ permission to already exist.
 5. **Install and test on the phone.** The on-device pass is the user's: welcome page once, four
    breathing techniques, Past conversations, journal save with no mood, Get a prompt, feeling
    chip feedback, name on home, and each Settings switch (including Emergency Contact).
-6. **Verify from outside, in this order:**
+6. **Verify from outside, in this order** — the first three are **already done for changes 1–7**
+   and are listed so the same checks are repeated for change 8:
    - `curl -s https://api.okuvu.in/health` → commit equals the sha pushed in step 2.
-   - Build log contains `Applying migration` and `20261103120000_journal_entry_optional_mood`.
+     *(Done: `d0a00f5a859f`.)*
+   - Build log contains `Applying migration` with the migration's name.
+     *(Done: applied 13:31 UTC.)*
    - Build log ends with `OK api`, `OK worker`, `OK portal`.
+     *(Done: revisions 65 / 64 / 66.)*
    - Server log shows a 200 on `PATCH /settings/emergency-contact` when the user saves it —
      this is the only real proof the A2 fix worked.
-   - `GET /journal/prompts` answers 200 for a signed-in user.
+   - `GET /journal/prompts` answers 200 for a signed-in user. *(Currently 401 without a token,
+     which proves the route is live and gated; the 200 needs a real session.)*
 7. **Flip the log.** Each row in `docs/APP-CHANGE-LOG.md` goes `Ready` → `Live`, with the
    release number recorded under "Releases".
 
@@ -249,9 +275,11 @@ number, which is a 20-minute rebuild, not a rollback.
 ## 7. Risks and open items
 
 1. **Change 5 is clinically unsigned.** Prompts written by me, not by Dr Goswami. Hard gate:
-   her written reply, or change 5 waits.
-2. **The database migration has never run.** Two `DROP NOT NULL`s, no data rewritten. First
-   execution is in this release; the build log line is the proof.
+   her written reply, or change 5 waits. *(The library is already live on the server, but no
+   released app can reach it — the button that calls it ships with the new APK. Holding change 5
+   therefore means holding the APK, not rolling anything back.)*
+2. **The database migration is done** — applied in production at 13:31 UTC, no errors, no
+   rollback needed. This one is closed.
 3. **No screen in this release has been seen on a phone.** This host has no device and no
    emulator. All app verification is tests and static analysis.
 4. **Emergency Contact's fix is unproven end-to-end** until a real signed-in save returns 200.
@@ -267,8 +295,8 @@ number, which is a 20-minute rebuild, not a rollback.
 
 Tick and sign. One line per approval; C1 is Dr Goswami's.
 
-- [ ] **A1 — Code release approved.** Merge change 8 to `develop`; api, worker, portal and the
-      journal migration go live.
+- [ ] **A1 — Code release approved (change 8).** Merge change 8 to `develop`; api, worker and
+      portal go live. *Changes 1–7 already deployed this way at 13:39 UTC and need no approval.*
 - [ ] **A2 — AWS infrastructure change approved.** Create `evia-beta/emergency-contact-key`,
       grant the api role read + decrypt on that one secret, set `AWS_SECRETS_PREFIX`.
 - [ ] **A3 — App release approved.** Build `1.0.9+10`, pass the six release gates, install on

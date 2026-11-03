@@ -47,10 +47,17 @@ runbook.
 
 ## Releases
 
-**Build in flight (3 Nov 2026, 13:23 UTC).** Rows 1–7 were merged to `develop` before the
-approval pack was written, so the server half of them is deploying in build
-`evia-beta-build:cd2eaaf0` (source `d0a00f5`). It carries the journal migration and the three
-new endpoints. Row 8 is not in it — those two commits are still on the branch. The app side of
-every row needs a new APK (`1.0.9+10`), which has not been built.
+**Server half of rows 1–7: LIVE, 3 Nov 2026 13:39 UTC.** Build `evia-beta-build:cd2eaaf0`
+(SUCCEEDED) deployed source `d0a00f5a859f`; api task definition `:65`, worker `:64`,
+portal `:66`; `/health` answers that sha. The journal migration
+`20261103120000_journal_entry_optional_mood` applied at 13:31 UTC (log line
+`All migrations have been successfully applied`). New routes verified present and gated: `/sessions`,
+`/sessions/:id` and `/journal/prompts` each answer 401 without a token. Rollback targets for this
+release: api `:65`, worker `:64`, portal `:66`.
 
-_No row is `Live` yet._
+**Row 8 is not deployed** — two commits still on the branch, plus the AWS change which the
+pipeline does not apply.
+
+**No row is user-visible yet.** Rows 1–7 are all screen changes and the phone still runs the
+previous app build; the app side of every row waits on an APK (`1.0.9+10`) that has not been built.
+Approval and runbook: `docs/APP-RELEASE-APPROVAL-ROUND-1.md` (PDF alongside it).
