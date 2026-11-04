@@ -213,11 +213,22 @@ something to feel instead of think. Use it when your thoughts are racing and cou
 - Stopping early: **"You took a moment for yourself. Come back whenever you like."** No breath count —
   "it reads like a score."
 
-## Open dependency — the sigh video (not built)
+## Closed — the sigh video (dropped by the owner, 4 Nov 2026)
 
-She asked for a 20–30 second video for the physiological sigh only, opened from the (i) panel (no
-autoplay during the exercise), captions on by default, one person seated with belly and lower ribs
-expanding, labelled "AI-generated demonstration" if it is AI, **and she wants to see the final video
-before it goes in**: "AI video often gets breathing wrong (shoulders lifting, chest-only breaths, no
-visible top-up). If it does not pass, we film a real person instead." Her full script for it is in the
-reply. The app ships the (i) panel without a video rather than with an unapproved one.
+In her reply she asked for a 20–30 second video for the physiological sigh only, opened from the (i)
+panel (no autoplay during the exercise), captions on by default, one person seated with belly and
+lower ribs expanding, labelled "AI-generated demonstration" if it is AI, **and she wanted to see the
+final video before it went in**: "AI video often gets breathing wrong (shoulders lifting, chest-only
+breaths, no visible top-up). If it does not pass, we film a real person instead."
+
+**Owner decision, 4 Nov 2026 — Rajwant, in session: "keep a visual guide as suggested and text support
+as mentioned before. Omit the video support plan."** No clip is filmed, generated or shipped. The
+physiological sigh keeps the two things she already approved for every technique: the on-screen
+animation (a circle that fills, swells a little more, then empties — guided by words, not numbers) and
+her written explanation behind the (i). The video lane's docs, scripts and evidence were deleted from
+the branch (change log row 21) so nothing can be spent on it or accidentally revived.
+
+**Still owed to her:** one line confirming the video will not appear, so her sign-off record is not
+waiting on an asset that is never coming. Nothing was ever sent to her about the video — the email
+drafted for that purpose was never delivered (Gmail unreachable from this host) — so there is nothing
+to retract, only to state.
