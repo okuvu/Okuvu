@@ -36,12 +36,14 @@ jobs:
       # ─────────────────────────────────────────────
       # Model credential pre-flight
       #
-      # The reviewer runs on Qwen3 235B through Amazon Bedrock in
+      # The reviewer runs on Qwen3 Coder 30B-A3B through Amazon Bedrock in
       # ap-south-1 (the same account and region as the rest of the stack), not
-      # on MiniMax — that provider is retired. Bedrock needs a key before the
-      # review step can call it, and a missing key must not turn every PR red
-      # the way the old dead model id did: it is a quiet skip with a note in the
-      # run summary naming the secret to add.
+      # on MiniMax — that provider is retired. Cheapest coding model in the
+      # region that our account can actually invoke with tool calling:
+      # $0.18 per 1M input / $0.71 per 1M output, 262k context. Bedrock needs a
+      # key before the review step can call it, and a missing key must not turn
+      # every PR red the way the old dead model id did: it is a quiet skip with a
+      # note in the run summary naming the secret to add.
       # ─────────────────────────────────────────────
       - name: Check Bedrock credential
         id: bedrock
@@ -198,7 +200,7 @@ jobs:
           AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEDROCK_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: amazon-bedrock/qwen.qwen3-235b-a22b-2507-v1:0
+          model: amazon-bedrock/qwen.qwen3-coder-30b-a3b-v1:0
           use_github_token: true
           share: false
           prompt: |
