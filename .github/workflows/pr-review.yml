@@ -167,7 +167,7 @@ jobs:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: minimax/MiniMax-M2.7
+          model: minimax/MiniMax-M3
           use_github_token: true
           share: false
           prompt: |
@@ -339,6 +339,13 @@ jobs:
           echo "DEBUG: VALIDATION_RESULT=$VALIDATION_RESULT"
           echo "DEBUG: REVIEW_OUTCOME=$REVIEW_OUTCOME"
 
+          # An unset secret makes curl fail with "URL rejected: malformed input"
+          # (exit 3) and turns every run red for a reason unrelated to the PR.
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK is not configured on this repository - skipping the notification"
+            exit 0
+          fi
+
           if [ "$VALIDATION_RESULT" = "false" ]; then
             COLOR=15548997
             TITLE="⚠️ PR Review Skipped - #$PR_NUMBER"
@@ -347,6 +354,10 @@ jobs:
             COLOR=5814783
             TITLE="🔍 PR Review Complete - #$PR_NUMBER"
             DESC="**$PR_TITLE**"
+          elif [ "$REVIEW_OUTCOME" = "message" ] || [ "$REVIEW_OUTCOME" = "skipped" ]; then
+            COLOR=9807270
+            TITLE="⏭️ PR Review Skipped - #$PR_NUMBER"
+            DESC="**$PR_TITLE** - comment /opencode review to run it"
           else
             COLOR=15548997
             TITLE="❌ PR Review Failed - #$PR_NUMBER"
