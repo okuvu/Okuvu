@@ -200,7 +200,7 @@ jobs:
           AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEDROCK_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: amazon-bedrock/qwen.qwen3-coder-30b-a3b-v1:0
+          model: amazon-bedrock/minimax.minimax-m2.5
           use_github_token: true
           share: false
           prompt: |
