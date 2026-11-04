@@ -11,6 +11,23 @@
 # an approved still. Every stage refuses to run before the one above it exists.
 set -euo pipefail
 
+# --- spend lock -------------------------------------------------------------
+# Rajwant's instruction (3 Nov 2026): no further spend on this clip. He supplies
+# the presenter footage and this pipeline cuts it. Every paid stage is therefore
+# refused unless someone deliberately unlocks it for that shell only.
+if [[ "${1:-plan}" != "plan" && "${OKUVU_ALLOW_PAID_GEN:-0}" != "1" ]]; then
+  cat >&2 <<'MSG'
+Refusing to generate: paid stages are locked (no-budget instruction, 3 Nov 2026).
+
+The presenter footage comes from Rajwant, and scripts/sigh_ingest.py conforms it
+to Dr Goswami's beats at zero cost. Nothing here needs to run.
+
+To override for a single shell, deliberately export:
+  OKUVU_ALLOW_PAID_GEN=1 ./sigh_ai_generate.sh hero
+MSG
+  exit 1
+fi
+
 VG=(/opt/data/reels/venv/bin/python /opt/data/reels/videogen.py)
 PY=/opt/data/reels/venv/bin/python
 NAME=okuvu-guide

@@ -9,6 +9,12 @@ talking-head short he sent (`youtube.com/shorts/EbzqNQQBXj8` — a presenter in 
 bright room, sticker title, straight into the instruction, no intro). The filmed
 version stays possible; nothing here forecloses it.
 
+> **Parked 4 Nov 2026 — no spend approved.** Rajwant generates the presenter clip
+> himself and uploads it; `scripts/sigh_ingest.py` conforms it to the beats below
+> at zero cost. Every paid stage in `scripts/sigh_ai_generate.sh` now refuses to
+> run unless `OKUVU_ALLOW_PAID_GEN=1` is exported, and `FAL_KEY` remains commented
+> out in `/opt/data/.env`. Nothing in this document was executed.
+
 ---
 
 ## 1. The design decision that makes this clinically defensible

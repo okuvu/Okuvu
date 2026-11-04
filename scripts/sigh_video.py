@@ -132,8 +132,10 @@ def draw_caption(img: Image.Image, primary: str, secondary: str, alpha: float):
     x0 = (W - widest) / 2 - pad_x
     y0 = top - pad_y
     pill = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    # The plate must cover BOTH lines. It used to end after the primary line, so
+    # the secondary line sat on bare picture and washed out over anything light.
     ImageDraw.Draw(pill).rounded_rectangle(
-        [x0, y0, x0 + widest + 2 * pad_x, top + len(p_lines) * line_h_p + pad_y],
+        [x0, y0, x0 + widest + 2 * pad_x, top + block_h + pad_y],
         radius=26, fill=(*VIOLET, int(232 * alpha)))
     img.alpha_composite(pill)
     d = ImageDraw.Draw(img)
@@ -146,7 +148,7 @@ def draw_caption(img: Image.Image, primary: str, secondary: str, alpha: float):
         y += 26
         for l in s_lines:
             lw = d.textlength(l, font=fs)
-            d.text(((W - lw) / 2, y), l, font=fs, fill=(*SAGE_DEEP, int(235 * alpha)))
+            d.text(((W - lw) / 2, y), l, font=fs, fill=(*OAT, int(238 * alpha)))
             y += line_h_s
 
 

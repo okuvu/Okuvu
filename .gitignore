@@ -170,3 +170,7 @@ apps/mobile/android/app/google-services.json
 
 # local credential material
 .secrets/
+
+# regenerable by scripts/sigh_standin.py; test output lives here too
+evidence/sigh-video/standin/
+evidence/sigh-video/ingest-*/
