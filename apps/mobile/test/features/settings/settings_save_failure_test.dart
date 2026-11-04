@@ -19,7 +19,6 @@ import 'package:okuvu/src/features/settings/notification_settings_notifier.dart'
 import 'package:okuvu/src/features/settings/notifications_screen.dart';
 import 'package:okuvu/src/features/settings/quote_of_day_notifier.dart';
 import 'package:okuvu/src/features/settings/settings_save_feedback.dart';
-import 'package:okuvu/src/features/settings/voice_settings_notifier.dart';
 
 /// Resolves reads from [values] and answers every write with [writeStatus].
 Dio _fakeDio({
