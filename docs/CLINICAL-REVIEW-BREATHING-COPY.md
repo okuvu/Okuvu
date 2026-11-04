@@ -228,7 +228,8 @@ animation (a circle that fills, swells a little more, then empties — guided by
 her written explanation behind the (i). The video lane's docs, scripts and evidence were deleted from
 the branch (change log row 21) so nothing can be spent on it or accidentally revived.
 
-**Still owed to her:** one line confirming the video will not appear, so her sign-off record is not
-waiting on an asset that is never coming. Nothing was ever sent to her about the video — the email
-drafted for that purpose was never delivered (Gmail unreachable from this host) — so there is nothing
-to retract, only to state.
+**Closed with her, 4 Nov 2026.** The owner told Dr Goswami that no video will be made and she approved
+that change, so nothing is owed on this half and there is no line left to send: her sign-off stands on
+the two things that ship, the on-screen animation and her written explanation behind the (i). Nothing
+was ever sent to her about the video — the email drafted for it was never delivered (Gmail
+unreachable from this host) — so there was nothing to retract, only to state, and the owner did that.
