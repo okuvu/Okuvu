@@ -115,3 +115,32 @@ smaller **Talk to Okuvu**, not a hard stop; early stop shows no breath count; on
 count and tap answer are to be stored, and shown to the therapist only when breathing is homework or
 the client has shared. Built in rows 15–18; her requested **video for the sigh** and the **storage /
 therapist-sharing** piece are row 19, not built.
+
+## Round 2 rollout — LIVE, 5 Nov 2026 04:21 UTC
+
+Merged to `develop` as `940edf861bae` (one fast-forward carrying `feat/app-change-round-2`,
+`release/mobile-1.0.9` and `fix/pr-review-workflow`), build `evia-beta-build:d533b39d`
+**SUCCEEDED**. api task definition `:67`, worker `:65`, portal `:67`; `/health` answers
+`940edf861bae`. Migration `20261104000000_add_humming_breath_tool` applied in the same build
+(log: `Applying migration …` then `All migrations have been successfully applied`), so the
+humming-breath registry row, her one-line sigh and extended-exhale copy are in the database.
+POST_BUILD printed `OK api`, `OK worker`, `OK portal`. Rollback targets: api `:66`, worker `:64`,
+portal `:66`.
+
+Gates run on the merged tree before the push: api 1684 tests, worker 93, therapist-portal 316 plus
+`tsc --noEmit` and `next build`, secret scan clean, `flutter analyze` clean, `flutter test` 333.
+
+Row 8's AWS half was already live (secret, IAM statements, `AWS_SECRETS_PREFIX` on api `:66`);
+this release is the api code that reads it, so `PATCH /settings/emergency-contact` now answers 401
+without a token instead of failing to encrypt. New routes verified mounted: `/journal/prompts` 401,
+`/settings/emergency-contact` 401, invented route 404.
+
+App artifact: **1.0.10+11** (prod), versionCode 11, upload-key signer `CCB4CA39…FF96`,
+APK sha256 `602a2f345ce8715d7b300ac323b1cbad9bc272b873e807c69338c2c3c63fb8ed`, AAB
+sha256 `f322a9e14792710197af…`. `verify-mobile-release.py` — RELEASE OK, 26 of 26 checks, LIVE gate
+matched `/health` to the artifact's own commit. Nothing is published on Play (both listing URLs
+answer 404), so distribution is the side-loaded APK.
+
+Not carried: `feat/landing-redesign` (`434e4b1` is superseded — `develop` already carries a later
+marketing page, merging it would have deleted ~1,160 lines), `fix/admin-add-client-ux`
+(no patch left that is not already on `develop`).
