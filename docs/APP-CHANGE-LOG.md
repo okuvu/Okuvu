@@ -212,7 +212,9 @@ being refused as a downgrade. APK 59,969,491 bytes, sha256
 `545426D0…1A39`, built from `dbaaa73ab4d0` with `git_dirty: false`.
 `verify-mobile-release.py` — **RELEASE OK, 23 of 23 checks**: `flutter analyze` clean, 308 tests
 passing, FLAVOR=prod, client id compiled into 3/3 ABIs, no diagnostic strings, and the LIVE gate
-answering `/health` at `e65712dc8305` (the api image is unchanged by this release).
+answering `/health` at `e65712dc8305` (at gate time the api image still carried the previous tree;
+the push of `dbaaa73` then triggered CodeBuild and `/health` now answers `dbaaa73ab4d0`, with no
+user-visible server change).
 
 Rows 9–21 are present inside the artifact, proven from the AOT snapshot of all three ABIs rather
 than from the source: `Enter a 10-digit`, `Let's pause here`, `Stop for now`, `Humming`,
