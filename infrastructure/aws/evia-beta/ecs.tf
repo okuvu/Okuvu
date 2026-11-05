@@ -56,6 +56,12 @@ locals {
     # transit_encryption_enabled on the replication group.
     { name = "REDIS_URL", value = "rediss://${aws_elasticache_replication_group.main.primary_endpoint_address}:${var.redis_port}" },
     { name = "CONTACTS_KMS_KEY_ARN", value = aws_kms_key.contacts.arn },
+    # apps/api resolves a Secret Manager name as `${AWS_SECRETS_PREFIX}/<name>`
+    # (apps/api/src/lib/provider-config.ts). Unset, it asks for the bare name —
+    # `emergency-contact-key` — which does not exist, so the emergency-contact
+    # save failed with AccessDenied/ResourceNotFound instead of reading
+    # `evia-beta/emergency-contact-key`.
+    { name = "AWS_SECRETS_PREFIX", value = var.name_prefix },
 
     # apps/api hard-fails at boot if the summary/memory worker is unreachable
     # (assertWorkerReachable). Cloud Map gives the worker a stable VPC-only name.

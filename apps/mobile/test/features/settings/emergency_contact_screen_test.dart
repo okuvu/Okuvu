@@ -61,7 +61,7 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Phone must be in international format (e.g. +1234567890)'), findsOneWidget);
+    expect(find.text('Enter a 10-digit phone number (e.g. 9876543210)'), findsOneWidget);
     expect(find.byType(SnackBar), findsNothing);
   });
 
@@ -75,12 +75,12 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Phone must be in international format (e.g. +1234567890)'), findsOneWidget);
+    expect(find.text('Enter a 10-digit phone number (e.g. 9876543210)'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField).at(1), '+1234567890');
+    await tester.enterText(find.byType(TextField).at(1), '9876543210');
     await tester.pump();
 
-    expect(find.text('Phone must be in international format (e.g. +1234567890)'), findsNothing);
+    expect(find.text('Enter a 10-digit phone number (e.g. 9876543210)'), findsNothing);
   });
 
   testWidgets('name field enforces a 200-character max length', (tester) async {
@@ -102,7 +102,7 @@ void main() {
     expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
 
     await tester.enterText(find.byType(TextField).at(0), '');
-    await tester.enterText(find.byType(TextField).at(1), '+1234567890');
+    await tester.enterText(find.byType(TextField).at(1), '9876543210');
     await tester.pump();
     expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
   });
@@ -112,11 +112,57 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).at(0), 'Jane');
-    await tester.enterText(find.byType(TextField).at(1), '+1234567890');
+    await tester.enterText(find.byType(TextField).at(1), '9876543210');
     await tester.ensureVisible(find.text('Save'));
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Phone must be in international format (e.g. +1234567890)'), findsNothing);
+    expect(find.text('Enter a 10-digit phone number (e.g. 9876543210)'), findsNothing);
+  });
+
+  testWidgets('a ten-digit number saves and sends exactly ten digits', (tester) async {
+    RequestOptions? patch;
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.method == 'GET') {
+            handler.resolve(Response(
+              requestOptions: options,
+              statusCode: 200,
+              data: {'name': null, 'phone': null},
+            ));
+            return;
+          }
+          patch = options;
+          handler.resolve(Response(requestOptions: options, statusCode: 200, data: {'success': true}));
+        },
+      ),
+    );
+
+    await tester.pumpWidget(_buildApp(dio: dio));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(0), 'Jane');
+    await tester.enterText(find.byType(TextField).at(1), '9876543210');
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter a 10-digit phone number (e.g. 9876543210)'), findsNothing);
+    expect(patch?.data, {'name': 'Jane', 'phone': '9876543210'});
+  });
+
+  testWidgets('a number with a country code is rejected with the ten-digit message', (tester) async {
+    await tester.pumpWidget(_buildApp());
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(0), 'Jane');
+    await tester.enterText(find.byType(TextField).at(1), '+919876543210');
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter a 10-digit phone number (e.g. 9876543210)'), findsOneWidget);
   });
 }

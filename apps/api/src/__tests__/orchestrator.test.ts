@@ -244,8 +244,9 @@ describe('processTurn — tool_launched -> tool card wiring (okuvu-remaining-cha
   it.each([
     ['guided_breathing', { inhale_seconds: 4, hold_seconds: 2, exhale_seconds: 6, cycles: 3, label: 'Guided Breathing' }],
     ['box_breathing', { inhale_seconds: 4, hold_seconds: 4, exhale_seconds: 4, second_hold_seconds: 4, cycles: 5, label: 'Box Breathing', is_box_visual: true }],
-    ['physiological_sigh', { inhale_seconds: 2, second_inhale_seconds: 2, hold_seconds: 0, exhale_seconds: 8, cycles: 5, label: 'Physiological Sigh' }],
-    ['extended_exhale', { inhale_seconds: 4, hold_seconds: 2, exhale_seconds: 8, cycles: 3, label: 'Extended Exhale' }],
+    ['physiological_sigh', { inhale_seconds: 4, second_inhale_seconds: 1, hold_seconds: 0, exhale_seconds: 8, cycles: 5, label: 'Physiological Sigh' }],
+    ['extended_exhale', { inhale_seconds: 4, hold_seconds: 0, exhale_seconds: 8, cycles: 3, label: 'Extended Exhale' }],
+    ['humming_breath', { inhale_seconds: 4, hold_seconds: 0, exhale_seconds: 6, cycles: 10, label: 'Humming Breath' }],
   ] as const)('builds a %s tool card from A2\'s tool_launched signal', async (toolId, expectedBreathingConfig) => {
     vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S2', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
     vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });

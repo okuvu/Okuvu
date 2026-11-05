@@ -262,6 +262,7 @@ export type ToolCardType =
   | 'grounding_5431'
   | 'physiological_sigh'
   | 'extended_exhale'
+  | 'humming_breath'
 
 export interface BreathingConfig {
   inhale_seconds: number

@@ -147,3 +147,37 @@ resource "aws_secretsmanager_secret_version" "brevo" {
     api_key = var.brevo_api_key
   })
 }
+
+# Emergency-contact encryption key (AES-256-GCM, 32 bytes, base64).
+#
+# apps/api encrypts an emergency contact's name and phone before they reach
+# Postgres (apps/api/src/crypto/emergency-contact-encryption.ts) and reads the
+# key from Secrets Manager as `${AWS_SECRETS_PREFIX}/emergency-contact-key`.
+# Both halves were missing in the beta account — no such secret existed and the
+# api task role had no secretsmanager read at all — so PATCH
+# /settings/emergency-contact answered 500 on every attempt and a contact typed
+# into the app was never stored.
+resource "random_bytes" "emergency_contact_key" {
+  length = 32
+}
+
+resource "aws_secretsmanager_secret" "emergency_contact_key" {
+  name        = "${var.name_prefix}/emergency-contact-key"
+  description = "AES-256-GCM key for the encrypted emergency-contact columns"
+  kms_key_id  = aws_kms_key.secrets.arn
+
+  recovery_window_in_days = 7
+
+  tags = merge(local.common_tags, {
+    Name               = "${var.name_prefix}-emergency-contact-key"
+    DataClassification = "secret"
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "emergency_contact_key" {
+  secret_id = aws_secretsmanager_secret.emergency_contact_key.id
+
+  secret_string = jsonencode({
+    key = random_bytes.emergency_contact_key.base64
+  })
+}

@@ -1,6 +1,4 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:async';
 
 import '../../core/logger.dart';
 import '../../core/providers.dart';
@@ -62,29 +60,30 @@ class QuoteOfDaySettingsNotifier extends Notifier<QuoteOfDaySettingsState> {
     }
   }
 
-  Future<void> setEnabled(bool newValue) async {
+  /// Returns whether the server accepted the change; reverts on failure. See
+  /// VoiceSettingsNotifier.toggleVoice for why the write is no longer
+  /// fire-and-forget.
+  Future<bool> setEnabled(bool newValue) async {
+    final previous = state.enabled;
+
     state = state.copyWith(
       enabled: newValue,
       error: null,
     );
 
-    final dio = ref.read(dioClientProvider);
-
-    unawaited(_persistEnabled(dio, newValue));
-  }
-
-  Future<void> _persistEnabled(Dio dio, bool newValue) async {
     try {
+      final dio = ref.read(dioClientProvider);
       await dio.patch(
         '/settings/quote-of-day',
         data: {
           'enabled': newValue,
         },
       );
-    } on DioException catch (e) {
-      Logger.debug('Quote-of-day preference persistence failed: ${e.response?.statusCode}');
+      return true;
     } catch (e) {
+      state = state.copyWith(enabled: previous);
       Logger.debug('Quote-of-day preference persistence failed: $e');
+      return false;
     }
   }
 }

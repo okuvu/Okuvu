@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/logger.dart';
@@ -60,24 +58,42 @@ class NotificationSettingsNotifier extends Notifier<NotificationSettingsState> {
     }
   }
 
-  Future<void> setAppointmentReminders(bool value) async {
-    state = state.copyWith(appointmentRemindersEnabled: value);
-    unawaited(_persist({'appointment_reminders_enabled': value}));
+  Future<bool> setAppointmentReminders(bool value) async {
+    return _set(
+      apply: () => state = state.copyWith(appointmentRemindersEnabled: value),
+      revert: (previous) =>
+          state = state.copyWith(appointmentRemindersEnabled: previous),
+      previous: state.appointmentRemindersEnabled,
+      payload: {'appointment_reminders_enabled': value},
+    );
   }
 
-  Future<void> setChatNudges(bool value) async {
-    state = state.copyWith(chatNudgesEnabled: value);
-    unawaited(_persist({'chat_nudges_enabled': value}));
+  Future<bool> setChatNudges(bool value) async {
+    return _set(
+      apply: () => state = state.copyWith(chatNudgesEnabled: value),
+      revert: (previous) => state = state.copyWith(chatNudgesEnabled: previous),
+      previous: state.chatNudgesEnabled,
+      payload: {'chat_nudges_enabled': value},
+    );
   }
 
-  Future<void> _persist(Map<String, dynamic> data) async {
+  /// Awaitable, reverting write shared by both toggles. Fire-and-forget made a
+  /// rejected save indistinguishable from a stored one (round 8).
+  Future<bool> _set({
+    required void Function() apply,
+    required void Function(bool previous) revert,
+    required bool previous,
+    required Map<String, dynamic> payload,
+  }) async {
+    apply();
     try {
       final dio = ref.read(dioClientProvider);
-      await dio.patch('/settings/notifications', data: data);
-    } on DioException catch (e) {
-      Logger.debug('Notification preference persistence failed: ${e.response?.statusCode}');
+      await dio.patch('/settings/notifications', data: payload);
+      return true;
     } catch (e) {
+      revert(previous);
       Logger.debug('Notification preference persistence failed: $e');
+      return false;
     }
   }
 }
