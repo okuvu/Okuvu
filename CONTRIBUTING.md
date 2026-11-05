@@ -161,6 +161,28 @@ git rebase origin/develop
    - Flutter/portal stories → Lead Developer
 5. Wait for CI to pass before requesting review
 
+### The automated PR review
+
+`pr-review.yml` reviews each PR with OpenCode running on **Qwen3 235B through
+Amazon Bedrock (ap-south-1)** — the same AWS account and region as the rest of
+the stack. MiniMax is retired; do not reintroduce a `minimax/*` model id.
+
+The model is named in two places that must stay in sync: the `model:` input in
+`.github/workflows/pr-review.yml` and `model` in `opencode.json`. Any id you put
+there must exist in OpenCode's catalogue **and** be enabled in ap-south-1 —
+check both, or the job fails before it ever reads the diff:
+
+```bash
+opencode models | grep amazon-bedrock          # what OpenCode will accept
+aws bedrock list-foundation-models --region ap-south-1 \
+  --query "modelSummaries[].modelId" | grep qwen   # what the region serves
+```
+
+The job authenticates with a Bedrock API key in the repository secret
+**`AWS_BEDROCK_API_KEY`** (AWS console → Bedrock → ap-south-1 → API keys →
+long-term key). If the secret is absent the review step is skipped and the run
+summary says so — it does not fail the PR.
+
 ### After your PR merges
 
 Your story branch is deleted automatically (GitHub is configured to do this). No manual cleanup needed.

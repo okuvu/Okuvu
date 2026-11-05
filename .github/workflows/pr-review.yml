@@ -34,6 +34,37 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/merge', github.event.issue.number) }}
 
       # ─────────────────────────────────────────────
+      # Model credential pre-flight
+      #
+      # The reviewer runs on Qwen3 Coder 30B-A3B through Amazon Bedrock in
+      # ap-south-1 (the same account and region as the rest of the stack), not
+      # on MiniMax — that provider is retired. Cheapest coding model in the
+      # region that our account can actually invoke with tool calling:
+      # $0.18 per 1M input / $0.71 per 1M output, 262k context. Bedrock needs a
+      # key before the review step can call it, and a missing key must not turn
+      # every PR red the way the old dead model id did: it is a quiet skip with a
+      # note in the run summary naming the secret to add.
+      # ─────────────────────────────────────────────
+      - name: Check Bedrock credential
+        id: bedrock
+        env:
+          AWS_BEDROCK_API_KEY: ${{ secrets.AWS_BEDROCK_API_KEY }}
+        run: |
+          if [ -z "$AWS_BEDROCK_API_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Automated PR review skipped"
+              echo ""
+              echo "No Bedrock API key is configured on this repository, so the review cannot run."
+              echo "Add one: AWS console → Amazon Bedrock → ap-south-1 → API keys → create a long-term key,"
+              echo "then GitHub → Settings → Secrets and variables → Actions → new secret named **AWS_BEDROCK_API_KEY**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "AWS_BEDROCK_API_KEY is not configured - skipping the automated review"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ─────────────────────────────────────────────
       # Pre-flight: validate PR template is filled
       # ─────────────────────────────────────────────
       - name: Validate PR template
@@ -157,6 +188,7 @@ jobs:
       - name: OpenCode PR review
         id: opencode
         if: |
+          steps.bedrock.outputs.configured == 'true' &&
           steps.validate.outputs.template_valid == 'true' &&
           (github.event_name != 'pull_request' ||
            (github.event.pull_request.draft != true &&
@@ -164,10 +196,11 @@ jobs:
         timeout-minutes: 10
         uses: anomalyco/opencode/github@latest
         env:
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          AWS_REGION: ap-south-1
+          AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEDROCK_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: minimax/MiniMax-M2.7
+          model: amazon-bedrock/minimax.minimax-m2.5
           use_github_token: true
           share: false
           prompt: |
@@ -339,6 +372,13 @@ jobs:
           echo "DEBUG: VALIDATION_RESULT=$VALIDATION_RESULT"
           echo "DEBUG: REVIEW_OUTCOME=$REVIEW_OUTCOME"
 
+          # An unset secret makes curl fail with "URL rejected: malformed input"
+          # (exit 3) and turns every run red for a reason unrelated to the PR.
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK is not configured on this repository - skipping the notification"
+            exit 0
+          fi
+
           if [ "$VALIDATION_RESULT" = "false" ]; then
             COLOR=15548997
             TITLE="⚠️ PR Review Skipped - #$PR_NUMBER"
@@ -347,6 +387,10 @@ jobs:
             COLOR=5814783
             TITLE="🔍 PR Review Complete - #$PR_NUMBER"
             DESC="**$PR_TITLE**"
+          elif [ "$REVIEW_OUTCOME" = "message" ] || [ "$REVIEW_OUTCOME" = "skipped" ]; then
+            COLOR=9807270
+            TITLE="⏭️ PR Review Skipped - #$PR_NUMBER"
+            DESC="**$PR_TITLE** - comment /opencode review to run it"
           else
             COLOR=15548997
             TITLE="❌ PR Review Failed - #$PR_NUMBER"
