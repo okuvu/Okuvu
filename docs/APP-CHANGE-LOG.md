@@ -198,3 +198,27 @@ proven by downloading the whole file back and matching the sha.
 Still open: row 19(b) — storing the technique, breath count and tap answer for the therapist — is
 design only, and nothing is being stored today. Nothing is published on Play (both listing URLs
 answer 404), so distribution remains the side-loaded APK.
+
+## Round 2 app build — 1.0.12+13, 5 Nov 2026 14:50 UTC
+
+`main` and `develop` are the same tree (`dbaaa73ab4d0`); the merge had no conflicts because the two
+refs already named identical commits. This build adds no source change — it re-cuts the round-2 tree
+with the canonical builder (`scripts/build-release.sh`, which supplies `FLAVOR` and the
+`GOOGLE_SERVER_CLIENT_ID` define that a hand-rolled `flutter build apk` omits).
+
+Version **1.0.12+13**; versionCode 13 clears 12, so it replaces any earlier artifact rather than
+being refused as a downgrade. APK 59,969,491 bytes, sha256
+`b3b262d70837f2777117636500e832dc7a0453715de64c71e67fabac0a4dfbe2`, upload-key signer
+`545426D0…1A39`, built from `dbaaa73ab4d0` with `git_dirty: false`.
+`verify-mobile-release.py` — **RELEASE OK, 23 of 23 checks**: `flutter analyze` clean, 308 tests
+passing, FLAVOR=prod, client id compiled into 3/3 ABIs, no diagnostic strings, and the LIVE gate
+answering `/health` at `e65712dc8305` (the api image is unchanged by this release).
+
+Rows 9–21 are present inside the artifact, proven from the AOT snapshot of all three ABIs rather
+than from the source: `Enter a 10-digit`, `Let's pause here`, `Stop for now`, `Humming`,
+`physiological_sigh`, `https://api.okuvu.in`, and the compiled Google client id.
+
+Delivery: local copy `/opt/data/okuvu/releases/okuvu-1.0.12+13-prod.apk`, plus
+`s3://evia-beta-uploads-562654496378/releases/okuvu-1.0.12-13-prod.apk` (KMS-encrypted, 59,969,491
+bytes) handed over as a presigned link valid until 6 Nov 2026 02:53 UTC. The link was proven by
+downloading the whole file back and matching the sha256 byte for byte.
