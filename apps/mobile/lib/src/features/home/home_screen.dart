@@ -13,6 +13,7 @@ import 'widgets/today_card.dart';
 import 'widgets/pending_chat_access_banner.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../settings/profile_provider.dart';
+import '../notifications/notifications_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -79,6 +80,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Wireframe's 3-tab nav (Home/Chat/Journal) has no Progress or
         // Settings slot — both move here instead of occupying a tab.
         actions: [
+          Consumer(
+            builder: (context, ref, _) {
+              // The bell reads the unread count, not the list: Home should not
+              // pull 30 rows to draw a number. Invalidated whenever the inbox
+              // marks something read.
+              final unread =
+                  ref.watch(unreadNotificationCountProvider).asData?.value ?? 0;
+              return IconButton(
+                key: const ValueKey('notifications_bell'),
+                icon: Badge.count(
+                  count: unread,
+                  isLabelVisible: unread > 0,
+                  child: const Icon(LucideIcons.bell),
+                ),
+                tooltip: 'Notifications',
+                onPressed: () => context.go('/notifications'),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(LucideIcons.barChart2),
             tooltip: 'Progress',

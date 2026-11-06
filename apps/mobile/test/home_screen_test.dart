@@ -294,6 +294,99 @@ void main() {
     });
   });
 
+  group('HomeScreen notification bell', () {
+    // The bell is the only entry point to the inbox; without it the rows the
+    // therapist's actions now write would be unreachable from Home.
+    Dio buildDioWithUnread(int unread) {
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
+      dio.interceptors.add(InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.path.endsWith('unread-count')) {
+            handler.resolve(Response(
+              requestOptions: options,
+              statusCode: 200,
+              data: {'unreadCount': unread},
+            ));
+            return;
+          }
+          handler.resolve(Response(
+            requestOptions: options,
+            statusCode: 200,
+            data: {'success': true},
+          ));
+        },
+      ));
+      return dio;
+    }
+
+    Widget buildApp(Dio dio) {
+      return ProviderScope(
+        overrides: [
+          webSocketServiceProvider.overrideWithValue(_fakeWs),
+          authServiceProvider.overrideWithValue(FakeAuthService()),
+          dioClientProvider.overrideWithValue(dio),
+        ],
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            initialLocation: '/home',
+            routes: [
+              GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+              GoRoute(
+                path: '/notifications',
+                builder: (_, __) => const Scaffold(body: Text('inbox')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    testWidgets('renders a bell in the AppBar', (tester) async {
+      await tester.pumpWidget(buildApp(buildDioWithUnread(0)));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byIcon(LucideIcons.bell),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows the unread count as a badge', (tester) async {
+      await tester.pumpWidget(buildApp(buildDioWithUnread(3)));
+      await tester.pumpAndSettle();
+
+      // Scoped to the AppBar: other Badge widgets exist elsewhere in the tree
+      // (the bottom nav), so an unscoped byType would find more than one.
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('3')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('hides the badge when nothing is unread', (tester) async {
+      await tester.pumpWidget(buildApp(buildDioWithUnread(0)));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('0')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('tapping the bell opens the inbox', (tester) async {
+      await tester.pumpWidget(buildApp(buildDioWithUnread(2)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('notifications_bell')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('inbox'), findsOneWidget);
+    });
+  });
+
   group('ChatScreen post-session-close return to home', () {
     testWidgets(
       'SESSION_CLOSED -> SRS modal -> Skip -> stays on ChatScreen',

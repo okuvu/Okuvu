@@ -27,6 +27,8 @@ import '../features/journal/journal_screen.dart';
 import '../features/journal/journal_list_screen.dart';
 import '../features/appointments/appointments_screen.dart';
 import '../features/appointments/appointment_detail_screen.dart';
+import '../features/notifications/notifications_inbox_screen.dart';
+import '../features/homework/homework_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
@@ -170,6 +172,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/appointments/:id',
         builder: (context, state) =>
             AppointmentDetailScreen(appointmentId: state.pathParameters['id']!),
+      ),
+      // The inbox and the homework list. Both are pull surfaces — the bell only
+      // has new rows once the app asks, until a delivery channel exists.
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsInboxScreen(),
+      ),
+      GoRoute(
+        path: '/homework',
+        builder: (context, state) => const HomeworkScreen(),
       ),
       GoRoute(
         path: '/settings',

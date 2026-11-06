@@ -35,6 +35,11 @@ const { USER_FK_TABLES, STRING_REF_TABLES, ALL_TABLES, prismaMock } = vi.hoisted
     'userMemory',
     'inviteToken',
     'userToolPreference',
+    // Client inbox rows. Erased with the rest: a notification body names what a
+    // therapist sent this person ("appointment booked", the first line of an
+    // assignment) and must not outlive the account any more than the homework
+    // row it points at.
+    'notification',
   ] as const;
 
   const STRING_REF_TABLES = ['governanceLog', 'betaConsent', 'waitlistEntry'] as const;
@@ -399,7 +404,7 @@ describe('erasure coverage vs packages/prisma/schema.prisma', () => {
 
   it('finds the schema and the known set of subject tables', () => {
     expect(models.length).toBeGreaterThan(30);
-    expect(modelsWithUserFk.length).toBe(19);
+    expect(modelsWithUserFk.length).toBe(20);
   });
 
   it('every relation to User declares onDelete: Cascade', () => {
