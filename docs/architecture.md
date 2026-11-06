@@ -135,10 +135,11 @@ Single PostgreSQL database (Neon for dev, RDS for staging/prod). ORM is Prisma; 
 - **Homework/reminders/tools (added post-MVP, mostly pull-based today):** `Homework`, `Reminder`, `ToolRegistryEntry`, `UserToolPreference`, `CrisisResource` (seeded, not yet read by any live path).
 - **Client-authored content:** `JournalEntry`, `MoodLog`.
 - **Clinical/portal:** `TherapistNote` (never read by any agent — a deliberate clinical boundary), `Appointment`, `ClinicalAccessLog`, `EmergencyContact` (application-layer encrypted).
+- **Client inbox:** `Notification` — one row per client-facing event (homework assigned, reminder set, appointment booked/moved/cancelled), written by the portal in the same request as the thing it announces and read by `GET /users/me/notifications`. The app's bell, unread badge and inbox all read this one table.
 - **Ops:** `WaitlistEntry`, `BetaConsent`.
 - **Test-harness-only (not part of the product's runtime data):** `PromptRegistryEntry`, `ModelConfigPin`, `TestRun`, `TestResultRow`, `CorpusCase`, `BlindedReviewItem`, `ReviewRating`, `TestBudget`, `TestHarnessAccess`, `GateSignOff`, `BaselineArchive`.
 
-**Not implemented despite being planned:** `PushToken`/device-token storage — there is no push-notification delivery anywhere in the product (no push SDK in the mobile app, no notification service on the backend). `Reminder`/`Homework` are pull-only (read by the client, never pushed) until that's built.
+**Not implemented despite being planned:** `PushToken`/device-token storage and every delivery channel — there is still no push SDK in the mobile app and no sender on the backend, so a notification reaches the client only when the app asks for it. What changed is the *record*: the portal now writes a `Notification` row per event, the app has a bell and an inbox to show them, and a homework list route serves every assignment rather than only the newest. Push, email and SMS become extra senders reading that same table; none of them exist yet. `Appointment.remind_24h`/`remind_1h` are still stored and not acted on, because time-based sending needs a scheduler and there is none.
 
 ---
 

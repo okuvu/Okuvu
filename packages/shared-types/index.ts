@@ -591,6 +591,38 @@ export interface ReminderView {
   createdAt: string
 }
 
+// ─── App homework list (GET /users/me/homework) ────────────────────────
+//
+// The today card serves ONE active assignment; this is every assignment. The
+// notification inbox deep-links here, so it has to be a real list or a
+// "new homework" row would open a screen hiding the other two.
+
+export interface HomeworkListItem {
+  id: string
+  description: string
+  /** 'active' | 'completed' — plain string, matching HomeworkStatus. */
+  status: string
+  /** Set when the assignment is a playable exercise from the tool registry. */
+  toolId: string | null
+  toolLabel: string | null
+  assignedAt: string
+}
+
+/** One active reminder, as the client sees it on the homework screen. */
+export interface HomeworkReminderView {
+  id: string
+  scheduleNote: string
+  frequency: string
+  times: string[]
+  homeworkId: string | null
+  toolLabel: string | null
+}
+
+export interface HomeworkListResponse {
+  homework: HomeworkListItem[]
+  reminders: HomeworkReminderView[]
+}
+
 // ─── Therapist Portal (T-01 Dashboard) ─────────────────────────
 
 export type ClientCarePlan = {
@@ -827,3 +859,5 @@ export interface CorpusCase {
   toolkit?: string[]
   therapistName?: string | null
 }
+
+export * from './notifications'

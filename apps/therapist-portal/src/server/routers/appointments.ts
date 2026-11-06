@@ -8,6 +8,11 @@ import {
   therapistMutation,
   therapistProcedure,
 } from '../trpc';
+import {
+  notifyAppointmentBooked,
+  notifyAppointmentCancelled,
+  notifyAppointmentRescheduled,
+} from '../notifications';
 
 const MODES = ['video', 'phone', 'in_person'] as const;
 
@@ -135,7 +140,30 @@ export const appointmentsRouter = router({
         };
       });
 
-      await db.appointment.createMany({ data: rows });
+      // One create per row rather than createMany: the notification row needs
+      // the appointment id to deep-link to, and createMany returns none.
+      // Bounded by repeatWeeklyCount (<= 52), so the extra round-trips are
+      // acceptable at this volume.
+      const created: Array<{ id: string; scheduled_at: Date }> = [];
+      for (const row of rows) {
+        created.push(
+          await db.appointment.create({
+            data: row,
+            select: { id: true, scheduled_at: true },
+          }),
+        );
+      }
+
+      // A repeat booking is one announcement, not N: a client who books eight
+      // weekly sessions should not find eight identical rows in the inbox.
+      if (created.length > 0) {
+        await notifyAppointmentBooked(db, {
+          clientUserId: input.clientUserId,
+          appointmentId: created[0]!.id,
+          scheduledAt: created[0]!.scheduled_at,
+          additionalSessions: created.length - 1,
+        });
+      }
 
       return { success: true, count: rows.length };
     }),
@@ -182,6 +210,12 @@ export const appointmentsRouter = router({
         }),
       ]);
 
+      await notifyAppointmentRescheduled(db, {
+        clientUserId: input.clientUserId,
+        appointmentId: created.id,
+        scheduledAt: created.scheduled_at,
+      });
+
       return toView(created);
     }),
 
@@ -196,7 +230,7 @@ export const appointmentsRouter = router({
 
       const existing = await db.appointment.findUnique({
         where: { id: input.appointmentId },
-        select: { therapist_id: true, client_user_id: true },
+        select: { therapist_id: true, client_user_id: true, scheduled_at: true },
       });
       if (!existing || existing.therapist_id !== therapistId || existing.client_user_id !== input.clientUserId) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Appointment not found' });
@@ -207,6 +241,12 @@ export const appointmentsRouter = router({
       await db.appointment.update({
         where: { id: input.appointmentId },
         data: { cancelled_at: new Date() },
+      });
+
+      await notifyAppointmentCancelled(db, {
+        clientUserId: input.clientUserId,
+        appointmentId: input.appointmentId,
+        scheduledAt: existing.scheduled_at,
       });
 
       return { success: true };

@@ -39,6 +39,9 @@ export const SUBJECT_TABLES = [
   'clinicalConfig',
   'therapistNote',
   'clinicalAccessLog',
+  // The client inbox. Before the rows it refers to, though the ids are plain
+  // strings rather than FKs — order here is about intent, not constraints.
+  'notification',
   'appointment',
   'inviteToken',
   'therapistClient',
@@ -172,6 +175,14 @@ export async function deleteAccount(
       record(
         'clinicalAccessLog',
         await tx.clinicalAccessLog.deleteMany({ where: { client_user_id: user.id } }),
+      );
+      // The client inbox: rows naming what a therapist sent this person. Erased
+      // before the homework/appointment rows they point at — the ids are plain
+      // strings, so nothing enforces it, but a notification surviving its
+      // subject's erasure request would be a plain data-protection failure.
+      record(
+        'notification',
+        await tx.notification.deleteMany({ where: { user_id: user.id } }),
       );
       record(
         'appointment',

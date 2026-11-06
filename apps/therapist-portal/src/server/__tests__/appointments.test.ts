@@ -18,10 +18,13 @@ function buildPrisma(overrides: Overrides = {}) {
   return {
     therapist: { findUnique: vi.fn().mockResolvedValue(THERAPIST) },
     therapistClient: { findUnique: vi.fn().mockResolvedValue(therapistClient) },
+    // The notification emitter reads this to honour Settings → Appointment
+    // reminders before writing a row (see server/notifications.ts).
+    user: { findUnique: vi.fn().mockResolvedValue({ appointment_reminders_enabled: true }) },
+    notification: { create: vi.fn().mockResolvedValue({}) },
     appointment: {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(appointment),
-      createMany: vi.fn().mockResolvedValue({ count: 1 }),
       update: vi.fn().mockResolvedValue({
         id: 'appt_2',
         therapist_id: THERAPIST.id,
@@ -96,14 +99,11 @@ describe('appointments (therapist-portal wireframes P-01..P-04)', () => {
     });
 
     expect(result).toEqual({ success: true, count: 3 });
-    expect(prisma.appointment.createMany).toHaveBeenCalledWith({
-      data: expect.arrayContaining([
-        expect.objectContaining({ therapist_id: THERAPIST.id, client_user_id: CLIENT_ID }),
-      ]),
-    });
-    const call = vi.mocked(prisma.appointment.createMany).mock.calls[0]?.[0];
-    const rows = call?.data as Array<{ scheduled_at: Date }>;
-    expect(rows).toHaveLength(3);
+    expect(prisma.appointment.create).toHaveBeenCalledTimes(3);
+    const rows = vi
+      .mocked(prisma.appointment.create)
+      .mock.calls.map((call) => call[0].data as { scheduled_at: Date });
+    expect(rows[0]).toMatchObject({ therapist_id: THERAPIST.id, client_user_id: CLIENT_ID });
     // Each row 7 days apart.
     expect(rows[1].scheduled_at.getTime() - rows[0].scheduled_at.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
     expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
@@ -111,9 +111,66 @@ describe('appointments (therapist-portal wireframes P-01..P-04)', () => {
     });
   });
 
+  it('create tells the client once, not once per repeated session', async () => {
+    const prisma = buildPrisma();
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    await caller.appointments.create({
+      clientUserId: CLIENT_ID,
+      scheduledAt: '2026-09-20T12:30:00.000Z',
+      mode: 'video',
+      repeatWeeklyCount: 4,
+    });
+
+    // Four sessions booked, one inbox row — the client does not get four
+    // identical "appointment booked" entries for one booking action.
+    expect(prisma.notification.create).toHaveBeenCalledTimes(1);
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: CLIENT_ID,
+        kind: 'appointment_booked',
+        appointment_id: 'appt_2',
+      }),
+    });
+    const data = vi.mocked(prisma.notification.create).mock.calls[0]?.[0].data as { body: string; title: string };
+    expect(data.title).toBe('Appointments booked');
+    expect(data.body).toContain('4 sessions');
+  });
+
+  it('create writes nothing when the client switched appointment reminders off', async () => {
+    const prisma = buildPrisma();
+    // Settings → Notifications → Appointment reminders = off.
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      appointment_reminders_enabled: false,
+    } as never);
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    await caller.appointments.create({
+      clientUserId: CLIENT_ID,
+      scheduledAt: '2026-09-20T12:30:00.000Z',
+      mode: 'video',
+    });
+
+    // The appointment still exists — only the notification is suppressed.
+    expect(prisma.appointment.create).toHaveBeenCalledTimes(1);
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+  });
+
   it('reschedule cancels the old row and creates a new one with rescheduled_from set', async () => {
     const prisma = buildPrisma({
-      appointment: { therapist_id: THERAPIST.id, client_user_id: CLIENT_ID },
+      appointment: {
+        therapist_id: THERAPIST.id,
+        client_user_id: CLIENT_ID,
+        scheduled_at: new Date('2026-09-13T12:30:00Z'),
+      },
     });
     const caller = appRouter.createCaller({
       session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
@@ -160,7 +217,11 @@ describe('appointments (therapist-portal wireframes P-01..P-04)', () => {
 
   it('cancel sets cancelled_at and never deletes, logs CANCEL_APPOINTMENT', async () => {
     const prisma = buildPrisma({
-      appointment: { therapist_id: THERAPIST.id, client_user_id: CLIENT_ID },
+      appointment: {
+        therapist_id: THERAPIST.id,
+        client_user_id: CLIENT_ID,
+        scheduled_at: new Date('2026-09-20T12:30:00Z'),
+      },
     });
     const caller = appRouter.createCaller({
       session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
@@ -178,5 +239,15 @@ describe('appointments (therapist-portal wireframes P-01..P-04)', () => {
     expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
       data: { therapist_id: THERAPIST.id, client_user_id: CLIENT_ID, action: 'CANCEL_APPOINTMENT' },
     });
+    // The client is told which slot disappeared, not that "an appointment"
+    // was cancelled — a bare notice is useless a week later.
+    const data = vi.mocked(prisma.notification.create).mock.calls[0]?.[0].data as {
+      kind: string;
+      body: string;
+      appointment_id: string;
+    };
+    expect(data.kind).toBe('appointment_cancelled');
+    expect(data.appointment_id).toBe('appt_1');
+    expect(data.body).toBe('Your session on Sun, 20 Sep at 6:00 pm has been cancelled.');
   });
 });

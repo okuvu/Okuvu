@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/today_card_provider.dart';
 
@@ -104,6 +105,18 @@ class TodayCard extends ConsumerWidget {
                   ),
                 ),
               ],
+              // The card shows one active assignment; the homework screen shows
+              // all of them plus every reminder. Without this link the only way
+              // to reach that list would be a notification, which a client with
+              // older homework has none of.
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => context.go('/homework'),
+                  child: const Text('See all homework'),
+                ),
+              ),
             ],
           ),
         );

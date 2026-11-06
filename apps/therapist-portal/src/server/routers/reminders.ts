@@ -8,6 +8,7 @@ import {
   therapistMutation,
   therapistProcedure,
 } from '../trpc';
+import { notifyReminderSet } from '../notifications';
 
 const FREQUENCIES = ['off', 'once_daily', 'twice_daily', 'thrice_daily', 'as_needed'] as const;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -102,6 +103,14 @@ export const remindersRouter = router({
           tool_id: input.toolId ?? null,
         },
         select: { id: true, active: true, created_at: true },
+      });
+
+      await notifyReminderSet(db, {
+        clientUserId: input.clientUserId,
+        scheduleNote: input.scheduleNote,
+        frequency: input.frequency,
+        times: input.times,
+        homeworkId: input.homeworkId ?? null,
       });
 
       return reminder;

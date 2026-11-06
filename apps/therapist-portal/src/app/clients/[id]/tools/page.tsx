@@ -53,7 +53,7 @@ export default function ClientToolsPage() {
               View and schedule reminders &rarr;
             </span>
             <p className="mt-1 text-xs text-gray-500">
-              Reminders appear on the client&rsquo;s Today card in the app.
+              Reminders appear on the client&rsquo;s Today card and in their Notifications inbox.
             </p>
           </Link>
         </div>

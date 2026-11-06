@@ -25,17 +25,29 @@ class NotificationsScreen extends ConsumerWidget {
             icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const OkuvuAppBarTitle('Notifications'),
+          title: const OkuvuAppBarTitle('Notification settings'),
         ),
         body: settings.isLoading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 children: [
+                  // The switches below were inert until this build: they saved a
+                  // preference nothing read. Appointment rows are now gated by
+                  // the first one at write time, so say where things land rather
+                  // than leaving a client to guess.
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(
+                      'Updates from your therapist appear under Notifications, the bell on your Home screen.',
+                    ),
+                  ),
                   SwitchListTile(
                     key: const ValueKey('appointment_reminders_toggle'),
                     secondary: const Icon(LucideIcons.calendar),
                     title: const Text('Appointment reminders'),
-                    subtitle: const Text("We'll let you know before a session"),
+                    subtitle: const Text(
+                      'New, moved and cancelled sessions appear in Notifications',
+                    ),
                     value: settings.appointmentRemindersEnabled,
                     onChanged: (v) async {
                       final saved = await ref

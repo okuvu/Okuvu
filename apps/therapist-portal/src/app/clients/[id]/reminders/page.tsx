@@ -105,8 +105,8 @@ export default function ClientRemindersPage() {
           <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
             <h1 className="text-lg font-semibold text-gray-900">Reminders</h1>
             <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-              Reminders appear on the client&rsquo;s Today card in the app. Push delivery isn&rsquo;t
-              wired up yet — the client sees these when they open the app.
+              Reminders appear on the client&rsquo;s Today card and in their Notifications inbox in
+              the app. Nothing is pushed yet — the client sees them when they open the app.
             </p>
           </div>
 

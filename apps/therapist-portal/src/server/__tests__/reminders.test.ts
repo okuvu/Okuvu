@@ -36,6 +36,10 @@ function buildPrisma(overrides: {
         created_at: new Date('2026-09-16T00:00:00.000Z'),
       }),
     },
+    // Added with the client-notification work: reminders.create now also writes
+    // the inbox row (server/notifications.ts).
+    user: { findUnique: vi.fn().mockResolvedValue({ appointment_reminders_enabled: true }) },
+    notification: { create: vi.fn().mockResolvedValue({}) },
   } as unknown as PrismaClient;
 }
 
@@ -95,6 +99,26 @@ describe('reminders.create — homeworkId/toolId validation', () => {
         data: expect.objectContaining({ homework_id: 'hw_1' }),
       }),
     );
+  });
+
+  it('writes the client inbox row describing when to practise', async () => {
+    const prisma = buildPrisma({ homeworkOwner: 'client_1' });
+    const caller = callerWith(prisma);
+
+    await caller.reminders.create({ ...baseInput, homeworkId: 'hw_1' });
+
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: {
+        user_id: 'client_1',
+        kind: 'reminder_set',
+        title: 'New reminder',
+        body: 'Practice before bed. — once a day at 9:00 pm',
+        // Carries the homework link so tapping the row opens the assignment
+        // the reminder is about.
+        homework_id: 'hw_1',
+        appointment_id: null,
+      },
+    });
   });
 
   it('rejects a homeworkId that belongs to a different client', async () => {

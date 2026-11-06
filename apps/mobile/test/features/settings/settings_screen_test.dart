@@ -134,7 +134,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Profile'), findsOneWidget);
-        expect(find.text('Notifications'), findsOneWidget);
+        expect(find.text('Notification settings'), findsOneWidget);
         // W4.3 — care-plan/focus-area labels are a clinical-internal
         // construct, no longer surfaced client-facing anywhere.
         expect(find.text('My Focus Area'), findsNothing);

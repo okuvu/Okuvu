@@ -85,6 +85,7 @@ model User {
   homeworks           Homework[]          @relation("ClientToHomework")
   reminders           Reminder[]
   appointments        Appointment[]       @relation("ClientToAppointment")
+  notifications       Notification[]      @relation("ClientToNotification")
   invite_tokens       InviteToken[]
   tool_preferences    UserToolPreference[]
   safety_flags        SafetyFlag[]
@@ -487,6 +488,52 @@ model Appointment {
 
   @@index([therapist_id, scheduled_at])
   @@index([client_user_id, scheduled_at])
+}
+
+/// One row per client-facing event (homework assigned, reminder set,
+/// appointment booked / moved / cancelled) — the single source of truth behind
+/// the app's bell, unread badge and inbox list.
+///
+/// One record, several possible readers: the bell and the list read this table,
+/// and any future delivery channel (push via FCM, email, SMS) is a sender
+/// hanging off the same row — never a parallel pipeline with its own state.
+/// Nothing delivers these yet: `GET /users/me/notifications` is still a pull,
+/// which is why a client only sees new items once they open the app.
+///
+/// `title`/`body` are authored server-side at write time and stored, not
+/// derived on read, so the wording a client saw in their inbox does not change
+/// when a formatter or a translation changes later. Copy rules live in
+/// `packages/shared-types/notifications.ts`; nothing clinical from the
+/// therapist's private note belongs in either column.
+///
+/// `kind` is a plain string, deliberately not an enum: the same
+/// CREATE TYPE privilege friction that kept `Reminder.frequency` a string
+/// applies here, and an unknown kind must degrade to a generic row rather than
+/// fail the write that the therapist is waiting on.
+model Notification {
+  id             String    @id @default(uuid())
+  user_id        String
+  /// 'homework_assigned' | 'reminder_set' | 'appointment_booked' |
+  /// 'appointment_rescheduled' | 'appointment_cancelled'. Read by the app only
+  /// to pick an icon and a deep-link target; unknown values render as a
+  /// generic row.
+  kind           String
+  title          String
+  body           String
+  /// What tapping the row opens. Plain columns rather than a polymorphic
+  /// (target_type, target_id) pair so a row can point at the same homework a
+  /// reminder refers to without a join table. Both null for kinds with no
+  /// destination.
+  homework_id    String?
+  appointment_id String?
+  read_at        DateTime?
+  created_at     DateTime  @default(now())
+  user           User      @relation("ClientToNotification", fields: [user_id], references: [id], onDelete: Cascade)
+
+  /// The inbox read: newest first for one client.
+  @@index([user_id, created_at(sort: Desc)])
+  /// The badge count: unread only.
+  @@index([user_id, read_at])
 }
 
 /// Therapist-portal wireframes C-06 — the Add-Client wizard's provisioning

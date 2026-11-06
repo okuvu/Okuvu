@@ -27,6 +27,10 @@ function buildPrisma(overrides: { homeworkRows?: unknown[]; toolExists?: boolean
         overrides.toolExists === false ? null : { tool_id: 'box_breathing' },
       ),
     },
+    // Added with the client-notification work: homework.assign now also writes
+    // the inbox row (server/notifications.ts).
+    user: { findUnique: vi.fn().mockResolvedValue({ appointment_reminders_enabled: true }) },
+    notification: { create: vi.fn().mockResolvedValue({}) },
   } as unknown as PrismaClient;
 }
 
@@ -106,6 +110,43 @@ describe('homework.assign — tool_id linking', () => {
     ).rejects.toThrow(/tool not found/i);
 
     expect(prisma.homework.create).not.toHaveBeenCalled();
+  });
+
+  it('writes the client inbox row that the app bell reads', async () => {
+    const prisma = buildPrisma();
+    const caller = callerWith(prisma);
+
+    await caller.homework.assign({
+      clientUserId: 'client_1',
+      description: 'Practice box breathing before bed.',
+      toolId: 'box_breathing',
+    });
+
+    expect(prisma.notification.create).toHaveBeenCalledWith({
+      data: {
+        user_id: 'client_1',
+        kind: 'homework_assigned',
+        title: 'New homework',
+        body: 'Practice box breathing before bed.',
+        homework_id: 'hw_1',
+        appointment_id: null,
+      },
+    });
+  });
+
+  it('still returns the homework when the notification row cannot be written', async () => {
+    const prisma = buildPrisma();
+    // A failed insert must not fail the therapist's action: the assignment is
+    // the record of care, and a re-submitted form would create a duplicate.
+    vi.mocked(prisma.notification.create).mockRejectedValue(new Error('insert failed'));
+    const caller = callerWith(prisma);
+
+    const result = await caller.homework.assign({
+      clientUserId: 'client_1',
+      description: 'Journal about the week.',
+    });
+
+    expect(result.id).toBe('hw_1');
   });
 });
 

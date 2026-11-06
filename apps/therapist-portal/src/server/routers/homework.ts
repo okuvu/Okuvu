@@ -7,6 +7,7 @@ import {
   therapistMutation,
   therapistProcedure,
 } from '../trpc';
+import { notifyHomeworkAssigned } from '../notifications';
 
 const MAX_DESCRIPTION_LENGTH = 2000;
 
@@ -51,6 +52,14 @@ export const homeworkRouter = router({
           status: true,
           assigned_at: true,
         },
+      });
+
+      // The client-facing half: without this the assignment sits in the table
+      // until the client happens to open the app (see server/notifications.ts).
+      await notifyHomeworkAssigned(db, {
+        clientUserId: input.clientUserId,
+        homeworkId: homework.id,
+        description: input.description,
       });
 
       return homework;
