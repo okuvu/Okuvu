@@ -9,7 +9,7 @@ import {
   excerpt,
   formatNotificationDate,
   formatNotificationTime,
-} from '../notifications';
+} from '../index';
 
 describe('excerpt()', () => {
   it('leaves short text alone and collapses whitespace', () => {

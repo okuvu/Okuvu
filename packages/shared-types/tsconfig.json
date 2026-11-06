@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["index.ts", "notifications.ts", "__tests__"]
+  "include": ["index.ts", "__tests__"]
 }
