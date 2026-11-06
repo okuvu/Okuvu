@@ -42,7 +42,11 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   _SettingsTile(
                     icon: LucideIcons.bell,
-                    title: 'Notifications',
+                    // "Notification settings", not "Notifications": the bell on
+                    // Home opens the inbox, and two screens sharing one name
+                    // sent the operator looking for messages into a page of
+                    // toggles.
+                    title: 'Notification settings',
                     onTap: () => context.go('/settings/notifications'),
                   ),
                   _SettingsTile(

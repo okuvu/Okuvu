@@ -6,7 +6,6 @@ import 'package:dio/dio.dart';
 
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/features/notifications/notifications_inbox_screen.dart';
-import 'package:okuvu/src/features/notifications/notifications_provider.dart';
 import 'package:okuvu/src/features/homework/homework_screen.dart';
 import 'package:okuvu/src/features/homework/homework_provider.dart';
 

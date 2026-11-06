@@ -25,7 +25,7 @@ class NotificationsScreen extends ConsumerWidget {
             icon: const Icon(LucideIcons.arrowLeft),
             onPressed: () => context.go('/settings'),
           ),
-          title: const OkuvuAppBarTitle('Notifications'),
+          title: const OkuvuAppBarTitle('Notification settings'),
         ),
         body: settings.isLoading
             ? const Center(child: CircularProgressIndicator())
