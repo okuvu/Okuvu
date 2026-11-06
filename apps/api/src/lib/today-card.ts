@@ -4,6 +4,7 @@ import { markClientActivatedIfNeeded } from './client-activation.js';
 import { getActiveHomework } from './homework.js';
 import { toView as toAppointmentView } from './appointments.js';
 import type { TodayCard } from '@okuvu/shared-types';
+import { chatAccessWindow } from '@okuvu/shared-types';
 
 export type GetTodayCardResult =
   | { status: 'ok'; card: TodayCard }
@@ -74,6 +75,8 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
       therapist_id: true,
       chat_access_granted: true,
       chat_access_requested_at: true,
+      chat_access_granted_at: true,
+      chat_access_closed_at: true,
       therapist: { select: { name: true } },
     },
   });
@@ -126,7 +129,13 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
       ? {
           therapistId: therapistRelationship.therapist_id,
           therapistName: therapistRelationship.therapist.name,
-          granted: therapistRelationship.chat_access_granted,
+          // Not the bare boolean: the client's Settings switch renders this as
+          // "Shared with your therapist", and the portal only opens the
+          // transcript while `chat_access_granted_at` is inside the 30-day
+          // window and nothing closed it. Reading the boolean alone let the app
+          // claim "Shared" on a grant the portal refused — a client who never
+          // re-approved, or a window that expired, showed as still shared.
+          granted: chatAccessWindow(therapistRelationship) !== null,
         }
       : null,
     nextAppointment: nextAppointment ? toAppointmentView(nextAppointment) : null,

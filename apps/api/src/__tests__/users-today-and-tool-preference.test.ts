@@ -284,3 +284,85 @@ describe('PATCH /users/me/tool-preference', () => {
     });
   });
 });
+
+// The client's Settings switch renders `therapistChatAccess.granted` as
+// "Shared with your therapist". The portal refuses every transcript read
+// unless `chat_access_granted_at` is inside its 30-day window, so the flag
+// must carry the window's answer, not the bare boolean: reading the boolean
+// let the app claim "Shared" on a grant the therapist could never read.
+describe('GET /users/me/today — therapistChatAccess reflects the real read window', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  async function todayWithRelationship(relationship: Record<string, unknown>) {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(baseUserRow() as any);
+    vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue({
+      therapist_id: 'th_1',
+      therapist: { name: 'Dr. Rao' },
+      ...relationship,
+    } as any);
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.homework.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.userToolPreference.findMany).mockResolvedValue([]);
+    app = buildApp();
+    const response = await app.inject({ method: 'GET', url: '/users/me/today' });
+    expect(response.statusCode).toBe(200);
+    return response.json().therapistChatAccess;
+  }
+
+  it('is true while the approval window is open', async () => {
+    const access = await todayWithRelationship({
+      chat_access_granted: true,
+      chat_access_requested_at: null,
+      chat_access_granted_at: new Date(Date.now() - 60_000),
+      chat_access_closed_at: null,
+    });
+    expect(access.granted).toBe(true);
+  });
+
+  it('is false when the boolean is set but no approval was ever stamped', async () => {
+    // The portal's Add-client tick writes only the boolean; the migration
+    // that introduced the window explicitly does not backfill a timestamp.
+    // Without this the app showed "Shared" and the therapist saw nothing.
+    const access = await todayWithRelationship({
+      chat_access_granted: true,
+      chat_access_requested_at: null,
+      chat_access_granted_at: null,
+      chat_access_closed_at: null,
+    });
+    expect(access.granted).toBe(false);
+  });
+
+  it('is false after the client revokes', async () => {
+    const access = await todayWithRelationship({
+      chat_access_granted: false,
+      chat_access_requested_at: null,
+      chat_access_granted_at: new Date(Date.now() - 60_000),
+      chat_access_closed_at: new Date(),
+    });
+    expect(access.granted).toBe(false);
+  });
+
+  it('is false once the 30-day window has expired', async () => {
+    const thirtyOneDays = 31 * 24 * 60 * 60 * 1000;
+    const access = await todayWithRelationship({
+      chat_access_granted: true,
+      chat_access_requested_at: null,
+      chat_access_granted_at: new Date(Date.now() - thirtyOneDays),
+      chat_access_closed_at: null,
+    });
+    expect(access.granted).toBe(false);
+  });
+});

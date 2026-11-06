@@ -190,6 +190,12 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
       therapist_id: 'th_1',
       chat_access_granted: true,
       chat_access_requested_at: null,
+      // The boolean alone is not a grant any more: the app's switch and the
+      // portal's read gate both key on the approval window, so a fixture with
+      // no `chat_access_granted_at` is the "therapist ticked a box, client
+      // never approved" state — see users-today-and-tool-preference.test.ts.
+      chat_access_granted_at: new Date(),
+      chat_access_closed_at: null,
       therapist: { name: 'Dr. Jane Doe' },
     } as never);
 

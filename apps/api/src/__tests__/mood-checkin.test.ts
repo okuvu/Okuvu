@@ -93,11 +93,30 @@ describe('POST /progress/mood/checkin', () => {
 
       expect(vi.mocked(prisma.moodLog.upsert)).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { user_id_date_ist: { user_id: MOCK_USER_ID, date_ist: expect.any(String) } },
+          where: { user_id_date_ist: { user_id: MOCK_USER_ID, date_ist: expect.any(Date) } },
           create: expect.objectContaining({ mood_value: 3, source: 'user_input' }),
           update: expect.objectContaining({ mood_value: 3, source: 'user_input' }),
         }),
       );
+    });
+
+    // Regression: `date_ist` is a Prisma DateTime (@db.Date). Passing the bare
+    // "YYYY-MM-DD" string threw PrismaClientValidationError ("Expected
+    // ISO-8601 DateTime") on every check-in — a 500 the app surfaced as
+    // "Couldn't save your check-in", with no row ever written.
+    it('writes date_ist as a UTC-midnight Date, never a date-only string', async () => {
+      const prisma = await importMocks();
+
+      await app.inject({
+        method: 'POST',
+        url: '/progress/mood/checkin',
+        payload: { mood_value: 3 },
+      });
+
+      const arg = vi.mocked(prisma.moodLog.upsert).mock.calls[0][0] as any;
+      expect(arg.create.date_ist).toBeInstanceOf(Date);
+      expect(arg.where.user_id_date_ist.date_ist).toBeInstanceOf(Date);
+      expect(arg.create.date_ist.toISOString()).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/);
     });
   });
 

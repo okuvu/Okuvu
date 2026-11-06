@@ -1,5 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import {
+  CHAT_ACCESS_WINDOW_MS as CHAT_ACCESS_WINDOW_MS_SHARED,
+  chatAccessWindow,
+} from "@okuvu/shared-types";
 import { sendAdminTesterRequestEmail, sendClientInviteEmail } from "@/lib/email";
 import {
   assertClientAssigned,
@@ -66,7 +70,7 @@ export function deriveClientStatus(row: {
  * transcript the client had never agreed to share. That was a consent bug,
  * not a labelling question.
  */
-export const CHAT_ACCESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+export const CHAT_ACCESS_WINDOW_MS = CHAT_ACCESS_WINDOW_MS_SHARED;
 
 export const CHAT_ACCESS_UNAVAILABLE_MESSAGE =
   'Chat access is not available for this client';
@@ -89,21 +93,13 @@ export interface ConversationPage {
 
 /**
  * Null unless the client has approved and that approval is still open.
- * Boundary: exactly 30 days has expired — the window is half-open.
+ *
+ * The implementation lives in `@okuvu/shared-types` so the client's mobile
+ * switch and this gate cannot drift: both read the same 30-day rule, and the
+ * app shows "Shared" only when this returns a window. Re-exported here so
+ * existing callers and tests keep their import path.
  */
-export function chatAccessWindow(
-  assignment: {
-    chat_access_granted_at: Date | null;
-    chat_access_closed_at: Date | null;
-  } | null,
-  now: number = Date.now(),
-): { grantedAt: Date; expiresAt: Date } | null {
-  const grantedAt = assignment?.chat_access_granted_at;
-  if (!grantedAt) return null;
-  if (assignment?.chat_access_closed_at) return null;
-  if (now - grantedAt.getTime() >= CHAT_ACCESS_WINDOW_MS) return null;
-  return { grantedAt, expiresAt: new Date(grantedAt.getTime() + CHAT_ACCESS_WINDOW_MS) };
-}
+export { chatAccessWindow };
 
 /**
  * What the therapist is told about chat access, in one value — the Overview

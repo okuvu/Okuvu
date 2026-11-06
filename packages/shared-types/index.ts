@@ -17,6 +17,53 @@ export function getISTDateString(date: Date = new Date()): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * A `YYYY-MM-DD` calendar date as the UTC-midnight Date a Prisma `@db.Date`
+ * column requires.
+ *
+ * Prisma validates DateTime arguments before it reaches Postgres, and a
+ * date-only string fails with "premature end of input. Expected ISO-8601
+ * DateTime". Columns typed `@db.Date` still take a full DateTime from the
+ * client, so every date-only write must go through here.
+ */
+export function istDateToUtcMidnight(dateIst: string): Date {
+  return new Date(`${dateIst}T00:00:00.000Z`)
+}
+
+/**
+ * How long a client's chat-access approval opens their transcript to the
+ * therapist. Defined here, once, because two surfaces enforce it: the
+ * therapist portal's conversation gate (server) and the client's own
+ * "Chat summaries" switch (mobile, via the today card). When they disagreed,
+ * the app said "Shared" while every transcript read was refused.
+ */
+export const CHAT_ACCESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
+ * The open read window, or null.
+ *
+ * A window exists only because the client approved it, and it runs from that
+ * approval — not from the therapist's request. `chat_access_closed_at` (a
+ * revocation) ends it immediately, whatever the 30 days say. Boundary:
+ * exactly 30 days has expired — the window is half-open.
+ *
+ * Pass the four fields explicitly rather than a Prisma row, so the api and
+ * the portal can share this without sharing a database type.
+ */
+export function chatAccessWindow(
+  assignment: {
+    chat_access_granted_at: Date | null
+    chat_access_closed_at: Date | null
+  } | null,
+  now: number = Date.now(),
+): { grantedAt: Date; expiresAt: Date } | null {
+  const grantedAt = assignment?.chat_access_granted_at
+  if (!grantedAt) return null
+  if (assignment?.chat_access_closed_at) return null
+  if (now - grantedAt.getTime() >= CHAT_ACCESS_WINDOW_MS) return null
+  return { grantedAt, expiresAt: new Date(grantedAt.getTime() + CHAT_ACCESS_WINDOW_MS) }
+}
+
 export type SafetyState = 'S0' | 'S1' | 'S2' | 'S3' | 'S4'
 
 export const SAFETY_LABELS: Record<SafetyState, string> = {

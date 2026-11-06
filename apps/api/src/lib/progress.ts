@@ -1,5 +1,5 @@
 import { prisma } from './prisma.js';
-import { getISTDateString } from '@okuvu/shared-types';
+import { getISTDateString, istDateToUtcMidnight } from '@okuvu/shared-types';
 
 export type LogFn = (obj: Record<string, unknown>, msg: string) => void;
 
@@ -23,17 +23,25 @@ export async function recordMoodCheckin(
 
   const dateIst = getISTDateString();
 
+  // `date_ist` is a Prisma DateTime (@db.Date). A bare "YYYY-MM-DD" string is
+  // rejected at client validation ("premature end of input. Expected
+  // ISO-8601 DateTime"), which made every check-in a 500 — the app showed
+  // "Couldn't save your check-in" and the row was never written. The column
+  // stores a calendar date, so the value is that date at UTC midnight, the
+  // same convention getMoodHistory reads back with.
+  const dateIstValue = istDateToUtcMidnight(dateIst);
+
   await prisma.moodLog.upsert({
     where: {
       user_id_date_ist: {
         user_id: user.id,
-        date_ist: dateIst,
+        date_ist: dateIstValue,
       },
     },
     create: {
       user_id: user.id,
       mood_value: moodValue,
-      date_ist: dateIst,
+      date_ist: dateIstValue,
       source: 'user_input',
     },
     update: {
@@ -74,8 +82,7 @@ export async function getMoodHistory(
     return { status: 'user_not_found' };
   }
 
-  const todayStr = getISTDateString();
-  const today = new Date(todayStr + 'T00:00:00.000Z');
+  const today = istDateToUtcMidnight(getISTDateString());
   const start = new Date(today.getTime() - (days - 1) * 86_400_000);
 
   const entries = await prisma.moodLog.findMany({
