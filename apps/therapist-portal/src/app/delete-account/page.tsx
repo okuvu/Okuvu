@@ -261,6 +261,10 @@ export default function DeleteAccountPage() {
             ·{' '}
             <a className="text-royal-purple underline underline-offset-2" href="/privacy">
               Privacy Policy
+            </a>{' '}
+            ·{' '}
+            <a className="text-royal-purple underline underline-offset-2" href="/terms">
+              Terms of Service
             </a>
           </p>
         </footer>

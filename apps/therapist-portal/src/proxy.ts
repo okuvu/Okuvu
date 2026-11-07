@@ -32,8 +32,13 @@ const PUBLIC_ROUTES = new Set(['/auth']);
  * it is the account-deletion URL registered in Play Console, so it has to
  * answer a Play reviewer and a user who has already uninstalled the app. A
  * signed-in visitor must not be bounced off it either.
+ *
+ * `/terms` (2026-11-07) is the Terms of Service URL registered in Play
+ * Console, which requires a public, non-editable HTML page — so it belongs
+ * here for the same three audiences: a reviewer, a client, and a therapist
+ * who wants to read what they agreed to.
  */
-const PUBLIC_PATHS = new Set(['/', '/privacy', '/delete-account']);
+const PUBLIC_PATHS = new Set(['/', '/privacy', '/delete-account', '/terms']);
 
 /**
  * Unauthenticated API endpoints. Kept as an exact list, not a prefix: a

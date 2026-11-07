@@ -72,6 +72,7 @@ YOUR DATA
 - No third-party analytics or crash-reporting SDK is bundled in the app.
 - You can delete your account and your data from inside the app: Settings, then Privacy & Data, then Delete Account.
 - Privacy policy: https://okuvu.in/privacy
+- Terms of service: https://okuvu.in/terms
 
 Questions, problems or a data request: admin@okuvu.in
 ```
