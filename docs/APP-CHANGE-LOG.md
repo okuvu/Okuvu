@@ -224,3 +224,37 @@ Delivery: local copy `/opt/data/okuvu/releases/okuvu-1.0.12+13-prod.apk`, plus
 `s3://evia-beta-uploads-562654496378/releases/okuvu-1.0.12-13-prod.apk` (KMS-encrypted, 59,969,491
 bytes) handed over as a presigned link valid until 6 Nov 2026 02:53 UTC. The link was proven by
 downloading the whole file back and matching the sha256 byte for byte.
+
+## Task pop-up round — app build LIVE, 8 Nov 2026 10:17 UTC
+
+Therapist actions already had an inbox and a bell, but nothing announced an arrival: a client with
+the app open had to open the bell to discover their therapist had assigned something. This round
+adds the delivery half of that pull model.
+
+What shipped in the app: `NotificationPopupNotifier` polls `GET /users/me/notifications` every 30 s
+while the app is in the foreground, remembers the ids it has seen, and surfaces the newest unseen
+row as a banner at the top of whatever screen the client is on. Tapping it marks the row read and
+opens the homework list, the appointment, or the inbox. The first read of a session is a baseline,
+so rows that were already waiting at launch stay on the bell instead of firing a banner on every
+launch; a burst of two rows pops once. Polling stops when the app is backgrounded and reads
+immediately on resume — that resume read is what catches a task assigned while the phone was in a
+pocket. The banner sits below the crisis and care-ended overlays in the root stack, so a safety
+screen always wins.
+
+No server change was needed: the notification route, the Prisma rows and the portal's writer were
+already on `develop`. Merged as `3e6725f94688` (`feat/notification-popup`); the pipeline rolled
+api/worker/portal and `/health` now answers `3e6725f94688`.
+
+App artifact: **1.0.14+15** (prod), versionCode 15, upload-key signer `CCB4CA39…FF96`, APK
+60,183,115 bytes, sha256 `bb91e97ad1d196f03f80cd1a6feaf6cfdb8853c8743b3dca12bf46b3064d06b9`, built
+from `3e6725f94688` with a clean tree. `verify-mobile-release.py` — **RELEASE OK, 26 of 26 checks**
+(analyze clean, tests passing, compiled client id in 3/3 ABIs), and the feature strings read back
+out of `libapp.so` in all three ABIs. Local copy `/opt/data/okuvu/releases/okuvu-1.0.14+15-prod.apk`
+and `s3://evia-beta-uploads-562654496378/releases/okuvu-1.0.14-15-prod.apk`; handed over as a
+presigned link proven by downloading the whole file back and matching the sha.
+
+Still pull-only, and that is the open item: a client who never opens the app still sees nothing.
+OS-level push (phone locked, app closed) needs Firebase Cloud Messaging — a Firebase project, the
+Android app registered for `ai.okuvu.app` with the upload key's SHA-1, `google-services.json`, and a
+service-account key for the server sender. No part of that exists in the repo yet; the same stored
+rows are what a push sender will read, so nothing above has to be rebuilt for it.
