@@ -115,13 +115,16 @@ CREATE TABLE "WorksheetResponse" (
     CONSTRAINT "WorksheetResponse_pkey" PRIMARY KEY ("id")
 );
 
--- 1-5 self-report only. No scored instrument exists anywhere in this schema,
--- and this CHECK keeps a future caller from widening it into one by accident.
+-- 0-10 feeling slider around a worksheet, per the approved copy ("Slider 0-10",
+-- and the demanding gate is "above 5 out of 10"). The daily mood check-in keeps
+-- its own 1-5 scale; these two columns are worksheet-level self-report, not a
+-- scored instrument, and no scored instrument exists anywhere in this schema.
+-- The CHECK keeps a future caller from widening it into one by accident.
 ALTER TABLE "WorksheetResponse"
     ADD CONSTRAINT "WorksheetResponse_feeling_before_check"
-        CHECK ("feeling_before" IS NULL OR ("feeling_before" BETWEEN 1 AND 5)),
+        CHECK ("feeling_before" IS NULL OR ("feeling_before" BETWEEN 0 AND 10)),
     ADD CONSTRAINT "WorksheetResponse_feeling_after_check"
-        CHECK ("feeling_after" IS NULL OR ("feeling_after" BETWEEN 1 AND 5)),
+        CHECK ("feeling_after" IS NULL OR ("feeling_after" BETWEEN 0 AND 10)),
     ADD CONSTRAINT "WorksheetResponse_language_check"
         CHECK ("language" IN ('en', 'hi')),
     ADD CONSTRAINT "WorksheetResponse_safety_level_check"

@@ -736,8 +736,10 @@ model WorksheetResponse {
   /// Answers keyed by the field ids in the approved content JSON. Free text
   /// lives in here; it is client-authored and always safety-checked on write.
   answers        Json
-  /// Optional self-report around the exercise, 1-5. Not a scored instrument
-  /// and never labelled as one.
+  /// Optional self-report around the exercise, 0-10, matching the approved
+  /// "How are you feeling now?" slider and the above-5 demanding gate. Not a
+  /// scored instrument and never labelled as one. The daily mood check-in is
+  /// a separate 1-5 scale and is not this field.
   feeling_before Int?
   feeling_after  Int?
   /// Optional free text: "what got in the way" / "whether it helped".

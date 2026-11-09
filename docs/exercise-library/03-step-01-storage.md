@@ -49,7 +49,7 @@ future sender; nothing reads it), `therapy_goal`.
 
 `WorksheetResponse` — one row per filling-in (a worksheet can be repeated).
 `answers` (JSON keyed by the approved content's field ids), optional
-`feeling_before`/`feeling_after` (1–5, CHECK-constrained, not a scored
+`feeling_before`/`feeling_after` (**0–10**, CHECK-constrained, not a scored
 instrument), `barriers`, `helped`, `safety_flagged` + `safety_level`,
 `language`, `completed_at`, and `shared_with_therapist` + `shared_at` +
 `unshared_at`, all sharing defaults false.

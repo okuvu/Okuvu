@@ -77,10 +77,16 @@ which becomes false once the safety pass lands.
 
 - All worksheet wording comes from the owner's approved document, word for word.
   Never compose clinical copy; never copy from a published workbook.
-- The approved document is **not yet in the repo** — it arrived as a chat
-  attachment and is not on this host's disk. It must be stored at
-  `docs/exercise-library/worksheets-approved.pdf` (or its source path given)
-  before any worksheet copy is written.
+- The approved document is in the repo at
+  `docs/exercise-library/02-approved-worksheet-copy.md`, marked **COMPLETE**
+  (v1, 9 Nov 2026, all 16 worksheets and the shared app copy). That file is the
+  only source of worksheet and app copy. Hinglish is translated from it and
+  needs separate approval before it can be marked approved.
+- **Feeling ratings.** Every worksheet before/after feeling rating and every
+  slider inside a worksheet is **0–10** ("0 = barely there", "10 = the
+  strongest I've felt"), and the demanding-worksheet gate is "above 5 out of
+  10". Only the existing daily mood check-in keeps 1–5. Corrected in the schema
+  on 9 Nov 2026 (it had been built at 1–5).
 - No PHQ-9, GAD-7, any scored instrument, and no diagnosis or disorder wording
   anywhere a client can see. This is currently clean; it stays clean.
 
@@ -98,12 +104,11 @@ which becomes false once the safety pass lands.
 
 ## 10. Still owed by the owner
 
-1. The approved worksheet document **as a complete file**. Re-attached on 9 Nov
-   (`DOC-20261109-WA0028..md`) but again only excerpts reached this host's disk;
-   see `02-approved-worksheet-copy.md` for exactly what arrived. Step 2 needs the
-   full text (all 16 worksheets' titles, intros, prompts and option lists).
+1. ~~The approved worksheet document as a complete file.~~ **Received 9 Nov
+   2026** as full text; saved complete at `02-approved-worksheet-copy.md`.
+   Hinglish still needs its own approval pass once written.
 2. Disk: ~3 GB to be freed before Step 13 by the owner. Current free space is
-   reported in every step; 977 MB on 9 Nov.
+   reported in every step; 964 MB on 9 Nov before this step.
 3. ~~The numbered steps themselves, starting at Step 1.~~ Step 1 received and
    done — see `03-step-01-storage.md`.
 
@@ -119,4 +124,20 @@ which becomes false once the safety pass lands.
 - **Approved document.** Received again as a file; saved as far as it arrived.
   The four fragments are transcribed verbatim in
   `02-approved-worksheet-copy.md`, which is marked incomplete on purpose.
+
+## 12. Addendum — 9 Nov 2026, second round
+
+- **Approved document complete.** The owner pasted the full approved text; it
+  replaces the fragment file. All worksheet and app copy now comes from
+  `02-approved-worksheet-copy.md` (COMPLETE).
+- **Feeling ratings are 0–10.** Worksheet before/after ratings and in-worksheet
+  sliders are 0–10; only the daily mood check-in is 1–5. The Step 1 schema had
+  this at 1–5 and was corrected. The "above 5 out of 10" demanding gate reads
+  the 0–10 rating, so the two scales must never be mixed in code.
+- **Treasure Box collections.** Creating the four "Open when…" collections the
+  first time a client opens the Treasure Box is approved (better than a
+  migration that writes four rows for every account). One code path, seeded on
+  first read, idempotent via `system_key`.
+- **Account deletion.** The erasure catch in Step 1 was welcomed; keep the
+  schema-derived erasure test in the loop for every new client-data table.
 
