@@ -1,0 +1,28 @@
+# The model the app uses for worksheet help — read from the live AWS account, 10 Nov 2026
+
+$ aws ecs describe-services --cluster evia-beta --services evia-beta-api --region ap-south-1
+{
+    "taskDefinition": "arn:aws:ecs:ap-south-1:562654496378:task-definition/evia-beta-api:78",
+    "desiredCount": 1,
+    "runningCount": 1
+}
+
+$ aws ecs describe-task-definition --task-definition evia-beta-api:78 --region ap-south-1
+[
+    {
+        "name": "AWS_REGION",
+        "value": "ap-south-1"
+    },
+    {
+        "name": "LLM_PROVIDER",
+        "value": "bedrock"
+    },
+    {
+        "name": "BEDROCK_MODEL_ID",
+        "value": "qwen.qwen3-32b-v1:0"
+    }
+]
+
+Resolution in code: apps/api/src/lib/provider-config.ts DEFAULT_BEDROCK_MODEL_ID = qwen.qwen3-32b-v1:0
+So: the deployed api runs LLM_PROVIDER=bedrock, AWS_REGION=ap-south-1, BEDROCK_MODEL_ID=qwen.qwen3-32b-v1:0,
+and the eval script resolves the same id through the same function with no override set.

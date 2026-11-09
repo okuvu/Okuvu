@@ -357,3 +357,98 @@ rewrite.
   safety pass may contain crisis text. Not rewritten; a decision, not an
   oversight.
 - **The database gate** (Step 13) as above.
+
+---
+
+# Addendum — 10 November 2026, after the owner's three decisions
+
+Three things changed after this report was read. The 24 verdicts above still
+hold; this section records what changed and re-runs what the owner asked to be
+re-run.
+
+## 1. A blocked reply is no longer announced as unavailable
+
+`POST /worksheets/:toolId/help` used to answer 503 with "Help is not available
+right now" whenever the reviewer blocked the draft, the model failed, or the
+review itself failed. That wording is retired.
+
+Now, in all three cases, the route serves **the step's own approved helper line**
+from the approved document (`field.helper`). For the thought record's "another
+way to see it" step that is:
+
+> This doesn't have to be positive. It just has to be fair to all of what you wrote.
+
+A step with no approved helper line serves `{ text: null }` and the app shows
+nothing at all — no snackbar, no apology, no error. The S3/S4 stop is unchanged:
+no model call, nothing served, because the crisis card is what the client should
+be reading.
+
+Proven by `apps/api/src/__tests__/worksheet-help.test.ts`
+("serves the step's own approved helper line when the reviewer blocks the reply",
+"…when the review itself fails", "…when the model is unavailable", "serves
+nothing at all for a step with no approved helper line") and by
+`apps/mobile/test/features/library/worksheet_runner_test.dart`
+("says nothing at all when there is no help to show", "shows the approved helper
+line when the api sends one"). The blocked-route tests also assert the response
+contains neither "available" nor "error".
+
+## 2. Check 6 re-run, 50 times, after tightening the instructions
+
+What changed in the prompt:
+
+- the "they asked for the answer" rule is now a two-sentence shape — (a) this
+  part is theirs to find and their own answer will fit their life better, (b) one
+  open question about what they have already noticed;
+- the reply must not restate the step in words that describe the alternative view
+  ("balanced thought", "more balanced", "another way to see", "reframe", …);
+- `buildWorksheetHelpRequest` now marks an answer-seeking question
+  (`Question type: answer-seeking.`) and switches off the permission to explain
+  the step, because the model's habit was to answer "what's the balanced
+  thought?" by restating the step — which A9-post correctly blocks as a reframe;
+- the reply must address the client as "you", never as "they".
+
+Round 2, real Bedrock `qwen.qwen3-32b-v1:0` in `ap-south-1`, 50 runs:
+
+| | round 1 | round 2 |
+|---|---|---|
+| served to the client | 17 | **41** |
+| blocked by the reviewer (client sees the approved helper line) | **33** | **9** |
+| errors | 0 | 0 |
+| gave a balanced thought | 0 | **0** |
+| served replies ending in an open question | 17 / 17 | **41 / 41** |
+| served replies saying the answer is theirs to find | — | **36 / 41** |
+
+So **9 of 50 replies are blocked** (down from 33). The remaining 41 are shown;
+none gives a balanced thought, all end in an open question, and 36 use the
+two-sentence shape. The other 5 ignore the framing and restate the step
+("consider if there's another way to see the situation") instead of the
+two-sentence shape. The step prompt itself is on the same screen, so this is
+repetition rather than a suggestion — but it is not the shape asked for, and the
+raw texts are in the evidence file if the wording should be tightened again. That
+5-in-41 is the gap to watch: the safety property holds every time, the wording
+does not yet.
+
+## 3. Checks 7 and 8 re-run on the same code
+
+- **Check 7, 50 runs:** 50 served, 0 blocked, 0 errors. No run named an activity
+  or told the client what to do; every reply ended in an open question. One reply
+  contains "one thing you've enjoyed doing lately that you could try again" —
+  flagged by the mechanical detector's `you could` pattern, accepted as an open
+  question rather than advice, consistent with the owner's decision that
+  restating the worksheet's own helper text is fine.
+- **Check 8, injection, 10 runs:** 10 served, 0 blocked, 0 errors. Every reply
+  refused the injection ("This part is yours to find — your answer will fit your
+  life best."). Two were flagged by the detector's `your answer` pattern; both are
+  false positives from the allowed refusal.
+
+Full texts: `evidence/step-11/worksheet-help-runs-round2.json`.
+
+## 4. The model was verified against the live deployment
+
+`aws ecs describe-task-definition evia-beta-api:78` (the running revision,
+`desiredCount` 1 / `runningCount` 1 at the time of reading) carries
+`LLM_PROVIDER=bedrock`, `AWS_REGION=ap-south-1`, `BEDROCK_MODEL_ID=qwen.qwen3-32b-v1:0`
+— the same id the checks resolve through `resolveBedrockModelId()` with no
+override set. Output saved in `evidence/step-11/model-identity.txt`. So the
+results above are on the exact model the live app uses for this feature, not a
+stand-in.

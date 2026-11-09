@@ -1,11 +1,23 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:okuvu/src/features/library/library_api.dart';
 import 'package:okuvu/src/features/library/worksheet_draft_store.dart';
 import 'package:okuvu/src/features/library/worksheet_runner_screen.dart';
 import 'package:okuvu/src/features/library/worksheet_spec.dart';
+
+/// The api, with only the one call these tests make answered for them.
+class _HelpApi extends LibraryApi {
+  _HelpApi(this.answer) : super(Dio());
+
+  final String? answer;
+
+  @override
+  Future<String?> help(String toolId, String stepId) async => answer;
+}
 
 Map<String, Object?> body() => {
       'version': 1,
@@ -53,9 +65,13 @@ Widget harness({
   int? feelingBefore,
   bool isAssigned = false,
   String? personalNote,
+  LibraryApi? api,
   Future<void> Function(WorksheetAnswers, WorksheetOutcome)? onFinished,
 }) {
   return ProviderScope(
+    overrides: [
+      if (api != null) libraryApiProvider.overrideWithValue(api),
+    ],
     child: MaterialApp(
       home: WorksheetRunnerScreen(
         toolId: toolId,
@@ -444,5 +460,49 @@ void main() {
 
     // And it does not follow the client to the next piece.
     expect(find.text('for when the 9am standup starts'), findsNothing);
+  });
+
+  // ─── The help button when the reply cannot be shown (10 Nov 2026) ────────
+  //
+  // The owner's rule: never tell someone who is already struggling that help
+  // "isn't available right now". The api serves the step's own approved helper
+  // line whenever it has one; when it has none it serves nothing, and silence
+  // is what the client sees — no snackbar, no apology, no error.
+  testWidgets('says nothing at all when there is no help to show', (tester) async {
+    final content = parseWorksheetContent(body());
+    await tester.pumpWidget(harness(content: content, api: _HelpApi(null)));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('worksheetHelpButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.textContaining("isn't available"), findsNothing);
+    expect(find.textContaining('not available'), findsNothing);
+    // The step is untouched — the client keeps writing where they were.
+    expect(find.text('What happened?'), findsOneWidget);
+  });
+
+  testWidgets('shows the approved helper line when the api sends one', (tester) async {
+    final content = parseWorksheetContent(body());
+    await tester.pumpWidget(
+      harness(
+        content: content,
+        api: _HelpApi('Things that actually happened, not guesses.'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('worksheetHelpButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Things that actually happened, not guesses.'), findsOneWidget);
+    expect(find.textContaining('available'), findsNothing);
   });
 }

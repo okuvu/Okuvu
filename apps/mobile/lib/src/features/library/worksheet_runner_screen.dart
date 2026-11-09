@@ -222,12 +222,13 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
     if (!mounted) return;
     setState(() => _helpLoading = false);
 
-    if (text == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Help isn't available right now.")),
-      );
-      return;
-    }
+    // Nothing to say. The step is already on screen, so the right thing to do
+    // is nothing at all — no error, no apology, no "help isn't available" (the
+    // owner's rule, 10 Nov 2026: that wording is one more broken thing landing
+    // on someone who is already struggling). The api sends the step's own
+    // approved helper line whenever it has one, so this branch is only the case
+    // where the step has no helper of its own.
+    if (text == null) return;
 
     await showModalBottomSheet<void>(
       context: context,

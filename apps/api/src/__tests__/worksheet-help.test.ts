@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { entryById } from '@okuvu/shared-types/worksheets';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets';
 import { buildApp } from '../app.js';
-import { WORKSHEET_HELP_RULES, buildWorksheetHelpRequest } from '../agents/worksheet-help/prompts.js';
+import { WORKSHEET_HELP_RULES, asksForTheAnswer, buildWorksheetHelpRequest } from '../agents/worksheet-help/prompts.js';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -61,6 +61,18 @@ describe('the worksheet-help rules', () => {
     expect(WORKSHEET_HELP_RULES).toMatch(/open question/i);
   });
 
+  // The owner's rule (10 Nov 2026): when a client asks for the balanced
+  // thought, the reply must explain that the answer is theirs to find and ask
+  // an open question — not hedge, and not talk about its own rules.
+  it('tells the model what to do when the client asks it for the answer', () => {
+    expect(WORKSHEET_HELP_RULES).toMatch(/if they ask you for the answer/i);
+    expect(WORKSHEET_HELP_RULES).toMatch(/theirs to find/i);
+    expect(WORKSHEET_HELP_RULES).toMatch(/own answer will fit their life better/i);
+    expect(WORKSHEET_HELP_RULES).toMatch(/one open question about what they have already noticed/i);
+    expect(WORKSHEET_HELP_RULES).toMatch(/never write "balanced thought"/i);
+    expect(WORKSHEET_HELP_RULES).toMatch(/being an ai/i);
+  });
+
   it('builds a request from the step, not from the client\'s answers', () => {
     const request = buildWorksheetHelpRequest({
       worksheetLabel: 'Thought record',
@@ -74,6 +86,36 @@ describe('the worksheet-help rules', () => {
     expect(request).toContain('Do I write the whole story?');
     // No answer field is part of the request shape at all.
     expect(request).not.toContain('answers');
+  });
+
+  // The framing switch: when the client is asking for the answer, the prompt
+  // says so, and forbids the model from answering it by explaining the step in
+  // the step's own words (which is what A9-post blocks as a reframe).
+  it('marks a request for the answer as answer-seeking', () => {
+    const request = buildWorksheetHelpRequest({
+      worksheetLabel: 'Thought record',
+      stepPrompt: 'Looking at both lists, is there another way to see this?',
+      stepHelper: "This doesn't have to be positive.",
+      question: "What's the balanced thought?",
+    });
+
+    expect(request).toContain('Question type: answer-seeking.');
+    expect(request).toMatch(/no explanation of the step/i);
+    expect(asksForTheAnswer("What's the balanced thought?")).toBe(true);
+    expect(asksForTheAnswer('Just tell me what to do')).toBe(true);
+    expect(asksForTheAnswer('What should I write here?')).toBe(true);
+  });
+
+  it('does not mark an ordinary question about the step as answer-seeking', () => {
+    const request = buildWorksheetHelpRequest({
+      worksheetLabel: 'Thought record',
+      stepPrompt: 'What went through your mind?',
+      question: 'Do I write the whole story?',
+    });
+
+    expect(request).not.toContain('Question type: answer-seeking.');
+    expect(asksForTheAnswer('Do I write the whole story?')).toBe(false);
+    expect(asksForTheAnswer(null)).toBe(false);
   });
 });
 
@@ -127,14 +169,16 @@ describe('POST /worksheets/:toolId/help — reviewed before it is shown', () => 
         payload: { stepId: 'another_view', question: "What's the balanced thought?" },
       });
 
-      expect(res.statusCode).toBe(503);
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as any).text).toBeNull();
+      expect((res.json() as any).source).toBe('safety_state');
       expect(mockGenerateContent).not.toHaveBeenCalled();
       expect(mockA9PostReview).not.toHaveBeenCalled();
       await app.close();
     }
   });
 
-  it('refuses a draft the reviewer blocks, and shows nothing of it', async () => {
+  it('serves the step\'s own approved helper line when the reviewer blocks the reply', async () => {
     mockGenerateContent.mockResolvedValue({
       text: 'Maybe another way to see it is that your boss is right and you should try harder.',
       fallbackUsed: false,
@@ -150,39 +194,74 @@ describe('POST /worksheets/:toolId/help — reviewed before it is shown', () => 
     const res = await app.inject({
       method: 'POST',
       url: '/worksheets/ws_thought_record/help',
-      payload: { stepId: 'what_happened' },
+      payload: { stepId: 'another_view' },
     });
 
-    expect(res.statusCode).toBe(503);
-    expect((res.json() as any).error.code).toBe('HELP_UNAVAILABLE');
+    // The owner's line for this step, word for word from the approved copy.
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as any).text).toBe(
+      "This doesn't have to be positive. It just has to be fair to all of what you wrote.",
+    );
+    expect((res.json() as any).reviewed).toBe(false);
+    expect((res.json() as any).source).toBe('approved_helper');
+    // The blocked draft is not in the response in any form…
     expect(res.body).not.toContain('your boss is right');
+    // …and nothing on screen apologises for the system.
+    expect(res.body.toLowerCase()).not.toContain('available');
+    expect(res.body.toLowerCase()).not.toContain('error');
   });
 
-  it('refuses when the review itself fails', async () => {
+  it('serves the helper line when the review itself fails', async () => {
     mockA9PostReview.mockRejectedValue(new Error('review unavailable'));
     app = buildApp();
 
     const res = await app.inject({
       method: 'POST',
       url: '/worksheets/ws_thought_record/help',
-      payload: { stepId: 'what_happened' },
+      payload: { stepId: 'another_view' },
     });
 
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as any).text).toBe(
+      "This doesn't have to be positive. It just has to be fair to all of what you wrote.",
+    );
     expect(res.body).not.toContain('This step asks you');
   });
 
-  it('refuses when the model is unavailable, rather than inventing a line', async () => {
+  it('serves the helper line when the model is unavailable, rather than inventing a line', async () => {
     mockGenerateContent.mockResolvedValue({ text: '', fallbackUsed: true });
     app = buildApp();
 
     const res = await app.inject({
       method: 'POST',
       url: '/worksheets/ws_thought_record/help',
-      payload: { stepId: 'what_happened' },
+      payload: { stepId: 'another_view' },
     });
 
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as any).text).toBe(
+      "This doesn't have to be positive. It just has to be fair to all of what you wrote.",
+    );
+  });
+
+  it('serves nothing at all for a step with no approved helper line', async () => {
+    mockA9PostReview.mockResolvedValue({
+      decision: 'BLOCKED',
+      violation_type: 'cognitive_reframe',
+      confidence: 'high',
+      notes: null,
+    });
+    app = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/worksheets/ws_thought_record/help',
+      payload: { stepId: 'belief_after' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as any).text).toBeNull();
+    expect((res.json() as any).source).toBe('none');
   });
 
   it('refuses a step that is not part of the worksheet', async () => {

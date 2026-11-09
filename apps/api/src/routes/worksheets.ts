@@ -317,9 +317,12 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
    *  - the reply goes through A9-post before it is returned, so a draft that
    *    breaks those rules anyway is refused rather than shown.
    *
-   * There is no fallback text. A fixed "take your time" line would be
-   * client-facing copy nobody approved, and the step is already on screen, so
-   * the model going quiet costs the client nothing.
+   * There is a fallback, and it is approved copy: when the reply cannot be
+   * shown — the reviewer blocks it, the model fails, the review fails — the
+   * route serves the step's OWN helper line from the approved document. The
+   * owner's rule (10 Nov 2026): never show "Help isn't available right now" in
+   * a mental-health app; it worries someone who is already struggling. A step
+   * with no approved helper line serves nothing at all.
    */
   app.post<{ Params: { toolId: string }; Body: { stepId?: unknown; question?: unknown } }>(
     '/worksheets/:toolId/help',
@@ -378,14 +381,38 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
 
         const question = typeof body.question === 'string' ? body.question.slice(0, 500) : null;
 
+        // The step's own approved helper line — the only thing this route may
+        // say when it cannot show the model's reply. It comes from the approved
+        // catalogue content, so it is copy the clinical lead signed off, and it
+        // belongs to this step: it explains the step rather than apologising for
+        // a system.
+        const helperLine =
+          'helper' in field && typeof field.helper === 'string' ? field.helper.trim() : '';
+
+        /**
+         * Say the step's approved line, or nothing.
+         *
+         * The owner's rule (10 Nov 2026): never "Help isn't available right
+         * now". In a mental-health app that wording lands on someone who may
+         * already be struggling as one more thing that is broken. A step with
+         * no approved helper line shows no text at all — the step itself is
+         * still on screen, so silence costs the client nothing.
+         */
+        const noModelReply = (reason: string) => {
+          if (helperLine.length > 0) {
+            return reply.send({ text: helperLine, reviewed: false, source: 'approved_helper' });
+          }
+          request.log.info({ event: 'worksheet_help_no_fallback', tool_id: toolId, reason });
+          return reply.send({ text: null, reviewed: false, source: 'none' });
+        };
+
         // The owner's rule (9 Nov 2026): crisis words in a worksheet bring up
         // the help card, and the AI stops. The card is raised by the save path
         // (`POST /worksheets/:toolId` → `safety.showHelp`); this is the other
         // half of the rule, enforced here rather than only by the overlay. While
         // the client's state is S3 or S4 the helper does not call the model at
-        // all, and returns nothing. A silent helper is the correct output: the
-        // step is already on screen, and there is no approved line to fall back
-        // on.
+        // all and serves nothing: the crisis card is the thing to read, and
+        // adding a worksheet hint underneath it is noise.
         //
         // The state is read once and reused for the review below, so the guard
         // and the reviewer can never disagree about it.
@@ -396,12 +423,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
             tool_id: toolId,
             state: stateNow,
           });
-          return reply.status(503).send({
-            error: {
-              code: 'HELP_UNAVAILABLE',
-              message: 'Help is not available right now. The step is still on screen.',
-            },
-          });
+          return reply.send({ text: null, reviewed: false, source: 'safety_state' });
         }
 
         const prompt = buildWorksheetHelpRequest({
@@ -427,12 +449,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
             tool_id: toolId,
             err: err instanceof Error ? err.message : String(err),
           });
-          return reply.status(503).send({
-            error: {
-              code: 'HELP_UNAVAILABLE',
-              message: 'Help is not available right now. The step is still on screen.',
-            },
-          });
+          return noModelReply('model_unavailable');
         }
 
         // The final safety review, as for every other model-written text that
@@ -453,12 +470,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
               tool_id: toolId,
               violation: review.violation_type,
             });
-            return reply.status(503).send({
-              error: {
-                code: 'HELP_UNAVAILABLE',
-                message: 'Help is not available right now. The step is still on screen.',
-              },
-            });
+            return noModelReply('review_blocked');
           }
         } catch (err) {
           request.log.warn({
@@ -466,12 +478,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
             tool_id: toolId,
             err: err instanceof Error ? err.message : String(err),
           });
-          return reply.status(503).send({
-            error: {
-              code: 'HELP_UNAVAILABLE',
-              message: 'Help is not available right now. The step is still on screen.',
-            },
-          });
+          return noModelReply('review_failed');
         }
 
         return reply.send({ text, reviewed: true });

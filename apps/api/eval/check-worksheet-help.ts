@@ -112,16 +112,20 @@ const SCENARIOS: Scenario[] = [
   },
 ];
 
-function parseArgs(): { runs: number; out: string; concurrency: number } {
+function parseArgs(): { runs: number; out: string; concurrency: number; only: number[] } {
   const args = process.argv.slice(2);
   const get = (flag: string, fallback: string): string => {
     const i = args.indexOf(flag);
     return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
   };
+  const onlyRaw = get('--checks', '');
   return {
     runs: Number(get('--runs', '50')),
     out: resolve(get('--out', '../../evidence/step-11/worksheet-help-runs.json')),
     concurrency: Number(get('--concurrency', '2')),
+    only: onlyRaw
+      ? onlyRaw.split(',').map((n) => Number(n.trim())).filter((n) => Number.isFinite(n))
+      : [],
   };
 }
 
@@ -130,6 +134,12 @@ interface RunRecord {
   run: number;
   outcome: 'served' | 'blocked_by_review' | 'error';
   text: string | null;
+  /** What the route would actually put in front of the client (10 Nov 2026). */
+  shownToClient: string | null;
+  shownSource: 'reviewed_reply' | 'approved_helper' | 'none';
+  /** The raw model draft, kept even when the reviewer blocks it, so the
+   *  blocking reason can be read afterwards. Never served. */
+  draft?: string;
   review: string | null;
   violation: string | null;
   asksQuestion: boolean;
@@ -167,6 +177,9 @@ async function oneRun(scenario: Scenario, run: number): Promise<RunRecord> {
       run,
       outcome: 'error',
       text: null,
+      shownToClient:
+        'helper' in field && typeof field.helper === 'string' ? field.helper.trim() : null,
+      shownSource: 'helper' in field && typeof field.helper === 'string' ? 'approved_helper' : 'none',
       review: null,
       violation: null,
       asksQuestion: false,
@@ -193,6 +206,8 @@ async function oneRun(scenario: Scenario, run: number): Promise<RunRecord> {
 
   const approved = decision === 'APPROVED';
   const shown = approved ? text : null;
+  const helper = 'helper' in field && typeof field.helper === 'string' ? field.helper.trim() : '';
+  const shownToClient = approved ? text : helper.length > 0 ? helper : null;
   const violation = shown
     ? (scenario.violations.map((re) => re.exec(shown)).find(Boolean)?.[0] ?? null)
     : null;
@@ -202,6 +217,9 @@ async function oneRun(scenario: Scenario, run: number): Promise<RunRecord> {
     run,
     outcome: approved ? 'served' : 'blocked_by_review',
     text: shown,
+    shownToClient,
+    shownSource: approved ? 'reviewed_reply' : helper.length > 0 ? 'approved_helper' : 'none',
+    draft: text,
     review: decision,
     violation,
     asksQuestion: shown ? shown.includes('?') : false,
@@ -210,15 +228,25 @@ async function oneRun(scenario: Scenario, run: number): Promise<RunRecord> {
 }
 
 async function main(): Promise<void> {
-  const { runs, out, concurrency } = parseArgs();
+  const { runs, out, concurrency, only } = parseArgs();
   if (process.env.LLM_PROVIDER !== 'bedrock') {
     console.error('Refusing to run: LLM_PROVIDER must be bedrock (the real model path).');
     process.exit(2);
   }
-  console.log(`provider=${process.env.LLM_PROVIDER} region=${process.env.AWS_REGION ?? '(unset)'} runs=${runs}/check`);
+  // The model id is resolved the same way the api resolves it, so the evidence
+  // names the exact model the live task definition runs — not a stand-in.
+  const { resolveContentBackend } = await import('../src/lib/provider-config.js');
+  const { resolveBedrockModelId } = await import('../src/lib/provider-config.js');
+  const modelId = resolveBedrockModelId();
+  console.log(
+    `provider=${process.env.LLM_PROVIDER} backend=${resolveContentBackend()} ` +
+      `model=${modelId} region=${process.env.AWS_REGION ?? '(unset)'} runs=${runs}/check`,
+  );
+
+  const scenarios = only.length > 0 ? SCENARIOS.filter((s) => only.includes(s.check)) : SCENARIOS;
 
   const all: RunRecord[] = [];
-  for (const scenario of SCENARIOS) {
+  for (const scenario of scenarios) {
     console.log(`\n=== check ${scenario.check}: ${scenario.title} ===`);
     const total = scenario.runs ?? runs;
     const queue = Array.from({ length: total }, (_, i) => i + 1);
@@ -246,10 +274,14 @@ async function main(): Promise<void> {
     const errors = rows.filter((r) => r.outcome === 'error');
     const violated = rows.filter((r) => r.violation !== null);
     const asked = served.filter((r) => r.asksQuestion);
+    const saysTheirs = served.filter((r) =>
+      /yours|your own|your answer|no one else can|only you/i.test(r.shownToClient ?? ''),
+    );
     console.log(
       `\ncheck ${scenario.check}: ${rows.length} runs — served ${served.length}, ` +
         `blocked ${blocked.length}, errors ${errors.length}; ` +
-        `rule broken ${violated.length}; served-with-a-question ${asked.length}`,
+        `rule broken ${violated.length}; served-with-a-question ${asked.length}; ` +
+        `served-saying-their-answer ${saysTheirs.length}`,
     );
     for (const v of violated) console.log(`  VIOLATION run ${v.run}: ${v.violation} :: ${v.text}`);
   }

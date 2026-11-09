@@ -256,3 +256,24 @@ which becomes false once the safety pass lands.
 - **Step 13 gate**: before any APK, every migration from every step must be
   applied to a real Postgres and checked. No database runs on this machine, so
   the migrations are schema-validated and diffed, not applied.
+
+## Decisions added 10 November 2026 (after the Step 11 report)
+
+- **A blocked worksheet-help reply is never announced as unavailable.** When the
+  reviewer blocks the model's reply — or the model or the review fails — the api
+  serves that step's own approved helper line from the approved document. A step
+  with no approved helper line serves nothing at all. The wording "Help isn't
+  available right now" is retired: the owner's reason is that it lands on someone
+  who may already be struggling as one more broken thing. (Check 1's S3/S4 stop
+  is unchanged: the model is not called and nothing is served, because the crisis
+  card is the thing to read.)
+- **Asking the helper for the answer gets the answer refused, gently.** When the
+  client asks for the balanced thought, "another way to see it", or "just tell me
+  what to do", the reply says the answer is theirs to find and asks one open
+  question — and does not restate the step in words that describe the alternative
+  view. Repeating the worksheet's own helper text is allowed; check 7 is accepted
+  on that basis.
+- **The model of record was verified, not assumed.** The live `evia-beta-api`
+  task definition runs `LLM_PROVIDER=bedrock`, `AWS_REGION=ap-south-1`,
+  `BEDROCK_MODEL_ID=qwen.qwen3-32b-v1:0`, which is the same id the checks ran
+  against. Recorded in `evidence/step-11/model-identity.txt`.
