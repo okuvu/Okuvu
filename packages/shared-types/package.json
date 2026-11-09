@@ -7,6 +7,10 @@
     ".": {
       "types": "./index.ts",
       "default": "./index.ts"
+    },
+    "./worksheet": {
+      "types": "./worksheet.ts",
+      "default": "./worksheet.ts"
     }
   },
   "scripts": {

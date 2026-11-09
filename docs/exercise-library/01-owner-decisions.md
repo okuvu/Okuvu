@@ -141,3 +141,21 @@ which becomes false once the safety pass lands.
 - **Account deletion.** The erasure catch in Step 1 was welcomed; keep the
   schema-derived erasure test in the loop for every new client-data table.
 
+
+## Confirmations added 9 November 2026 (Step 2 round)
+
+- **Feeling ratings on worksheets are 0-10.** Before/after ratings, per-feeling
+  strength and "how much do you believe it" percentages are all 0-10 (or 0-100
+  for the percentage piece). The daily mood check-in stays 1-5 and is a
+  different field in a different table. Code that reads a rating for the
+  "demanding worksheet" gate (`> 5 out of 10`) must read the 0-10 field, never
+  the mood check-in's 1-5 value.
+- **The approved document arrived in full as text** and is stored complete at
+  `docs/exercise-library/02-approved-worksheet-copy.md`. The Library one-line
+  descriptions are stored as an approved addition in the same file.
+- **Breathing is one Library card** opening the four exercises; mood check-in
+  and grounding are one card each opening their existing screens.
+- **No second version of anything.** The worksheets live in the existing tools
+  registry (`ToolRegistryEntry`, `kind='worksheet'`), assignment is the existing
+  homework row, and the pieces are one shared definition
+  (`packages/shared-types/worksheet.ts`) used by the api, the portal and the app.

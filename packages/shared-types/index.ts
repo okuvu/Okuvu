@@ -1,5 +1,13 @@
 export const VERSION = '1.0.0'
 
+/**
+ * The worksheet building blocks live in ./worksheet.ts and are imported as
+ * `@okuvu/shared-types/worksheet`. They are NOT re-exported from this file:
+ * the api runs as ESM and a star re-export of a sibling .ts file resolves to
+ * nothing there (silently), so a second door would be a door that does not
+ * open. One declared subpath, one obvious import.
+ */
+
 export function getISTDateString(date: Date = new Date()): string {
   const formatter = new Intl.DateTimeFormat('en', {
     timeZone: 'Asia/Kolkata',

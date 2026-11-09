@@ -453,3 +453,40 @@ Library, top line: "Small exercises to try anytime. Some are added by your thera
 END OF DOCUMENT
 
 === END VERBATIM ===
+
+---
+
+## Approved addition: Library one-line descriptions
+
+Supplied by the owner on 9 November 2026, in the same approval round as the document above.
+These are the lines shown under each title in the Library list, and they replace the "no
+client-facing description exists" gap recorded at the end of Step 1. Verbatim; not part of
+the verbatim body above because they arrived as a separate approved addition.
+
+Where a worksheet already had an approved description, that one is kept and this list says
+so. The four breathing exercises keep their existing approved descriptions inside the one
+Breathing card.
+
+1. Mood check-in: "Check in with how you're feeling and what set it off."
+2. Name the feeling: "Find a more exact word for what you're feeling, and where you feel it."
+3. 5-4-3-2-1 grounding: keep the existing approved description.
+4. Breathing (one card): "Slow your breathing with four short exercises." Each of the four inside keeps its existing approved description.
+5. Thought record: "Slow down one thought and look at it from a few sides."
+6. Spot the thinking trap: "Notice when a thought is taking a mental shortcut."
+7. Worry tree: "Sort the worries you can act on from the ones that just keep circling."
+8. Small things planner: "Plan a few small things for the coming days. Tiny is fine."
+9. Values compass: "Notice what matters to you, and take one small step towards it."
+10. Plan a hard conversation: "Plan what you want to say before a difficult conversation."
+11. A letter from a kind friend: "Write to yourself the way a caring friend would."
+12. Three good things: "Notice three things that went okay today."
+13. Energy audit: "See what drains your energy and what fills it back up."
+14. What I want to bring to session: "Jot down what you'd like to talk about next session."
+15. Post-session takeaway: "Catch what stood out from today's session before it slips away."
+16. My safety plan: "The plan you made with your therapist for hard moments."
+
+### Structural decisions confirmed with this addition
+
+- **Breathing is one Library card** that opens the four exercises, the way the existing
+  Breathe screen works. Not four cards. Guided breathing is retired and never appears.
+- **Mood check-in and grounding are one card each**, opening the existing screens with the
+  new pieces added. They are not new pages.
