@@ -5,6 +5,38 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/features/crisis/crisis_overlay.dart';
+import 'package:okuvu/src/features/library/safety_plan_screen.dart';
+
+SafetyPlan _plan() => const SafetyPlan(
+      intro: 'You made this with your therapist.',
+      parts: [SafetyPlanPart(id: 'signs', prompt: 'Signs a hard moment might be coming')],
+      answers: {
+        'signs': [
+          {'item': 'not sleeping'},
+        ],
+      },
+      therapistContact: 'Reach me 10am-6pm',
+      helplines: [
+        Helpline(
+          key: 'tele_manas',
+          name: 'Tele-MANAS',
+          description: 'free, 24 hours',
+          phone: '14416',
+          display: '14416',
+        ),
+      ],
+    );
+
+Widget _crisisAppWithPlan(SafetyPlan? plan) {
+  return ProviderScope(
+    overrides: [safetyPlanProvider.overrideWith((ref) async => plan)],
+    child: const MaterialApp(
+      home: Scaffold(
+        body: CrisisOverlay(),
+      ),
+    ),
+  );
+}
 
 Widget _crisisApp() {
   return const ProviderScope(
@@ -122,5 +154,25 @@ void main() {
         expect(container.read(crisisOverlayProvider), false);
       },
     );
+
+    // Owner's Step 11 check 9: the safety plan is hidden until the therapist
+    // makes one, and it opens from the crisis screen in one tap once it exists.
+    testWidgets('hides the plan link until the therapist and client make one', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_crisisAppWithPlan(null));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('crisisSafetyPlanButton')), findsNothing);
+      expect(find.text('My plan for hard moments'), findsNothing);
+    });
+
+    testWidgets('offers one tap to the plan once it exists', (WidgetTester tester) async {
+      await tester.pumpWidget(_crisisAppWithPlan(_plan()));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('crisisSafetyPlanButton')), findsOneWidget);
+      expect(find.text('My plan for hard moments'), findsOneWidget);
+    });
   });
 }

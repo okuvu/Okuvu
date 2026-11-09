@@ -26,7 +26,10 @@
 import type { SafetyState } from '@okuvu/shared-types';
 import { SAFETY_CHECK_DEGRADED_LEVEL } from '@okuvu/shared-types/safety';
 import { classifySafety } from '../agents/a1/agent.js';
-import { hasCrisisLanguage } from '../agents/a1/crisis-keywords.js';
+import {
+  hasCrisisLanguage,
+  hasThirdPartyCrisisLanguage,
+} from '../agents/a1/crisis-keywords.js';
 
 /**
  * How long a non-chat write waits for the classifier before it is treated as
@@ -136,6 +139,20 @@ export async function checkClientText(
   //    level, never lower it, and it is the same list chat uses.
   if (hasCrisisLanguage(trimmed)) {
     return result('S4', 'crisis_keyword_floor');
+  }
+
+  // 1b. Third-party risk — "asking for a friend", "my flatmate wants to die".
+  //
+  // Chat has a deterministic floor for this in `a8-router.ts` (its own card,
+  // with helplines for the person at risk). The check every other write uses
+  // had none, so the same words in a journal entry depended entirely on the
+  // model noticing them — the exact "dismissed" failure the owner ruled out in
+  // Step 11. S3 is the right level: it is flagged, so the client gets the help
+  // card and the therapist gets the content-free alert, and it is not the
+  // second-person crisis card, which would tell someone to call a helpline
+  // about themselves.
+  if (hasThirdPartyCrisisLanguage(trimmed)) {
+    return result('S3', 'third_party_keyword_floor');
   }
 
   // 2. A1, under a deadline.

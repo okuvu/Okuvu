@@ -133,6 +133,34 @@ describe('the owner\'s words', () => {
     expect(norm(dart)).not.toContain("okuvu doesn't read it");
   });
 
+  it('puts the same privacy sentence on every other surface that makes the promise', () => {
+    // Owner's Step 11 check 20: "the journal privacy line is updated
+    // everywhere". Journal was pinned; these are the other three, and each one
+    // is a hand-copied Dart/TSX string, so each one can drift on its own.
+    //
+    // The Dart copies are built from adjacent string literals, so the literal
+    // quotes sit inside the sentence once the file is read as text. Strip them
+    // on both sides before comparing; the words are what is being pinned.
+    const loose = (s: string): string => norm(s).replace(/'/g, '').replace(/\s+/g, ' ');
+    const surfaces: Array<[string, string]> = [
+      [
+        'worksheet runner',
+        '../../../apps/mobile/lib/src/features/library/worksheet_runner_screen.dart',
+      ],
+      [
+        'Treasure Box',
+        '../../../apps/mobile/lib/src/features/library/treasure_box_screen.dart',
+      ],
+      ['portal privacy page', '../../../apps/therapist-portal/src/app/privacy/page.tsx'],
+    ];
+    for (const [name, relative] of surfaces) {
+      const source = readFileSync(join(__dirname, relative), 'utf8');
+      expect(loose(source), `${name} must carry the approved privacy line`).toContain(
+        loose(PRIVACY_LINE),
+      );
+    }
+  });
+
   it('carries the blocked-worksheet message as approved', () => {
     expect(norm(DOC)).toContain(norm(DEMANDING_GATE_MESSAGE));
   });

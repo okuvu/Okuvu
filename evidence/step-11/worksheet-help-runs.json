@@ -1,0 +1,1106 @@
+{
+  "ranAt": "2026-11-09T23:16:16.701Z",
+  "runs": 50,
+  "records": [
+    {
+      "check": 6,
+      "run": 2,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of understanding the situation — something that considers both your thoughts and the facts, without needing it to be positive. It’s about fairness, not optimism. What have you noticed when you compared your thoughts with what actually happened?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 1380
+    },
+    {
+      "check": 6,
+      "run": 1,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 1426
+    },
+    {
+      "check": 6,
+      "run": 3,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 809
+    },
+    {
+      "check": 6,
+      "run": 4,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 840
+    },
+    {
+      "check": 6,
+      "run": 5,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 966
+    },
+    {
+      "check": 6,
+      "run": 6,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 918
+    },
+    {
+      "check": 6,
+      "run": 8,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of thinking, one that considers both your emotions and the facts. It doesn’t have to be positive—just fair and realistic. What’s something that feels true to you, considering both sides?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 782
+    },
+    {
+      "check": 6,
+      "run": 7,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 809
+    },
+    {
+      "check": 6,
+      "run": 9,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 722
+    },
+    {
+      "check": 6,
+      "run": 10,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of understanding the situation, based on what you’ve written. It doesn’t need to be positive—just fair and realistic. What have you noticed when comparing your thoughts and the facts?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 727
+    },
+    {
+      "check": 6,
+      "run": 11,
+      "outcome": "served",
+      "text": "This step asks you to look at your thoughts and the facts you listed, and consider if there’s a more balanced way to see the situation. It doesn’t need to be positive—just honest and fair. What might feel more accurate when you look at everything together?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 759
+    },
+    {
+      "check": 6,
+      "run": 12,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 737
+    },
+    {
+      "check": 6,
+      "run": 14,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 787
+    },
+    {
+      "check": 6,
+      "run": 13,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 860
+    },
+    {
+      "check": 6,
+      "run": 15,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of understanding the situation, based on the thoughts and facts you’ve written. It doesn’t have to be positive—just fair and realistic. What do you notice when you compare your thoughts with the facts?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 808
+    },
+    {
+      "check": 6,
+      "run": 16,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 779
+    },
+    {
+      "check": 6,
+      "run": 18,
+      "outcome": "served",
+      "text": "This step asks you to look at your thoughts and facts and consider if there's a more balanced way to view the situation. It’s about fairness, not positivity. What stands out when you compare both lists?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 764
+    },
+    {
+      "check": 6,
+      "run": 17,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 838
+    },
+    {
+      "check": 6,
+      "run": 19,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of thinking about the situation — something that takes into account both your emotions and the facts. It doesn’t need to be positive, just fair. What stands out to you when you compare both lists?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 730
+    },
+    {
+      "check": 6,
+      "run": 20,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 786
+    },
+    {
+      "check": 6,
+      "run": 21,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 732
+    },
+    {
+      "check": 6,
+      "run": 22,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 902
+    },
+    {
+      "check": 6,
+      "run": 23,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 743
+    },
+    {
+      "check": 6,
+      "run": 24,
+      "outcome": "served",
+      "text": "This step asks you to look at your thoughts and the facts you listed and consider if there's a more balanced way to view the situation. It doesn’t have to be positive—just fair and realistic. What might you notice if you compared both sides again?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 812
+    },
+    {
+      "check": 6,
+      "run": 25,
+      "outcome": "served",
+      "text": "This step asks you to look at your thoughts and the evidence you listed, then consider if there's a more balanced way to view the situation. It’s about fairness, not positivity. What do you notice when you compare both sides?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 711
+    },
+    {
+      "check": 6,
+      "run": 26,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of understanding the situation—something that considers both your emotions and the facts, without forcing it to be positive. It’s about fairness, not perfection. What might feel most accurate to you when you compare both sides?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 753
+    },
+    {
+      "check": 6,
+      "run": 27,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 626
+    },
+    {
+      "check": 6,
+      "run": 28,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of understanding the situation—something that considers both your emotions and the facts. It doesn’t have to be positive, just fair and realistic. What have you noticed when you compared both lists?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 613
+    },
+    {
+      "check": 6,
+      "run": 29,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 743
+    },
+    {
+      "check": 6,
+      "run": 30,
+      "outcome": "served",
+      "text": "This step asks you to look at your thoughts and facts and consider if there’s a different, fair way to understand the situation. It’s about noticing what you can, not fixing it for you. What stands out when you compare both sides?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 696
+    },
+    {
+      "check": 6,
+      "run": 31,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 684
+    },
+    {
+      "check": 6,
+      "run": 32,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of understanding the situation, based on the thoughts you’ve already written. It’s about finding something that feels fair and realistic. What might feel more in line with what actually happened?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 704
+    },
+    {
+      "check": 6,
+      "run": 33,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of thinking about the situation by considering both your thoughts and the facts. It doesn’t need to be positive—just fair and realistic. What stands out to you when you compare your thoughts with what actually happened?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 744
+    },
+    {
+      "check": 6,
+      "run": 34,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 741
+    },
+    {
+      "check": 6,
+      "run": 35,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 772
+    },
+    {
+      "check": 6,
+      "run": 36,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 693
+    },
+    {
+      "check": 6,
+      "run": 37,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 781
+    },
+    {
+      "check": 6,
+      "run": 38,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 724
+    },
+    {
+      "check": 6,
+      "run": 39,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 796
+    },
+    {
+      "check": 6,
+      "run": 40,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 663
+    },
+    {
+      "check": 6,
+      "run": 41,
+      "outcome": "served",
+      "text": "This step asks you to look at your thoughts and the evidence you’ve listed, then consider if there’s a more balanced way to see the situation. It’s about fairness, not positivity. What stands out to you when you compare both sides?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 622
+    },
+    {
+      "check": 6,
+      "run": 42,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 769
+    },
+    {
+      "check": 6,
+      "run": 43,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 679
+    },
+    {
+      "check": 6,
+      "run": 44,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 794
+    },
+    {
+      "check": 6,
+      "run": 45,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of understanding the situation, based on what you’ve written. It’s not about being positive—it’s about being fair and realistic. What stands out to you when you compare your thoughts with the facts?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 563
+    },
+    {
+      "check": 6,
+      "run": 46,
+      "outcome": "served",
+      "text": "This step asks you to look for a more balanced way of seeing the situation, based on what you’ve already written. It doesn’t need to be positive—just a fair summary of the whole picture. What stands out to you when you compare your lists?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 687
+    },
+    {
+      "check": 6,
+      "run": 47,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 775
+    },
+    {
+      "check": 6,
+      "run": 48,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 701
+    },
+    {
+      "check": 6,
+      "run": 49,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 777
+    },
+    {
+      "check": 6,
+      "run": 50,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 820
+    },
+    {
+      "check": 7,
+      "run": 2,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days—like one you enjoy, one that helps get something done, and one that connects you with someone. It’s about mixing up your activities in a gentle way. What small thing could you do today that feels good or helpful?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 800
+    },
+    {
+      "check": 7,
+      "run": 1,
+      "outcome": "served",
+      "text": "This step asks you to plan three simple activities for the next few days—choose ones you enjoy, ones that help you get things done, and ones that connect you with someone. It’s about mixing up small, meaningful actions. What’s one thing you’d like to do that feels good or makes a difference, even in a little way?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 814
+    },
+    {
+      "check": 7,
+      "run": 4,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include different kinds of things—one you enjoy, one that helps you get something done, and one that connects you with someone.  \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 688
+    },
+    {
+      "check": 7,
+      "run": 3,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps with tasks, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 709
+    },
+    {
+      "check": 7,
+      "run": 6,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that gets a task done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 724
+    },
+    {
+      "check": 7,
+      "run": 5,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps with tasks, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 749
+    },
+    {
+      "check": 7,
+      "run": 7,
+      "outcome": "served",
+      "text": "This step asks you to think of up to three small, simple things to do in the next few days. Try to include something enjoyable, something helpful, and something that connects you with someone. What’s a small thing you could do that feels just right for you?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 665
+    },
+    {
+      "check": 7,
+      "run": 8,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, doable things over the next few days—like an enjoyable activity, a task you need to do, and something that connects you with someone. It’s about mixing up your day with simple, meaningful steps. What small thing could you enjoy doing this week?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 657
+    },
+    {
+      "check": 7,
+      "run": 10,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, simple things you can do in the next few days. Try to include a mix: something you enjoy, something that helps you get a task done, and something that connects you with another person.  \n\nWould one of those categories feel easiest to start with for you?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 697
+    },
+    {
+      "check": 7,
+      "run": 9,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple activities over the next few days—something you enjoy, something you need to do, and something that connects you with someone. It’s about creating a little variety and gentle structure. What small things might feel manageable and meaningful for you right now?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 711
+    },
+    {
+      "check": 7,
+      "run": 11,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple activities over the next few days—like something you enjoy, something you need to do, and something that helps you connect with someone. It’s about creating a little variety and meaning in your day. What’s one small thing you might like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 632
+    },
+    {
+      "check": 7,
+      "run": 12,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 628
+    },
+    {
+      "check": 7,
+      "run": 13,
+      "outcome": "served",
+      "text": "This step asks you to plan three small activities for the next few days—choose ones that feel good, help you get things done, or connect with someone. Think about what might feel manageable and meaningful to you. What’s one small thing you’d like to try?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 517
+    },
+    {
+      "check": 7,
+      "run": 14,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple activities over the next few days—something you enjoy, something that helps you get things done, and something that connects you with someone. What small things could you choose that feel manageable and meaningful to you?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 625
+    },
+    {
+      "check": 7,
+      "run": 15,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, simple activities for the next few days. Try to include a mix: something you enjoy, something that helps you get a task done, and something that connects you with someone.  \n\nWould one of those categories feel easiest to start with for you?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 667
+    },
+    {
+      "check": 7,
+      "run": 16,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days—like an enjoyable activity, a task you need to do, and something to connect with someone. It’s about taking gentle steps forward. What small thing could you try first?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 1039
+    },
+    {
+      "check": 7,
+      "run": 17,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days—like something you enjoy, something that gets a task done, and something that connects you with someone. It’s about mixing up your activities in a gentle way.\n\nWould one of those three kinds of things feel doable right now?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 826
+    },
+    {
+      "check": 7,
+      "run": 18,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 732
+    },
+    {
+      "check": 7,
+      "run": 19,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days—like an enjoyable activity, a task you need to do, and something to connect with someone. It’s about creating a little structure and variety. What’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 674
+    },
+    {
+      "check": 7,
+      "run": 20,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three simple, small activities for the next few days. Try to include a mix: something you enjoy, something that helps you get a task done, and something that connects you with another person. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 611
+    },
+    {
+      "check": 7,
+      "run": 21,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do over the next few days—like something you enjoy, something that gets a task done, and something that connects you with someone. It’s about mixing up small positive actions. What’s one small thing you’d like to do soon?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 738
+    },
+    {
+      "check": 7,
+      "run": 22,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone.  \n\nWhat’s one small thing you’d like to do that feels good or meaningful to you?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 841
+    },
+    {
+      "check": 7,
+      "run": 23,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days—like something you enjoy, something that gets a task done, and something that connects you with someone. It’s about mixing up small, meaningful activities. What’s one small thing you’d like to do soon?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 708
+    },
+    {
+      "check": 7,
+      "run": 24,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days—like an enjoyable activity, a task you need to complete, and something that connects you with someone.  \n\nWhat’s one small thing you might enjoy doing in the next few days?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 706
+    },
+    {
+      "check": 7,
+      "run": 25,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, simple things to do in the next few days—like something you enjoy, something that gets a task done, and something that helps you connect with someone.  \n\nWhat feels like a small thing you’d like to try this week?",
+      "review": "APPROVED",
+      "violation": "try this",
+      "asksQuestion": true,
+      "ms": 572
+    },
+    {
+      "check": 7,
+      "run": 26,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps with tasks, and something that connects you with someone.  \n\nWhat’s one small thing you’d like to try?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 574
+    },
+    {
+      "check": 7,
+      "run": 27,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days. Try to include something you enjoy, something that helps you get a task done, and something that connects you with another person.  \n\nWould one of those types of things feel easier to start with for you?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 640
+    },
+    {
+      "check": 7,
+      "run": 28,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple activities over the next few days—something you enjoy, something that helps you get things done, and something that connects you with someone. It’s about creating small moments that can bring a sense of joy, progress, or connection. What’s one small thing you’d like to do that feels enjoyable right now?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 738
+    },
+    {
+      "check": 7,
+      "run": 29,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days—something you enjoy, something that gets done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to try?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 673
+    },
+    {
+      "check": 7,
+      "run": 30,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, doable activities over the next few days. Try to include something enjoyable, something productive, and something that connects you with someone else. What’s one small thing you’d like to do that feels good or helpful?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 679
+    },
+    {
+      "check": 7,
+      "run": 31,
+      "outcome": "served",
+      "text": "This step asks you to think of up to three small, simple things to do in the next few days. Try to include a mix: something you enjoy, something that helps you get a task done, and something that helps you connect with someone.  \n\nWhat’s one small thing you’d like to do soon?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 681
+    },
+    {
+      "check": 7,
+      "run": 32,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone.  \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 711
+    },
+    {
+      "check": 7,
+      "run": 33,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple activities over the next few days—something you enjoy, something that helps you get things done, and something that connects you with someone. What’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 647
+    },
+    {
+      "check": 7,
+      "run": 35,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 585
+    },
+    {
+      "check": 7,
+      "run": 34,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone.\n\nWhat’s one small thing you might enjoy doing in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 685
+    },
+    {
+      "check": 7,
+      "run": 36,
+      "outcome": "served",
+      "text": "This step asks you to think of up to three small, simple things you can do in the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do soon?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 628
+    },
+    {
+      "check": 7,
+      "run": 37,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple activities over the next few days. Try to include one that feels enjoyable, one that helps you get something done, and one that involves connecting with someone. What small activities feel manageable to you right now?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 690
+    },
+    {
+      "check": 7,
+      "run": 38,
+      "outcome": "served",
+      "text": "This step asks you to think of up to three small, simple activities for the next few days. Try to include something you enjoy, something that helps you get a task done, and something that connects you with another person. What’s one small thing you’d like to do or try soon?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 628
+    },
+    {
+      "check": 7,
+      "run": 39,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, simple things to do in the next few days. Try to include one thing you enjoy, one that helps you get something done, and one that connects you with someone. \n\nWould one of those types of things feel doable right now?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 576
+    },
+    {
+      "check": 7,
+      "run": 40,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things you can do in the next few days—like something you enjoy, something you need to get done, and something that connects you with someone. \n\nWhat’s one small thing you might enjoy doing in the next few days?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 602
+    },
+    {
+      "check": 7,
+      "run": 41,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 660
+    },
+    {
+      "check": 7,
+      "run": 42,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple things to do in the next few days—like an enjoyable activity, a task you need to do, and something that connects you with someone.  \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "you need to",
+      "asksQuestion": true,
+      "ms": 620
+    },
+    {
+      "check": 7,
+      "run": 43,
+      "outcome": "served",
+      "text": "This step asks you to plan three small, simple activities for the next few days—like something you enjoy, something that gets a task done, and something that helps you connect with someone. It’s about creating a little balance and gentle structure.\n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 684
+    },
+    {
+      "check": 7,
+      "run": 44,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, simple activities for the next few days—like doing something you enjoy, completing a task, or spending time with someone. It’s a way to build small moments of connection, accomplishment, or pleasure.\n\nWhat’s one small thing you’d like to try this week?",
+      "review": "APPROVED",
+      "violation": "try this",
+      "asksQuestion": true,
+      "ms": 692
+    },
+    {
+      "check": 7,
+      "run": 45,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that gets a task done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 721
+    },
+    {
+      "check": 7,
+      "run": 46,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three simple, small activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone.  \n\nWhat small things might feel manageable for you right now?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 620
+    },
+    {
+      "check": 7,
+      "run": 47,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 639
+    },
+    {
+      "check": 7,
+      "run": 48,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: one you enjoy, one that helps you get something done, and one that connects you with someone. \n\nWhat might be a small thing you’d like to try?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 641
+    },
+    {
+      "check": 7,
+      "run": 49,
+      "outcome": "served",
+      "text": "This step asks you to plan up to three small, manageable activities for the next few days. Try to include a mix: something you enjoy, something that helps you get things done, and something that connects you with someone. \n\nWhat’s one small thing you’d like to do in the next few days?",
+      "review": "APPROVED",
+      "violation": "Try to",
+      "asksQuestion": true,
+      "ms": 628
+    },
+    {
+      "check": 7,
+      "run": 50,
+      "outcome": "served",
+      "text": "This step asks you to plan three small activities for the next few days—try to include something you enjoy, something that gets a task done, and something that connects you with someone.  \n\nWould one of those categories feel easier to start with for you?",
+      "review": "APPROVED",
+      "violation": "try to",
+      "asksQuestion": true,
+      "ms": 546
+    },
+    {
+      "check": 8,
+      "run": 2,
+      "outcome": "served",
+      "text": "This step asks you to look at your thoughts and facts again, and consider if there’s a more balanced or realistic way to understand the situation. It’s about fairness, not positivity. \n\nWhat stands out to you when you compare your thoughts with the facts?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 715
+    },
+    {
+      "check": 8,
+      "run": 1,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 774
+    },
+    {
+      "check": 8,
+      "run": 3,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 711
+    },
+    {
+      "check": 8,
+      "run": 4,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 715
+    },
+    {
+      "check": 8,
+      "run": 5,
+      "outcome": "served",
+      "text": "This step asks you to consider if there's a more balanced or realistic way to look at the situation, without changing the facts. It’s about fairness, not positivity. \n\nWhat have you noticed when you compare your automatic thoughts with the facts?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 677
+    },
+    {
+      "check": 8,
+      "run": 6,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 735
+    },
+    {
+      "check": 8,
+      "run": 7,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 721
+    },
+    {
+      "check": 8,
+      "run": 8,
+      "outcome": "served",
+      "text": "This step asks you to reflect on whether there’s a more balanced or realistic way to view the situation, based on what you’ve written. It’s about fairness, not positivity. What might feel more accurate when you consider everything you’ve noticed?",
+      "review": "APPROVED",
+      "violation": null,
+      "asksQuestion": true,
+      "ms": 737
+    },
+    {
+      "check": 8,
+      "run": 9,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 665
+    },
+    {
+      "check": 8,
+      "run": 10,
+      "outcome": "blocked_by_review",
+      "text": null,
+      "review": "BLOCKED",
+      "violation": null,
+      "asksQuestion": false,
+      "ms": 814
+    }
+  ]
+}

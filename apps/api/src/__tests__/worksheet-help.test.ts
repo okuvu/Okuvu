@@ -113,6 +113,27 @@ describe('POST /worksheets/:toolId/help — reviewed before it is shown', () => 
     expect(mockA9PostReview).toHaveBeenCalledTimes(1);
   });
 
+  it('stops the AI while the client is in an elevated state, and calls no model', async () => {
+    const { prisma } = await import('../lib/prisma.js');
+    for (const state of ['S3', 'S4']) {
+      vi.mocked(prisma.safetyState.findUnique).mockResolvedValue({
+        safety_state_current: state,
+      } as any);
+      app = buildApp();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/worksheets/ws_thought_record/help',
+        payload: { stepId: 'another_view', question: "What's the balanced thought?" },
+      });
+
+      expect(res.statusCode).toBe(503);
+      expect(mockGenerateContent).not.toHaveBeenCalled();
+      expect(mockA9PostReview).not.toHaveBeenCalled();
+      await app.close();
+    }
+  });
+
   it('refuses a draft the reviewer blocks, and shows nothing of it', async () => {
     mockGenerateContent.mockResolvedValue({
       text: 'Maybe another way to see it is that your boss is right and you should try harder.',

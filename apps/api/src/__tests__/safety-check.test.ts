@@ -31,6 +31,26 @@ describe('checkClientText — one check, used by every client write', () => {
     expect(mockClassifySafety).not.toHaveBeenCalled();
   });
 
+  it('takes a hidden third-party disclosure seriously, with no model call', async () => {
+    // Owner's Step 11 check 2: "asking for a friend" must not be dismissed.
+    // S3 — flagged, help card, alert — and never the second-person crisis card.
+    for (const text of [
+      'asking for a friend — she wants to die and I do not know what to say',
+      'my flatmate has been cutting himself again',
+    ]) {
+      const result = await checkClientText(text);
+      expect(result).toMatchObject({ level: 'S3', flagged: true, showHelp: true });
+      expect(result.reason).toBe('third_party_keyword_floor');
+    }
+    expect(mockClassifySafety).not.toHaveBeenCalled();
+  });
+
+  it('lets a first-person disclosure win over a third-party phrase in the same sentence', async () => {
+    const result = await checkClientText('My mother died last year and I want to die too.');
+    expect(result).toMatchObject({ level: 'S4', flagged: true, showHelp: true });
+    expect(result.reason).toBe('crisis_keyword_floor');
+  });
+
   it('flags an S3 verdict from the classifier', async () => {
     mockClassifySafety.mockResolvedValue(classified('S3'));
 

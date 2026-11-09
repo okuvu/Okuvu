@@ -127,6 +127,45 @@ describe('GET /library/:toolId', () => {
     vi.clearAllMocks();
   });
 
+  it('shows the client no therapy label, care-plan code or therapist note, on the list or inside a worksheet', async () => {
+    // Owner's Step 11 check 19. The catalogue carries therapy_modality and
+    // therapist_note for the portal; neither may reach a client surface, in any
+    // form, and no care-plan code or diagnosis word may either.
+    const prisma = await importMocks();
+    const forbidden = [
+      'therapy_modality',
+      'therapist_note',
+      'therapistPrompt',
+      'CBT thought record',
+      'Behavioural activation',
+      /CP[1-5]/,
+      /diagnos/i,
+      /\bdisorder\b/i,
+      /\bbipolar\b/i,
+      /\bPTSD\b/,
+      /\bOCD\b/,
+    ];
+
+    const library = await app.inject({ method: 'GET', url: '/library' });
+    expect(library.statusCode).toBe(200);
+
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_three_good_things') as any,
+    );
+    const opened = await app.inject({ method: 'GET', url: '/library/ws_three_good_things' });
+    expect(opened.statusCode).toBe(200);
+
+    for (const body of [library.body, opened.body]) {
+      for (const token of forbidden) {
+        if (typeof token === 'string') {
+          expect(body.toLowerCase()).not.toContain(token.toLowerCase());
+        } else {
+          expect(token.test(body)).toBe(false);
+        }
+      }
+    }
+  });
+
   it('opens a self-serve worksheet and strips therapist framing', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(

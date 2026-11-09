@@ -378,6 +378,32 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
 
         const question = typeof body.question === 'string' ? body.question.slice(0, 500) : null;
 
+        // The owner's rule (9 Nov 2026): crisis words in a worksheet bring up
+        // the help card, and the AI stops. The card is raised by the save path
+        // (`POST /worksheets/:toolId` → `safety.showHelp`); this is the other
+        // half of the rule, enforced here rather than only by the overlay. While
+        // the client's state is S3 or S4 the helper does not call the model at
+        // all, and returns nothing. A silent helper is the correct output: the
+        // step is already on screen, and there is no approved line to fall back
+        // on.
+        //
+        // The state is read once and reused for the review below, so the guard
+        // and the reviewer can never disagree about it.
+        const stateNow = await currentSafetyState(user.id);
+        if (stateNow === 'S3' || stateNow === 'S4') {
+          request.log.warn({
+            event: 'worksheet_help_suppressed',
+            tool_id: toolId,
+            state: stateNow,
+          });
+          return reply.status(503).send({
+            error: {
+              code: 'HELP_UNAVAILABLE',
+              message: 'Help is not available right now. The step is still on screen.',
+            },
+          });
+        }
+
         const prompt = buildWorksheetHelpRequest({
           worksheetLabel: row.label,
           stepPrompt: field.prompt,
@@ -411,16 +437,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
 
         // The final safety review, as for every other model-written text that
         // reaches a client.
-        let safetyState = 'S0';
-        try {
-          const current = await prisma.safetyState.findUnique({
-            where: { user_id: user.id },
-            select: { safety_state_current: true },
-          });
-          safetyState = current?.safety_state_current ?? 'S0';
-        } catch {
-          safetyState = 'S0';
-        }
+        const safetyState = stateNow ?? 'S0';
 
         try {
           const review = await a9PostReview({
