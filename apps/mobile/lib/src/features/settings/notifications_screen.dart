@@ -77,6 +77,26 @@ class NotificationsScreen extends ConsumerWidget {
                     activeThumbColor: AppColors.violet,
                     inactiveTrackColor: AppColors.hairline,
                   ),
+                  SwitchListTile(
+                    key: const ValueKey('update_emails_toggle'),
+                    secondary: const Icon(LucideIcons.mail),
+                    title: const Text('Email updates'),
+                    subtitle: const Text(
+                      'At most one email a day when your therapist sends you something. '
+                      'Notifications always show it too',
+                    ),
+                    value: settings.updateEmailsEnabled,
+                    onChanged: (v) async {
+                      final saved = await ref
+                          .read(notificationSettingsProvider.notifier)
+                          .setUpdateEmails(v);
+                      if (!saved && context.mounted) {
+                        showSettingsSaveFailure(context, 'Email updates');
+                      }
+                    },
+                    activeThumbColor: AppColors.violet,
+                    inactiveTrackColor: AppColors.hairline,
+                  ),
                 ],
               ),
       ),

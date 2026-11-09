@@ -84,21 +84,23 @@ Created the first time the client opens the box, by `createMany({ skipDuplicates
 true })`, idempotent through the existing unique index on `(user_id,
 system_key)`. No migration writes rows for accounts that never open the box.
 
-**Their names are not in the approved copy.** The document approves the idea and
-the four system keys (`anxious`, `low`, `overwhelmed`, `win`) but never names
-them. Rather than leave the box without collections, this step uses the plainest
-reading of each key:
+**Their names were not in the approved copy at the time.** The document approved
+the idea and the four system keys (`anxious`, `low`, `overwhelmed`, `win`) but
+never named them, so this step used the plainest reading of each key:
 
-| system_key | name shown |
+| system_key | name shown at Step 6A |
 | --- | --- |
 | `anxious` | Open when I feel anxious |
 | `low` | Open when I feel low |
 | `overwhelmed` | Open when it's too much |
 | `win` | Open when something went right |
 
-**These four strings need the owner's approval or replacement.** Changing them
-is one array in `apps/api/src/routes/treasure.ts` plus a data fix for existing
-rows.
+**Resolved in Step 7:** the owner supplied the approved wording on 9 November
+2026 — "Open when I’m anxious", "Open when I feel low", "Open when I’m
+overwhelmed", "Open when I need a win". It is in
+`02-approved-worksheet-copy.md` as an approved addition, in the seed array in
+`apps/api/src/routes/treasure.ts`, and applied to existing rows by migration
+`20261109180000_step7_updates_and_emails`.
 
 ### 2.4 Saving from elsewhere, and the source line
 

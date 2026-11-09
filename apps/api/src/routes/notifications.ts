@@ -4,6 +4,8 @@ import { prisma } from '../lib/prisma.js';
 import {
   clampListLimit,
   countUnread,
+  ensureDueTodayNotifications,
+  keepTreasureNote,
   listNotifications,
   markAllRead,
   markNotificationRead,
@@ -60,6 +62,11 @@ export async function notificationsRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
+      // The "Due today" rows are derived here rather than by a scheduler: this
+      // read is the only moment we know the client is looking, and it is
+      // idempotent per assignment per IST day.
+      await ensureDueTodayNotifications(user.id);
+
       const result = await listNotifications({
         clientUserId: user.id,
         limit: limitResult.limit,
@@ -70,6 +77,42 @@ export async function notificationsRoute(app: FastifyInstance): Promise<void> {
     },
   });
 
+  // "Keep" on a waiting Treasure Box note. The note itself is only copied into
+  // the box here, once the client chooses it — the update row shows the approved
+  // line and nothing of the therapist's message.
+  app.post<{ Params: { id: string } }>('/users/me/notifications/:id/keep', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const user = await prisma.user.findUnique({
+        where: { auth_subject: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      const result = await keepTreasureNote(user.id, request.params.id);
+
+      if (result.status === 'not_found') {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'Notification not found' },
+        });
+      }
+
+      if (result.status === 'nothing_to_keep') {
+        return reply.status(409).send({
+          error: { code: 'NOTHING_TO_KEEP', message: 'This update has no note to keep' },
+        });
+      }
+
+      return reply.send({ success: true, noteId: result.noteId });
+    },
+  });
   // Kept separate from the list so the bell can refresh its badge without
   // pulling 30 rows it will not render (Home polls it on every resume).
   app.get('/users/me/notifications/unread-count', {

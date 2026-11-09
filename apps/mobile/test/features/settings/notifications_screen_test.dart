@@ -12,8 +12,13 @@ class _RecordingDio {
   final List<RequestOptions> requests = [];
   final bool initialReminders;
   final bool initialNudges;
+  final bool initialEmails;
 
-  _RecordingDio({this.initialReminders = true, this.initialNudges = true});
+  _RecordingDio({
+    this.initialReminders = true,
+    this.initialNudges = true,
+    this.initialEmails = true,
+  });
 
   Dio build() {
     final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
@@ -28,6 +33,7 @@ class _RecordingDio {
               data: {
                 'appointment_reminders_enabled': initialReminders,
                 'chat_nudges_enabled': initialNudges,
+                'update_emails_enabled': initialEmails,
               },
             ));
             return;
@@ -113,6 +119,27 @@ void main() {
       (r) => r.method == 'PATCH' && r.path == '/settings/notifications',
     );
     expect(patch.data, {'chat_nudges_enabled': false});
+  });
+
+  testWidgets('the email switch shows the stored state and pauses email', (tester) async {
+    final recorder = _RecordingDio(initialEmails: false);
+    await tester.pumpWidget(_buildApp(recorder.build()));
+    await tester.pumpAndSettle();
+
+    final emails = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('update_emails_toggle')),
+    );
+    expect(emails.value, isFalse);
+
+    await tester.tap(find.byKey(const ValueKey('update_emails_toggle')));
+    await tester.pumpAndSettle();
+
+    final patch = recorder.requests.firstWhere(
+      (r) => r.method == 'PATCH' && r.path == '/settings/notifications',
+    );
+    // Turning email back on is the same single column; the Updates list was
+    // never gated, so nothing else is sent.
+    expect(patch.data, {'update_emails_enabled': true});
   });
 
   testWidgets('back arrow navigates to settings', (tester) async {

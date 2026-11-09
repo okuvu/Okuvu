@@ -130,6 +130,10 @@ describe('homework.assign — tool_id linking', () => {
         body: 'Practice box breathing before bed.',
         homework_id: 'hw_1',
         appointment_id: null,
+        // Step 7 added two nullable columns to every row; a homework row
+        // carries neither a held Treasure note nor a dedupe key.
+        note_body: null,
+        dedupe_key: null,
       },
     });
   });

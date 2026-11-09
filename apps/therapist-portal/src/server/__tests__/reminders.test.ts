@@ -117,6 +117,8 @@ describe('reminders.create — homeworkId/toolId validation', () => {
         // the reminder is about.
         homework_id: 'hw_1',
         appointment_id: null,
+        note_body: null,
+        dedupe_key: null,
       },
     });
   });

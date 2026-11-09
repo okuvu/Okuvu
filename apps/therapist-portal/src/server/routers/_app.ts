@@ -11,6 +11,7 @@ import { safetyRouter } from "./safety";
 import { worksheetsRouter } from "./worksheets";
 import { safetyPlanRouter } from "./safety-plan";
 import { sharedRouter } from "./shared";
+import { treasureBoxRouter } from "./treasure-box";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -25,6 +26,7 @@ export const appRouter = router({
   worksheets: worksheetsRouter,
   safetyPlan: safetyPlanRouter,
   shared: sharedRouter,
+  treasureBox: treasureBoxRouter,
 });
 
 export type AppRouter = typeof appRouter;

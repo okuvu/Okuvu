@@ -3,9 +3,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import 'notifications_provider.dart';
+import 'updates_copy.dart';
 
 /// "2h ago", "Yesterday", "6 Nov" — short enough for a trailing label.
 ///
@@ -33,6 +35,10 @@ IconData _iconForKind(String kind) {
   switch (kind) {
     case 'homework_assigned':
       return LucideIcons.bookOpen;
+    case 'homework_due_today':
+      return LucideIcons.clock;
+    case 'treasure_note_waiting':
+      return LucideIcons.gift;
     case 'reminder_set':
       return LucideIcons.bellRing;
     case 'appointment_booked':
@@ -160,19 +166,66 @@ class NotificationsInboxScreen extends ConsumerWidget {
               },
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: page.notifications.length,
+                itemCount: page.notifications.length + 1,
                 separatorBuilder: (_, __) => const Divider(
                   height: 1,
                   color: AppColors.hairline,
                 ),
                 itemBuilder: (context, index) {
-                  final item = page.notifications[index];
+                  // The approved fixed line leads the list: it is what tells a
+                  // client that a therapist reads shared entries before a
+                  // session rather than as they happen, and it carries the one
+                  // route to help. A row above the rows, not a row.
+                  if (index == 0) return const _UpdatesFixedLineCard();
+                  final item = page.notifications[index - 1];
                   return _NotificationTile(notification: item);
                 },
               ),
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// The approved fixed line above the list, with its one action.
+///
+/// "Get help" opens the same crisis overlay the chat and worksheet safety cards
+/// open — not a new screen, not a link out. The sentence promises a way to reach
+/// help from here, so the control has to be the real one.
+class _UpdatesFixedLineCard extends ConsumerWidget {
+  const _UpdatesFixedLineCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      key: const ValueKey('updates_fixed_line'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            kUpdatesFixedLine,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextButton(
+            key: const ValueKey('updates_get_help'),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: () => ref.read(crisisOverlayProvider.notifier).show(),
+            child: const Text('Get help'),
+          ),
+        ],
       ),
     );
   }
@@ -199,12 +252,33 @@ class _NotificationTile extends ConsumerWidget {
     }
   }
 
+  /// Keep: the note is copied into the client's box, then the box opens so they
+  /// can read what they kept. A failure says so instead of looking successful —
+  /// a note that silently did not save is the worst version of this button.
+  Future<void> _keep(BuildContext context, WidgetRef ref) async {
+    final kept =
+        await ref.read(notificationReadProvider.notifier).keepNote(notification.id);
+
+    if (!context.mounted) return;
+
+    if (kept) {
+      context.go('/treasure');
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("We couldn't save that note. Please try again.")),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final unread = notification.isUnread;
+    final isTreasureNote = notification.kind == 'treasure_note_waiting';
     final tappable =
-        notification.homeworkId != null || notification.appointmentId != null;
+        !isTreasureNote &&
+        (notification.homeworkId != null || notification.appointmentId != null);
 
     return ListTile(
       key: ValueKey('notification_${notification.id}'),
@@ -253,13 +327,42 @@ class _NotificationTile extends ConsumerWidget {
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
-        child: Text(
-          notification.body,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // A Treasure note row deliberately has no body: the approved line is
+            // the whole row, and the note's own words are only read once the
+            // client keeps it. An empty string here would render a blank line.
+            if (notification.body.trim().isNotEmpty)
+              Text(
+                notification.body,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            if (isTreasureNote) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  FilledButton(
+                    key: ValueKey('keep_${notification.id}'),
+                    onPressed: () => _keep(context, ref),
+                    child: const Text(kKeepAction),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    key: ValueKey('not_now_${notification.id}'),
+                    onPressed: () => ref
+                        .read(notificationReadProvider.notifier)
+                        .markRead(notification.id),
+                    child: const Text(kNotNowAction),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
       trailing: tappable

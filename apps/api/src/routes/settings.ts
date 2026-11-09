@@ -420,11 +420,14 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
     },
   });
 
-  // Settings > Notifications — inert preference toggles, no push/FCM
-  // delivery exists yet (see okuvu-remaining-changes.md).
+  // Settings > Notifications — appointment/chat toggles, plus the email switch
+  // for the "Something new in OKUVU" updates mail. The Updates list in the app
+  // is not gated by any of these: it always works, so a client who pauses email
+  // still sees everything they were sent.
   interface NotificationPreferencesBody {
     appointment_reminders_enabled?: boolean
     chat_nudges_enabled?: boolean
+    update_emails_enabled?: boolean
   }
 
   app.get('/settings/notifications', {
@@ -434,7 +437,11 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
 
       const user = await prisma.user.findUnique({
         where: { auth_subject: uid },
-        select: { appointment_reminders_enabled: true, chat_nudges_enabled: true },
+        select: {
+          appointment_reminders_enabled: true,
+          chat_nudges_enabled: true,
+          update_emails_enabled: true,
+        },
       });
 
       if (!user) {
@@ -446,6 +453,7 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
       return reply.send({
         appointment_reminders_enabled: user.appointment_reminders_enabled,
         chat_nudges_enabled: user.chat_nudges_enabled,
+        update_emails_enabled: user.update_emails_enabled,
       });
     },
   });
@@ -458,19 +466,22 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
 
       if (
         body.appointment_reminders_enabled === undefined &&
-        body.chat_nudges_enabled === undefined
+        body.chat_nudges_enabled === undefined &&
+        body.update_emails_enabled === undefined
       ) {
         return reply.status(400).send({
           error: {
             code: 'INVALID_BODY',
-            message: 'At least one of appointment_reminders_enabled/chat_nudges_enabled is required',
+            message:
+              'At least one of appointment_reminders_enabled/chat_nudges_enabled/update_emails_enabled is required',
           },
         });
       }
 
       if (
         (body.appointment_reminders_enabled !== undefined && typeof body.appointment_reminders_enabled !== 'boolean') ||
-        (body.chat_nudges_enabled !== undefined && typeof body.chat_nudges_enabled !== 'boolean')
+        (body.chat_nudges_enabled !== undefined && typeof body.chat_nudges_enabled !== 'boolean') ||
+        (body.update_emails_enabled !== undefined && typeof body.update_emails_enabled !== 'boolean')
       ) {
         return reply.status(400).send({
           error: { code: 'INVALID_BODY', message: 'Preference values must be booleans' },
@@ -496,6 +507,9 @@ export async function settingsRoute(app: FastifyInstance): Promise<void> {
             : {}),
           ...(body.chat_nudges_enabled !== undefined
             ? { chat_nudges_enabled: body.chat_nudges_enabled }
+            : {}),
+          ...(body.update_emails_enabled !== undefined
+            ? { update_emails_enabled: body.update_emails_enabled }
             : {}),
         },
       });

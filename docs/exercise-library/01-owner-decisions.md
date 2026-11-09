@@ -229,3 +229,30 @@ which becomes false once the safety pass lands.
   approved closing button opens it.
 - **Saving is a copy, not a link.** Deleting the journal entry, chat or
   worksheet answer afterwards leaves the kept note in place.
+
+## Confirmations added 9 November 2026 (Step 7 round)
+
+- **The four "Open when…" collection names are approved**: "Open when I’m
+  anxious", "Open when I feel low", "Open when I’m overwhelmed", "Open when I
+  need a win". Added to `02-approved-worksheet-copy.md` as an approved addition
+  and applied to rows already created by migration
+  `20261109180000_step7_updates_and_emails`.
+- **"From a worksheet" stays the label** for an exercise saved from the Library.
+  No sixth source label.
+- **A failed safety check is moderate concern** (Step 5 correction, restated
+  here because Step 7 touched the same save paths): the keyword floor still runs
+  first and a hit is a full crisis; silence shows a gentle offer, queues a
+  recheck, and never raises a flag or an alert on its own.
+- **Email is for events, not schedules**: an assignment or a Treasure Box note
+  mails; a reminder being set does not. One email per client per IST day,
+  approved subject and body, a working pause link, and the Updates list always
+  works whatever the email setting says.
+- **Old summaries stay untouched.** Summaries written before the Step 4 safety
+  pass may contain crisis text. Rewriting clinical records is not a code change;
+  it is carried into the Step 12 write-up as a decision, not an oversight.
+- **The "becoming" spiral is not built.** It does not exist in the app; the data
+  it will read (each finished worksheet with its before/after ratings and its
+  "This helped") keeps being stored. Carried into the Step 12 list.
+- **Step 13 gate**: before any APK, every migration from every step must be
+  applied to a real Postgres and checked. No database runs on this machine, so
+  the migrations are schema-validated and diffed, not applied.

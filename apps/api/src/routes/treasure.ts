@@ -20,16 +20,17 @@ const MAX_NOTES_PER_READ = 200;
  * (9 Nov 2026): one code path, and no rows written for accounts that never open
  * the box. `system_key` plus the unique index makes a retried seed idempotent.
  *
- * The names are not in the approved copy document. They are the plainest
- * reading of the four approved system keys, and they are recorded in
- * `docs/exercise-library/10-step-06a-treasure-box.md` as awaiting the owner's
- * wording — renaming is one line here and a data fix on existing rows.
+ * The names are the owner's approved wording, supplied 9 Nov 2026 and added to
+ * `docs/exercise-library/02-approved-worksheet-copy.md`. They are the one string
+ * array; changing them again is this edit plus an UPDATE on existing rows (see
+ * migration `20261109180000_step7_updates_and_emails`, which applied exactly
+ * that rename to boxes created before the wording arrived).
  */
 export const SEEDED_COLLECTIONS = [
-  { system_key: 'anxious', name: 'Open when I feel anxious', sort_order: 0 },
+  { system_key: 'anxious', name: 'Open when I’m anxious', sort_order: 0 },
   { system_key: 'low', name: 'Open when I feel low', sort_order: 1 },
-  { system_key: 'overwhelmed', name: "Open when it's too much", sort_order: 2 },
-  { system_key: 'win', name: 'Open when something went right', sort_order: 3 },
+  { system_key: 'overwhelmed', name: 'Open when I’m overwhelmed', sort_order: 2 },
+  { system_key: 'win', name: 'Open when I need a win', sort_order: 3 },
 ] as const;
 
 /**

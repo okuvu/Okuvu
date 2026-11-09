@@ -9,28 +9,33 @@ import '../../core/providers.dart';
 class NotificationSettingsState {
   final bool appointmentRemindersEnabled;
   final bool chatNudgesEnabled;
+  final bool updateEmailsEnabled;
   final bool isLoading;
 
   const NotificationSettingsState({
     required this.appointmentRemindersEnabled,
     required this.chatNudgesEnabled,
+    required this.updateEmailsEnabled,
     required this.isLoading,
   });
 
   const NotificationSettingsState.initial()
       : appointmentRemindersEnabled = true,
         chatNudgesEnabled = true,
+        updateEmailsEnabled = true,
         isLoading = true;
 
   NotificationSettingsState copyWith({
     bool? appointmentRemindersEnabled,
     bool? chatNudgesEnabled,
+    bool? updateEmailsEnabled,
     bool? isLoading,
   }) {
     return NotificationSettingsState(
       appointmentRemindersEnabled:
           appointmentRemindersEnabled ?? this.appointmentRemindersEnabled,
       chatNudgesEnabled: chatNudgesEnabled ?? this.chatNudgesEnabled,
+      updateEmailsEnabled: updateEmailsEnabled ?? this.updateEmailsEnabled,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -51,6 +56,7 @@ class NotificationSettingsNotifier extends Notifier<NotificationSettingsState> {
         appointmentRemindersEnabled:
             response.data['appointment_reminders_enabled'] as bool? ?? true,
         chatNudgesEnabled: response.data['chat_nudges_enabled'] as bool? ?? true,
+        updateEmailsEnabled: response.data['update_emails_enabled'] as bool? ?? true,
         isLoading: false,
       );
     } catch (_) {
@@ -74,6 +80,17 @@ class NotificationSettingsNotifier extends Notifier<NotificationSettingsState> {
       revert: (previous) => state = state.copyWith(chatNudgesEnabled: previous),
       previous: state.chatNudgesEnabled,
       payload: {'chat_nudges_enabled': value},
+    );
+  }
+
+  /// The "Something new in OKUVU" mail. Pausing it never hides an update: the
+  /// list in the app is the record and always shows what was sent.
+  Future<bool> setUpdateEmails(bool value) async {
+    return _set(
+      apply: () => state = state.copyWith(updateEmailsEnabled: value),
+      revert: (previous) => state = state.copyWith(updateEmailsEnabled: previous),
+      previous: state.updateEmailsEnabled,
+      payload: {'update_emails_enabled': value},
     );
   }
 

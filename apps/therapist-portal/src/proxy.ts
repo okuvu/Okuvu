@@ -45,7 +45,7 @@ const PUBLIC_PATHS = new Set(['/', '/privacy', '/delete-account', '/terms']);
  * prefix match on `/api` would exempt every future route by default, which is
  * how an internal endpoint ends up public by accident.
  */
-const PUBLIC_API_PATHS = new Set(['/api/waitlist']);
+const PUBLIC_API_PATHS = new Set(['/api/waitlist', '/api/updates/pause']);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -1,5 +1,10 @@
 import { prisma } from './prisma.js';
-import type { NotificationDto } from '@okuvu/shared-types';
+import {
+  buildDueTodayNotification,
+  getISTDateString,
+  type NotificationDto,
+} from '@okuvu/shared-types';
+import { endOfIstDay, startOfIstDay } from './homework.js';
 
 /**
  * Read side of the client inbox.
@@ -59,6 +64,11 @@ export function clampListLimit(raw: string | undefined): { limit: number } | { e
  *
  * The count is of **all** unread rows, not the page: a client with 40 unread and
  * a 30-row page must see 40 on the bell or the badge quietly under-reports.
+ *
+ * Unread first, then newest first: the owner's rule is that unread updates are
+ * what a client sees when they open the app, and a row stays unread until it is
+ * opened. Sorting purely by time would bury an unseen update under rows the
+ * client has already read and tapped past.
  */
 export async function listNotifications(
   input: ListNotificationsInput,
@@ -69,7 +79,11 @@ export async function listNotifications(
         user_id: input.clientUserId,
         ...(input.before ? { created_at: { lt: input.before } } : {}),
       },
-      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      orderBy: [
+        { read_at: { sort: 'asc', nulls: 'first' } },
+        { created_at: 'desc' },
+        { id: 'desc' },
+      ],
       take: input.limit,
     }),
     prisma.notification.count({
@@ -119,4 +133,127 @@ export async function markAllRead(clientUserId: string): Promise<number> {
   });
 
   return result.count;
+}
+
+/**
+ * Write the "Due today" rows for assignments due on the client's current IST day.
+ *
+ * Nothing runs on a clock in this deployment — there is no scheduler and no push
+ * — so the only moment we know the client is looking is the read. Deriving the
+ * row here rather than in a sweeper means the row exists exactly when someone
+ * can see it, and `dedupe_key` makes a re-read harmless: one row per assignment
+ * per day, never a stack of duplicates.
+ *
+ * A failure here must not fail the inbox: the list is still the thing the client
+ * opened, and a missing "due today" row is a smaller loss than an empty screen.
+ */
+export async function ensureDueTodayNotifications(
+  clientUserId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  try {
+    const dayStart = startOfIstDay(now);
+    const dayEnd = endOfIstDay(now);
+    const istDate = getISTDateString(now);
+
+    const due = await prisma.homework.findMany({
+      where: {
+        client_user_id: clientUserId,
+        status: 'active',
+        due_at: { gte: dayStart, lte: dayEnd },
+        OR: [{ last_completed_at: null }, { last_completed_at: { lt: dayStart } }],
+      },
+      select: { id: true, description: true },
+      take: 20,
+    });
+
+    if (due.length === 0) return 0;
+
+    const result = await prisma.notification.createMany({
+      data: due.map((homework) => {
+        const draft = buildDueTodayNotification({
+          homeworkId: homework.id,
+          description: homework.description,
+          istDate,
+        });
+        return {
+          user_id: clientUserId,
+          kind: draft.kind,
+          title: draft.title,
+          body: draft.body,
+          homework_id: draft.homeworkId ?? null,
+          dedupe_key: draft.dedupeKey ?? null,
+        };
+      }),
+      skipDuplicates: true,
+    });
+
+    return result.count;
+  } catch (err) {
+    console.error('[inbox] could not derive the due-today rows', err);
+    return 0;
+  }
+}
+
+export type KeepNoteResult =
+  | { status: 'ok'; noteId: string }
+  | { status: 'not_found' }
+  | { status: 'nothing_to_keep' };
+
+/**
+ * "Keep" on a waiting Treasure Box note.
+ *
+ * The note text lives on the notification row and is copied — not linked — into
+ * the client's box, so dismissing the update afterwards cannot empty the
+ * keepsake. `source_ref` points at the notification id and is the idempotency
+ * key: tapping Keep twice returns the same note rather than a second copy.
+ *
+ * A row that is not this client's answers `not_found`, exactly as a made-up id
+ * does, so the endpoint cannot be used to probe.
+ */
+export async function keepTreasureNote(
+  clientUserId: string,
+  notificationId: string,
+): Promise<KeepNoteResult> {
+  const row = await prisma.notification.findFirst({
+    where: { id: notificationId, user_id: clientUserId, kind: 'treasure_note_waiting' },
+    select: { id: true, note_body: true, read_at: true },
+  });
+
+  if (!row) return { status: 'not_found' };
+  if (!row.note_body || row.note_body.trim().length === 0) {
+    return { status: 'nothing_to_keep' };
+  }
+
+  const existing = await prisma.treasureNote.findFirst({
+    where: { user_id: clientUserId, source_ref: row.id },
+    select: { id: true },
+  });
+
+  if (existing) {
+    if (!row.read_at) {
+      await prisma.notification.update({
+        where: { id: row.id },
+        data: { read_at: new Date() },
+      });
+    }
+    return { status: 'ok', noteId: existing.id };
+  }
+
+  const note = await prisma.treasureNote.create({
+    data: {
+      user_id: clientUserId,
+      body: row.note_body,
+      source: 'therapist',
+      source_ref: row.id,
+    },
+    select: { id: true },
+  });
+
+  await prisma.notification.update({
+    where: { id: row.id },
+    data: { read_at: new Date() },
+  });
+
+  return { status: 'ok', noteId: note.id };
 }

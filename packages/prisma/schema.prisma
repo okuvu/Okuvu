@@ -71,6 +71,18 @@ model User {
   /// reads it, because nothing nudges yet.
   appointment_reminders_enabled Boolean   @default(true)
   chat_nudges_enabled Boolean             @default(true)
+  /// Settings > Notifications → Email updates. Gates the client's "Something
+  /// new in OKUVU" mail only; the Updates list in the app works either way, and
+  /// the pause page an email links to clears this same column.
+  update_emails_enabled Boolean           @default(true)
+  /// The IST day of the last client email. One email per client per day is the
+  /// owner's rule; this column is the cap's record, written before the send so
+  /// two events in the same minute cannot both mail.
+  last_update_email_at DateTime?
+  /// Opaque token in the "Pause these emails" link. Generated on the first send
+  /// and never derived from the user id, so the link cannot be guessed for
+  /// someone else.
+  email_update_token   String?             @unique
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
   engagement_profile  EngagementProfile?
@@ -617,13 +629,23 @@ model Appointment {
 model Notification {
   id             String    @id @default(uuid())
   user_id        String
-  /// 'homework_assigned' | 'reminder_set' | 'appointment_booked' |
+  /// 'homework_assigned' | 'reminder_set' | 'homework_due_today' |
+  /// 'treasure_note_waiting' | 'appointment_booked' |
   /// 'appointment_rescheduled' | 'appointment_cancelled'. Read by the app only
   /// to pick an icon and a deep-link target; unknown values render as a
   /// generic row.
   kind           String
   title          String
   body           String
+  /// The therapist's Treasure Box note, held here until the client taps Keep.
+  /// Deliberately not in `body`: the approved Updates copy says only "Your
+  /// therapist sent you something for your Treasure Box", and the client reads
+  /// the note itself in the box, not on a lock screen. Null for every other kind.
+  note_body      String?
+  /// Idempotency for rows a read derives rather than an action writing. One
+  /// `due_today:<homeworkId>:<IST date>` row per assignment per day, so
+  /// re-opening the app does not stack duplicates. Null for action-written rows.
+  dedupe_key     String?   @unique
   /// What tapping the row opens. Plain columns rather than a polymorphic
   /// (target_type, target_id) pair so a row can point at the same homework a
   /// reminder refers to without a join table. Both null for kinds with no

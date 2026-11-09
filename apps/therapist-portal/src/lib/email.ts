@@ -12,6 +12,11 @@
  */
 
 import { identityRef, redactEmails } from '@/lib/log-identity';
+import {
+  CLIENT_EMAIL_BODY,
+  CLIENT_EMAIL_FOOTER,
+  CLIENT_EMAIL_SUBJECT,
+} from '@okuvu/shared-types';
 
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 
@@ -563,6 +568,83 @@ export async function sendClientNotificationEmail(
       kind: params.kind,
       err,
     });
+    return { sent: false };
+  }
+}
+
+/**
+ * The client's "something new" email — the approved wording, and only that.
+ *
+ * One sender for the Updates list, capped at one message per client per day by
+ * `server/notifications.ts`. It names nothing: not the exercise, not the note,
+ * not the therapist, not a feeling. A phone on a shared table shows this
+ * preview to whoever is nearest, and every clinical detail lives one tap away
+ * where the client chose to open it.
+ *
+ * The pause link is the one credential in the message: an opaque per-client
+ * token in a URL that clears the email preference and does nothing else. It is
+ * not a session and it does not unlock any data, which is why a bare token in a
+ * query string is acceptable here where a login link would not be.
+ */
+export interface SendClientUpdateEmailParams {
+  to: string;
+  /** Absolute URL of the pause page, already carrying the token. */
+  pauseUrl: string;
+}
+
+export function buildClientUpdateEmailCopy(pauseUrl: string): ClientNotificationEmailCopy {
+  const htmlContent = `
+    <p>${escapeHtml(CLIENT_EMAIL_BODY)}</p>
+    <p style="font-size: 12px; color: #6b6b6b;"><a href="${escapeHtml(pauseUrl)}">${escapeHtml(CLIENT_EMAIL_FOOTER)}</a></p>
+  `;
+
+  return { subject: CLIENT_EMAIL_SUBJECT, htmlContent };
+}
+
+export async function sendClientUpdateEmail(
+  params: SendClientUpdateEmailParams,
+): Promise<{ sent: boolean }> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
+  const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
+  const { subject, htmlContent } = buildClientUpdateEmailCopy(params.pauseUrl);
+
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — skipping client update email', {
+      toRef: identityRef('c', params.to),
+    });
+    return { sent: false };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email: params.to }],
+        subject,
+        htmlContent,
+      }),
+      signal: AbortSignal.timeout(EMAIL_SEND_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('[email] Brevo client update send failed', {
+        status: response.status,
+        body: redactEmails(body).slice(0, 500),
+      });
+      return { sent: false };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Brevo client update send threw', err);
     return { sent: false };
   }
 }

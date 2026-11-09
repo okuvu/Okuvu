@@ -490,3 +490,24 @@ Breathing card.
   Breathe screen works. Not four cards. Guided breathing is retired and never appears.
 - **Mood check-in and grounding are one card each**, opening the existing screens with the
   new pieces added. They are not new pages.
+
+---
+
+## Approved addition: Treasure Box collection names
+
+Supplied by the owner on 9 November 2026, after Step 6A shipped four placeholder names as
+"awaiting the owner's wording". These are the four names; they replace the placeholders
+everywhere, and the migration `20261109180000_step7_updates_and_emails` renamed the rows
+already created for existing accounts. Not part of the verbatim body above, because they
+arrived as a separate approved addition and the document is never edited in place.
+
+| System key | Approved name |
+| --- | --- |
+| `anxious` | Open when I’m anxious |
+| `low` | Open when I feel low |
+| `overwhelmed` | Open when I’m overwhelmed |
+| `win` | Open when I need a win |
+
+Clients can add their own collections alongside these four. The names are stored in one
+array in `apps/api/src/routes/treasure.ts`; a further wording change is that array plus an
+`UPDATE` on existing rows by `system_key`.

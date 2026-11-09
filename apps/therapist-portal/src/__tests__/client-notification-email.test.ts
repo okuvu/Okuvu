@@ -36,12 +36,32 @@ type NotifyDb = Parameters<typeof notifyHomeworkAssigned>[0];
 interface FakeUser {
   email: string | null;
   appointment_reminders_enabled: boolean;
+  update_emails_enabled?: boolean;
+  email_update_token?: string | null;
 }
 
 function makeDb(user: FakeUser | null) {
-  const findUnique = vi.fn().mockResolvedValue(user);
+  // Email updates default on in the product, so every existing appointment test
+  // keeps meaning what it meant; a test that checks the pause only overrides it.
+  const row = user
+    ? { update_emails_enabled: true, email_update_token: 'tok-1', ...user }
+    : null;
+  const findUnique = vi.fn().mockResolvedValue(row);
   const create = vi.fn().mockResolvedValue({ id: 'ntf_1' });
-  return { db: { user: { findUnique }, notification: { create } } as unknown as NotifyDb, findUnique, create };
+  // The daily cap is claimed with a conditional UPDATE; count 1 means "you have
+  // not had today's message". A test that wants the cap to bite returns 0.
+  const claim = vi.fn().mockResolvedValue({ count: 1 });
+  const update = vi.fn().mockResolvedValue({});
+  return {
+    db: {
+      user: { findUnique, updateMany: claim, update },
+      notification: { create },
+    } as unknown as NotifyDb,
+    findUnique,
+    create,
+    claim,
+    update,
+  };
 }
 
 /** The JSON body the sender handed to Brevo. */
@@ -116,9 +136,12 @@ describe('notifyHomeworkAssigned', () => {
     // …the email does not.
     const payload = sentPayload();
     expect(payload.to[0].email).toBe('client@example.com');
-    expect(payload.subject).toBe('Something new from your care team');
+    // The owner's approved subject, and only that: no exercise name, no
+    // therapist name, nothing that reads as clinical on a lock screen.
+    expect(payload.subject).toBe('Something new in OKUVU');
     expect(payload.htmlContent).not.toContain('avoided this week');
     expect(payload.htmlContent).not.toContain('Write down');
+    expect(payload.htmlContent).not.toContain('homework');
   });
 
   it('still records the row when the client has no email address on file', async () => {
@@ -212,15 +235,29 @@ describe('appointments', () => {
   it('does not let the appointment toggle silence homework', async () => {
     const { db, create } = makeDb({ email: 'client@example.com', appointment_reminders_enabled: false });
 
-    await notifyReminderSet(db, {
+    await notifyHomeworkAssigned(db, {
       clientUserId: 'usr_1',
-      scheduleNote: 'Evening breathing',
-      frequency: 'daily',
-      times: ['20:00'],
+      homeworkId: 'hw_1',
+      description: 'Evening breathing',
     });
 
     expect(create).toHaveBeenCalledTimes(1);
     sentPayload();
+  });
+
+  it('does not email a reminder being set — only a real event does', async () => {
+    const { db, create } = makeDb({ email: 'client@example.com', appointment_reminders_enabled: true });
+
+    await notifyReminderSet(db, {
+      clientUserId: 'usr_1',
+      scheduleNote: 'Evening breathing',
+      frequency: 'once_daily',
+      times: ['20:00'],
+    });
+
+    // The inbox row is still written; the mailbox is left alone.
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

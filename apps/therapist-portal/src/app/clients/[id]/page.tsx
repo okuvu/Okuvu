@@ -7,6 +7,7 @@ import { SAFETY_LABELS, type AssignmentState, type SafetyState } from '@okuvu/sh
 import { TabStrip } from './_components/TabStrip';
 import { ConsentChip } from './_components/ConsentChip';
 import { AppointmentsCard } from './_components/AppointmentsCard';
+import { TreasureNoteCard } from './_components/TreasureNoteCard';
 
 const CARE_PLAN_NAMES: Record<string, string> = {
   CP1: 'Anxiety & Worry',
@@ -178,6 +179,10 @@ export default function ClientDetailPage() {
 
           {/* Appointments — wireframes P-02/P-03/P-04 */}
           <AppointmentsCard clientUserId={clientId} />
+
+          {/* Step 7 — a note for the client's own Treasure Box. The writer that
+              makes the "Your therapist sent you something" update reachable. */}
+          <TreasureNoteCard clientId={clientId} clientLabel={clientLabel} />
 
           {/* E16-S9 — entry point to the read-only conversation view. The
               page itself re-checks the 30-day chat-access window server

@@ -39,6 +39,25 @@ export function istDateToUtcMidnight(dateIst: string): Date {
 }
 
 /**
+ * The start of the client's current IST day, as an instant.
+ *
+ * Defined here because two things now depend on the same day boundary: the
+ * client's Today card (which hides an assignment done "today") and the one-email
+ * -per-day cap. When those disagree, a client gets a second email nine minutes
+ * after midnight or none at all. Computed by offset rather than a named zone so
+ * it does not depend on a tz database being present in the container.
+ */
+export function startOfIstDay(date: Date = new Date()): Date {
+  const shifted = new Date(date.getTime() + IST_OFFSET_MINUTES * 60_000)
+  const midnightUtc = Date.UTC(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth(),
+    shifted.getUTCDate(),
+  )
+  return new Date(midnightUtc - IST_OFFSET_MINUTES * 60_000)
+}
+
+/**
  * How long a client's chat-access approval opens their transcript to the
  * therapist. Defined here, once, because two surfaces enforce it: the
  * therapist portal's conversation gate (server) and the client's own
@@ -945,9 +964,31 @@ export interface CorpusCase {
 export type NotificationKind =
   | 'homework_assigned'
   | 'reminder_set'
+  | 'homework_due_today'
+  | 'treasure_note_waiting'
   | 'appointment_booked'
   | 'appointment_rescheduled'
   | 'appointment_cancelled'
+
+/**
+ * Updates-list copy the clinical owner approved (9 Nov 2026). Kept here because
+ * the api writes the rows and the portal sends the mail; two hand-kept strings
+ * would drift, and this is the sentence a client reads on a row that stands in
+ * for clinical contact.
+ */
+export const UPDATES_FIXED_LINE =
+  'Your therapist reads shared entries before sessions, not in real time. If you need help right now, tap Get help.'
+
+export const TREASURE_NOTE_WAITING_LINE =
+  'Your therapist sent you something for your Treasure Box.'
+
+export const CLIENT_EMAIL_SUBJECT = 'Something new in OKUVU'
+
+export const CLIENT_EMAIL_BODY =
+  "Hi, there's something waiting for you in the OKUVU app, whenever you're ready. Open the app to see it."
+
+export const CLIENT_EMAIL_FOOTER = 'Pause these emails'
+
 
 /** One stored row, as the app receives it. */
 export interface NotificationDto {
@@ -977,6 +1018,10 @@ export interface NotificationDraft {
   body: string
   homeworkId?: string | null
   appointmentId?: string | null
+  /** A therapist's Treasure Box note, held until the client taps Keep. */
+  noteBody?: string | null
+  /** Idempotency key for rows derived on read (the due-today row). */
+  dedupeKey?: string | null
 }
 
 /**
@@ -1076,6 +1121,44 @@ export function buildHomeworkNotification(input: {
     title: 'New homework',
     body: excerpt(input.description),
     homeworkId: input.homeworkId,
+  }
+}
+
+/**
+ * The "something due today" row. Derived on read rather than written by an
+ * action: nothing runs on a clock in this deployment, so the read is the only
+ * moment we know the client is looking. `dedupeKey` makes that idempotent per
+ * assignment per IST day.
+ */
+export function buildDueTodayNotification(input: {
+  homeworkId: string
+  description: string
+  istDate: string
+}): NotificationDraft {
+  return {
+    kind: 'homework_due_today',
+    title: 'Due today',
+    body: excerpt(input.description),
+    homeworkId: input.homeworkId,
+    dedupeKey: `due_today:${input.homeworkId}:${input.istDate}`,
+  }
+}
+
+/**
+ * A Treasure Box note from the therapist, waiting to be kept.
+ *
+ * The row carries the approved line and nothing else — the note's own words sit
+ * in `noteBody`, which the app never renders in the list. A therapist's message
+ * appears on a lock-screen preview otherwise.
+ */
+export function buildTreasureNoteNotification(input: {
+  noteBody: string
+}): NotificationDraft {
+  return {
+    kind: 'treasure_note_waiting',
+    title: TREASURE_NOTE_WAITING_LINE,
+    body: '',
+    noteBody: input.noteBody,
   }
 }
 

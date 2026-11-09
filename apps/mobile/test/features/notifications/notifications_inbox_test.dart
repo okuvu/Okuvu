@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/features/notifications/notifications_inbox_screen.dart';
+import 'package:okuvu/src/features/notifications/updates_copy.dart';
 import 'package:okuvu/src/features/homework/homework_screen.dart';
 import 'package:okuvu/src/features/homework/homework_provider.dart';
 
@@ -356,6 +358,127 @@ void main() {
       expect(describeReminderSchedule('as_needed', []), 'Whenever you need it');
       // An unknown frequency must not leak a raw enum into the client's screen.
       expect(describeReminderSchedule('every_fortnight', []), 'No set time');
+    });
+  });
+
+  /// Step 7 — the two update kinds the client acts on, and the approved line
+  /// above the list. The list is the record; these are the controls on it.
+  group('Updates list — Step 7 controls', () {
+    testWidgets('shows the approved fixed line with a working Get help', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final dio = _inboxDio(listResponse: {
+        'notifications': [_notificationJson(id: 'n1', homeworkId: 'hw-1')],
+        'unreadCount': 1,
+      });
+
+      await tester.pumpWidget(_app(dio, const NotificationsInboxScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text(kUpdatesFixedLine), findsOneWidget);
+      expect(find.byKey(const ValueKey('updates_get_help')), findsOneWidget);
+    });
+
+    testWidgets('a therapist note shows Keep and Not now, and no preview of the note', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final posted = <String>[];
+      final dio = _inboxDio(
+        listResponse: {
+          'notifications': [
+            _notificationJson(
+              id: 'ntf-note',
+              kind: 'treasure_note_waiting',
+              title: kTreasureNoteWaitingLine,
+              body: '',
+            ),
+          ],
+          'unreadCount': 1,
+        },
+        postedPaths: posted,
+      );
+
+      await tester.pumpWidget(_app(dio, const NotificationsInboxScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text(kTreasureNoteWaitingLine), findsOneWidget);
+      expect(find.text(kKeepAction), findsOneWidget);
+      expect(find.text(kNotNowAction), findsOneWidget);
+      // The row must not be tappable into a destination it has none of.
+      expect(find.byIcon(LucideIcons.chevronRight), findsNothing);
+    });
+
+    testWidgets('Keep calls the keep route, never a plain mark-read', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final posted = <String>[];
+      final bodies = <Object?>[];
+      final dio = _inboxDio(
+        listResponse: {
+          'notifications': [
+            _notificationJson(
+              id: 'ntf-note',
+              kind: 'treasure_note_waiting',
+              title: kTreasureNoteWaitingLine,
+              body: '',
+            ),
+          ],
+          'unreadCount': 1,
+        },
+        postedPaths: posted,
+        postedBodies: bodies,
+      );
+
+      await tester.pumpWidget(_app(dio, const NotificationsInboxScreen()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(kKeepAction));
+      await tester.pumpAndSettle();
+
+      expect(posted, ['/users/me/notifications/ntf-note/keep']);
+      // Body-less command POST: an empty body, not a Dio call with no data at
+      // all, which Fastify rejects before the handler.
+      expect(bodies.single, isA<Map<String, dynamic>>());
+    });
+
+    testWidgets('Not now marks the update read and keeps it in the list', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final posted = <String>[];
+      final dio = _inboxDio(
+        listResponse: {
+          'notifications': [
+            _notificationJson(
+              id: 'ntf-note',
+              kind: 'treasure_note_waiting',
+              title: kTreasureNoteWaitingLine,
+              body: '',
+            ),
+          ],
+          'unreadCount': 1,
+        },
+        postedPaths: posted,
+      );
+
+      await tester.pumpWidget(_app(dio, const NotificationsInboxScreen()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(kNotNowAction));
+      await tester.pumpAndSettle();
+
+      expect(posted, ['/users/me/notifications/ntf-note/read']);
     });
   });
 }

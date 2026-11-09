@@ -95,7 +95,10 @@ class NotificationReadNotifier extends Notifier<void> {
   Future<bool> markRead(String id) async {
     final dio = ref.read(dioClientProvider);
     try {
-      await dio.post('/users/me/notifications/$id/read');
+      await dio.post(
+        '/users/me/notifications/$id/read',
+        data: const <String, dynamic>{},
+      );
       ref.invalidate(notificationsProvider);
       ref.invalidate(unreadNotificationCountProvider);
       return true;
@@ -107,7 +110,28 @@ class NotificationReadNotifier extends Notifier<void> {
   Future<bool> markAllRead() async {
     final dio = ref.read(dioClientProvider);
     try {
-      await dio.post('/users/me/notifications/read-all');
+      await dio.post('/users/me/notifications/read-all', data: const <String, dynamic>{});
+      ref.invalidate(notificationsProvider);
+      ref.invalidate(unreadNotificationCountProvider);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Keep a waiting Treasure Box note.
+  ///
+  /// The server copies the therapist's words into the client's own box and marks
+  /// the update read in the same call, so this returns true only when the note
+  /// really exists in the box — the screen then opens it rather than claiming a
+  /// save it cannot show.
+  Future<bool> keepNote(String id) async {
+    final dio = ref.read(dioClientProvider);
+    try {
+      await dio.post(
+        '/users/me/notifications/$id/keep',
+        data: const <String, dynamic>{},
+      );
       ref.invalidate(notificationsProvider);
       ref.invalidate(unreadNotificationCountProvider);
       return true;

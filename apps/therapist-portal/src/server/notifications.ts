@@ -1,13 +1,16 @@
 import type { PrismaClient } from '@okuvu/prisma';
+import { randomUUID } from 'node:crypto';
 import {
   buildAppointmentBookedNotification,
   buildAppointmentCancelledNotification,
   buildAppointmentRescheduledNotification,
   buildHomeworkNotification,
   buildReminderNotification,
+  buildTreasureNoteNotification,
+  startOfIstDay,
   type NotificationDraft,
 } from '@okuvu/shared-types';
-import { sendClientNotificationEmail } from '@/lib/email';
+import { sendClientNotificationEmail, sendClientUpdateEmail } from '@/lib/email';
 
 /**
  * Writes the client-facing notification rows for therapist actions.
@@ -40,16 +43,39 @@ import { sendClientNotificationEmail } from '@/lib/email';
 
 type NotificationDb = Pick<PrismaClient, 'notification' | 'user'>;
 
-/** Kinds governed by Settings → Notifications → Appointment reminders. */
+/**
+ * Kinds governed by Settings → Notifications → Appointment reminders.
+ */
 const APPOINTMENT_KINDS = new Set([
   'appointment_booked',
   'appointment_rescheduled',
   'appointment_cancelled',
 ]);
 
+/**
+ * Kinds that send the approved generic email ("Something new in OKUVU").
+ *
+ * The owner's Step 7 rule: email only when something happens that the client
+ * has to act on, and the two named events are an assignment and a Treasure note.
+ * `reminder_set` deliberately does not mail — a reminder is a schedule the
+ * therapist already discussed, and mailing it is the noise that gets a sender
+ * filtered.
+ *
+ * Appointment kinds keep their own existing copy (the session time is logistics,
+ * not clinical) but are now behind the same preference gate and the same
+ * one-a-day cap, because "no more than one email per client per day" is a
+ * promise about the client's inbox, not about one code path.
+ */
+const UPDATE_EMAIL_KINDS = new Set(['homework_assigned', 'treasure_note_waiting']);
+
+/** Kinds that may send any email at all. */
+const EMAILABLE_KINDS = new Set([...UPDATE_EMAIL_KINDS, ...APPOINTMENT_KINDS]);
+
 interface Recipient {
   email: string | null;
   appointment_reminders_enabled: boolean;
+  update_emails_enabled: boolean;
+  email_update_token: string | null;
 }
 
 /**
@@ -63,8 +89,67 @@ interface Recipient {
 async function loadRecipient(db: NotificationDb, userId: string): Promise<Recipient | null> {
   return db.user.findUnique({
     where: { id: userId },
-    select: { email: true, appointment_reminders_enabled: true },
+    select: {
+      email: true,
+      appointment_reminders_enabled: true,
+      update_emails_enabled: true,
+      email_update_token: true,
+    },
   });
+}
+
+/**
+ * Claim this client's one email for today, or lose the race honestly.
+ *
+ * Written before the send, and as a single conditional UPDATE, so two events
+ * fired in the same second cannot both mail: the second one matches no row and
+ * skips. The row is the cap; the sender never keeps state of its own.
+ */
+async function claimDailyEmail(db: NotificationDb, userId: string, now = new Date()): Promise<boolean> {
+  try {
+    const claimed = await db.user.updateMany({
+      where: {
+        id: userId,
+        update_emails_enabled: true,
+        OR: [
+          { last_update_email_at: null },
+          { last_update_email_at: { lt: startOfIstDay(now) } },
+        ],
+      },
+      data: { last_update_email_at: now },
+    });
+    return claimed.count === 1;
+  } catch (err) {
+    console.error('[NOTIFY] could not claim the daily email slot', err);
+    return false;
+  }
+}
+
+/**
+ * The pause link's token, minted on the first email and reused afterwards.
+ *
+ * Random rather than derived: a token that is a hash of the user id is a token
+ * anyone holding the id can rebuild, and this URL arrives in a mailbox.
+ */
+async function ensurePauseToken(
+  db: NotificationDb,
+  userId: string,
+  current: string | null,
+): Promise<string | null> {
+  if (current) return current;
+  try {
+    const token = randomUUID();
+    await db.user.update({ where: { id: userId }, data: { email_update_token: token } });
+    return token;
+  } catch (err) {
+    console.error('[NOTIFY] could not mint the email pause token', err);
+    return null;
+  }
+}
+
+function pauseUrlFor(token: string): string {
+  const base = (process.env.OKUVU_PUBLIC_URL ?? 'https://portal.okuvu.in').replace(/\/+$/, '');
+  return `${base}/api/updates/pause?t=${encodeURIComponent(token)}`;
 }
 
 async function write(
@@ -98,6 +183,8 @@ async function write(
         kind: draft.kind,
         title: draft.title,
         body: draft.body,
+        note_body: draft.noteBody ?? null,
+        dedupe_key: draft.dedupeKey ?? null,
         homework_id: draft.homeworkId ?? null,
         appointment_id: draft.appointmentId ?? null,
       },
@@ -119,9 +206,26 @@ async function write(
     return;
   }
 
-  // Separate try: this must not be reported as a failure to record the row, and
-  // the sender itself already resolves to {sent:false} rather than throwing.
+  // The row is written and the rest is best-effort. A kind that does not mail,
+  // a client who paused email, and a client who already had today's message all
+  // stop here — the Updates list still shows every one of them.
+  if (!EMAILABLE_KINDS.has(draft.kind)) return;
+  if (!recipient.update_emails_enabled) return;
+  if (!(await claimDailyEmail(db, userId))) return;
+
   try {
+    if (UPDATE_EMAIL_KINDS.has(draft.kind)) {
+      const token = await ensurePauseToken(db, userId, recipient.email_update_token);
+      if (!token) {
+        // Without a working pause link the mail would make a promise it cannot
+        // keep, so it is not sent at all. The inbox row is unaffected.
+        console.error(`[NOTIFY] no pause token for user ${userId} — update email not sent`);
+        return;
+      }
+      await sendClientUpdateEmail({ to: recipient.email, pauseUrl: pauseUrlFor(token) });
+      return;
+    }
+
     await sendClientNotificationEmail({
       to: recipient.email,
       kind: draft.kind,
@@ -213,5 +317,23 @@ export async function notifyAppointmentCancelled(
       scheduledAt: input.scheduledAt,
     }),
     { scheduledAt: input.scheduledAt },
+  );
+}
+
+/**
+ * A note the therapist wrote for the client's Treasure Box.
+ *
+ * The row carries the approved line, and the note's own words travel in
+ * `note_body` where the app does not render them: the client keeps it and reads
+ * it in the box. That is also why the email says nothing at all about a note.
+ */
+export async function notifyTreasureBoxNote(
+  db: NotificationDb,
+  input: { clientUserId: string; noteBody: string },
+): Promise<void> {
+  await write(
+    db,
+    input.clientUserId,
+    buildTreasureNoteNotification({ noteBody: input.noteBody }),
   );
 }
