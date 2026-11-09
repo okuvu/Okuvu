@@ -26,7 +26,20 @@ const mockUserFindUnique = vi.hoisted(() => vi.fn());
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
     user: { findUnique: mockUserFindUnique },
+    safetyState: { findUnique: vi.fn().mockResolvedValue(null) },
   },
+}));
+
+// Step 4 added a second model call on this route (the final safety review of
+// the generated prompt). It is mocked APPROVED so this file keeps testing what
+// it is about: the provider chain's fail-closed behaviour.
+vi.mock('../agents/a9-post/agent.js', () => ({
+  a9PostReview: vi.fn().mockResolvedValue({
+    decision: 'APPROVED',
+    violation_type: null,
+    confidence: 'high',
+    notes: null,
+  }),
 }));
 
 import { buildApp } from '../app.js';

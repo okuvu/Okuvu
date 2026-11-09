@@ -16,6 +16,11 @@ class JournalEntryFormState {
   final String? error;
   final bool saved;
 
+  /// The api's safety check found something in this entry and answered
+  /// `showHelp: true`. The entry is already saved; the screen raises the help
+  /// card before it leaves.
+  final bool showHelp;
+
   const JournalEntryFormState({
     this.emotion,
     this.intensity = 0,
@@ -23,6 +28,7 @@ class JournalEntryFormState {
     this.isSaving = false,
     this.error,
     this.saved = false,
+    this.showHelp = false,
   });
 
   const JournalEntryFormState.initial()
@@ -31,7 +37,8 @@ class JournalEntryFormState {
         content = '',
         isSaving = false,
         error = null,
-        saved = false;
+        saved = false,
+        showHelp = false;
 
   JournalEntryFormState copyWith({
     String? Function()? emotion,
@@ -40,6 +47,7 @@ class JournalEntryFormState {
     bool? isSaving,
     String? Function()? error,
     bool? saved,
+    bool showHelp = false,
   }) {
     return JournalEntryFormState(
       emotion: emotion != null ? emotion() : this.emotion,
@@ -48,6 +56,7 @@ class JournalEntryFormState {
       isSaving: isSaving ?? this.isSaving,
       error: error != null ? error() : this.error,
       saved: saved ?? this.saved,
+      showHelp: showHelp || this.showHelp,
     );
   }
 
@@ -120,7 +129,12 @@ class JournalEntryFormNotifier extends Notifier<JournalEntryFormState> {
       if (response.statusCode != null &&
           response.statusCode! >= 200 &&
           response.statusCode! < 300) {
-        state = state.copyWith(isSaving: false, saved: true);
+        // The api runs the same safety check chat runs, inside the write. Its
+        // answer decides whether the help card is raised — the app does not
+        // look at the words itself, and cannot skip the check by not looking.
+        final safety = response.data is Map ? response.data['safety'] : null;
+        final showHelpNow = safety is Map && safety['showHelp'] == true;
+        state = state.copyWith(isSaving: false, saved: true, showHelp: showHelpNow);
         return true;
       } else {
         state = state.copyWith(

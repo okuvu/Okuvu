@@ -11,6 +11,9 @@ vi.mock('../lib/prisma.js', () => ({
     toolRegistryEntry: { findMany: vi.fn(), findUnique: vi.fn() },
     homework: { findMany: vi.fn(), findFirst: vi.fn() },
     worksheetResponse: { findFirst: vi.fn() },
+    // Step 4 — the safety plan instance table and the client's current state.
+    safetyPlan: { findUnique: vi.fn() },
+    safetyState: { findUnique: vi.fn() },
   },
 }));
 
@@ -112,6 +115,8 @@ describe('GET /library/:toolId', () => {
     vi.mocked(prisma.homework.findMany).mockResolvedValue([] as any);
     vi.mocked(prisma.homework.findFirst).mockResolvedValue(null as any);
     vi.mocked(prisma.worksheetResponse.findFirst).mockResolvedValue(null as any);
+    vi.mocked(prisma.safetyPlan.findUnique).mockResolvedValue(null as any);
+    vi.mocked(prisma.safetyState.findUnique).mockResolvedValue(null as any);
     vi.mocked(prisma.toolRegistryEntry.findMany).mockResolvedValue([] as any);
     app = buildApp();
   });
@@ -128,7 +133,7 @@ describe('GET /library/:toolId', () => {
       rowFor('ws_safety_plan') as any,
     );
     // Safety plan is in_session, so give the client a finished plan first.
-    vi.mocked(prisma.worksheetResponse.findFirst).mockResolvedValue({ id: 'r1' } as any);
+    vi.mocked(prisma.safetyPlan.findUnique).mockResolvedValue({ id: 'plan-1' } as any);
     app = buildApp();
 
     const res = await app.inject({ method: 'GET', url: '/library/ws_safety_plan' });
@@ -155,11 +160,14 @@ describe('GET /library/:toolId', () => {
     );
     vi.mocked(prisma.homework.findFirst).mockResolvedValue({ id: 'h1' } as any);
 
-    const res = await app.inject({ method: 'GET', url: '/library/ws_thought_record' });
+    // The thought record is demanding, so the gate question has been answered
+    // at 4 out of 10 — under the threshold.
+    const res = await app.inject({ method: 'GET', url: '/library/ws_thought_record?feelingNow=4' });
     expect(res.statusCode).toBe(200);
     const body = res.json() as any;
     expect(body.content.fields.length).toBeGreaterThan(5);
     expect(body.content.intro).toContain('Thoughts can feel like facts');
+    expect(body.feelingBefore).toBe(4);
   });
 
   it('refuses the safety plan before it exists, so a client never gets a blank one', async () => {
@@ -169,8 +177,64 @@ describe('GET /library/:toolId', () => {
     );
 
     const res = await app.inject({ method: 'GET', url: '/library/ws_safety_plan' });
+    // Hidden means hidden: an uncreated plan answers exactly as an unknown id
+    // does, so a guessed URL cannot discover that a plan is coming.
+    expect(res.statusCode).toBe(404);
+    expect((res.json() as any).error.code).toBe('NOT_FOUND');
+  });
+
+  it('refuses a demanding worksheet at 8 out of 10 and offers grounding instead', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_thought_record') as any,
+    );
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue({ id: 'h1' } as any);
+
+    const res = await app.inject({ method: 'GET', url: '/library/ws_thought_record?feelingNow=8' });
     expect(res.statusCode).toBe(403);
-    expect((res.json() as any).error.code).toBe('NOT_CREATED_YET');
+    const body = res.json() as any;
+    expect(body.error.code).toBe('DEMANDING_GATE');
+    expect(body.error.message).toContain('This one works best when things feel a bit steadier');
+    expect(body.error.groundingToolId).toBe('grounding_5431');
+    // The worksheet body must not travel with the refusal.
+    expect(res.body).not.toContain('Thoughts can feel like facts');
+  });
+
+  it('refuses a demanding worksheet while the client is in a crisis state, whatever the rating', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_thought_record') as any,
+    );
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue({ id: 'h1' } as any);
+    vi.mocked(prisma.safetyState.findUnique).mockResolvedValue({ safety_state_current: 'S3' } as any);
+
+    const res = await app.inject({ method: 'GET', url: '/library/ws_thought_record?feelingNow=1' });
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as any).error.code).toBe('DEMANDING_GATE');
+  });
+
+  it('will not open a demanding worksheet without the question being answered', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_thought_record') as any,
+    );
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue({ id: 'h1' } as any);
+
+    const res = await app.inject({ method: 'GET', url: '/library/ws_thought_record' });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as any).error.code).toBe('FEELING_NOT_GIVEN');
+    expect((res.json() as any).error.message).toBe('How strong is what you\'re feeling right now?');
+  });
+
+  it('opens a light worksheet with no gate question at all', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_three_good_things') as any,
+    );
+
+    const res = await app.inject({ method: 'GET', url: '/library/ws_three_good_things' });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as any).feelingBefore).toBeNull();
   });
 
   it('returns 404 for a placeholder, exactly as if it did not exist', async () => {
@@ -228,5 +292,48 @@ describe('GET /library/:toolId', () => {
     const body = res.json() as any;
     expect(body.hinglishAvailable).toBe(false);
     expect(body.content.fields[0].prompt).toBe("What's one thing that went okay today?");
+  });
+});
+
+describe('GET /library — the safety plan card is hidden until a plan exists', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(async () => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+    vi.mocked(prisma.toolRegistryEntry.findMany).mockResolvedValue([
+      rowFor('ws_three_good_things'),
+      rowFor('ws_safety_plan'),
+    ] as any);
+    vi.mocked(prisma.homework.findMany).mockResolvedValue([] as any);
+    app = buildApp();
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  it('does not show the card at all when the therapist has not made a plan', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.safetyPlan.findUnique).mockResolvedValue(null as any);
+
+    const res = await app.inject({ method: 'GET', url: '/library' });
+    const ids = (res.json() as any).cards.map((c: any) => c.toolId);
+    expect(ids).toContain('ws_three_good_things');
+    // Hidden, not greyed out: no card, so nothing to tap.
+    expect(ids).not.toContain('ws_safety_plan');
+  });
+
+  it('shows the card once a plan exists', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.safetyPlan.findUnique).mockResolvedValue({ id: 'plan-1' } as any);
+
+    const res = await app.inject({ method: 'GET', url: '/library' });
+    const plan = (res.json() as any).cards.find((c: any) => c.toolId === 'ws_safety_plan');
+    expect(plan).toBeTruthy();
+    expect(plan.available).toBe(true);
   });
 });

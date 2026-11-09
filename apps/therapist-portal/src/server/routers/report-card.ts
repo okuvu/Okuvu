@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { chatAccessWindow } from '@okuvu/shared-types';
 import {
   assertClientAssigned,
   isBypassEnabled,
@@ -58,10 +59,15 @@ export const reportCardRouter = router({
             client_user_id: input.clientId,
           },
         },
-        select: { chat_access_granted: true },
+        // Step 4 — the same rule as everywhere else. A bare boolean cannot
+        // expire, so reading it here let chat summaries through after the
+        // client's 30-day approval window had closed, and let a flag the
+        // therapist set themselves stand in for the client's consent. The
+        // window is computed by the one shared predicate the app also uses.
+        select: { chat_access_granted_at: true, chat_access_closed_at: true },
       });
 
-      if (!assignment?.chat_access_granted) {
+      if (chatAccessWindow(assignment) === null) {
         return { granted: false as const };
       }
 
@@ -119,10 +125,15 @@ export const reportCardRouter = router({
             client_user_id: input.clientId,
           },
         },
-        select: { chat_access_granted: true },
+        // Step 4 — the same rule as everywhere else. A bare boolean cannot
+        // expire, so reading it here let chat summaries through after the
+        // client's 30-day approval window had closed, and let a flag the
+        // therapist set themselves stand in for the client's consent. The
+        // window is computed by the one shared predicate the app also uses.
+        select: { chat_access_granted_at: true, chat_access_closed_at: true },
       });
 
-      if (!assignment?.chat_access_granted) {
+      if (chatAccessWindow(assignment) === null) {
         return { granted: false as const };
       }
 

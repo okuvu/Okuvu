@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
+import '../../core/providers.dart';
 import 'journal_entry.dart';
 import 'journal_provider.dart';
 import 'journal_prompt_service.dart';
@@ -214,6 +215,11 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     ref.listen<JournalEntryFormState>(journalEntryFormProvider, (prev, next) {
       if (next.saved && !(prev?.saved ?? false)) {
         ref.invalidate(journalListProvider);
+        // Saved, and the check found something in it: raise the help card
+        // before leaving the screen. The entry stays saved.
+        if (next.showHelp) {
+          ref.read(crisisOverlayProvider.notifier).show();
+        }
         // Clear the form (including any chat-handoff prefill) so a later,
         // unrelated visit to Journal doesn't silently reopen with this
         // entry's text still sitting in the (non-autoDispose) provider.
@@ -260,7 +266,16 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          "Your journal is private. OKUVU doesn't read it and your therapist can't see it.",
+                          // The approved privacy line, verbatim. It replaced the
+                          // older sentence promising that the app never reads an
+                          // entry, which became false the moment the safety pass
+                          // landed: the entry IS screened, and a crisis raises
+                          // the help card and tells the therapist an event
+                          // happened — without sharing what was written.
+                          "Your therapist can't read this unless you choose to share it. "
+                          "If OKUVU's safety system notices you may be in danger, it will show "
+                          "you help straight away and let your therapist know you may need "
+                          "support, without sharing what you wrote.",
                           style: theme.textTheme.bodySmall,
                         ),
                       ),

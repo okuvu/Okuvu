@@ -1,4 +1,12 @@
 import { FastifyInstance } from 'fastify';
+import {
+  DEMANDING_GATE_BUTTONS,
+  DEMANDING_GATE_MESSAGE,
+  DEMANDING_GATE_QUESTION,
+  GROUNDING_TOOL_ID,
+  SAFETY_PLAN_TOOL_ID,
+  demandingGateBlocks,
+} from '@okuvu/shared-types/safety';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { toClientWorksheetView, type WorksheetRegistryRow } from '../lib/worksheet-content.js';
@@ -94,17 +102,35 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
 
       const assigned = new Set(assignments.map((row) => row.tool_id));
 
-      const cards: Card[] = rows.map((row) => ({
-        toolId: row.tool_id,
-        label: row.label,
-        summary: row.summary,
-        section: row.section,
-        accessMode: row.access_mode,
-        loadLevel: row.load_level,
-        estMinutes: row.est_minutes,
-        kind: row.kind,
-        available: row.access_mode !== 'assigned' || assigned.has(row.tool_id),
-      }));
+      // ─── Step 4 — the safety plan is HIDDEN, not greyed out ────────────
+      //
+      // Owner's decision (9 Nov 2026, after Step 3): a card the client cannot
+      // open yet is noise on a screen that is already asking a lot of them.
+      // Until the therapist has made a plan with them, the card does not
+      // exist — and neither does the route (GET /safety-plan answers
+      // NOT_CREATED_YET, which the app never reaches because it has no card to
+      // tap).
+      const needsPlan = rows.some((row) => row.access_mode === 'in_session');
+      const hasPlan = needsPlan
+        ? (await prisma.safetyPlan.findUnique({
+            where: { user_id: user.id },
+            select: { id: true },
+          })) !== null
+        : false;
+
+      const cards: Card[] = rows
+        .filter((row) => row.access_mode !== 'in_session' || hasPlan)
+        .map((row) => ({
+          toolId: row.tool_id,
+          label: row.label,
+          summary: row.summary,
+          section: row.section,
+          accessMode: row.access_mode,
+          loadLevel: row.load_level,
+          estMinutes: row.est_minutes,
+          kind: row.kind,
+          available: row.access_mode !== 'assigned' || assigned.has(row.tool_id),
+        }));
 
       return reply.send({
         cards,
@@ -164,20 +190,65 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
       }
 
       if (row.access_mode === 'in_session') {
-        // The safety plan is written with the therapist in session. The client
-        // reads their own finished plan; they never open a blank one.
-        const plan = await prisma.worksheetResponse.findFirst({
-          where: { user_id: user.id, worksheet_id: toolId },
+        // The safety plan is written with the therapist in the portal. The
+        // Library card is hidden until a plan exists (see GET /library), so a
+        // direct request for it before then answers exactly as an unknown id
+        // does — there is nothing here to discover by guessing a URL.
+        const plan = await prisma.safetyPlan.findUnique({
+          where: { user_id: user.id },
           select: { id: true },
         });
         if (!plan) {
-          return reply.status(403).send({
+          return reply.status(404).send({
+            error: { code: 'NOT_FOUND', message: 'Not found' },
+          });
+        }
+      }
+
+      // ─── Step 4 — the demanding-worksheet gate ─────────────────────────
+      //
+      // Asked before the worksheet opens, and enforced here rather than only in
+      // the app: the question is the gate, so a client who has not answered it
+      // is not opened into the worksheet, and one above 5 out of 10 — or in a
+      // crisis state — is offered grounding instead. The rating is echoed back
+      // so the client's "before" rating is the answer they just gave.
+      let feelingBefore: number | null = null;
+      if (row.load_level === 'demanding') {
+        const raw = (request.query as { feelingNow?: string } | undefined)?.feelingNow;
+        const feelingNow = typeof raw === 'string' && /^\d{1,2}$/.test(raw) ? Number(raw) : null;
+
+        if (feelingNow === null) {
+          return reply.status(400).send({
             error: {
-              code: 'NOT_CREATED_YET',
-              message: 'You and your therapist fill this in together.',
+              code: 'FEELING_NOT_GIVEN',
+              message: DEMANDING_GATE_QUESTION,
             },
           });
         }
+
+        let current: string | null = null;
+        try {
+          const state = await prisma.safetyState.findUnique({
+            where: { user_id: user.id },
+            select: { safety_state_current: true },
+          });
+          current = state?.safety_state_current ?? null;
+        } catch {
+          // Unknown state: the gate below still refuses anything above 5.
+          current = null;
+        }
+
+        if (demandingGateBlocks(feelingNow, current)) {
+          return reply.status(403).send({
+            error: {
+              code: 'DEMANDING_GATE',
+              message: DEMANDING_GATE_MESSAGE,
+              buttons: DEMANDING_GATE_BUTTONS,
+              groundingToolId: GROUNDING_TOOL_ID,
+            },
+          });
+        }
+        feelingBefore = feelingNow;
       }
 
       const view = toClientWorksheetView(row as unknown as WorksheetRegistryRow, 'en');
@@ -200,6 +271,9 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
         loadLevel: view.loadLevel,
         estMinutes: view.estMinutes,
         kind: row.kind,
+        // The rating the client gave at the gate, so submitting it stores the
+        // "before" number they actually answered rather than asking twice.
+        feelingBefore,
         content: view.content,
         children: children.map((child) => ({
           toolId: child.tool_id,

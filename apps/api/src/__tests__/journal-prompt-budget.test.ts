@@ -17,7 +17,19 @@ vi.mock('../lib/prisma.js', () => ({
   prisma: {
     user: { findUnique: vi.fn() },
     journalEntry: { create: vi.fn(), findMany: vi.fn() },
+    safetyState: { findUnique: vi.fn() },
   },
+}));
+
+// Step 4 — the AI text is reviewed before it is served. Approved here; the
+// review's own behaviour is covered in journal.test.ts.
+vi.mock('../agents/a9-post/agent.js', () => ({
+  a9PostReview: vi.fn().mockResolvedValue({
+    decision: 'APPROVED',
+    violation_type: null,
+    confidence: 'high',
+    notes: null,
+  }),
 }));
 
 const mockGenerateJournalPrompt = vi.hoisted(() => vi.fn());

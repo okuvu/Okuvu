@@ -3,9 +3,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
+import '../library/safety_plan_screen.dart';
 
 class CrisisOverlay extends ConsumerWidget {
   const CrisisOverlay({super.key});
@@ -91,6 +93,32 @@ class CrisisOverlay extends ConsumerWidget {
                             fontStyle: FontStyle.italic,
                           ),
                         ),
+                      ),
+                      // One tap to the plan they made with their therapist.
+                      // Only rendered when a plan exists: the provider answers
+                      // null for "not created yet", and an empty link on a
+                      // crisis screen is a dead end at the worst moment.
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final plan = ref.watch(safetyPlanProvider).asData?.value;
+                          if (plan == null) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: TextButton.icon(
+                              key: const Key('crisisSafetyPlanButton'),
+                              onPressed: () {
+                                ref.read(crisisOverlayProvider.notifier).hide();
+                                context.push('/safety-plan');
+                              },
+                              icon: const Icon(LucideIcons.bookOpen, size: 16),
+                              label: const Text(
+                                'My plan for hard moments',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              style: TextButton.styleFrom(foregroundColor: Colors.white),
+                            ),
+                          );
+                        },
                       ),
                       // A deliberate, low-key way out — not a prominent CTA,
                       // since dialing a helpline should read as the primary

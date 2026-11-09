@@ -12,6 +12,9 @@ const mockGenerateEmbedding = vi.fn();
 const mockHomeworkFindFirst = vi.fn();
 const mockClinicalConfigFindUnique = vi.fn();
 const mockClinicalConfigUpdate = vi.fn();
+// Step 4 — crisis turns are filtered out of the transcript.
+const mockSafetyFlagFindMany = vi.fn();
+const mockTurnFindMany = vi.fn();
 
 vi.mock('../lib/prisma.js', () => ({
   getPrisma: () => ({
@@ -20,6 +23,8 @@ vi.mock('../lib/prisma.js', () => ({
     userMemory: { findUnique: mockUserMemoryFind, upsert: mockUserMemoryUpsert },
     homework: { findFirst: mockHomeworkFindFirst },
     clinicalConfig: { findUnique: mockClinicalConfigFindUnique, update: mockClinicalConfigUpdate },
+    safetyFlag: { findMany: mockSafetyFlagFindMany },
+    turn: { findMany: mockTurnFindMany },
     $executeRaw: mockExecuteRaw,
   }),
 }));
@@ -78,6 +83,9 @@ describe('generateSessionSummary', () => {
     mockHomeworkFindFirst.mockResolvedValue(null);
     mockClinicalConfigFindUnique.mockResolvedValue(null);
     mockClinicalConfigUpdate.mockResolvedValue({});
+    // No safety flags in a session unless a test says so.
+    mockSafetyFlagFindMany.mockResolvedValue([]);
+    mockTurnFindMany.mockResolvedValue([]);
   });
 
   describe('positive — normal session', () => {
@@ -769,5 +777,48 @@ describe('generateSessionSummary', () => {
       expect(result.status).toBe('completed');
       expect(mockUserMemoryUpsert).toHaveBeenCalled();
     });
+  });
+});
+
+describe('Step 4 — nothing written during a crisis reaches a summary', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockHomeworkFindFirst.mockResolvedValue(null);
+    mockClinicalConfigFindUnique.mockResolvedValue(null);
+    mockClinicalConfigUpdate.mockResolvedValue({});
+    mockSafetyFlagFindMany.mockResolvedValue([]);
+    mockTurnFindMany.mockResolvedValue([]);
+  });
+
+  it('leaves a flagged exchange out of the transcript the model reads', async () => {
+    const turns = makeTranscriptTurns(3); // turns 1..3, two rows each
+    mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 6 }));
+    // The api wrote a flag for the assistant turn of exchange 2.
+    mockSafetyFlagFindMany.mockResolvedValue([{ turn_id: 'turn-asst-2' }]);
+    mockTurnFindMany.mockResolvedValue([{ turn_number: 2 }]);
+    mockGenerateContent.mockResolvedValue({ text: validFlashLiteOutput, fallbackUsed: false });
+    mockUpsert.mockResolvedValue({ id: 'sum-1' });
+
+    const { generateSessionSummary } = await import('../lib/summary.js');
+    await generateSessionSummary('sess-1', 'user-1', mockLogger());
+
+    const transcript = mockGenerateContent.mock.calls[0][0].contents[0].parts[0].text;
+    expect(transcript).toContain('User message 1');
+    expect(transcript).toContain('User message 3');
+    expect(transcript).not.toContain('User message 2');
+    expect(transcript).not.toContain('Assistant response 2');
+  });
+
+  it('fails the summary rather than guessing when the flags cannot be read', async () => {
+    const turns = makeTranscriptTurns(3);
+    mockFindUnique.mockResolvedValue(makeSession({ turns, turn_count: 6 }));
+    mockSafetyFlagFindMany.mockRejectedValue(new Error('db unavailable'));
+
+    const { generateSessionSummary } = await import('../lib/summary.js');
+
+    await expect(generateSessionSummary('sess-1', 'user-1', mockLogger())).rejects.toThrow(
+      /db unavailable/,
+    );
+    expect(mockUpsert).not.toHaveBeenCalled();
   });
 });

@@ -15,6 +15,10 @@
     "./worksheets": {
       "types": "./worksheets/index.ts",
       "default": "./worksheets/index.ts"
+    },
+    "./safety": {
+      "types": "./safety.ts",
+      "default": "./safety.ts"
     }
   },
   "scripts": {

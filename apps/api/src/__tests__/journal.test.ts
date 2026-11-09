@@ -12,8 +12,55 @@ vi.mock('../lib/prisma.js', () => ({
       create: vi.fn(),
       findMany: vi.fn(),
     },
+    // Step 4 — the flag writer (lib/safety-flags.ts) is REAL in this suite, so
+    // these are the delegates it touches. Mocking the flag writer instead would
+    // let every test pass while no flag was ever written.
+    safetyFlag: { create: vi.fn() },
+    therapistClient: { findMany: vi.fn() },
+    safetyState: { findUnique: vi.fn() },
   },
 }));
+
+// The check itself is covered by its own suite (safety-check.test.ts); here the
+// routes' USE of its verdict is what is under test.
+const mockCheckClientText = vi.hoisted(() => vi.fn());
+vi.mock('../lib/safety-check.js', () => ({
+  checkClientText: mockCheckClientText,
+  answersToText: () => '',
+}));
+
+vi.mock('../lib/email.js', () => ({
+  sendSafetyAlertEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
+// The final safety review of AI-written text. Default: approved.
+const mockA9PostReview = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    decision: 'APPROVED',
+    violation_type: null,
+    confidence: 'high',
+    notes: null,
+  }),
+);
+vi.mock('../agents/a9-post/agent.js', () => ({ a9PostReview: mockA9PostReview }));
+
+/** A clean verdict unless a test says otherwise. */
+const SAFE = {
+  level: 'S0' as const,
+  flagged: false,
+  showHelp: false,
+  degraded: false,
+  reason: 'classifier',
+};
+beforeEach(() => {
+  mockCheckClientText.mockResolvedValue(SAFE);
+  mockA9PostReview.mockResolvedValue({
+    decision: 'APPROVED',
+    violation_type: null,
+    confidence: 'high',
+    notes: null,
+  });
+});
 
 const mockGenerateJournalPrompt = vi.hoisted(() => vi.fn());
 
@@ -159,7 +206,11 @@ describe('POST /journal', () => {
       });
 
       expect(response.statusCode).toBe(201);
-      expect(response.json()).toEqual({ success: true, id: 'entry-words-only' });
+      expect(response.json()).toEqual({
+        success: true,
+        id: 'entry-words-only',
+        safety: { showHelp: false },
+      });
       expect(vi.mocked(prisma.journalEntry.create)).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -664,5 +715,164 @@ describe('GET /journal', () => {
       expect(response.statusCode).toBe(401);
       expect(response.json().error.code).toBe('UNAUTHORIZED');
     });
+  });
+});
+
+describe('POST /journal — Step 4: the same safety check chat runs', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(async () => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+    vi.mocked(prisma.journalEntry.create).mockResolvedValue({ id: 'entry-crisis' } as any);
+    vi.mocked(prisma.safetyFlag.create).mockResolvedValue({
+      id: 'flag-1',
+      user_id: MOCK_USER_ID,
+      level: 'S4',
+      occurred_at: new Date('2026-11-09T10:00:00Z'),
+    } as any);
+    vi.mocked(prisma.therapistClient.findMany).mockResolvedValue([
+      { client_label: 'C-01', therapist: { email: 'therapist@example.com', name: 'T' } },
+    ] as any);
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  it('crisis words in an entry: saved, help card, flag with no text, therapist alerted', async () => {
+    mockCheckClientText.mockResolvedValue({
+      level: 'S4',
+      flagged: true,
+      showHelp: true,
+      degraded: false,
+      reason: 'crisis_keyword_floor',
+    });
+    app = buildApp();
+
+    const content = 'I want to die and I have been thinking about it all night.';
+    const response = await app.inject({ method: 'POST', url: '/journal', payload: { content } });
+
+    // Saved, not swallowed.
+    expect(response.statusCode).toBe(201);
+    expect(response.json().safety).toEqual({ showHelp: true });
+    expect(vi.mocked((await importMocks()).journalEntry.create)).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ content }) }),
+    );
+
+    // Flagged as a journal event, pointing at the row, carrying no words.
+    const flagCall = vi.mocked((await importMocks()).safetyFlag.create).mock.calls[0][0] as any;
+    expect(flagCall.data).toMatchObject({
+      user_id: MOCK_USER_ID,
+      level: 'S4',
+      source: 'journal_entry',
+      subject_kind: 'journal_entry',
+      subject_id: 'entry-crisis',
+    });
+    expect(JSON.stringify(flagCall.data)).not.toContain('thinking about it all night');
+
+    // The same alert email, with no content in it.
+    const { sendSafetyAlertEmail } = await import('../lib/email.js');
+    expect(vi.mocked(sendSafetyAlertEmail)).toHaveBeenCalledTimes(1);
+    const emailArgs = vi.mocked(sendSafetyAlertEmail).mock.calls[0][0] as any;
+    expect(emailArgs).toMatchObject({ to: 'therapist@example.com', level: 'S4' });
+    expect(JSON.stringify(emailArgs)).not.toContain('thinking about it all night');
+  });
+
+  it('treats a check that could not answer as a possible risk, never as safe', async () => {
+    mockCheckClientText.mockResolvedValue({
+      level: 'S3',
+      flagged: true,
+      showHelp: true,
+      degraded: true,
+      reason: 'classifier_error:safety_check_timeout',
+    });
+    app = buildApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/journal',
+      payload: { content: 'Everything is fine.' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().safety).toEqual({ showHelp: true });
+    const flagCall = vi.mocked((await importMocks()).safetyFlag.create).mock.calls[0][0] as any;
+    expect(flagCall.data.level).toBe('S3');
+  });
+
+  it('does not flag an ordinary entry', async () => {
+    app = buildApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/journal',
+      payload: { content: 'Long day. Tired but okay.' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().safety).toEqual({ showHelp: false });
+    expect(vi.mocked((await importMocks()).safetyFlag.create)).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /journal/prompt — Step 4: AI text passes the final safety review', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(async () => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID, user_memory: null } as any);
+    vi.mocked(prisma.safetyState.findUnique).mockResolvedValue({ safety_state_current: 'S0' } as any);
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  it('serves the vetted list when the review blocks the generated prompt', async () => {
+    mockGenerateJournalPrompt.mockResolvedValue('You should try writing about your anxiety disorder.');
+    mockA9PostReview.mockResolvedValue({
+      decision: 'BLOCKED',
+      violation_type: 'diagnosis_explicit',
+      confidence: 'high',
+      notes: null,
+    });
+    app = buildApp();
+
+    const response = await app.inject({ method: 'POST', url: '/journal/prompt' });
+
+    expect(response.statusCode).toBe(200);
+    const { prompt } = response.json() as { prompt: string };
+    expect(prompt).not.toContain('anxiety disorder');
+    expect(prompt.length).toBeGreaterThan(0);
+    expect(mockA9PostReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves the vetted list when the review itself fails', async () => {
+    mockGenerateJournalPrompt.mockResolvedValue('What felt heaviest today?');
+    mockA9PostReview.mockRejectedValue(new Error('review unavailable'));
+    app = buildApp();
+
+    const response = await app.inject({ method: 'POST', url: '/journal/prompt' });
+
+    expect(response.statusCode).toBe(200);
+    const { prompt } = response.json() as { prompt: string };
+    expect(prompt).not.toBe('What felt heaviest today?');
+    expect(prompt.length).toBeGreaterThan(0);
+  });
+
+  it('shows the reviewed prompt when it is approved', async () => {
+    mockGenerateJournalPrompt.mockResolvedValue('What felt heaviest today?');
+    app = buildApp();
+
+    const response = await app.inject({ method: 'POST', url: '/journal/prompt' });
+
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as any).prompt).toBe('What felt heaviest today?');
   });
 });

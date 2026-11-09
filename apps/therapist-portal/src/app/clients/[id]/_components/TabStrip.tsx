@@ -20,6 +20,7 @@ const TABS = [
   { key: 'report', label: 'Session Prep & Report Card', href: (id: string) => `/clients/${id}/report` },
   { key: 'program', label: 'Care Plan', href: (id: string) => `/clients/${id}/program` },
   { key: 'tools', label: 'Tools', href: (id: string) => `/clients/${id}/tools` },
+  { key: 'safety-plan', label: 'Safety plan', href: (id: string) => `/clients/${id}/safety-plan` },
   { key: 'notes', label: 'Notes', href: (id: string) => `/clients/${id}/notes` },
 ] as const;
 

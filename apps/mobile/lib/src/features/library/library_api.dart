@@ -91,8 +91,19 @@ class LibraryApi {
     }).toList();
   }
 
-  Future<LibraryEntry> entry(String toolId) async {
-    final res = await _dio.get<Map<String, dynamic>>('/library/$toolId');
+  /// One worksheet body.
+  ///
+  /// `feelingNow` is the answer to the gate question, and the api requires it
+  /// for a demanding worksheet: without it the request is refused
+  /// (FEELING_NOT_GIVEN), and above 5 out of 10 it is refused with
+  /// DEMANDING_GATE and the approved "try something calming first" copy. The
+  /// gate lives on the server so a build that never asked the question still
+  /// cannot open the worksheet.
+  Future<LibraryEntry> entry(String toolId, {int? feelingNow}) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/library/$toolId',
+      queryParameters: feelingNow == null ? null : {'feelingNow': feelingNow},
+    );
     final body = res.data!;
     final content = body['content'];
     final children = body['children'];
@@ -115,6 +126,65 @@ class LibraryApi {
           : const [],
     );
   }
+
+  /// "What does this step mean?" — the reviewed AI explanation, or null.
+  ///
+  /// Null means the api refused (the review blocked the draft, the model was
+  /// unavailable, or the step is not part of this worksheet). The caller says
+  /// nothing rather than inventing a line: the step is already on screen.
+  Future<String?> help(String toolId, String stepId) async {
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/worksheets/$toolId/help',
+        data: {'stepId': stepId},
+      );
+      final text = res.data?['text'];
+      return text is String && text.trim().isNotEmpty ? text.trim() : null;
+    } on DioException {
+      return null;
+    }
+  }
+
+  /// Hand a finished worksheet to the api.
+  ///
+  /// This is the only save path for a worksheet: the api runs the same safety
+  /// check chat runs on every answer before it stores it, so a disclosure typed
+  /// into a worksheet produces the help card and the therapist alert exactly as
+  /// a chat message does. The client cannot skip it by not rendering anything —
+  /// the check is inside the write.
+  Future<WorksheetSubmitResult> submit(
+    String toolId, {
+    required Map<String, Object?> answers,
+    int? feelingBefore,
+    int? feelingAfter,
+    String? barriers,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/worksheets/$toolId',
+      data: {
+        'answers': answers,
+        if (feelingBefore != null) 'feelingBefore': feelingBefore,
+        if (feelingAfter != null) 'feelingAfter': feelingAfter,
+        if (barriers != null && barriers.trim().isNotEmpty) 'barriers': barriers.trim(),
+      },
+    );
+    final safety = res.data?['safety'];
+    return WorksheetSubmitResult(
+      id: (res.data?['id'] as String?) ?? '',
+      showHelp: safety is Map && safety['showHelp'] == true,
+    );
+  }
+}
+
+/// What the api answered when a finished worksheet was handed over.
+class WorksheetSubmitResult {
+  const WorksheetSubmitResult({required this.id, required this.showHelp});
+
+  final String id;
+
+  /// The client's own words tripped the safety check: show the help card now.
+  /// The answers are already saved; nothing is lost.
+  final bool showHelp;
 }
 
 final libraryApiProvider = Provider<LibraryApi>((ref) {

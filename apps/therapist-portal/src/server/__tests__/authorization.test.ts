@@ -461,7 +461,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.sessionPrep fetches entries and logs access when consent is granted', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: new Date(), chat_access_closed_at: null } });
     vi.mocked(prisma.sessionSummary.findMany).mockResolvedValue([
       {
         session_id: 'sess_1',
@@ -488,7 +488,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.reportCard returns aggregated data and logs access when consent is granted', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: new Date(), chat_access_closed_at: null } });
     vi.mocked(prisma.homework.groupBy).mockResolvedValue([
       { status: 'active', _count: 2 },
       { status: 'completed', _count: 3 },
@@ -517,7 +517,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.reportCard computes S-07 signal flags from recent turns (okuvu-remaining-changes.md §C.2)', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: new Date(), chat_access_closed_at: null } });
     vi.mocked(prisma.turn.findMany).mockResolvedValue([
       { taper_state: 'tapering', closure_offered: true, frustration_event: false, therapist_referral: false, created_at: new Date('2026-09-12') },
       { taper_state: 'none', closure_offered: false, frustration_event: true, therapist_referral: true, created_at: new Date('2026-09-10') },
@@ -605,5 +605,61 @@ describe('authorization: homework.markCompleted ownership check (defense in dept
       data: { status: 'completed' },
       select: { id: true, status: true, updated_at: true },
     });
+  });
+});
+
+describe('Step 4 — the Report Card and Session Prep follow the chat-access rule', () => {
+  const callerFor = (prisma: PrismaClient) =>
+    appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+  it('refuses when the flag is on but there is no client approval timestamp', async () => {
+    // The therapist set the switch; the client never approved. A bare boolean
+    // read here is how that becomes a read.
+    const prisma = buildPrisma({
+      therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: null, chat_access_closed_at: null },
+    });
+
+    const prep = await callerFor(prisma).reportCard.sessionPrep({ clientId: 'client_1' });
+    const card = await callerFor(prisma).reportCard.reportCard({ clientId: 'client_1' });
+
+    expect(prep).toEqual({ granted: false });
+    expect(card).toEqual({ granted: false });
+    expect(prisma.sessionSummary.findMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses once the 30-day window from the client\'s approval has closed', async () => {
+    const thirtyOneDaysAgo = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    const prisma = buildPrisma({
+      therapistClient: {
+        id: 'tc_1',
+        chat_access_granted: true,
+        chat_access_granted_at: thirtyOneDaysAgo,
+        chat_access_closed_at: null,
+      },
+    });
+
+    const prep = await callerFor(prisma).reportCard.sessionPrep({ clientId: 'client_1' });
+    const card = await callerFor(prisma).reportCard.reportCard({ clientId: 'client_1' });
+
+    expect(prep).toEqual({ granted: false });
+    expect(card).toEqual({ granted: false });
+  });
+
+  it('refuses when the client has closed access, even inside the window', async () => {
+    const prisma = buildPrisma({
+      therapistClient: {
+        id: 'tc_1',
+        chat_access_granted: true,
+        chat_access_granted_at: new Date(),
+        chat_access_closed_at: new Date(),
+      },
+    });
+
+    const prep = await callerFor(prisma).reportCard.sessionPrep({ clientId: 'client_1' });
+    expect(prep).toEqual({ granted: false });
   });
 });

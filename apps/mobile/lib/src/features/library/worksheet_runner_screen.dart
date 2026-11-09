@@ -4,7 +4,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/providers.dart';
 import '../../core/speech_service.dart';
+import '../../theme/app_colors.dart';
 import 'worksheet_draft_store.dart';
+import 'library_api.dart';
 import 'worksheet_spec.dart';
 
 /// One worksheet, one piece per screen.
@@ -47,7 +49,11 @@ class WorksheetRunnerScreen extends ConsumerStatefulWidget {
 
   /// Called when the client finishes. The caller decides what happens to the
   /// answers (safety-checked save). Null in previews.
-  final void Function(WorksheetAnswers answers)? onFinished;
+  ///
+  /// Async because the save is a network write the api safety-checks: the
+  /// runner waits for it so a failed save can keep the draft instead of
+  /// clearing it and losing what the client wrote.
+  final Future<void> Function(WorksheetAnswers answers)? onFinished;
 
   @override
   ConsumerState<WorksheetRunnerScreen> createState() => _WorksheetRunnerState();
@@ -60,6 +66,9 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   WorksheetAnswers _answers = {};
   int _stepIndex = 0;
   bool _finished = false;
+
+  /// One "what does this mean?" request at a time.
+  bool _helpLoading = false;
   bool _restoring = true;
   bool _isListening = false;
 
@@ -134,11 +143,58 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
     _persist();
   }
 
+  Future<void> _askForHelp(WorksheetField field) async {
+    setState(() => _helpLoading = true);
+    final text = await ref.read(libraryApiProvider).help(widget.toolId, field.id);
+    if (!mounted) return;
+    setState(() => _helpLoading = false);
+
+    if (text == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Help isn't available right now.")),
+      );
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.oatElevated,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                field.prompt,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.charcoalInk,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: AppColors.charcoalInk,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _finish() async {
     setState(() => _finished = true);
     // Do not clear the draft here: the answers are only safe once the caller
     // has stored them. The screen that saves clears it (see the Library step).
-    widget.onFinished?.call(Map<String, Object?>.from(_answers));
+    await widget.onFinished?.call(Map<String, Object?>.from(_answers));
   }
 
   Future<void> _toggleListening() async {
@@ -232,6 +288,36 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                       ),
                       const SizedBox(height: 20),
                     ],
+                    // The approved privacy line, on the worksheet itself: what
+                    // is written here is not shared unless the client chooses
+                    // to share it, and the safety pass notices danger without
+                    // revealing the words.
+                    if (index == 0) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(LucideIcons.lock, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "Your therapist can't read this unless you choose to share it. "
+                                "If OKUVU's safety system notices you may be in danger, it will show "
+                                "you help straight away and let your therapist know you may need "
+                                "support, without sharing what you wrote.",
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                     Text(field.prompt, style: theme.textTheme.titleMedium),
                     if (field.helper != null) ...[
                       const SizedBox(height: 6),
@@ -247,6 +333,20 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                         style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
                       ),
                     ],
+                    // The only AI help a worksheet offers: explain the step,
+                    // encourage, ask an open question. It never sees the
+                    // answers and never writes them — and the api refuses any
+                    // reply that breaks those rules, so a null here means "say
+                    // nothing", not "improvise a line".
+                    if (field.type != 'instruction')
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          key: const Key('worksheetHelpButton'),
+                          onPressed: _helpLoading ? null : () => _askForHelp(field),
+                          child: Text(_helpLoading ? 'Loading…' : 'What does this mean?'),
+                        ),
+                      ),
                     const SizedBox(height: 16),
                     _buildInput(field, theme),
                     if (field.therapistNote && (widget.personalNote?.isNotEmpty ?? false)) ...[

@@ -43,6 +43,7 @@ const { USER_FK_TABLES, STRING_REF_TABLES, ALL_TABLES, prismaMock } = vi.hoisted
     // Library work (Step 1). Client-authored worksheet answers, Treasure notes
     // and the client's own "Open when..." collections.
     'worksheetResponse',
+    'safetyPlan',
     'treasureNote',
     'treasureCollection',
   ] as const;
@@ -409,7 +410,7 @@ describe('erasure coverage vs packages/prisma/schema.prisma', () => {
 
   it('finds the schema and the known set of subject tables', () => {
     expect(models.length).toBeGreaterThan(30);
-    expect(modelsWithUserFk.length).toBe(23);
+    expect(modelsWithUserFk.length).toBe(24);
   });
 
   it('every relation to User declares onDelete: Cascade', () => {

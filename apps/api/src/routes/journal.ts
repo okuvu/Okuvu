@@ -10,6 +10,10 @@ import {
   validatePromptLibrary,
 } from '../agents/journal-prompt/prompt-library.js';
 import { checkBudget, withUsageMetering } from '../lib/token-budget.js';
+import { checkClientText } from '../lib/safety-check.js';
+import { flagSafetyEvent } from '../lib/safety-flags.js';
+import { a9PostReview } from '../agents/a9-post/agent.js';
+import { getFallbackJournalPrompt } from '../agents/journal-prompt/fallback-prompts.js';
 
 const VALID_EMOTIONS = ['anxious', 'sad', 'angry', 'overwhelmed', 'numb', 'calm', 'hopeful', 'other'] as const;
 const INTENSITY_MIN = 1;
@@ -87,6 +91,14 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
+      // ─── Step 4 — the same safety check chat runs ──────────────────────
+      //
+      // Run BEFORE the insert, because the answer decides what the client is
+      // shown and what the therapist is told. The entry is saved either way:
+      // "show help straight away" is not a reason to throw away what a person
+      // just wrote.
+      const safety = await checkClientText(content.trim());
+
       const entry = await prisma.journalEntry.create({
         data: {
           user_id: user.id,
@@ -97,14 +109,38 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
         select: { id: true },
       });
 
+      // Exactly chat's behaviour on S3/S4: the flag is written with the row it
+      // came from and no content, and the therapist gets the same alert email
+      // (lib/safety-flags.ts sends it, fire-and-forget).
+      if (safety.flagged) {
+        await flagSafetyEvent({
+          userId: user.id,
+          level: safety.level,
+          source: 'journal_entry',
+          subjectKind: 'journal_entry',
+          subjectId: entry.id,
+        });
+      }
+
       request.log.info(
-        { event: 'journal_entry_created', user_id: user.id, emotion, intensity },
+        {
+          event: 'journal_entry_created',
+          user_id: user.id,
+          emotion,
+          intensity,
+          safety_level: safety.level,
+          safety_flagged: safety.flagged,
+          safety_reason: safety.reason,
+        },
         'Journal entry created',
       );
 
       return reply.code(201).send({
         success: true,
         id: entry.id,
+        // No level, no reason: the client is told to get help, not told how a
+        // classifier read them.
+        safety: { showHelp: safety.showHelp },
       });
     },
   });
@@ -237,11 +273,70 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const { result: prompt } = await withUsageMetering({ userId: uid }, () =>
+      const { result: generated } = await withUsageMetering({ userId: uid }, () =>
         generateJournalPrompt(user.user_memory),
       );
+
+      // ─── Step 4 — the final safety review, on journal AI text too ──────
+      //
+      // Chat replies are reviewed by A9-post before they reach a client; a
+      // journal prompt is model-written text shown to the same person, so it
+      // gets the same review. Blocked, empty or failed all resolve the same
+      // way: the client sees a vetted static prompt from the approved library
+      // instead. Nothing unreviewed reaches the screen, and the screen is never
+      // left without a prompt either.
+      const prompt = await reviewJournalPrompt(generated, user.id);
 
       reply.send({ prompt });
     },
   });
 }
+
+/**
+ * Review one model-written journal prompt, failing closed to the vetted static
+ * list.
+ *
+ * The review is the one chat uses (`a9PostReview`), with the same rules: no
+ * diagnosis, no advice, no promises, no invented helpline. Anything that is not
+ * an explicit APPROVED — a BLOCKED verdict, a parse failure, a thrown call, an
+ * empty string — is replaced, never softened or shown.
+ */
+async function reviewJournalPrompt(generated: string, userId: string): Promise<string> {
+  const candidate = typeof generated === 'string' ? generated.trim() : '';
+  if (candidate.length === 0) return getFallbackJournalPrompt();
+
+  let safetyState = 'S0';
+  try {
+    const current = await prisma.safetyState.findUnique({
+      where: { user_id: userId },
+      select: { safety_state_current: true },
+    });
+    safetyState = current?.safety_state_current ?? 'S0';
+  } catch {
+    // A missing current-state row is not a reason to skip the review; S0 is
+    // the review's own default and the review still runs.
+  }
+
+  try {
+    const review = await a9PostReview({
+      draftResponse: candidate,
+      safetyState,
+      carePlan: 'CP1',
+      languageMode: 'english',
+      carePlanFocus: null,
+    });
+    if (review.decision !== 'APPROVED') {
+      console.warn('[journal-prompt] final review blocked the prompt — serving the vetted list', {
+        violation: review.violation_type,
+      });
+      return getFallbackJournalPrompt();
+    }
+    return candidate;
+  } catch (err) {
+    console.warn('[journal-prompt] final review unavailable — serving the vetted list', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return getFallbackJournalPrompt();
+  }
+}
+

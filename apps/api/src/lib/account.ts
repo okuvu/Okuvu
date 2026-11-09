@@ -47,6 +47,10 @@ export const SUBJECT_TABLES = [
   // nullable FK to the assignment (ON DELETE SET NULL) and before
   // `treasureCollection`, which a note points at.
   'worksheetResponse',
+  // The safety plan (Step 4). Therapist-authored, but it is the subject's own
+  // clinical record and names the people they would call — it must not outlive
+  // their account any more than the entries beside it.
+  'safetyPlan',
   'treasureNote',
   'treasureCollection',
   'appointment',
@@ -198,6 +202,10 @@ export async function deleteAccount(
       record(
         'worksheetResponse',
         await tx.worksheetResponse.deleteMany({ where: { user_id: user.id } }),
+      );
+      record(
+        'safetyPlan',
+        await tx.safetyPlan.deleteMany({ where: { user_id: user.id } }),
       );
       record(
         'treasureNote',

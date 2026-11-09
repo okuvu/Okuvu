@@ -228,6 +228,40 @@ async function generateAndStoreEmbedding(
   `;
 }
 
+/**
+ * Turn numbers in this session that a safety flag belongs to.
+ *
+ * Step 4: a summary is a clinical record that a therapist reads before a
+ * session, and the owner's rule is that anything written during a crisis never
+ * appears in one. A crisis turn is identified by the `SafetyFlag` the api wrote
+ * at the moment it served the help card — the flag points at the assistant turn
+ * it answered, so both halves of that exchange (the client's words and the
+ * card) are excluded.
+ *
+ * A failure to read the flags is NOT tolerated: throwing leaves the summary
+ * FAILED and retryable. Summarising with the flags unknown is the one outcome
+ * that could put a disclosure into a record the client did not choose to share.
+ */
+async function crisisTurnNumbers(sessionId: string): Promise<Set<number>> {
+  const flags = await getPrisma().safetyFlag.findMany({
+    where: { session_id: sessionId, turn_id: { not: null } },
+    select: { turn_id: true },
+  });
+
+  const turnIds = flags
+    .map((flag: { turn_id: string | null }) => flag.turn_id)
+    .filter((id: string | null): id is string => typeof id === 'string' && id.length > 0);
+
+  if (turnIds.length === 0) return new Set();
+
+  const turns = await getPrisma().turn.findMany({
+    where: { id: { in: turnIds } },
+    select: { turn_number: true },
+  });
+
+  return new Set(turns.map((turn: { turn_number: number }) => turn.turn_number));
+}
+
 export async function generateSessionSummary(
   sessionId: string,
   userId: string,
@@ -248,7 +282,20 @@ export async function generateSessionSummary(
     return { status: 'session_not_found' };
   }
 
-  const turnCount = session.turns.length;
+  // Step 4 — turns that carry a safety flag never reach the transcript.
+  const excluded = await crisisTurnNumbers(sessionId);
+  const turns = session.turns.filter(
+    (turn: { turn_number: number }) => !excluded.has(turn.turn_number),
+  );
+  if (excluded.size > 0) {
+    logger.info({
+      event: 'summary_excluded_crisis_turns',
+      session_id: sessionId,
+      excluded_turns: excluded.size,
+    }, 'Crisis turns excluded from the summary transcript');
+  }
+
+  const turnCount = turns.length;
 
   if (turnCount < MIN_SUBSTANTIVE_TURNS) {
     logger.info({
@@ -278,9 +325,9 @@ export async function generateSessionSummary(
     return { status: 'skipped_trivial' };
   }
 
-  let turnsForSummary = session.turns;
+  let turnsForSummary = turns;
   if (turnCount > MAX_SUMMARY_TURNS) {
-    turnsForSummary = session.turns.slice(-MAX_SUMMARY_TURNS);
+    turnsForSummary = turns.slice(-MAX_SUMMARY_TURNS);
     logger.info({
       event: 'summary_truncated',
       session_id: sessionId,

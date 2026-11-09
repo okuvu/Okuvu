@@ -30,7 +30,13 @@ export type SafetyFlagSource =
   | 's3_grounding'
   | 'crisis_card'
   | 'third_party_crisis'
-  | 'medical_emergency';
+  | 'medical_emergency'
+  // Non-chat surfaces. The client was shown the same help card, and the flag
+  // says which screen it came from so the therapist knows where the words were
+  // typed — never what they were (Step 4).
+  | 'journal_entry'
+  | 'worksheet_answer'
+  | 'treasure_note';
 
 /** Only the two levels a therapist is alerted about. S0–S2 are not flags. */
 export type SafetyFlagLevelValue = 'S3' | 'S4';
@@ -45,6 +51,15 @@ export interface RecordSafetyFlagParams {
   turnId?: string | null;
   /** Defaults true; passed explicitly so a future detect-only path can say so. */
   crisisScreenShown?: boolean;
+  /**
+   * Non-chat writes only: which surface and which row. Chat flags identify
+   * themselves by `turnId`; a journal entry, worksheet answer or Treasure note
+   * has no Turn, so the unique pair ([subject_kind, subject_id]) is what makes
+   * a retried write idempotent instead. No content is ever stored — the pair is
+   * a pointer, and the pointer names a row the therapist cannot read.
+   */
+  subjectKind?: string | null;
+  subjectId?: string | null;
 }
 
 export interface RecordedSafetyFlag {
@@ -100,6 +115,8 @@ async function insertFlag(
         session_id: params.sessionId ?? null,
         turn_id: params.turnId ?? null,
         crisis_screen_shown: params.crisisScreenShown ?? true,
+        subject_kind: params.subjectKind ?? null,
+        subject_id: params.subjectId ?? null,
       },
       select: { id: true, user_id: true, level: true, occurred_at: true },
     });

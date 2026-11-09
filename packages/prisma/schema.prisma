@@ -94,6 +94,7 @@ model User {
   worksheet_responses WorksheetResponse[] @relation("ClientToWorksheetResponse")
   treasure_collections TreasureCollection[] @relation("ClientToTreasureCollection")
   treasure_notes      TreasureNote[]      @relation("ClientToTreasureNote")
+  safety_plan         SafetyPlan?         @relation("ClientToSafetyPlan")
 }
 
 /// The single global counter behind `User.client_code`'s four-digit serial.
@@ -774,6 +775,45 @@ model WorksheetResponse {
   @@index([user_id, completed_at(sort: Desc)])
   @@index([user_id, shared_with_therapist])
   @@index([worksheet_id])
+}
+
+/// The client's safety plan — worksheet 16, "My plan for hard moments".
+///
+/// Co-created in a session and written BY THE THERAPIST, which is why it is not
+/// a `WorksheetResponse`: that table is client-authored and deliberately has no
+/// therapist column, so a response can only reach a therapist through a share
+/// the client chose. A plan is the other shape — the therapist authors it, the
+/// client reads it, and visibility is not a share decision at all. Putting a
+/// therapist column on `WorksheetResponse` to express that would weaken a
+/// documented invariant of every other worksheet answer.
+///
+/// The parts, their order and their wording are NOT stored here: they are the
+/// approved catalogue body (`ToolRegistryEntry.tool_id = 'ws_safety_plan'`), so
+/// a wording change is one row, not one row per client. `answers` holds the
+/// client's own words per part id. The helplines in part 5 are never stored —
+/// they are read from the central list (`@okuvu/shared-types/safety`) at render
+/// time, so a retired number cannot survive inside an old plan.
+///
+/// One row per client (`user_id` unique): a plan is a living document, edited
+/// together, not a series of versions. `created_by_therapist_id` keeps the
+/// record of who made it with them.
+model SafetyPlan {
+  id                      String   @id @default(uuid())
+  user_id                 String   @unique
+  /// Client's own words, keyed by the catalogue field ids
+  /// (signs, on_my_own, people_places, ask_for_help, safer_surroundings,
+  /// one_reason).
+  answers                 Json
+  /// Part 5's therapist half: how this client reaches their own therapist.
+  /// Entered by the therapist; the crisis lines beside it are never typed.
+  therapist_contact       String?
+  created_by_therapist_id String
+  updated_by_therapist_id String?
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+  user                    User     @relation("ClientToSafetyPlan", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([updated_at])
 }
 
 /// One "Open when..." collection. The four starting collections are rows owned

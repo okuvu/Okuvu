@@ -76,9 +76,40 @@ describe('recordSafetyFlag', () => {
         session_id: 'sess_1',
         turn_id: 'turn_1',
         crisis_screen_shown: true,
+        subject_kind: null,
+        subject_id: null,
       },
       select: { id: true, user_id: true, level: true, occurred_at: true },
     });
+  });
+
+  it('records a non-chat write with the row it came from, and never its text', async () => {
+    prismaMock.safetyFlag.create.mockResolvedValueOnce(createdRow('S3'));
+    const { recordSafetyFlag } = await load();
+
+    const result = await recordSafetyFlag({
+      userId: 'user_1',
+      level: 'S3',
+      source: 'journal_entry',
+      subjectKind: 'journal_entry',
+      subjectId: 'entry_9',
+    });
+
+    expect(result?.id).toBe('flag_1');
+    const [call] = prismaMock.safetyFlag.create.mock.calls[0];
+    expect(call.data).toEqual({
+      user_id: 'user_1',
+      level: 'S3',
+      source: 'journal_entry',
+      session_id: null,
+      turn_id: null,
+      crisis_screen_shown: true,
+      subject_kind: 'journal_entry',
+      subject_id: 'entry_9',
+    });
+    // The one thing a flag must never carry.
+    expect(JSON.stringify(call.data)).not.toContain('content');
+    expect(JSON.stringify(call.data)).not.toContain('text');
   });
 
   it('never throws when the insert fails, and retries in the background', async () => {

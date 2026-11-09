@@ -223,7 +223,14 @@ export default function PrivacyPolicyPage() {
                 [
                   <strong key="e">Journal entries</strong>,
                   'Free-text journal entries with the emotion you selected and its intensity.',
-                  'The journal feature itself. Journal text is yours; it is not shown to your therapist.',
+                  // Step 4 — the approved privacy line, verbatim, and the same
+                  // sentence the journal, worksheets and Treasure Box carry.
+                  // The old wording ("Journal text is yours; it is not shown to
+                  // your therapist") is still true about disclosure but had
+                  // become misleading once journal text started being screened:
+                  // a crisis in an entry raises the help card and tells the
+                  // therapist that an event happened, without the words.
+                  "The journal feature itself. Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support, without sharing what you wrote. This applies to journal entries, worksheet answers and Treasure Box notes alike.", 
                 ],
                 [
                   <strong key="f">Therapist notes</strong>,

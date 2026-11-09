@@ -502,9 +502,16 @@ void main() {
       await tester.pumpWidget(_buildJournalApp(tester, ));
       await tester.pumpAndSettle();
 
+      // Step 4 replaced the old notice ("OKUVU doesn't read it...") with the
+      // owner-approved privacy line, because the entry is now screened for
+      // safety: the promise changed from "nobody reads this" to "nobody reads
+      // this unless you share it, and danger raises help without the words".
       expect(
         find.text(
-          "Your journal is private. OKUVU doesn't read it and your therapist can't see it.",
+          "Your therapist can't read this unless you choose to share it. "
+          "If OKUVU's safety system notices you may be in danger, it will show "
+          "you help straight away and let your therapist know you may need "
+          "support, without sharing what you wrote.",
         ),
         findsOneWidget,
       );

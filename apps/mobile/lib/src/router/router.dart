@@ -32,6 +32,7 @@ import '../features/homework/homework_screen.dart';
 import '../features/home/breathing_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/worksheet_screen.dart';
+import '../features/library/safety_plan_screen.dart';
 import '../features/library/grounding_screen.dart';
 import '../features/library/mood_checkin_screen.dart';
 import '../core/not_found_screen.dart';
@@ -197,8 +198,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/library/worksheet/:toolId',
-        builder: (context, state) =>
-            WorksheetScreen(toolId: state.pathParameters['toolId']!),
+        builder: (context, state) => WorksheetScreen(
+          toolId: state.pathParameters['toolId']!,
+          feelingNow: int.tryParse(state.uri.queryParameters['feelingNow'] ?? ''),
+        ),
+      ),
+      // The safety plan, read-only. Reachable from its Library card (which only
+      // exists once a plan does) and in one tap from the crisis screen.
+      GoRoute(
+        path: '/safety-plan',
+        builder: (context, state) => const SafetyPlanScreen(),
       ),
       GoRoute(
         path: '/library/breathing',
