@@ -53,7 +53,10 @@ class PrivacyDataScreen extends ConsumerWidget {
                   const _StaticChipRow(
                     icon: LucideIcons.lock,
                     title: 'Journal',
-                    chipLabel: 'Private (never shared)',
+                    // Each entry is Private until the client shares that one
+                    // entry. The old "never shared" promise stopped being true
+                    // when per-item sharing landed.
+                    chipLabel: 'Private, until you share',
                   ),
                   _EmergencyContactRow(
                     hasContact: emergencyContact.hasContact,
@@ -79,14 +82,8 @@ class PrivacyDataScreen extends ConsumerWidget {
                   _DataRow(
                     icon: LucideIcons.download,
                     title: 'Your data',
-                    subtitle: 'Export or delete',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Data export is coming soon.'),
-                        ),
-                      );
-                    },
+                    subtitle: 'Download or delete your entries and notes',
+                    onTap: () => context.go('/settings/my-data'),
                     theme: theme,
                   ),
                   _DataRow(

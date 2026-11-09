@@ -76,6 +76,31 @@ class ToolkitScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: QuickAccessTile(
+                  key: const Key('toolkit_mine'),
+                  icon: '\u{1F49B}',
+                  label: 'My toolkit',
+                  subtitle: 'What helped before',
+                  onTap: () => context.push('/toolkit/mine'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: QuickAccessTile(
+                  key: const Key('toolkit_past_me'),
+                  icon: '\u{1F5C2}',
+                  label: 'Past me',
+                  subtitle: 'Your own timeline',
+                  onTap: () => context.push('/past-me'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           QuickAccessTile(
             key: const Key('toolkit_library'),
             icon: '\u{1F4DA}',

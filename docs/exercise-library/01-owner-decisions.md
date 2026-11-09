@@ -183,3 +183,25 @@ which becomes false once the safety pass lands.
   decision rather than a silent omission.
 - **The "becoming" spiral does not exist in the app.** Asked back to the owner as
   a one-line question (which screen is it on?); no growth visual was invented.
+
+## Confirmations added 9 November 2026 (Step 6 round)
+
+- **The Today card keeps one main item, then the reminder line and the quote,
+  smaller.** Homework the therapist typed in their own words is back on the
+  card; Step 5 had dropped it by only looking at tool-linked rows.
+- **A repeating assignment does not close when finished.** Today is marked
+  done and it returns on its next due day; only a one-off closes.
+- **The "becoming" spiral is not built now.** It is listed for the Step 12
+  write-up, and the data it needs keeps being saved.
+- **Step 13 gate.** Before making the APK, every database change from every step
+  must be applied to a real database and checked. If that cannot be done on
+  this machine, Step 13 stops and says what is needed.
+- **Every entry and note starts Private**, shows exactly one label, and has its
+  own share switch. Stopping a share takes effect on the therapist's next read.
+- **First share shows the approved confirmation**; after an assigned worksheet
+  the share question has two equal buttons, neither chosen in advance.
+- **My toolkit and Past me** are read-only views of the client's own data.
+- **Settings offers download and per-item delete**; a deleted item leaves the
+  portal because the portal reads the same row.
+- **Old summaries stay untouched** and must be carried into the Step 12
+  write-up.

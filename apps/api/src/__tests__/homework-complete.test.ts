@@ -38,6 +38,10 @@ describe('POST /users/me/homework/:id/complete', () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
     vi.mocked(prisma.homework.findUnique).mockResolvedValue({
       client_user_id: MOCK_USER_ID,
+      status: 'active',
+      frequency: null,
+      reminder_time: null,
+      due_at: null,
     } as any);
     vi.mocked(prisma.homework.update).mockResolvedValue({
       id: HOMEWORK_ID,
@@ -61,12 +65,12 @@ describe('POST /users/me/homework/:id/complete', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ success: true, status: 'completed' });
+    expect(res.json()).toMatchObject({ success: true, status: 'completed', repeats: false });
 
     const prisma = await importMocks();
     expect(prisma.homework.update).toHaveBeenCalledWith({
       where: { id: HOMEWORK_ID },
-      data: { status: 'completed' },
+      data: { status: 'completed', last_completed_at: expect.any(Date) },
     });
   });
 
@@ -77,7 +81,7 @@ describe('POST /users/me/homework/:id/complete', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ success: true, status: 'completed' });
+    expect(res.json()).toMatchObject({ success: true, status: 'completed', repeats: false });
   });
 
   it('accepts an explicit empty JSON object', async () => {

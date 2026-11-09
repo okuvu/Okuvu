@@ -303,7 +303,15 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      reply.send({ success: true, status: result.homeworkStatus });
+      // A repeating assignment stays active: `nextDueAt` says when it comes
+      // back, so the app can tell the client "done for today" instead of
+      // claiming the exercise is finished for good (owner's Step 6 rule).
+      reply.send({
+        success: true,
+        status: result.homeworkStatus,
+        repeats: result.repeats,
+        nextDueAt: result.nextDueAt,
+      });
     },
   });
 

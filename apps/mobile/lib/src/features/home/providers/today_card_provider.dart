@@ -85,6 +85,9 @@ class AssignedExercise {
 class TodayNextItem {
   /// 'assigned' — a therapist set it; 'suggested' — an offer, ignorable.
   final String source;
+  /// 'tool' — a catalogue exercise/worksheet; 'text_homework' — homework the
+  /// therapist typed in their own words, with no screen of its own.
+  final String kind;
   final String? toolId;
   final String? homeworkId;
   final String label;
@@ -94,28 +97,37 @@ class TodayNextItem {
   /// wherever it is opened from, including the Today card.
   final String? loadLevel;
 
+  /// True when the assignment is set to repeat: finishing it marks today done
+  /// and it comes back on its next due day.
+  final bool repeats;
+
   const TodayNextItem({
     required this.source,
+    required this.kind,
     required this.toolId,
     required this.homeworkId,
     required this.label,
     required this.estMinutes,
     this.dueAt,
     this.loadLevel,
+    this.repeats = false,
   });
 
   bool get isAssigned => source == 'assigned';
+  bool get isTextHomework => kind == 'text_homework';
 
   factory TodayNextItem.fromJson(Map<String, dynamic> json) {
     final rawDue = json['dueAt'] as String?;
     return TodayNextItem(
       source: json['source'] as String? ?? 'suggested',
+      kind: json['kind'] as String? ?? 'tool',
       toolId: json['toolId'] as String?,
       homeworkId: json['homeworkId'] as String?,
       label: json['label'] as String? ?? '',
       estMinutes: json['estMinutes'] as int?,
       dueAt: rawDue == null ? null : DateTime.tryParse(rawDue),
       loadLevel: json['loadLevel'] as String?,
+      repeats: json['repeats'] as bool? ?? false,
     );
   }
 }

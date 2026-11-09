@@ -37,6 +37,9 @@ import '../features/library/safety_plan_screen.dart';
 import '../features/library/treasure_box_screen.dart';
 import '../features/library/grounding_screen.dart';
 import '../features/library/mood_checkin_screen.dart';
+import '../features/my_space/toolkit_screen.dart';
+import '../features/my_space/past_me_screen.dart';
+import '../features/settings/my_data_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
@@ -233,6 +236,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/library/mood',
         builder: (context, state) => const MoodCheckinScreen(),
       ),
+      // My toolkit — the exercises marked as helpful — and Past me, the
+      // client's own timeline. Both read only the client's own rows.
+      GoRoute(
+        path: '/toolkit/mine',
+        builder: (context, state) => const MyToolkitScreen(),
+      ),
+      GoRoute(
+        path: '/past-me',
+        builder: (context, state) => const PastMeScreen(),
+      ),
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
@@ -248,6 +261,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'privacy',
             builder: (context, state) => const PrivacyDataScreen(),
+          ),
+          GoRoute(
+            path: 'my-data',
+            builder: (context, state) => const MyDataScreen(),
           ),
           GoRoute(
             path: 'emergency',

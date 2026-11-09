@@ -420,16 +420,16 @@ describe('GET /users/me/today — the one item the Today card shows', () => {
         {
           id: 'hw-later',
           tool_id: 'ws_thought_record',
-          due_at: new Date('2026-11-20T10:00:00Z'),
+          due_at: new Date('2026-11-09T14:00:00Z'),
           assigned_at: new Date('2026-11-09T10:00:00Z'),
-          tool: { label: 'Thought record', est_minutes: 10, load_level: 'demanding' },
+          tool: { label: 'Thought record', est_minutes: 10, load_level: 'demanding', status: 'approved' },
         },
         {
           id: 'hw-sooner',
           tool_id: 'ws_three_good_things',
-          due_at: new Date('2026-11-11T10:00:00Z'),
+          due_at: new Date('2026-11-09T06:00:00Z'),
           assigned_at: new Date('2026-11-10T10:00:00Z'),
-          tool: { label: 'Three good things', est_minutes: 3, load_level: 'light' },
+          tool: { label: 'Three good things', est_minutes: 3, load_level: 'light', status: 'approved' },
         },
       ],
     });
@@ -442,7 +442,7 @@ describe('GET /users/me/today — the one item the Today card shows', () => {
       estMinutes: 3,
       loadLevel: 'light',
     });
-    expect(body.next.dueAt).toBe('2026-11-11T10:00:00.000Z');
+    expect(body.next.dueAt).toBe('2026-11-09T06:00:00.000Z');
   });
 
   it('shows one item even when several are assigned', async () => {
@@ -453,14 +453,14 @@ describe('GET /users/me/today — the one item the Today card shows', () => {
           tool_id: 'ws_three_good_things',
           due_at: null,
           assigned_at: new Date('2026-11-08T10:00:00Z'),
-          tool: { label: 'Three good things', est_minutes: 3, load_level: 'light' },
+          tool: { label: 'Three good things', est_minutes: 3, load_level: 'light', status: 'approved' },
         },
         {
           id: 'hw-b',
           tool_id: 'ws_energy_audit',
           due_at: null,
           assigned_at: new Date('2026-11-09T10:00:00Z'),
-          tool: { label: 'Energy audit', est_minutes: 5, load_level: 'light' },
+          tool: { label: 'Energy audit', est_minutes: 5, load_level: 'light', status: 'approved' },
         },
       ],
     });

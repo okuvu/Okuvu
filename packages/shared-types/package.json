@@ -19,6 +19,10 @@
     "./safety": {
       "types": "./safety.ts",
       "default": "./safety.ts"
+    },
+    "./sharing": {
+      "types": "./sharing.ts",
+      "default": "./sharing.ts"
     }
   },
   "scripts": {

@@ -96,6 +96,7 @@ model User {
   treasure_notes      TreasureNote[]      @relation("ClientToTreasureNote")
   safety_plan         SafetyPlan?         @relation("ClientToSafetyPlan")
   safety_rechecks     SafetyRecheck[]     @relation("ClientToSafetyRecheck")
+  homework_completions HomeworkCompletion[] @relation("ClientToHomeworkCompletion")
 }
 
 /// The single global counter behind `User.client_code`'s four-digit serial.
@@ -478,14 +479,42 @@ model Homework {
   therapy_goal   String?
   status         HomeworkStatus      @default(active)
   assigned_at    DateTime            @default(now())
+  /// When the client last marked this done. A repeating assignment stays
+  /// `active` after this and is hidden for the rest of that IST day, then
+  /// shown again on its next due day (owner's Step 6 correction). A one-off
+  /// assignment is `completed` instead, so this is history for it.
+  last_completed_at DateTime?
   updated_at     DateTime            @updatedAt
   client         User                @relation("ClientToHomework", fields: [client_user_id], references: [id], onDelete: Cascade)
   therapist      Therapist           @relation("TherapistToHomework", fields: [therapist_id], references: [id])
   tool           ToolRegistryEntry?  @relation(fields: [tool_id], references: [tool_id])
   reminders      Reminder[]
   worksheet_responses WorksheetResponse[]
+  completions    HomeworkCompletion[]
 
   @@index([client_user_id, status, assigned_at(sort: Desc)])
+  @@index([client_user_id, last_completed_at])
+}
+
+/// One "done" tap on an assignment.
+///
+/// A row rather than only a timestamp on Homework, because a repeating
+/// assignment is done many times and the Today card's "not again today" rule
+/// needs a durable history it can also show the client. It carries no text:
+/// the assignment itself holds the therapist's words, and nothing here is
+/// client-authored.
+model HomeworkCompletion {
+  id             String   @id @default(uuid())
+  homework_id    String
+  client_user_id String
+  /// 'client' | 'worksheet' — a worksheet save finishes its assignment too.
+  source         String   @default("client")
+  completed_at   DateTime @default(now())
+  homework       Homework @relation(fields: [homework_id], references: [id], onDelete: Cascade)
+  client         User     @relation("ClientToHomeworkCompletion", fields: [client_user_id], references: [id], onDelete: Cascade)
+
+  @@index([homework_id, completed_at(sort: Desc)])
+  @@index([client_user_id, completed_at(sort: Desc)])
 }
 
 /// OKUVU v2.0: scheduler source for homework/tool-practice reminders.
@@ -751,10 +780,18 @@ model JournalEntry {
   emotion    String?
   intensity  Int?
   content    String
+  /// Per-item share (owner decisions 6 and Step 6). Default false: an entry is
+  /// Private until the client says otherwise, and this is never inferred from
+  /// chat access. Visibility is the boolean, so stopping a share takes effect
+  /// on the therapist's next read rather than after a copy is cleaned up.
+  shared_with_therapist Boolean @default(false)
+  shared_at  DateTime?
+  unshared_at DateTime?
   created_at DateTime @default(now())
   user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, shared_with_therapist])
 }
 
 /// A completed worksheet. One row per filling-in, not per worksheet — a client

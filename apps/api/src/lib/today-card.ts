@@ -1,7 +1,12 @@
 import { prisma } from './prisma.js';
 import { getQuoteOfDay } from './quote-of-day.js';
 import { markClientActivatedIfNeeded } from './client-activation.js';
-import { getActiveHomework } from './homework.js';
+import {
+  endOfIstDay,
+  getActiveHomework,
+  isRepeatingFrequency,
+  startOfIstDay,
+} from './homework.js';
 import { toView as toAppointmentView } from './appointments.js';
 import type { TodayCard, TodayNextItem } from '@okuvu/shared-types';
 import { chatAccessWindow } from '@okuvu/shared-types';
@@ -11,13 +16,18 @@ export type GetTodayCardResult =
   | { status: 'user_not_found' };
 
 /**
- * The one item the Today card shows (owner's Step 5 rule).
+ * The one item the Today card shows (owner's Step 5 rule, corrected in Step 6).
  *
- * Assigned first: the soonest due assignment that is still active, with its
- * length from the catalogue. A row with no `due_at` is still a candidate — the
- * therapist assigned it and it is not done — but a dated one wins, and ties
- * break on the older assignment so the list cannot reshuffle between two
- * refreshes and look like a different ask.
+ * Assigned first: the soonest due assignment that is still active — a
+ * worksheet, an exercise, or homework the therapist typed in their own words.
+ * A row with no `due_at` is still a candidate (the therapist assigned it and it
+ * is not done), but a dated one wins, and ties break on the older assignment so
+ * the list cannot reshuffle between two refreshes and look like a different ask.
+ *
+ * Two things this now excludes, both from the owner's Step 6 correction:
+ *  - an assignment already done today (the client's IST day), so a repeating
+ *    one comes back on its next due day rather than the next refresh;
+ *  - an assignment due on a later day, so "next due" means today or overdue.
  *
  * Otherwise one light exercise from the catalogue. Deterministic on purpose
  * (the first approved, open, light exercise by sort order): an exercise that
@@ -39,38 +49,57 @@ async function resolveNextItem(userId: string): Promise<TodayNextItem | null> {
 }
 
 async function chooseNextItem(userId: string): Promise<TodayNextItem | null> {
+  const now = new Date();
   const assigned = await prisma.homework.findMany({
     where: {
       client_user_id: userId,
       status: 'active',
-      tool_id: { not: null },
-      tool: { status: 'approved' },
+      // Not already done today (IST). Null last_completed_at is the normal
+      // case; a repeating assignment that was finished today is excluded
+      // until tomorrow, which is the owner's rule.
+      OR: [{ last_completed_at: null }, { last_completed_at: { lt: startOfIstDay(now) } }],
     },
     select: {
       id: true,
       tool_id: true,
+      description: true,
       due_at: true,
       assigned_at: true,
-      tool: { select: { label: true, est_minutes: true, load_level: true } },
+      frequency: true,
+      tool: { select: { label: true, est_minutes: true, load_level: true, status: true } },
     },
   });
 
-  if (assigned.length > 0) {
-    const soonest = [...assigned].sort((a, b) => {
+  const dueNow = assigned.filter((row) => {
+    // Typed homework has no catalogue row to check.
+    if (row.tool_id !== null && row.tool?.status !== 'approved') return false;
+    // Due today or overdue. An undated assignment is still an ask.
+    if (row.due_at === null) return true;
+    return row.due_at.getTime() <= endOfIstDay(now).getTime();
+  });
+
+  if (dueNow.length > 0) {
+    const soonest = [...dueNow].sort((a, b) => {
       const aDue = a.due_at ? a.due_at.getTime() : Number.POSITIVE_INFINITY;
       const bDue = b.due_at ? b.due_at.getTime() : Number.POSITIVE_INFINITY;
       if (aDue !== bDue) return aDue - bDue;
       return a.assigned_at.getTime() - b.assigned_at.getTime();
     })[0];
 
+    const typedHomework = soonest.tool_id === null;
+
     return {
       source: 'assigned',
-      toolId: soonest.tool_id,
+      kind: typedHomework ? 'text_homework' : 'tool',
+      toolId: typedHomework ? null : soonest.tool_id,
       homeworkId: soonest.id,
-      label: soonest.tool?.label ?? 'An exercise from your therapist',
-      estMinutes: soonest.tool?.est_minutes ?? null,
+      label: typedHomework
+        ? soonest.description
+        : soonest.tool?.label ?? 'An exercise from your therapist',
+      estMinutes: typedHomework ? null : soonest.tool?.est_minutes ?? null,
       dueAt: soonest.due_at ? soonest.due_at.toISOString() : null,
-      loadLevel: soonest.tool?.load_level ?? null,
+      loadLevel: typedHomework ? null : soonest.tool?.load_level ?? null,
+      repeats: isRepeatingFrequency(soonest.frequency),
     };
   }
 
@@ -103,12 +132,14 @@ async function chooseNextItem(userId: string): Promise<TodayNextItem | null> {
 
   return {
     source: 'suggested',
+    kind: 'tool',
     toolId: suggestion.tool_id,
     homeworkId: null,
     label: suggestion.label,
     estMinutes: suggestion.est_minutes ?? null,
     dueAt: null,
     loadLevel: suggestion.load_level ?? null,
+    repeats: false,
   };
 }
 

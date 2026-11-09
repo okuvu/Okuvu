@@ -101,6 +101,9 @@ describe('POST /journal', () => {
         intensity: 3,
         content: 'Feeling a bit overwhelmed today.',
         created_at: new Date(),
+        shared_with_therapist: false,
+        shared_at: null,
+        unshared_at: null,
       });
       app = buildApp();
     });

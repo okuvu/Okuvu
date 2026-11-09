@@ -65,12 +65,14 @@ Map<String, dynamic> _todayJson() {
     'displayAbbreviation': null,
     'next': {
       'source': 'assigned',
+      'kind': 'tool',
       'toolId': 'ws_three_good_things',
       'homeworkId': 'hw-1',
       'label': 'Three good things',
       'estMinutes': 3,
       'dueAt': '2026-11-11T10:00:00.000Z',
       'loadLevel': 'light',
+      'repeats': false,
     },
   };
 }
@@ -86,10 +88,11 @@ void main() {
       expect(find.text('Three good things'), findsOneWidget);
       expect(find.text('3 min'), findsOneWidget);
 
-      // Step 5 — the card is not a list. The reminder and the quote are still
-      // in the payload and must not be rendered.
-      expect(find.textContaining('Practise before bed'), findsNothing);
-      expect(find.textContaining('must not be on the card'), findsNothing);
+      // Step 6 correction: still one main item, and the reminder line and the
+      // quote are back underneath it, smaller.
+      expect(find.textContaining('Practise before bed'), findsOneWidget);
+      expect(find.byKey(const Key('today_card_quote')), findsOneWidget);
+      expect(find.textContaining('must not be on the card'), findsOneWidget);
     });
 
     testWidgets('opens the exercise it shows', (tester) async {
@@ -106,12 +109,14 @@ void main() {
       final suggested = _todayJson()
         ..['next'] = {
           'source': 'suggested',
+          'kind': 'tool',
           'toolId': 'grounding_5431',
           'homeworkId': null,
           'label': '5-4-3-2-1 grounding',
           'estMinutes': 3,
           'dueAt': null,
           'loadLevel': 'light',
+          'repeats': false,
         };
 
       await tester.pumpWidget(_app(_todayDio(suggested)));
@@ -124,7 +129,10 @@ void main() {
     });
 
     testWidgets('renders nothing at all when there is nothing to show', (tester) async {
-      final empty = _todayJson()..['next'] = null;
+      final empty = _todayJson()
+        ..['next'] = null
+        ..['reminders'] = <dynamic>[]
+        ..['quote'] = null;
 
       await tester.pumpWidget(_app(_todayDio(empty)));
       await tester.pumpAndSettle();
@@ -132,6 +140,27 @@ void main() {
       // No empty card, and no streak, badge or missed-day warning either.
       expect(find.text('Today'), findsNothing);
       expect(find.textContaining('missed'), findsNothing);
+    });
+
+    testWidgets('shows homework the therapist typed in their own words', (tester) async {
+      final typed = _todayJson()
+        ..['next'] = {
+          'source': 'assigned',
+          'kind': 'text_homework',
+          'toolId': null,
+          'homeworkId': 'hw-typed',
+          'label': 'Write down one thing you are looking forward to.',
+          'estMinutes': null,
+          'dueAt': null,
+          'loadLevel': null,
+          'repeats': false,
+        };
+
+      await tester.pumpWidget(_app(_todayDio(typed)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Write down one thing you are looking forward to.'), findsOneWidget);
+      expect(find.textContaining('min'), findsNothing);
     });
   });
 }

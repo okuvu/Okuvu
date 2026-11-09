@@ -19,6 +19,8 @@ import { libraryRoute } from './library.js';
 import { worksheetsRoute } from './worksheets.js';
 import { treasureRoute } from './treasure.js';
 import { safetyPlanRoute } from './safety-plan.js';
+import { sharingRoute } from './sharing.js';
+import { mySpaceRoute } from './my-space.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(healthRoute);
@@ -41,4 +43,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(worksheetsRoute);
   await app.register(treasureRoute);
   await app.register(safetyPlanRoute);
+  await app.register(sharingRoute);
+  await app.register(mySpaceRoute);
 }

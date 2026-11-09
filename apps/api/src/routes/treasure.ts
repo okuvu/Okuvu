@@ -69,6 +69,8 @@ export async function treasureRoute(app: FastifyInstance): Promise<void> {
         notes: notes.map((note) => ({
           ...note,
           created_at: note.created_at.toISOString(),
+          // The label pair, resolved server-side (owner's Step 6 copy).
+          shareLabel: note.shared_with_therapist ? 'Shared with my therapist' : 'Private',
         })),
       });
     },

@@ -21,6 +21,7 @@ const TABS = [
   { key: 'program', label: 'Care Plan', href: (id: string) => `/clients/${id}/program` },
   { key: 'tools', label: 'Tools', href: (id: string) => `/clients/${id}/tools` },
   { key: 'safety-plan', label: 'Safety plan', href: (id: string) => `/clients/${id}/safety-plan` },
+  { key: 'shared', label: 'Shared with me', href: (id: string) => `/clients/${id}/shared` },
   { key: 'notes', label: 'Notes', href: (id: string) => `/clients/${id}/notes` },
 ] as const;
 

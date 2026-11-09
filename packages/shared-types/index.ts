@@ -562,7 +562,14 @@ export interface AssignedExerciseView {
  */
 export interface TodayNextItem {
   source: 'assigned' | 'suggested'
-  /** The catalogue row to open. Null only if the assignment has no tool body. */
+  /**
+   * 'tool' — a catalogue exercise or worksheet, opened by tool id.
+   * 'text_homework' — homework the therapist typed in their own words. It has
+   * no tool body and is shown as text only (owner's Step 6 correction: the
+   * Today card carries written homework again, not just worksheets).
+   */
+  kind: 'tool' | 'text_homework'
+  /** The catalogue row to open. Null for typed homework. */
   toolId: string | null
   /** The Homework row, for an assigned item. Null for a suggestion. */
   homeworkId: string | null
@@ -573,6 +580,11 @@ export interface TodayNextItem {
   dueAt: string | null
   /** 'light' | 'demanding' — a demanding worksheet still asks the gate question. */
   loadLevel: string | null
+  /**
+   * True when the assignment repeats. Finishing it marks today done rather
+   * than closing it, so it returns on its next due day.
+   */
+  repeats: boolean
 }
 
 export interface TodayCard {
@@ -643,6 +655,10 @@ export interface HomeworkListItem {
   toolId: string | null
   toolLabel: string | null
   assignedAt: string
+  /** True when the assignment is set to repeat rather than close on done. */
+  repeats: boolean
+  /** True when a repeating assignment was already done today (IST). */
+  doneToday: boolean
 }
 
 /** One active reminder, as the client sees it on the homework screen. */

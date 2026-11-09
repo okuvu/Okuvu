@@ -11,12 +11,17 @@ class JournalEntry {
   final String content;
   final DateTime createdAt;
 
+  /// Whether this one entry is shared with the client's therapist. False is
+  /// the default and the only state a new entry can start in.
+  final bool shared;
+
   const JournalEntry({
     required this.id,
     this.emotion,
     this.intensity,
     required this.content,
     required this.createdAt,
+    this.shared = false,
   });
 
   factory JournalEntry.fromJson(Map<String, dynamic> json) {
@@ -28,6 +33,7 @@ class JournalEntry {
       intensity: json['intensity'] as int?,
       content: json['content'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
+      shared: json['shared'] as bool? ?? false,
     );
   }
 }

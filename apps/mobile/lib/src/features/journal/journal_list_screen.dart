@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'journal_entry.dart';
 import 'journal_provider.dart';
+import '../sharing/sharing.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
 
@@ -93,16 +94,16 @@ class JournalListScreen extends ConsumerWidget {
   }
 }
 
-class _JournalEntryCard extends StatefulWidget {
+class _JournalEntryCard extends ConsumerStatefulWidget {
   const _JournalEntryCard({required this.entry});
 
   final JournalEntry entry;
 
   @override
-  State<_JournalEntryCard> createState() => _JournalEntryCardState();
+  ConsumerState<_JournalEntryCard> createState() => _JournalEntryCardState();
 }
 
-class _JournalEntryCardState extends State<_JournalEntryCard> {
+class _JournalEntryCardState extends ConsumerState<_JournalEntryCard> {
   bool _expanded = false;
 
   String _formatDateTime(DateTime dt) {
@@ -211,9 +212,97 @@ class _JournalEntryCardState extends State<_JournalEntryCard> {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+            const SizedBox(height: 10),
+            // One label, one switch, this entry only. The switch is the whole
+            // consent model: off means the therapist's Shared page cannot see
+            // this row, and turning it off takes effect on their next read.
+            Row(
+              children: [
+                ShareLabel(shared: entry.shared),
+                const Spacer(),
+                Switch(
+                  key: Key('journal_share_switch_${entry.id}'),
+                  value: entry.shared,
+                  onChanged: (value) => _setShared(value),
+                ),
+                IconButton(
+                  key: Key('journal_delete_${entry.id}'),
+                  tooltip: 'Delete entry',
+                  icon: Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: _delete,
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _setShared(bool value) async {
+    final notifier = ref.read(sharingProvider.notifier);
+    if (value) {
+      final firstTime = await notifier.shouldConfirmFirstShare();
+      if (firstTime) {
+        if (!mounted) return;
+        final confirmed = await confirmFirstShare(context);
+        if (!confirmed) return;
+        await notifier.markFirstShareSeen();
+      }
+    }
+
+    final ok = await notifier.setShared(
+      kind: 'journal_entry',
+      id: widget.entry.id,
+      shared: value,
+    );
+    if (!mounted) return;
+    if (ok) {
+      ref.invalidate(journalListProvider);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't change sharing. Please try again.")),
+      );
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this entry?'),
+        content: const Text(
+          'It will be removed from your journal and from anywhere it was shared. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final ok = await ref.read(sharingProvider.notifier).deleteItem(
+          kind: 'journal_entry',
+          id: widget.entry.id,
+        );
+    if (!mounted) return;
+    if (ok) {
+      ref.invalidate(journalListProvider);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't delete that. Please try again.")),
+      );
+    }
   }
 }

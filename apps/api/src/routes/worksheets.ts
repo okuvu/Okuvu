@@ -11,6 +11,7 @@ import {
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { answersToText, checkClientText } from '../lib/safety-check.js';
+import { buildCompletionWrite } from '../lib/homework.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
 import { enqueueSafetyRecheck } from '../lib/safety-recheck.js';
 import { parseWorksheetRow, worksheetRowProblems, type WorksheetRegistryRow } from '../lib/worksheet-content.js';
@@ -158,10 +159,11 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
       // closed here so the Today card moves on to the next due exercise rather
       // than offering the same one forever.
       let homeworkId: string | null = null;
+      let homeworkSchedule: { frequency: string | null; reminder_time: string | null; due_at: Date | null } | null = null;
       if (row.access_mode === 'assigned') {
         const assignment = await prisma.homework.findFirst({
           where: { client_user_id: user.id, tool_id: toolId, status: 'active' },
-          select: { id: true },
+          select: { id: true, frequency: true, reminder_time: true, due_at: true },
         });
         if (!assignment) {
           return reply.status(403).send({
@@ -169,6 +171,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
           });
         }
         homeworkId = assignment.id;
+        homeworkSchedule = assignment;
       } else if (typeof body.homeworkId === 'string' && body.homeworkId.length > 0) {
         // A self-serve worksheet may still have been opened from an assignment
         // (an open-access exercise a therapist also assigned). Only count it
@@ -180,9 +183,10 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
             tool_id: toolId,
             status: 'active',
           },
-          select: { id: true },
+          select: { id: true, frequency: true, reminder_time: true, due_at: true },
         });
         homeworkId = assignment?.id ?? null;
+        homeworkSchedule = assignment ?? null;
       }
 
       const feelingBefore = body.feelingBefore === undefined || body.feelingBefore === null
@@ -229,15 +233,28 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
         select: { id: true },
       });
 
-      // A finished assigned worksheet closes its homework row: the client did
-      // the thing, so the Today card should offer the next one. Deliberately
-      // last, after the save, and deliberately independent of the safety
-      // result — a crisis does not mean the work was not done.
-      if (homeworkId) {
+      // A finished assigned worksheet records a completion: a one-off closes,
+      // and a repeating assignment marks today done and comes back on its next
+      // due day (owner's Step 6 correction; the same write the Mark done button
+      // uses). Deliberately last, after the save, and deliberately independent
+      // of the safety result — a crisis does not mean the work was not done.
+      let homeworkRepeats = false;
+      let homeworkNextDueAt: string | null = null;
+      if (homeworkId && homeworkSchedule) {
         try {
+          const write = buildCompletionWrite(homeworkSchedule);
           await prisma.homework.update({
             where: { id: homeworkId },
-            data: { status: 'completed' },
+            data: write.data,
+          });
+          homeworkRepeats = write.repeats;
+          homeworkNextDueAt = write.next ? write.next.toISOString() : null;
+          await prisma.homeworkCompletion.create({
+            data: {
+              homework_id: homeworkId,
+              client_user_id: user.id,
+              source: 'worksheet',
+            },
           });
         } catch (err) {
           request.log.warn({
@@ -279,6 +296,12 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
         id: created.id,
         success: true,
         safety: { showHelp: safety.showHelp, helpOffer: safety.helpOffer },
+        // A worksheet answer starts Private, like every entry and note. The
+        // client is asked whether to share it right after finishing, and the
+        // answer is what moves this flag — never the save itself.
+        shared: false,
+        repeats: homeworkRepeats,
+        nextDueAt: homeworkNextDueAt,
       });
     },
   });

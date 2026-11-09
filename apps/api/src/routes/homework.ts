@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { isRepeatingFrequency, startOfIstDay } from '../lib/homework.js';
 import type { HomeworkListItem, HomeworkListResponse } from '@okuvu/shared-types';
 
 const LIST_LIMIT = 50;
@@ -46,6 +47,8 @@ export async function homeworkRoute(app: FastifyInstance): Promise<void> {
             status: true,
             tool_id: true,
             assigned_at: true,
+            frequency: true,
+            last_completed_at: true,
             tool: { select: { label: true } },
           },
         }),
@@ -70,6 +73,14 @@ export async function homeworkRoute(app: FastifyInstance): Promise<void> {
         toolId: row.tool_id,
         toolLabel: row.tool?.label ?? null,
         assignedAt: row.assigned_at.toISOString(),
+        repeats: isRepeatingFrequency(row.frequency),
+        // A repeating assignment stays `active` after a completion, so the
+        // list needs its own "done today" answer; without it the client sees
+        // Mark done on something they already did this morning.
+        doneToday:
+          isRepeatingFrequency(row.frequency) &&
+          row.last_completed_at !== null &&
+          row.last_completed_at.getTime() >= startOfIstDay().getTime(),
       }));
 
       const response: HomeworkListResponse = {

@@ -58,6 +58,9 @@ export const SUBJECT_TABLES = [
   'safetyRecheck',
   'treasureNote',
   'treasureCollection',
+  // Completion history (Step 6). A child of both Homework and User; erased
+  // before `homework` so the ordered deletes never rely on the cascade.
+  'homeworkCompletion',
   'appointment',
   'inviteToken',
   'therapistClient',
@@ -227,6 +230,12 @@ export async function deleteAccount(
       record(
         'treasureCollection',
         await tx.treasureCollection.deleteMany({ where: { user_id: user.id } }),
+      );
+      // Completion history (Step 6): one row per "done" tap. A child of both
+      // Homework and User, so it goes before the assignment it names.
+      record(
+        'homeworkCompletion',
+        await tx.homeworkCompletion.deleteMany({ where: { client_user_id: user.id } }),
       );
       record(
         'appointment',

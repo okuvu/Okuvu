@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
 import 'library_api.dart';
+import '../sharing/sharing.dart';
 import 'worksheet_draft_store.dart';
 import 'worksheet_runner_screen.dart';
 import 'worksheet_spec.dart';
@@ -98,6 +99,53 @@ class WorksheetScreen extends ConsumerWidget {
                     ),
                   ),
                 );
+              } else if (entry.accessMode == 'assigned' && responseId != null) {
+                // Owner's rule: after an assigned worksheet, ask whether to
+                // share it. Two equal buttons, neither chosen in advance, and
+                // nothing happens unless the client taps one. Not asked after a
+                // crisis or an unscreened save — help comes first.
+                final share = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text(worksheetSharePrompt),
+                    actions: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              key: const Key('worksheet_share_keep_private'),
+                              onPressed: () => Navigator.of(dialogContext).pop(false),
+                              child: const Text('Keep private'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              key: const Key('worksheet_share_share'),
+                              onPressed: () => Navigator.of(dialogContext).pop(true),
+                              child: const Text('Share'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+                if (share == true) {
+                  final ok = await ref.read(sharingProvider.notifier).setShared(
+                        kind: 'worksheet_response',
+                        id: responseId!,
+                        shared: true,
+                      );
+                  if (!ok && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Couldn't share that. Please try again."),
+                      ),
+                    );
+                  }
+                }
               }
             },
             onSaveToTreasureBox: () => ref.read(libraryApiProvider).saveToTreasureBox(

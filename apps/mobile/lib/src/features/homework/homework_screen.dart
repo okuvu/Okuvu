@@ -160,7 +160,10 @@ class _HomeworkCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final done = !item.isActive;
+    final done = item.looksDone;
+    // Struck through only when the assignment is closed for good. A repeating
+    // one done today is not finished — striking it out would say it was.
+    final closed = !item.isActive;
 
     return Container(
       key: ValueKey('homework_${item.id}'),
@@ -181,8 +184,8 @@ class _HomeworkCard extends ConsumerWidget {
                 child: Text(
                   item.description,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    decoration: done ? TextDecoration.lineThrough : null,
-                    color: done ? theme.colorScheme.onSurfaceVariant : null,
+                    decoration: closed ? TextDecoration.lineThrough : null,
+                    color: closed ? theme.colorScheme.onSurfaceVariant : null,
                   ),
                 ),
               ),
@@ -195,6 +198,16 @@ class _HomeworkCard extends ConsumerWidget {
                     if (ok) {
                       // The list and Home's Today card both read this row.
                       ref.invalidate(homeworkListProvider);
+                      if (item.repeats && context.mounted) {
+                        // A repeating assignment is not finished for good; say
+                        // so rather than leaving the client to wonder why it
+                        // never moves to "Done".
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Done for today. It'll come back on its next day."),
+                          ),
+                        );
+                      }
                     } else if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -215,7 +228,11 @@ class _HomeworkCard extends ConsumerWidget {
                 const SizedBox(width: 8),
               ],
               Text(
-                done ? 'Done' : 'Set ${formatAssignedDate(item.assignedAt)}',
+                closed
+                    ? 'Done'
+                    : done
+                        ? 'Done for today'
+                        : 'Set ${formatAssignedDate(item.assignedAt)}',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

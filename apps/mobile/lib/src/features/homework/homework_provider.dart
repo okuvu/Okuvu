@@ -16,6 +16,11 @@ class HomeworkListItem {
   final String? toolLabel;
   final DateTime assignedAt;
 
+  /// True when the assignment repeats: done today does not close it.
+  final bool repeats;
+  /// True when a repeating assignment was already done today (the client's day).
+  final bool doneToday;
+
   const HomeworkListItem({
     required this.id,
     required this.description,
@@ -23,9 +28,15 @@ class HomeworkListItem {
     this.toolId,
     this.toolLabel,
     required this.assignedAt,
+    this.repeats = false,
+    this.doneToday = false,
   });
 
   bool get isActive => status == 'active';
+
+  /// The "Done" styling applies to a closed one-off, and to a repeating one for
+  /// the rest of today — both are "you did this, nothing more today".
+  bool get looksDone => !isActive || doneToday;
 
   factory HomeworkListItem.fromJson(Map<String, dynamic> json) {
     return HomeworkListItem(
@@ -35,6 +46,8 @@ class HomeworkListItem {
       toolId: json['toolId'] as String?,
       toolLabel: json['toolLabel'] as String?,
       assignedAt: DateTime.parse(json['assignedAt'] as String),
+      repeats: json['repeats'] as bool? ?? false,
+      doneToday: json['doneToday'] as bool? ?? false,
     );
   }
 }

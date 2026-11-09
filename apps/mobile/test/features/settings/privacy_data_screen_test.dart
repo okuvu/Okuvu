@@ -202,7 +202,7 @@ void main() {
     expect(find.text('Mood & progress'), findsOneWidget);
     expect(find.text('Ask me first'), findsOneWidget);
     expect(find.text('Journal'), findsOneWidget);
-    expect(find.text('Private (never shared)'), findsOneWidget);
+    expect(find.text('Private, until you share'), findsOneWidget);
     expect(find.text('Safety monitoring'), findsOneWidget);
     expect(find.text('Always on'), findsOneWidget);
   });

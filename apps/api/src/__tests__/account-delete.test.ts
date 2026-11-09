@@ -47,6 +47,9 @@ const { USER_FK_TABLES, STRING_REF_TABLES, ALL_TABLES, prismaMock } = vi.hoisted
     'safetyRecheck',
     'treasureNote',
     'treasureCollection',
+    // Privacy & sharing (Step 6). One row per "done" tap on an assignment;
+    // it names the subject and the assignment, so it is erased with them.
+    'homeworkCompletion',
   ] as const;
 
   const STRING_REF_TABLES = ['governanceLog', 'betaConsent', 'waitlistEntry'] as const;
@@ -411,7 +414,7 @@ describe('erasure coverage vs packages/prisma/schema.prisma', () => {
 
   it('finds the schema and the known set of subject tables', () => {
     expect(models.length).toBeGreaterThan(30);
-    expect(modelsWithUserFk.length).toBe(25);
+    expect(modelsWithUserFk.length).toBe(26);
   });
 
   it('every relation to User declares onDelete: Cascade', () => {

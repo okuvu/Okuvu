@@ -148,6 +148,11 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({
         success: true,
         id: entry.id,
+        // Every entry starts Private (owner's Step 6 rule). Stated in the
+        // response rather than left for the app to assume: the label under the
+        // entry must reflect what the row actually says.
+        shared: false,
+        shareLabel: 'Private',
         // No level, no reason: the client is told to get help, not told how a
         // classifier read them. `helpOffer` is the gentle offer shown when the
         // check could not run — never a crisis card, never silence.
@@ -182,6 +187,7 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
           intensity: true,
           content: true,
           created_at: true,
+          shared_with_therapist: true,
         },
       });
 
@@ -197,6 +203,9 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
           intensity: e.intensity,
           content: e.content,
           created_at: e.created_at.toISOString(),
+          // The label pair, resolved server-side so the app never composes one.
+          shared: e.shared_with_therapist,
+          shareLabel: e.shared_with_therapist ? 'Shared with my therapist' : 'Private',
         })),
       });
     },

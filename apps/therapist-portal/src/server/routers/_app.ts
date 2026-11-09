@@ -10,6 +10,7 @@ import { accountRouter } from "./account";
 import { safetyRouter } from "./safety";
 import { worksheetsRouter } from "./worksheets";
 import { safetyPlanRouter } from "./safety-plan";
+import { sharedRouter } from "./shared";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   safety: safetyRouter,
   worksheets: worksheetsRouter,
   safetyPlan: safetyPlanRouter,
+  shared: sharedRouter,
 });
 
 export type AppRouter = typeof appRouter;
