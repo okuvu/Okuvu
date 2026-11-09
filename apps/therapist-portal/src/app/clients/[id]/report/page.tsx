@@ -54,9 +54,61 @@ export default function ClientReportPage() {
               SESSION PREP
             </h2>
             <p className="text-xs text-gray-500 mb-4">
-              Digest of chat-thread summaries from the last 30 days — review before your next
-              session.
+              What has happened since the last session. The chat digest keeps the client&rsquo;s
+              approval and its 30-day window; what they shared is here because they shared it.
             </p>
+
+            {sessionPrepQuery.data && (
+              <div className="mb-4 rounded-lg bg-gray-50 p-4 border border-gray-100">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Since last session</h3>
+                  <span className="text-xs text-gray-500">
+                    since {formatDate(sessionPrepQuery.data.since)}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm text-gray-700">
+                  {sessionPrepQuery.data.shared.total === 0
+                    ? 'Nothing shared in this period.'
+                    : `${sessionPrepQuery.data.shared.total} shared: ${sessionPrepQuery.data.shared.journal} journal, ${sessionPrepQuery.data.shared.worksheets} worksheet ${sessionPrepQuery.data.shared.worksheets === 1 ? 'entry' : 'entries'}, ${sessionPrepQuery.data.shared.notes} Treasure Box ${sessionPrepQuery.data.shared.notes === 1 ? 'note' : 'notes'}.`}
+                </p>
+
+                {sessionPrepQuery.data.shared.items.length > 0 && (
+                  <ul className="mt-2 space-y-0.5">
+                    {sessionPrepQuery.data.shared.items.map((item, i) => (
+                      <li key={`${item.kind}-${item.at}-${i}`} className="text-sm text-gray-700">
+                        {formatDate(item.at)} · {item.title}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {sessionPrepQuery.data.assignments.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-gray-500">Assignments</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {sessionPrepQuery.data.assignments.map((assignment, i) => (
+                        <li key={i} className="text-sm text-gray-700">
+                          {assignment.done ? 'Done' : 'Not done'} · {assignment.label}
+                          {assignment.repeating && ' (repeats)'}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {sessionPrepQuery.data.bringToSession && (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-gray-500">
+                      What they want to bring to session
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">
+                      {sessionPrepQuery.data.bringToSession}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {sessionPrepQuery.isLoading ? (
               <div className="space-y-3 animate-pulse" role="status" aria-live="polite" aria-busy="true">
@@ -64,11 +116,12 @@ export default function ClientReportPage() {
                 <div className="h-16 rounded-lg bg-gray-100" />
                 <div className="h-16 rounded-lg bg-gray-100" />
               </div>
-            ) : sessionPrepQuery.data && !sessionPrepQuery.data.granted ? (
+            ) : sessionPrepQuery.data && !sessionPrepQuery.data.chatGranted ? (
               <div className="rounded-lg bg-honey-tint p-4 text-center">
                 <p className="text-sm text-honey-deep">Client hasn&rsquo;t granted chat access yet.</p>
                 <p className="mt-1 text-xs text-honey-deep">
-                  Session Prep data becomes available once the client opts in.
+                  Chat summaries appear here once the client opts in. Anything shown above is there
+                  because the client shared it.
                 </p>
               </div>
             ) : sessionPrepQuery.data && sessionPrepQuery.data.entries.length > 0 ? (

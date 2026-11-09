@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { recordAuditEvent } from '../lib/audit-log.js';
 import {
   SHARE_LABEL_PRIVATE,
   SHARE_LABEL_SHARED,
@@ -85,6 +86,35 @@ export async function sharingRoute(app: FastifyInstance): Promise<void> {
       const shared = body.shared;
       const now = new Date();
 
+      // Step 9 — a durable record of the decision, without the words.
+      //
+      // The owner's rule: keep a record every time a client shares or stops
+      // sharing something, and never store the text. So the event names the
+      // kind and the row id and nothing else: no title, no body, no excerpt, no
+      // therapist. It is appended to the hash-chained audit log, which is what
+      // makes "who could read this, from when to when" answerable later.
+      //
+      // Best-effort by design (recordAuditEvent swallows its own failures and
+      // logs): a failed audit append must not fail the client's switch, or the
+      // switch becomes the thing that breaks during an incident.
+      const recordShareEvent = async (): Promise<void> => {
+        try {
+          await recordAuditEvent({
+            actor: 'client',
+            action: shared ? 'SHARE_ENABLED' : 'SHARE_STOPPED',
+            object: `${kind}:${id}`,
+            detail: { shared, surface: kind },
+          });
+        } catch (err) {
+          // Belt and braces: recordAuditEvent already swallows, but the switch
+          // must never fail because the record could not be written.
+          request.log.error(
+            { event: 'share_audit_failed', kind, err: err instanceof Error ? err.message : String(err) },
+            'Share event not recorded',
+          );
+        }
+      };
+
       // The same three values on every surface: the boolean decides
       // visibility, `shared_at` records the last grant, `unshared_at` the last
       // stop. Never `shared_at: null` on an unshare — the audit trail is the
@@ -105,6 +135,7 @@ export async function sharingRoute(app: FastifyInstance): Promise<void> {
             data,
             select: { shared_with_therapist: true, shared_at: true, unshared_at: true },
           });
+          await recordShareEvent();
           return reply.send(stateFor(kind, id, updated));
         }
 
@@ -119,6 +150,7 @@ export async function sharingRoute(app: FastifyInstance): Promise<void> {
             data,
             select: { shared_with_therapist: true, shared_at: true, unshared_at: true },
           });
+          await recordShareEvent();
           return reply.send(stateFor(kind, id, updated));
         }
 
@@ -132,6 +164,7 @@ export async function sharingRoute(app: FastifyInstance): Promise<void> {
           data,
           select: { shared_with_therapist: true, shared_at: true, unshared_at: true },
         });
+        await recordShareEvent();
         return reply.send(stateFor(kind, id, updated));
       } catch (err) {
         if (err instanceof NotFound) {

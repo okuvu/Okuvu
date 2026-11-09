@@ -106,6 +106,36 @@ export async function assertClientAssigned(
 }
 
 /**
+ * Throws FORBIDDEN unless the calling therapist is linked to this client RIGHT
+ * NOW (`ended_at` null).
+ *
+ * Deliberately separate from `assertClientAssigned`, which matches the compound
+ * key and therefore still finds a link that has ended. Anything that shows the
+ * client's own writing must use this one: care that has ended must not keep
+ * reading what the client shared while it was running (owner's Step 9 rule,
+ * "a therapist who is no longer linked sees nothing").
+ */
+export async function assertLiveLink(
+  db: PrismaClient,
+  therapistId: string,
+  clientUserId: string,
+): Promise<void> {
+  if (isBypassEnabled()) {
+    return;
+  }
+  const link = await db.therapistClient.findFirst({
+    where: { therapist_id: therapistId, client_user_id: clientUserId, ended_at: null },
+    select: { id: true },
+  });
+  if (!link) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'This client is not linked to your caseload.',
+    });
+  }
+}
+
+/**
  * Records a therapist's read of a client's clinical data (F-05). Best-effort:
  * a logging failure must never block the read itself, so failures are
  * swallowed after being logged server-side.

@@ -12,6 +12,12 @@ vi.mock('../lib/prisma.js', () => ({
   },
 }));
 
+// Step 9 — the share record lives in the hash-chained audit log. Mocked at the
+// module boundary so the test can assert what was recorded without a database.
+vi.mock('../lib/audit-log.js', () => ({
+  recordAuditEvent: vi.fn().mockResolvedValue(null),
+}));
+
 const MOCK_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
 
 async function importMocks() {
@@ -162,5 +168,58 @@ describe('POST /sharing', () => {
 
     expect(badKind.statusCode).toBe(400);
     expect(badFlag.statusCode).toBe(400);
+  });
+
+  it('records every share and unshare without the words', async () => {
+    const { recordAuditEvent } = await import('../lib/audit-log.js');
+    vi.mocked(recordAuditEvent).mockClear();
+    const prisma = await importMocks();
+
+    await app.inject({
+      method: 'POST',
+      url: '/sharing',
+      payload: { kind: 'journal_entry', id: 'j1', shared: true },
+    });
+    vi.mocked(prisma.journalEntry.update).mockResolvedValue(sharedRow(false) as any);
+    await app.inject({
+      method: 'POST',
+      url: '/sharing',
+      payload: { kind: 'journal_entry', id: 'j1', shared: false },
+    });
+
+    const calls = vi.mocked(recordAuditEvent).mock.calls.map((c) => c[0]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      actor: 'client',
+      action: 'SHARE_ENABLED',
+      object: 'journal_entry:j1',
+      detail: { shared: true },
+    });
+    expect(calls[1]).toMatchObject({ action: 'SHARE_STOPPED', detail: { shared: false } });
+
+    // The record is metadata only: no title, no body, no excerpt, no therapist.
+    for (const call of calls) {
+      const serialized = JSON.stringify(call);
+      expect(serialized).not.toContain('content');
+      expect(serialized).not.toContain('body');
+      expect(serialized).not.toContain(MOCK_USER_ID);
+      expect(Object.keys(call.detail ?? {})).toEqual(['shared', 'surface']);
+    }
+  });
+
+  it('a failed audit append does not fail the client’s switch', async () => {
+    const { recordAuditEvent } = await import('../lib/audit-log.js');
+    vi.mocked(recordAuditEvent).mockRejectedValueOnce(new Error('audit down'));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sharing',
+      payload: { kind: 'journal_entry', id: 'j1', shared: true },
+    });
+
+    // The record is important; the client's switch is more important. The
+    // share lands and the failure is logged.
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ shared: true });
   });
 });

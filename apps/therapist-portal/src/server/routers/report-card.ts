@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { chatAccessWindow } from '@okuvu/shared-types';
 import {
   assertClientAssigned,
+  assertLiveLink,
   isBypassEnabled,
   logClinicalAccess,
   router,
@@ -32,25 +33,76 @@ function parseSummaryText(summaryText: string | null): ParsedSummary {
   }
 }
 
+/**
+ * A worksheet's answers as plain text, for the one place Session Prep shows a
+ * client's own words ("What I want to bring to session"). Field ids are used
+ * as labels: this is a reading aid, not the on-screen worksheet, and inventing
+ * prettier labels here would be a second copy of the approved copy.
+ */
+function worksheetAnswersText(answers: unknown): string {
+  if (typeof answers !== 'object' || answers === null || Array.isArray(answers)) return '';
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(answers as Record<string, unknown>)) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      lines.push(value.trim());
+    } else if (Array.isArray(value)) {
+      const parts = value.filter(
+        (part): part is string => typeof part === 'string' && part.trim().length > 0,
+      );
+      if (parts.length > 0) lines.push(parts.join(', '));
+    }
+  }
+  return lines.join('\n');
+}
+
 export const reportCardRouter = router({
-  // "Session Prep": a digest of recent chat-thread summaries, so a
-  // therapist can review what happened since the last session before one
-  // starts. Sourced from Worker 05's SessionSummary output — the same
-  // chat-derived data Report Card gates below, so this gets the identical
-  // chat_access_granted gate (okuvu-remaining-changes.md: previously
-  // ungated, a real content leak — any assigned therapist could read full
-  // narrative/themes/open-loops regardless of consent).
+  // "Session Prep": what happened since the client's last session.
+  //
+  // Two halves, two rules (owner's Step 9):
+  //
+  //  1. Chat-derived summaries — Worker 05's SessionSummary output — keep the
+  //     client's own approval and the 30-day window (Step 4). No approval, no
+  //     summaries.
+  //  2. The shared half — the entries and notes the client turned sharing on
+  //     for, which assignments were done, and their "What I want to bring to
+  //     session" if that one response is shared — is shown because the client
+  //     shared it, NOT because chat access was granted. A client can share
+  //     their journal and still keep chat private; gating the shared half on
+  //     chat access would hide work they explicitly handed over.
+  //
+  // Everything in the shared half is descriptive: a title, a date, done or not
+  // done. No scores, no labels, no judgement about whether the client is better
+  // or worse, and nothing the client kept private — not even a count.
   sessionPrep: therapistProcedure
     .input(z.object({ clientId: z.string().min(1), days: z.number().int().positive().max(365).default(30) }))
     .query(async ({ ctx, input }) => {
+      const empty = {
+        chatGranted: false as boolean,
+        entries: [] as {
+          sessionId: string;
+          date: string;
+          narrativeSummary: string | null;
+          themes: string[];
+          openLoops: string[];
+        }[],
+        since: new Date(Date.now() - input.days * 24 * 60 * 60 * 1000).toISOString(),
+        shared: { total: 0, journal: 0, worksheets: 0, notes: 0, items: [] as { kind: string; title: string; at: string }[] },
+        assignments: [] as { label: string; done: boolean; dueAt: string | null; lastDoneAt: string | null; repeating: boolean }[],
+        bringToSession: null as string | null,
+      };
+
       if (isBypassEnabled()) {
-        return { granted: true as const, entries: [] };
+        return { ...empty, chatGranted: true };
       }
 
       const db = ctx.db;
       const therapistId = ctx.therapistId;
 
+      // "Not assigned" first, so that message stays the one an unrelated
+      // therapist sees; then the live-link rule, so care that has ended reads
+      // nothing at all.
       await assertClientAssigned(db, therapistId, input.clientId);
+      await assertLiveLink(db, therapistId, input.clientId);
 
       const assignment = await db.therapistClient.findUnique({
         where: {
@@ -67,21 +119,120 @@ export const reportCardRouter = router({
         select: { chat_access_granted_at: true, chat_access_closed_at: true },
       });
 
-      if (chatAccessWindow(assignment) === null) {
-        return { granted: false as const };
-      }
+      const chatGranted = chatAccessWindow(assignment) !== null;
 
-      await logClinicalAccess(db, therapistId, input.clientId, 'VIEW_SESSION_PREP');
-
-      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
-      const summaries = await db.sessionSummary.findMany({
-        where: { user_id: input.clientId, status: 'COMPLETED', created_at: { gte: since } },
-        orderBy: { created_at: 'desc' },
-        select: { session_id: true, summary_text: true, created_at: true },
+      // Since the last session if there was one, else the caller's window.
+      const lastSession = await db.appointment.findFirst({
+        where: {
+          therapist_id: therapistId,
+          client_user_id: input.clientId,
+          scheduled_at: { lt: new Date() },
+          cancelled_at: null,
+        },
+        orderBy: { scheduled_at: 'desc' },
+        select: { scheduled_at: true },
       });
 
+      const since = lastSession
+        ? lastSession.scheduled_at
+        : new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+
+      const [summaries, journal, worksheets, notes, homework] = await Promise.all([
+        // The chat half is only queried when the client approved it — a query
+        // that never runs cannot leak.
+        chatGranted
+          ? db.sessionSummary.findMany({
+              where: { user_id: input.clientId, status: 'COMPLETED', created_at: { gte: since } },
+              orderBy: { created_at: 'desc' },
+              select: { session_id: true, summary_text: true, created_at: true },
+            })
+          : Promise.resolve([]),
+        db.journalEntry.findMany({
+          where: {
+            user_id: input.clientId,
+            shared_with_therapist: true,
+            created_at: { gte: since },
+          },
+          orderBy: { created_at: 'desc' },
+          take: 50,
+          select: { id: true, created_at: true, emotion: true },
+        }),
+        db.worksheetResponse.findMany({
+          where: {
+            user_id: input.clientId,
+            shared_with_therapist: true,
+            completed_at: { gte: since },
+          },
+          orderBy: { completed_at: 'desc' },
+          take: 50,
+          select: {
+            id: true,
+            worksheet_id: true,
+            answers: true,
+            completed_at: true,
+            worksheet: { select: { label: true } },
+          },
+        }),
+        db.treasureNote.findMany({
+          where: {
+            user_id: input.clientId,
+            shared_with_therapist: true,
+            created_at: { gte: since },
+          },
+          orderBy: { created_at: 'desc' },
+          take: 50,
+          select: { id: true, title: true, created_at: true },
+        }),
+        db.homework.findMany({
+          where: { client_user_id: input.clientId, assigned_at: { gte: since } },
+          orderBy: { assigned_at: 'desc' },
+          take: 50,
+          select: {
+            id: true,
+            description: true,
+            frequency: true,
+            due_at: true,
+            status: true,
+            last_completed_at: true,
+            tool: { select: { label: true } },
+            completions: {
+              orderBy: { completed_at: 'desc' },
+              take: 1,
+              select: { completed_at: true },
+            },
+          },
+        }),
+      ]);
+
+      const sharedItems = [
+        ...journal.map((row) => ({
+          kind: 'journal_entry',
+          title: row.emotion ? `Journal · ${row.emotion}` : 'Journal',
+          at: row.created_at.toISOString(),
+        })),
+        ...worksheets.map((row) => ({
+          kind: 'worksheet_response',
+          title: row.worksheet?.label ?? 'Worksheet',
+          at: row.completed_at.toISOString(),
+        })),
+        ...notes.map((row) => ({
+          kind: 'treasure_note',
+          title: row.title ?? 'Treasure Box note',
+          at: row.created_at.toISOString(),
+        })),
+      ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+
+      // Only the shared response is a candidate. An unshared "What I want to
+      // bring to session" is invisible here, like everything else unshared.
+      const bringResponse = worksheets.find((row) => row.worksheet_id === 'ws_bring_to_session');
+      const bringToSession = bringResponse ? worksheetAnswersText(bringResponse.answers) : null;
+
+      if (chatGranted) {
+        await logClinicalAccess(db, therapistId, input.clientId, 'VIEW_SESSION_PREP');
+      }
+
       return {
-        granted: true as const,
+        chatGranted,
         entries: summaries.map((s) => {
           const parsed = parseSummaryText(s.summary_text);
           return {
@@ -92,8 +243,29 @@ export const reportCardRouter = router({
             openLoops: parsed.open_loops ?? [],
           };
         }),
+        since: since.toISOString(),
+        shared: {
+          total: sharedItems.length,
+          journal: journal.length,
+          worksheets: worksheets.length,
+          notes: notes.length,
+          items: sharedItems.slice(0, 20),
+        },
+        assignments: homework.map((row) => ({
+          label: row.tool?.label ?? row.description,
+          done:
+            row.status === 'completed' ||
+            row.last_completed_at !== null ||
+            row.completions.length > 0,
+          dueAt: row.due_at ? row.due_at.toISOString() : null,
+          lastDoneAt:
+            row.last_completed_at?.toISOString() ?? row.completions[0]?.completed_at.toISOString() ?? null,
+          repeating: row.frequency !== null && row.frequency !== 'once',
+        })),
+        bringToSession,
       };
     }),
+
 
   // "Report Card": homework + mood progress, therapist-only, gated on the
   // client's chat_access_granted consent (first real consumer of that

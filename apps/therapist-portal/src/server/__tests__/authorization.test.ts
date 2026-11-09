@@ -23,6 +23,7 @@ function buildPrisma(overrides: CtxOverrides = {}) {
     therapist: { findUnique: vi.fn().mockResolvedValue(therapist) },
     therapistClient: {
       findUnique: vi.fn().mockResolvedValue(therapistClient),
+      findFirst: vi.fn().mockResolvedValue(therapistClient),
       findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn().mockResolvedValue({}),
     },
@@ -51,10 +52,17 @@ function buildPrisma(overrides: CtxOverrides = {}) {
     clinicalAccessLog: { create: vi.fn().mockResolvedValue({}) },
     appointment: {
       findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
       update: vi.fn().mockResolvedValue({}),
     },
+    // Step 9 — Session Prep's shared half reads these three, always filtered on
+    // `shared_with_therapist`. They answer empty here, so a test that cares
+    // about the shared section overrides them explicitly.
+    journalEntry: { findMany: vi.fn().mockResolvedValue([]) },
+    worksheetResponse: { findMany: vi.fn().mockResolvedValue([]) },
+    treasureNote: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   } as unknown as PrismaClient;
 }
@@ -445,7 +453,7 @@ describe('§D reminders + report-card', () => {
     expect(prisma.clinicalAccessLog.create).not.toHaveBeenCalled();
   });
 
-  it('reportCard.sessionPrep returns granted:false without querying clinical data when consent is not granted', async () => {
+  it('reportCard.sessionPrep returns no chat summaries when consent is not granted, but still shows what was shared', async () => {
     const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: false } });
     const caller = appRouter.createCaller({
       session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
@@ -455,8 +463,12 @@ describe('§D reminders + report-card', () => {
 
     const result = await caller.reportCard.sessionPrep({ clientId: 'client_1' });
 
-    expect(result).toEqual({ granted: false });
+    expect(result.chatGranted).toBe(false);
+    expect(result.entries).toEqual([]);
     expect(prisma.sessionSummary.findMany).not.toHaveBeenCalled();
+    // Step 9: the shared half is not gated on chat access. A client can share
+    // their journal and keep chat private; sharing is its own consent.
+    expect(prisma.journalEntry.findMany).toHaveBeenCalled();
     expect(prisma.clinicalAccessLog.create).not.toHaveBeenCalled();
   });
 
@@ -477,8 +489,8 @@ describe('§D reminders + report-card', () => {
 
     const result = await caller.reportCard.sessionPrep({ clientId: 'client_1' });
 
-    expect(result.granted).toBe(true);
-    if (result.granted) {
+    expect(result.chatGranted).toBe(true);
+    if (result.chatGranted) {
       expect(result.entries).toHaveLength(1);
       expect(result.entries[0].narrativeSummary).toBe('Talked about work stress.');
     }
@@ -626,7 +638,8 @@ describe('Step 4 — the Report Card and Session Prep follow the chat-access rul
     const prep = await callerFor(prisma).reportCard.sessionPrep({ clientId: 'client_1' });
     const card = await callerFor(prisma).reportCard.reportCard({ clientId: 'client_1' });
 
-    expect(prep).toEqual({ granted: false });
+    expect(prep.chatGranted).toBe(false);
+    expect(prep.entries).toEqual([]);
     expect(card).toEqual({ granted: false });
     expect(prisma.sessionSummary.findMany).not.toHaveBeenCalled();
   });
@@ -645,7 +658,7 @@ describe('Step 4 — the Report Card and Session Prep follow the chat-access rul
     const prep = await callerFor(prisma).reportCard.sessionPrep({ clientId: 'client_1' });
     const card = await callerFor(prisma).reportCard.reportCard({ clientId: 'client_1' });
 
-    expect(prep).toEqual({ granted: false });
+    expect(prep.chatGranted).toBe(false);
     expect(card).toEqual({ granted: false });
   });
 
@@ -660,6 +673,7 @@ describe('Step 4 — the Report Card and Session Prep follow the chat-access rul
     });
 
     const prep = await callerFor(prisma).reportCard.sessionPrep({ clientId: 'client_1' });
-    expect(prep).toEqual({ granted: false });
+    expect(prep.chatGranted).toBe(false);
+    expect(prep.entries).toEqual([]);
   });
 });
