@@ -3,7 +3,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'journal_entry.dart';
-import 'journal_provider.dart';
+import '../../core/providers.dart';
+import '../library/treasure_providers.dart';
 import '../sharing/sharing.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
@@ -226,6 +227,16 @@ class _JournalEntryCardState extends ConsumerState<_JournalEntryCard> {
                   onChanged: (value) => _setShared(value),
                 ),
                 IconButton(
+                  key: Key('journal_keep_${entry.id}'),
+                  tooltip: 'Keep in Treasure Box',
+                  icon: const Icon(
+                    LucideIcons.gift,
+                    size: 18,
+                    color: AppColors.honeyDeep,
+                  ),
+                  onPressed: () => _keepInTreasureBox(ref, context),
+                ),
+                IconButton(
                   key: Key('journal_delete_${entry.id}'),
                   tooltip: 'Delete entry',
                   icon: Icon(
@@ -268,6 +279,32 @@ class _JournalEntryCardState extends ConsumerState<_JournalEntryCard> {
         const SnackBar(content: Text("Couldn't change sharing. Please try again.")),
       );
     }
+  }
+
+  /// Copies this entry's own words into the Treasure Box.
+  ///
+  /// A copy, not a link: deleting the journal entry afterwards must not empty
+  /// the note the client chose to keep. The api screens the copied text again,
+  /// the same way it screens a note typed in the box.
+  Future<void> _keepInTreasureBox(WidgetRef ref, BuildContext context) async {
+    final outcome = await ref.read(treasureSaverProvider).saveFromJournal(
+          entryId: widget.entry.id,
+          body: widget.entry.content,
+        );
+    if (!context.mounted) return;
+    if (!outcome.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't keep that. Please try again.")),
+      );
+      return;
+    }
+    if (outcome.showHelp) {
+      ref.read(crisisOverlayProvider.notifier).show();
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kept in your Treasure Box.')),
+    );
   }
 
   Future<void> _delete() async {

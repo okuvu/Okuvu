@@ -148,11 +148,17 @@ class WorksheetScreen extends ConsumerWidget {
                 }
               }
             },
-            onSaveToTreasureBox: () => ref.read(libraryApiProvider).saveToTreasureBox(
-                  title: entry.label,
-                  body: worksheetAsNoteText(content, savedAnswers),
-                  sourceRef: responseId,
-                ),
+            onSaveToTreasureBox: () async {
+              final kept = await ref.read(libraryApiProvider).saveToTreasureBox(
+                    title: entry.label,
+                    body: worksheetAsNoteText(content, savedAnswers),
+                    sourceRef: responseId,
+                  );
+              if (kept.showHelp) {
+                ref.read(crisisOverlayProvider.notifier).show();
+              }
+              return kept.ok;
+            },
           );
         } on WorksheetContentException catch (error) {
           return Scaffold(

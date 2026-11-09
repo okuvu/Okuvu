@@ -19,6 +19,7 @@ import 'widgets/srs_modal.dart';
 import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
 import 'widgets/tool_card_widget.dart';
+import '../library/treasure_providers.dart';
 import '../home/widgets/home_bottom_nav.dart';
 import '../home/providers/today_card_provider.dart';
 import '../../theme/app_colors.dart';
@@ -630,26 +631,29 @@ class _ChatBubble extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   Flexible(
-                    child: Container(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.75,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: borderRadius,
-                        boxShadow: [
-                          BoxShadow(
-                            offset: const Offset(0, 1),
-                            blurRadius: 2,
-                            color: Colors.black.withAlpha(13),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        message.content,
-                        style: TextStyle(color: theme.colorScheme.onSurface),
+                    child: GestureDetector(
+                      onLongPress: () => _keepMessage(context, ref, message),
+                      child: Container(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.75,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: borderRadius,
+                          boxShadow: [
+                            BoxShadow(
+                              offset: const Offset(0, 1),
+                              blurRadius: 2,
+                              color: Colors.black.withAlpha(13),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          message.content,
+                          style: TextStyle(color: theme.colorScheme.onSurface),
+                        ),
                       ),
                     ),
                   ),
@@ -657,18 +661,21 @@ class _ChatBubble extends ConsumerWidget {
               ),
             ),
           if (isUser)
-            Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: borderRadius,
-              ),
-              child: Text(
-                message.content,
-                style: TextStyle(color: theme.colorScheme.onPrimary),
+            GestureDetector(
+              onLongPress: () => _keepMessage(context, ref, message),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: borderRadius,
+                ),
+                child: Text(
+                  message.content,
+                  style: TextStyle(color: theme.colorScheme.onPrimary),
+                ),
               ),
             ),
           if (!isUser && message.toolCard != null)
@@ -692,6 +699,60 @@ class _ChatBubble extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+
+  /// One message, kept.
+  ///
+  /// Long-press on either side of the conversation copies that message's own
+  /// words into the Treasure Box. It is a copy: the chat turn can be deleted or
+  /// expire and the kept note stays. The api screens the copied text again, so
+  /// keeping a message never routes around the safety check.
+  Future<void> _keepMessage(
+    BuildContext context,
+    WidgetRef ref,
+    ChatMessage message,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Keep this message?'),
+        content: Text(
+          message.content,
+          maxLines: 6,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Keep it'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final outcome = await ref.read(treasureSaverProvider).saveFromChat(
+          message: message.content,
+          turnId: message.id,
+        );
+    if (!context.mounted) return;
+    if (!outcome.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't keep that. Please try again.")),
+      );
+      return;
+    }
+    if (outcome.showHelp) {
+      ref.read(crisisOverlayProvider.notifier).show();
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kept in your Treasure Box.')),
     );
   }
 }

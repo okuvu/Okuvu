@@ -142,13 +142,18 @@ class MyDataNotifier extends Notifier<void> {
   @override
   void build() {}
 
+  /// The readable copy: the api writes one plain-text document, in date order,
+  /// with a heading per item. The JSON export stays available for a machine
+  /// copy; this is the one a person opens on their phone.
   Future<String?> exportText() async {
     final dio = ref.read(dioClientProvider);
     try {
-      final response = await dio.get<Map<String, dynamic>>('/me/export');
+      final response = await dio.get<dynamic>(
+        '/me/export/document',
+        options: Options(responseType: ResponseType.plain),
+      );
       final data = response.data;
-      if (data == null) return null;
-      return _prettyJson(data);
+      return data is String && data.trim().isNotEmpty ? data : null;
     } on DioException {
       return null;
     }
@@ -163,67 +168,6 @@ class MyDataNotifier extends Notifier<void> {
       return false;
     }
   }
-
-  /// Multi-line JSON without pulling in a new dependency: the export is for a
-  /// person to read or save, not for a machine to parse.
-  String _prettyJson(Object? value, [int depth = 0]) {
-    final indent = '  ' * depth;
-    final childIndent = '  ' * (depth + 1);
-    if (value is Map) {
-      if (value.isEmpty) return '{}';
-      final entries = value.entries
-          .map((entry) => '$childIndent${_jsonString(entry.key.toString())}: '
-              '${_prettyJson(entry.value, depth + 1)}')
-          .join(',\n');
-      return '{\n$entries\n$indent}';
-    }
-    if (value is List) {
-      if (value.isEmpty) return '[]';
-      final items = value.map((item) => '$childIndent${_prettyJson(item, depth + 1)}').join(',\n');
-      return '[\n$items\n$indent]';
-    }
-    if (value is String) return _jsonString(value);
-    return '$value';
-  }
-
-  String _jsonString(String value) {
-    final escaped = value
-        .replaceAll('\\', '\\\\')
-        .replaceAll('"', '\\"')
-        .replaceAll('\n', '\\n')
-        .replaceAll('\r', '\\r')
-        .replaceAll('\t', '\\t');
-    return '"$escaped"';
-  }
 }
 
 final myDataProvider = NotifierProvider<MyDataNotifier, void>(MyDataNotifier.new);
-
-/// The client's Treasure Box notes, as the Settings data screen lists them for
-/// deletion. The Treasure Box screen itself arrives in Step 6A; the rows exist
-/// now, and "delete my notes" must not wait for that screen.
-class TreasureNoteRow {
-  const TreasureNoteRow({required this.id, required this.title, required this.body, required this.shared});
-
-  final String id;
-  final String? title;
-  final String body;
-  final bool shared;
-
-  factory TreasureNoteRow.fromJson(Map<String, dynamic> json) {
-    return TreasureNoteRow(
-      id: json['id'] as String,
-      title: json['title'] as String?,
-      body: json['body'] as String? ?? '',
-      shared: json['shared_with_therapist'] as bool? ?? false,
-    );
-  }
-}
-
-final treasureNotesProvider = FutureProvider.autoDispose<List<TreasureNoteRow>>((ref) async {
-  final dio = ref.read(dioClientProvider);
-  final response = await dio.get<Map<String, dynamic>>('/treasure');
-  final raw = response.data?['notes'];
-  if (raw is! List) return const [];
-  return raw.whereType<Map<String, dynamic>>().map(TreasureNoteRow.fromJson).toList();
-});

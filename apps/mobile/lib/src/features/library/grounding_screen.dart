@@ -146,14 +146,12 @@ class _EndingState extends State<_Ending> {
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: button.action == 'treasure_box'
+                // The approved closing button. It opens the box itself now:
+                // reaching it is one of the two ways the owner asked for after
+                // grounding, and it is deliberately not on the crisis screen.
                 ? OutlinedButton(
-                    onPressed: () {
-                      // The Treasure Box opens in its own step; until it
-                      // exists this button says so rather than doing nothing.
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Your Treasure Box is coming next.')),
-                      );
-                    },
+                    key: const Key('grounding_open_treasure'),
+                    onPressed: () => context.push('/treasure'),
                     child: Text(button.label),
                   )
                 : FilledButton(

@@ -205,3 +205,27 @@ which becomes false once the safety pass lands.
   portal because the portal reads the same row.
 - **Old summaries stay untouched** and must be carried into the Step 12
   write-up.
+
+## Confirmations added 9 November 2026 (Step 6A round)
+
+- **"Download my data" is a readable document**, not JSON: date order, one
+  heading per item (the date, which exercise it was, the client's answers and
+  whether it was shared). The JSON export stays at `GET /me/export` for a
+  machine copy; the app uses `GET /me/export/document`.
+- **Worksheet answers can be deleted from Past me** with the same confirmation
+  as journal entries and Treasure Box notes.
+- **The Treasure Box is built**: typing or speaking, tags, "Open when…"
+  collections, saving from a worksheet, a journal entry, one chat message and a
+  Library exercise, pinning, search, filters, and "Pick one for me" (pinned
+  notes only).
+- **The four starting collections are created on the client's first open**.
+  Their names are not in the approved copy document; the names used this step
+  are listed in `10-step-06a-treasure-box.md` §2.3 and **await the owner's
+  approval or replacement**.
+- **An exercise saved from the Library is labelled "From a worksheet"**, because
+  the owner's five labels have no separate Library label and the Library is made
+  of worksheets.
+- **The Treasure Box is not on the crisis screen.** After grounding, the
+  approved closing button opens it.
+- **Saving is a copy, not a link.** Deleting the journal entry, chat or
+  worksheet answer afterwards leaves the kept note in place.

@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../journal/journal_provider.dart';
+import '../library/treasure_providers.dart';
 import '../my_space/my_space_providers.dart';
 import '../sharing/sharing.dart';
 
@@ -14,9 +15,10 @@ import '../sharing/sharing.dart';
 /// Owner's Step 6: "Clients can download or delete their own entries and
 /// notes."
 ///
-/// Download is one document of the client's own rows (`GET /me/export`) shared
-/// out through the phone's share sheet, because a phone has no Downloads
-/// folder a client can be expected to find from inside an app. Delete is per
+/// Download is one readable document (`GET /me/export/document`) shared out
+/// through the phone's share sheet: plain text, a heading per item, oldest
+/// first. A phone has no Downloads folder a client can be expected to find from
+/// inside an app, so the share sheet is the save path. Delete is per
 /// item: journal entries in the journal, worksheet answers and journal posts in
 /// Past me, notes here. Every delete is the same api statement, so the item
 /// leaves the portal at the same moment it leaves the app.
@@ -26,7 +28,7 @@ class MyDataScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final notes = ref.watch(treasureNotesProvider);
+    final notes = ref.watch(treasureProvider(const TreasureQuery()));
 
     return Scaffold(
       appBar: AppBar(
@@ -52,7 +54,7 @@ class MyDataScreen extends ConsumerWidget {
             key: const Key('data_export'),
             leading: const Icon(LucideIcons.download),
             title: const Text('Download my entries and notes'),
-            subtitle: const Text('A copy you can save or send to yourself'),
+            subtitle: const Text('One readable document, oldest first'),
             onTap: () => _export(context, ref),
           ),
           ListTile(
@@ -86,7 +88,8 @@ class MyDataScreen extends ConsumerWidget {
               padding: EdgeInsets.all(16),
               child: Text('Could not load your notes.'),
             ),
-            data: (rows) {
+            data: (box) {
+              final rows = box.notes;
               if (rows.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -171,7 +174,7 @@ class MyDataScreen extends ConsumerWidget {
         );
     if (!context.mounted) return;
     if (ok) {
-      ref.invalidate(treasureNotesProvider);
+      ref.invalidate(treasureProvider);
       ref.invalidate(journalListProvider);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

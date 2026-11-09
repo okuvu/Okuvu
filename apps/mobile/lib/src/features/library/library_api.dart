@@ -190,13 +190,18 @@ class LibraryApi {
   /// arriving at a write path — which is why it goes through POST /treasure/notes
   /// and not around it: that route runs the same safety check as everything
   /// else. `source_ref` points at the worksheet response it came from.
-  Future<bool> saveToTreasureBox({
+  /// Keeps a finished worksheet's answers as one note.
+  ///
+  /// Returns the api's safety verdict as well as success: the copied text is
+  /// screened again on save (it is client-written text arriving at a second
+  /// surface), and the caller raises the help card if that check fires.
+  Future<({bool ok, bool showHelp})> saveToTreasureBox({
     required String title,
     required String body,
     String? sourceRef,
   }) async {
     try {
-      await _dio.post<Map<String, dynamic>>(
+      final response = await _dio.post<Map<String, dynamic>>(
         '/treasure/notes',
         data: {
           'title': title,
@@ -205,9 +210,10 @@ class LibraryApi {
           if (sourceRef != null && sourceRef.isNotEmpty) 'sourceRef': sourceRef,
         },
       );
-      return true;
+      final safety = response.data?['safety'];
+      return (ok: true, showHelp: safety is Map && safety['showHelp'] == true);
     } on DioException {
-      return false;
+      return (ok: false, showHelp: false);
     }
   }
 }
