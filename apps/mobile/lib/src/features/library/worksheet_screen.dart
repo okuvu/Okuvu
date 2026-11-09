@@ -61,6 +61,7 @@ class WorksheetScreen extends ConsumerWidget {
             content: content,
             feelingBefore: feelingNow,
             isAssigned: entry.accessMode == 'assigned',
+            personalNote: entry.personalNote,
             onFinished: (answers, outcome) async {
               final api = ref.read(libraryApiProvider);
               savedAnswers = Map<String, Object?>.from(answers);

@@ -27,6 +27,7 @@ const {
 const {
   notifyAppointmentBooked,
   notifyAppointmentCancelled,
+  notifyAppointmentRescheduled,
   notifyHomeworkAssigned,
   notifyReminderSet,
 } = await import('@/server/notifications');
@@ -270,5 +271,71 @@ describe('sendClientNotificationEmail without a key', () => {
     ).resolves.toEqual({ sent: false });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Owner's Step 8 correction: the one-a-day cap is a promise about "Something new
+ * in OKUVU" mail only. Appointment mail must always send, because a cancellation
+ * the client never receives is a client turning up for a session that is not
+ * happening.
+ */
+describe('the one-a-day cap applies to update email only', () => {
+  const scheduledAt = new Date('2026-11-07T11:30:00.000Z');
+
+  it('sends nothing for a second update email once the day is used', async () => {
+    const { db, create, claim } = makeDb({
+      email: 'client@example.com',
+      appointment_reminders_enabled: true,
+    });
+    claim.mockResolvedValue({ count: 0 });
+
+    await notifyHomeworkAssigned(db, {
+      clientUserId: 'usr_1',
+      homeworkId: 'hw_1',
+      description: CLINICAL_NOTE,
+    });
+
+    // The row is written — the client still sees it in Updates — and no second
+    // mail goes out that day.
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still sends a cancellation when the day\'s update email is already used', async () => {
+    const { db, claim } = makeDb({
+      email: 'client@example.com',
+      appointment_reminders_enabled: true,
+    });
+    claim.mockResolvedValue({ count: 0 });
+
+    await notifyAppointmentCancelled(db, {
+      clientUserId: 'usr_1',
+      appointmentId: 'apt_1',
+      scheduledAt,
+    });
+
+    // Not even asked: appointment mail does not touch the cap at all.
+    expect(claim).not.toHaveBeenCalled();
+    const payload = sentPayload();
+    expect(payload.subject).toBe('Your session on Okuvu was cancelled');
+    expect(payload.htmlContent).toContain('Sat 7 Nov, 5:00 pm IST');
+  });
+
+  it('still sends a reschedule when the client paused update emails', async () => {
+    const { db } = makeDb({
+      email: 'client@example.com',
+      appointment_reminders_enabled: true,
+      update_emails_enabled: false,
+    });
+
+    await notifyAppointmentRescheduled(db, {
+      clientUserId: 'usr_1',
+      appointmentId: 'apt_1',
+      scheduledAt,
+    });
+
+    const payload = sentPayload();
+    expect(payload.subject).toBe('Your session on Okuvu has moved');
   });
 });

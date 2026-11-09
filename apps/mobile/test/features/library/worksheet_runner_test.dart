@@ -52,6 +52,7 @@ Widget harness({
   String toolId = 'ws_test',
   int? feelingBefore,
   bool isAssigned = false,
+  String? personalNote,
   Future<void> Function(WorksheetAnswers, WorksheetOutcome)? onFinished,
 }) {
   return ProviderScope(
@@ -63,6 +64,7 @@ Widget harness({
         draftStore: store ?? WorksheetDraftStore(),
         feelingBefore: feelingBefore,
         isAssigned: isAssigned,
+        personalNote: personalNote,
         onFinished: onFinished,
       ),
     ),
@@ -399,5 +401,48 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(outcome!.helped, isTrue);
+  });
+  // Step 8 — the therapist's personal line. It belongs under the one piece the
+  // worksheet marks `therapistNote`, and nowhere else: a line pinned to the top
+  // of every screen would read as the worksheet talking, not the therapist.
+  testWidgets('shows the personal line under the piece marked for it, and only there',
+      (tester) async {
+    final content = parseWorksheetContent({
+      'version': 1,
+      'fields': [
+        {'id': 'start', 'type': 'instruction', 'prompt': 'A moment from this week.'},
+        {
+          'id': 'facts',
+          'type': 'short_text',
+          'prompt': 'What happened?',
+          'therapistNote': true,
+        },
+        {'id': 'later', 'type': 'short_text', 'prompt': 'And then?'},
+      ],
+    });
+
+    await tester.pumpWidget(harness(
+      content: content,
+      isAssigned: true,
+      personalNote: 'for when the 9am standup starts',
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+
+    // The instruction piece does not carry it.
+    expect(find.text('Your therapist’s note'), findsNothing);
+    await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your therapist’s note'), findsOneWidget);
+    expect(find.text('for when the 9am standup starts'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const ValueKey('worksheet_field_facts')), 'The standup');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    // And it does not follow the client to the next piece.
+    expect(find.text('for when the 9am standup starts'), findsNothing);
   });
 }

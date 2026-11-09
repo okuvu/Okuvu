@@ -50,6 +50,7 @@ class LibraryEntry {
     required this.content,
     required this.children,
     this.accessMode = 'open',
+    this.personalNote,
   });
 
   final String toolId;
@@ -59,6 +60,11 @@ class LibraryEntry {
   /// 'open' | 'assigned' | 'in_session'. Assigned worksheets ask the
   /// did-you-do-it question; the rest do not.
   final String accessMode;
+
+  /// The therapist's personal line for this client, set when the assignment was
+  /// made. Null for a self-serve exercise or an assignment without one. The
+  /// runner shows it only under a piece the worksheet marks `therapistNote`.
+  final String? personalNote;
 
   /// The worksheet body, validated on arrival by `parseWorksheetContent`.
   final Map<String, dynamic> content;
@@ -112,12 +118,16 @@ class LibraryApi {
     final body = res.data!;
     final content = body['content'];
     final children = body['children'];
+    final rawPersonalNote = (body['personalNote'] as String?)?.trim();
 
     return LibraryEntry(
       toolId: body['toolId'] as String,
       label: body['label'] as String,
       kind: (body['kind'] as String?) ?? 'worksheet',
       accessMode: (body['accessMode'] as String?) ?? 'open',
+      personalNote: rawPersonalNote == null || rawPersonalNote.isEmpty
+          ? null
+          : rawPersonalNote,
       content: content is Map<String, dynamic>
           ? content
           : jsonDecode(jsonEncode(content)) as Map<String, dynamic>,

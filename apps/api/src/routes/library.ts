@@ -174,11 +174,19 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
+      // The client's own active assignment for this exercise, if there is one.
+      // Read once, for two things: the `assigned` gate, and the therapist's
+      // personal line (Step 8) — a line written in the client's own words
+      // ("when the 9am standup starts") belongs above the piece the therapist
+      // marked, and it is the client's to see. The private note is not selected,
+      // so it cannot be sent by mistake.
+      const assignment = await prisma.homework.findFirst({
+        where: { client_user_id: user.id, tool_id: toolId, status: 'active' },
+        orderBy: { assigned_at: 'desc' },
+        select: { id: true, personal_note: true },
+      });
+
       if (row.access_mode === 'assigned') {
-        const assignment = await prisma.homework.findFirst({
-          where: { client_user_id: user.id, tool_id: toolId, status: 'active' },
-          select: { id: true },
-        });
         if (!assignment) {
           return reply.status(403).send({
             error: {
@@ -274,6 +282,10 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
         // The rating the client gave at the gate, so submitting it stores the
         // "before" number they actually answered rather than asking twice.
         feelingBefore,
+        // The therapist's line, written for this client, shown only where the
+        // worksheet itself marks a therapistNote field. Null when this is a
+        // self-serve exercise or a plain assignment with no line.
+        personalNote: assignment?.personal_note ?? null,
         content: view.content,
         children: children.map((child) => ({
           toolId: child.tool_id,

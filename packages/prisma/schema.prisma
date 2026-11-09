@@ -109,6 +109,7 @@ model User {
   safety_plan         SafetyPlan?         @relation("ClientToSafetyPlan")
   safety_rechecks     SafetyRecheck[]     @relation("ClientToSafetyRecheck")
   homework_completions HomeworkCompletion[] @relation("ClientToHomeworkCompletion")
+  goals               ClientGoal[]        @relation("ClientToGoal")
 }
 
 /// The single global counter behind `User.client_code`'s four-digit serial.
@@ -137,6 +138,8 @@ model Therapist {
   homeworks_assigned Homework[]          @relation("TherapistToHomework")
   appointments       Appointment[]       @relation("TherapistToAppointment")
   invite_tokens      InviteToken[]
+  exercise_sets      ExerciseSet[]       @relation("TherapistToExerciseSet")
+  goals              ClientGoal[]        @relation("TherapistToGoal")
 }
 
 model ClinicalConfig {
@@ -489,6 +492,11 @@ model Homework {
   /// Free-text therapy goal this assignment serves. No goal table exists
   /// (CarePlan is a coarse enum), so this is the therapist's own label.
   therapy_goal   String?
+  /// Step 8 — the therapist's private note about this assignment. Never
+  /// serialized to the client: it is not in any client-facing select, and the
+  /// agent context does not read it. Kept on the assignment rather than a
+  /// separate table because it is one line about this ask.
+  therapist_private_note String?
   status         HomeworkStatus      @default(active)
   assigned_at    DateTime            @default(now())
   /// When the client last marked this done. A repeating assignment stays
@@ -527,6 +535,56 @@ model HomeworkCompletion {
 
   @@index([homework_id, completed_at(sort: Desc)])
   @@index([client_user_id, completed_at(sort: Desc)])
+}
+
+model ExerciseSet {
+  id           String            @id @default(uuid())
+  therapist_id String
+  /// The therapist's own name for the set, e.g. "My anxiety starter set".
+  name         String
+  created_at   DateTime          @default(now())
+  updated_at   DateTime          @updatedAt
+  therapist    Therapist         @relation("TherapistToExerciseSet", fields: [therapist_id], references: [id], onDelete: Cascade)
+  items        ExerciseSetItem[]
+
+  @@index([therapist_id, created_at(sort: Desc)])
+}
+
+/// One approved exercise in a set. `tool_id` is validated against the registry
+/// at write time, so a set cannot be built around a retired or unapproved
+/// exercise.
+model ExerciseSetItem {
+  id         String      @id @default(uuid())
+  set_id     String
+  tool_id    String
+  sort_order Int         @default(0)
+  exercise_set ExerciseSet @relation(fields: [set_id], references: [id], onDelete: Cascade)
+  tool       ToolRegistryEntry @relation(fields: [tool_id], references: [tool_id])
+
+  @@unique([set_id, tool_id])
+  @@index([set_id, sort_order])
+}
+
+/// A therapy goal the therapist is working towards with one client.
+///
+/// Step 8 links an assignment to a goal. The goals are the therapist's own
+/// working goals, written alongside the Clinical Reasoning note — not a scored
+/// instrument and never shown to a client as a target they are measured
+/// against. `text` is the therapist's wording, stored verbatim so an assignment
+/// made last month still says what it meant after the goal is edited.
+model ClientGoal {
+  id             String    @id @default(uuid())
+  therapist_id   String
+  client_user_id String
+  text           String
+  /// 'active' | 'achieved' | 'dropped'
+  status         String    @default("active")
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  client         User      @relation("ClientToGoal", fields: [client_user_id], references: [id], onDelete: Cascade)
+  therapist      Therapist @relation("TherapistToGoal", fields: [therapist_id], references: [id])
+
+  @@index([therapist_id, client_user_id, status])
 }
 
 /// OKUVU v2.0: scheduler source for homework/tool-practice reminders.
@@ -1060,6 +1118,7 @@ model ToolRegistryEntry {
   homeworks     Homework[]
   preferences   UserToolPreference[]
   worksheet_responses WorksheetResponse[] @relation("WorksheetToResponse")
+  exercise_set_items ExerciseSetItem[]
 
   @@index([kind, status, section, sort_order])
 }

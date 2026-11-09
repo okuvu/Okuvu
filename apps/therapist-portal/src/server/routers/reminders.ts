@@ -56,7 +56,10 @@ export const remindersRouter = router({
   listTools: therapistProcedure.query(async ({ ctx }) => {
     const db = ctx.db;
     const tools = await db.toolRegistryEntry.findMany({
-      where: { kind: 'exercise', status: { not: 'retired' } },
+      // Approved only (Step 8): this list feeds the "link an exercise" select on
+      // the assignment form, so it must not offer a row the assign call would
+      // refuse. `retired` was the old bound; a draft is just as unassignable.
+      where: { kind: 'exercise', status: 'approved' },
       orderBy: { label: 'asc' },
     });
     return tools.map((t) => ({ toolId: t.tool_id, label: t.label, chatGuidable: t.chat_guidable }));

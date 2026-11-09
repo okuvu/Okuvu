@@ -44,6 +44,34 @@ export default function ClientNotesPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Step 8 — working goals. Kept next to the Clinical Reasoning note because
+  // that is where they come from: the reasoning note is prose, and an assignment
+  // needs one short, stable thing to point at.
+  const [goalText, setGoalText] = useState('');
+
+  const goalsQuery = trpc.goals.list.useQuery({ clientId }, { enabled: Boolean(clientId) });
+
+  const addGoal = trpc.goals.add.useMutation({
+    onSuccess: async () => {
+      setGoalText('');
+      await goalsQuery.refetch();
+    },
+    onError: (err) => {
+      setErrorMessage(err.message || 'Could not save the goal.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    },
+  });
+
+  const setGoalStatus = trpc.goals.setStatus.useMutation({
+    onSuccess: async () => {
+      await goalsQuery.refetch();
+    },
+    onError: (err) => {
+      setErrorMessage(err.message || 'Could not update the goal.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    },
+  });
+
   const notesQuery = trpc.notes.listNotes.useQuery(
     { clientId },
     { enabled: Boolean(clientId) },
@@ -99,6 +127,75 @@ export default function ClientNotesPage() {
           </div>
 
           <TabStrip clientId={clientId} active="notes" />
+
+          {/* Working goals */}
+          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">
+              WORKING GOALS
+            </h2>
+            <p className="text-xs text-gray-500">
+              Short goals you can link an assignment to. Your client never sees this list.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!goalText.trim() || !clientId) return;
+                addGoal.mutate({ clientUserId: clientId, text: goalText.trim() });
+              }}
+              className="mt-3 flex gap-2"
+            >
+              <input
+                value={goalText}
+                onChange={(e) => setGoalText(e.target.value)}
+                maxLength={300}
+                placeholder="e.g. say no to one extra shift a week"
+                aria-label="New working goal"
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+              />
+              <button
+                type="submit"
+                disabled={addGoal.isPending || !goalText.trim()}
+                className="rounded-lg border border-violet px-3 py-2 text-xs font-medium text-royal-purple hover:bg-lavender-wash disabled:opacity-60"
+              >
+                {addGoal.isPending ? 'Saving...' : 'Add goal'}
+              </button>
+            </form>
+
+            <div className="mt-3 space-y-1">
+              {(goalsQuery.data ?? []).length === 0 && (
+                <p className="text-xs italic text-gray-500">No goals yet.</p>
+              )}
+              {(goalsQuery.data ?? []).map((goal) => (
+                <div
+                  key={goal.id}
+                  className="flex items-start justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"
+                >
+                  <p
+                    className={`text-sm ${
+                      goal.status === 'active' ? 'text-gray-800' : 'text-gray-500 line-through'
+                    }`}
+                  >
+                    {goal.text}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGoalStatus.mutate({
+                        goalId: goal.id,
+                        clientId,
+                        status: goal.status === 'active' ? 'achieved' : 'active',
+                      })
+                    }
+                    disabled={setGoalStatus.isPending}
+                    className="shrink-0 text-[11px] text-royal-purple hover:underline disabled:opacity-60"
+                  >
+                    {goal.status === 'active' ? 'Mark achieved' : 'Reopen'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Privacy notice */}
           <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">

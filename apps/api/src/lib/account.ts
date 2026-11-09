@@ -38,6 +38,9 @@ export const SUBJECT_TABLES = [
   'safetyFlag',
   'clinicalConfig',
   'therapistNote',
+  // Working goals (Step 8). Therapist-authored, but they name the subject and
+  // carry clinical intent; erased with the therapist's other notes.
+  'clientGoal',
   'clinicalAccessLog',
   // The client inbox. Before the rows it refers to, though the ids are plain
   // strings rather than FKs — order here is about intent, not constraints.
@@ -198,6 +201,13 @@ export async function deleteAccount(
       record(
         'therapistNote',
         await tx.therapistNote.deleteMany({ where: { client_user_id: user.id } }),
+      );
+      // Working goals (Step 8): the therapist's own words about this person. They
+      // name the client and carry clinical intent, so they go with the rest of
+      // the therapist-authored record rather than surviving an erasure request.
+      record(
+        'clientGoal',
+        await tx.clientGoal.deleteMany({ where: { client_user_id: user.id } }),
       );
       record(
         'clinicalAccessLog',

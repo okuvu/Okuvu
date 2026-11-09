@@ -62,9 +62,10 @@ const APPOINTMENT_KINDS = new Set([
  * filtered.
  *
  * Appointment kinds keep their own existing copy (the session time is logistics,
- * not clinical) but are now behind the same preference gate and the same
- * one-a-day cap, because "no more than one email per client per day" is a
- * promise about the client's inbox, not about one code path.
+ * not clinical). They are exempt from the one-a-day cap and from the update
+ * preference: a cancellation that failed the cap would be a client turning up
+ * for a session that is not happening, so those always send. Their own switch
+ * (`appointment_reminders_enabled`) still gates them.
  */
 const UPDATE_EMAIL_KINDS = new Set(['homework_assigned', 'treasure_note_waiting']);
 
@@ -210,27 +211,38 @@ async function write(
   // a client who paused email, and a client who already had today's message all
   // stop here — the Updates list still shows every one of them.
   if (!EMAILABLE_KINDS.has(draft.kind)) return;
+
+  // Appointment mail is exempt from the "Something new in OKUVU" preference and
+  // from the one-a-day cap (owner's Step 8 correction). A confirmation, a
+  // reschedule or a cancellation is logistics the client has to act on: a
+  // cancellation that silently failed the cap is a client standing outside a
+  // locked door. The appointment switch above still gates it, and that is the
+  // switch Settings shows for these rows.
+  if (!UPDATE_EMAIL_KINDS.has(draft.kind)) {
+    try {
+      await sendClientNotificationEmail({
+        to: recipient.email,
+        kind: draft.kind,
+        scheduledAt: options.scheduledAt ?? null,
+      });
+    } catch (err) {
+      console.error(`[NOTIFY] ${draft.kind} email could not be sent for user ${userId}`, err);
+    }
+    return;
+  }
+
   if (!recipient.update_emails_enabled) return;
   if (!(await claimDailyEmail(db, userId))) return;
 
   try {
-    if (UPDATE_EMAIL_KINDS.has(draft.kind)) {
-      const token = await ensurePauseToken(db, userId, recipient.email_update_token);
-      if (!token) {
-        // Without a working pause link the mail would make a promise it cannot
-        // keep, so it is not sent at all. The inbox row is unaffected.
-        console.error(`[NOTIFY] no pause token for user ${userId} — update email not sent`);
-        return;
-      }
-      await sendClientUpdateEmail({ to: recipient.email, pauseUrl: pauseUrlFor(token) });
+    const token = await ensurePauseToken(db, userId, recipient.email_update_token);
+    if (!token) {
+      // Without a working pause link the mail would make a promise it cannot
+      // keep, so it is not sent at all. The inbox row is unaffected.
+      console.error(`[NOTIFY] no pause token for user ${userId} — update email not sent`);
       return;
     }
-
-    await sendClientNotificationEmail({
-      to: recipient.email,
-      kind: draft.kind,
-      scheduledAt: options.scheduledAt ?? null,
-    });
+    await sendClientUpdateEmail({ to: recipient.email, pauseUrl: pauseUrlFor(token) });
   } catch (err) {
     console.error(`[NOTIFY] ${draft.kind} email could not be sent for user ${userId}`, err);
   }

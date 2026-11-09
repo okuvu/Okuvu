@@ -153,6 +153,38 @@ describe('GET /library/:toolId', () => {
     expect((res.json() as any).error.code).toBe('NOT_ASSIGNED');
   });
 
+  it('gives the client the therapist\'s personal line, and only that line', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_thought_record') as any,
+    );
+    // The assignment carries both a personal line and a private note. The route
+    // must return the first and never the second, so the mock deliberately
+    // returns both columns the way Prisma would if asked for them.
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue({
+      id: 'h1',
+      personal_note: 'for when the 9am standup starts',
+      therapist_private_note: 'froze at the review — chosen for that',
+    } as any);
+
+    const res = await app.inject({ method: 'GET', url: '/library/ws_thought_record?feelingNow=4' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as any;
+    expect(body.personalNote).toBe('for when the 9am standup starts');
+    expect(res.body).not.toContain('froze at the review');
+    expect(res.body).not.toContain('therapist_private_note');
+  });
+
+  it('answers with no personal line for an exercise the client was never assigned', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(rowFor('ws_energy_audit') as any);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null as any);
+
+    const res = await app.inject({ method: 'GET', url: '/library/ws_energy_audit' });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as any).personalNote).toBeNull();
+  });
+
   it('opens an assigned worksheet once it is assigned', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(

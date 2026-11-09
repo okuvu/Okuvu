@@ -24,7 +24,9 @@ function buildPrisma(overrides: { homeworkRows?: unknown[]; toolExists?: boolean
     },
     toolRegistryEntry: {
       findUnique: vi.fn().mockResolvedValue(
-        overrides.toolExists === false ? null : { tool_id: 'box_breathing' },
+        overrides.toolExists === false
+          ? null
+          : { tool_id: 'box_breathing', label: 'Box breathing', status: 'approved', kind: 'exercise' },
       ),
     },
     // Added with the client-notification work: homework.assign now also writes
