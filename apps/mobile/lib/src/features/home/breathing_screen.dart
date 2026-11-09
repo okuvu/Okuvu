@@ -24,7 +24,13 @@ import 'providers/today_card_provider.dart';
 /// The (i) beside the chooser opens the written explanation for whichever
 /// technique is showing — Dr Goswami's copy, in `breathing_content.dart`.
 class BreathingScreen extends ConsumerStatefulWidget {
-  const BreathingScreen({super.key});
+  const BreathingScreen({super.key, this.initialToolId});
+
+  /// Which exercise to open on. A homework assignment naming a technique has to
+  /// land on that technique — tapping "Box Breathing" on a humming-breath
+  /// assignment and getting the box player would be a wrong exercise, not a
+  /// wrong label. Null keeps the screen's historical default.
+  final String? initialToolId;
 
   @override
   ConsumerState<BreathingScreen> createState() => _BreathingScreenState();
@@ -33,7 +39,17 @@ class BreathingScreen extends ConsumerStatefulWidget {
 const _defaultToolId = 'box_breathing';
 
 class _BreathingScreenState extends ConsumerState<BreathingScreen> {
-  String _activeToolId = _defaultToolId;
+  late String _activeToolId = _initialToolId(widget.initialToolId);
+
+  /// Only a technique the built-in player knows how to draw is honoured. The
+  /// dropdown's items are built from `breathingTechniques`, and a value that is
+  /// not among them asserts at build time.
+  static String _initialToolId(String? requested) {
+    if (requested != null && breathingTechniqueFor(requested) != null) {
+      return requested;
+    }
+    return _defaultToolId;
+  }
 
   @override
   Widget build(BuildContext context) {

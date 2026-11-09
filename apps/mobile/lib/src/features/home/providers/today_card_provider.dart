@@ -187,7 +187,12 @@ class HomeworkCompleteNotifier extends Notifier<void> {
   Future<bool> markComplete(String homeworkId) async {
     final dio = ref.read(dioClientProvider);
     try {
-      await dio.post('/users/me/homework/$homeworkId/complete');
+      // An explicit empty body, not `null`: dio otherwise posts with
+      // `Content-Type: application/json` and no content, which Fastify rejects
+      // with 400 "Body cannot be empty" before the route runs. The server now
+      // tolerates it too (apps/api/src/app.ts), but sending `{}` means an older
+      // or differently-configured api still answers rather than 400-ing.
+      await dio.post('/users/me/homework/$homeworkId/complete', data: const <String, dynamic>{});
       ref.invalidate(todayCardProvider);
       return true;
     } catch (_) {
