@@ -62,6 +62,33 @@ export function buildApp() {
 
   app.setErrorHandler(errorHandler);
 
+  // A body-less command POST that still declares `Content-Type:
+  // application/json` is legitimate — the Flutter client sends exactly that for
+  // `POST /users/me/homework/:id/complete`, and Fastify's default JSON parser
+  // rejects it with "Body cannot be empty when content-type is set to
+  // 'application/json'" (400) before the route handler ever runs. Read an empty
+  // body as `{}` and let each route's own schema reject calls that genuinely
+  // needed fields.
+  app.addContentTypeParser<string>(
+    'application/json',
+    { parseAs: 'string' },
+    (_request, body, done) => {
+      if (body === '' || body === undefined || body === null) {
+        done(null, {});
+        return;
+      }
+      try {
+        done(null, JSON.parse(body));
+      } catch {
+        const parseError = new Error('Request body is not valid JSON.') as Error & {
+          statusCode: number;
+        };
+        parseError.statusCode = 400;
+        done(parseError);
+      }
+    },
+  );
+
   app.register(registerRoutes);
 
   return app;
