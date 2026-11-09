@@ -74,6 +74,17 @@
 
 ## To make it live — in this order
 
+0. **Know this about the pipeline first.** The last trunk build
+   (`12236bc`, started 17:04 UTC on 9 Nov) is marked **FAILED** even though all
+   three services rolled onto it and reported healthy at 17:16. The failure was
+   the image security gate: the ECR scan for the portal image had not appeared
+   yet (`ScanNotFoundException`), so the gate failed closed at 17:11 — and
+   `post_build` then ran `prisma migrate deploy` and rolled all three services
+   anyway. CodeBuild runs later phases after a failed one, and `post_build` only
+   checks `RUN_MIGRATIONS`, so that gate cannot by itself stop a rollout.
+   Either add a "bail out if the build phase failed" guard to `post_build`, or
+   treat the security gate as advisory and watch it by eye. Do not read a red
+   build as "nothing deployed" — for this trunk, it deployed.
 1. **Back up the live database first.** Take an RDS snapshot and confirm it
    finished; additionally `pg_dump` the schema and data to a file you can reach
    without the cluster, and check the dump restores into a scratch database.

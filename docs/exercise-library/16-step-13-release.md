@@ -194,6 +194,12 @@ That is the live change, and it is deliberately left for the owner.
 
 ## 7. Left for the owner / later
 
+* **The deploy pipeline's security gate does not stop a rollout.** The build for
+  the current trunk (`12236bc`) failed the gate at 17:11 (ECR scan not yet
+  available) and `post_build` still ran `prisma migrate deploy` and rolled all
+  three services at 17:16 — CodeBuild continues to later phases after a failed
+  one. Recorded here because the release note's "push = deploy" claim has to be
+  read with that in mind.
 * Apply the eight new migrations and deploy — after a backup (see the release
   note for the order).
 * The 15 future worksheets (placeholders), the Hinglish versions (written,
