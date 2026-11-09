@@ -33,9 +33,11 @@ export const homeworkRouter = router({
       if (input.toolId) {
         const tool = await db.toolRegistryEntry.findUnique({
           where: { tool_id: input.toolId },
-          select: { tool_id: true },
+          select: { tool_id: true, status: true },
         });
-        if (!tool) {
+        // Retired exercises stay in the registry so old rows resolve, but a new
+        // assignment must not point at one (e.g. guided_breathing).
+        if (!tool || tool.status === 'retired') {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Tool not found' });
         }
       }

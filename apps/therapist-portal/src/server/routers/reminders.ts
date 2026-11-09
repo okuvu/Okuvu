@@ -48,9 +48,17 @@ export const remindersRouter = router({
 
   // Static reference data (the shared ToolRegistryEntry table) — no
   // per-client gating needed, but still therapist-only.
+  //
+  // Filtered to kind='exercise' and not retired: the registry now also holds
+  // worksheet catalogue entries and `guided_breathing` (withdrawn in clinical
+  // review v2.0.0, kept only so old links resolve). Neither is something a
+  // therapist can attach to a practice reminder.
   listTools: therapistProcedure.query(async ({ ctx }) => {
     const db = ctx.db;
-    const tools = await db.toolRegistryEntry.findMany({ orderBy: { label: 'asc' } });
+    const tools = await db.toolRegistryEntry.findMany({
+      where: { kind: 'exercise', status: { not: 'retired' } },
+      orderBy: { label: 'asc' },
+    });
     return tools.map((t) => ({ toolId: t.tool_id, label: t.label, chatGuidable: t.chat_guidable }));
   }),
 
@@ -84,9 +92,9 @@ export const remindersRouter = router({
       if (input.toolId) {
         const tool = await db.toolRegistryEntry.findUnique({
           where: { tool_id: input.toolId },
-          select: { tool_id: true },
+          select: { tool_id: true, status: true },
         });
-        if (!tool) {
+        if (!tool || tool.status === 'retired') {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Tool not found' });
         }
       }

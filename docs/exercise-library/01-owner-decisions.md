@@ -98,7 +98,25 @@ which becomes false once the safety pass lands.
 
 ## 10. Still owed by the owner
 
-1. The approved worksheet PDF, as a file on this host (re-attach or give a path).
+1. The approved worksheet document **as a complete file**. Re-attached on 9 Nov
+   (`DOC-20261109-WA0028..md`) but again only excerpts reached this host's disk;
+   see `02-approved-worksheet-copy.md` for exactly what arrived. Step 2 needs the
+   full text (all 16 worksheets' titles, intros, prompts and option lists).
 2. Disk: ~3 GB to be freed before Step 13 by the owner. Current free space is
    reported in every step; 977 MB on 9 Nov.
-3. The numbered steps themselves, starting at Step 1.
+3. ~~The numbered steps themselves, starting at Step 1.~~ Step 1 received and
+   done — see `03-step-01-storage.md`.
+
+## 11. Addendum — 9 Nov 2026, after the decisions were recorded
+
+- **Push notifications (for later).** When push is added, the homework
+  notification must not show any of the therapist's assignment text, because it
+  can appear on the lock screen. Today the in-app `Notification.body` carries a
+  short excerpt of the therapist's description; that is acceptable on the
+  client's own screen, but the push payload must be a fixed generic line.
+  Recorded here so it is not lost; push does not exist yet and this branch adds
+  none.
+- **Approved document.** Received again as a file; saved as far as it arrived.
+  The four fragments are transcribed verbatim in
+  `02-approved-worksheet-copy.md`, which is marked incomplete on purpose.
+

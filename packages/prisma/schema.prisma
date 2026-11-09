@@ -91,6 +91,9 @@ model User {
   invite_tokens       InviteToken[]
   tool_preferences    UserToolPreference[]
   safety_flags        SafetyFlag[]
+  worksheet_responses WorksheetResponse[] @relation("ClientToWorksheetResponse")
+  treasure_collections TreasureCollection[] @relation("ClientToTreasureCollection")
+  treasure_notes      TreasureNote[]      @relation("ClientToTreasureNote")
 }
 
 /// The single global counter behind `User.client_code`'s four-digit serial.
@@ -186,10 +189,19 @@ model SafetyFlag {
   /// one turn produces at most one flag, so a retried insert cannot
   /// double-count a single crisis as two events.
   turn_id                   String?         @unique
+  /// Non-chat writes that must go through the same check (journal entry,
+  /// worksheet answer, Treasure Box note) have no Turn row, so they record the
+  /// content they came from here. TEXT ONLY — never the content itself: the
+  /// flag exists to tell the therapist an event happened and which screen the
+  /// client was on, exactly as it does for chat. Unique per subject so a
+  /// retried write cannot double-count one crisis; subject_id is null for chat.
+  subject_kind              String?
+  subject_id                String?
   acknowledged_at           DateTime?
   acknowledged_by_therapist_id String?
   user                      User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@unique([subject_kind, subject_id])
   @@index([user_id, occurred_at])
   @@index([user_id, acknowledged_at])
 }
@@ -406,6 +418,24 @@ model Homework {
   therapist_id   String
   description    String
   tool_id        String?
+  /// --- Worksheet assignment fields (Step 1, exercise library work) ---
+  /// A worksheet assignment IS a Homework row: it is assigned from the same
+  /// portal form, announced by the same Notification, and read by the same
+  /// Today card, so it must not get a parallel assignment table. All five are
+  /// null for plain-text and exercise homework.
+  /// The therapist's personal line, shown to the client above the worksheet.
+  personal_note  String?
+  /// 'once' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed' —
+  /// same vocabulary as Reminder.frequency, so one vocabulary for schedules.
+  frequency      String?
+  due_at         DateTime?
+  /// "HH:mm" in IST, for the reminder that will be delivered once a sender
+  /// exists. Stored as the time of day rather than a timestamp so it does not
+  /// expire; nothing reads it yet (no scheduler — owner's decision, 9 Nov).
+  reminder_time  String?
+  /// Free-text therapy goal this assignment serves. No goal table exists
+  /// (CarePlan is a coarse enum), so this is the therapist's own label.
+  therapy_goal   String?
   status         HomeworkStatus      @default(active)
   assigned_at    DateTime            @default(now())
   updated_at     DateTime            @updatedAt
@@ -413,6 +443,7 @@ model Homework {
   therapist      Therapist           @relation("TherapistToHomework", fields: [therapist_id], references: [id])
   tool           ToolRegistryEntry?  @relation(fields: [tool_id], references: [tool_id])
   reminders      Reminder[]
+  worksheet_responses WorksheetResponse[]
 
   @@index([client_user_id, status, assigned_at(sort: Desc)])
 }
@@ -680,6 +711,122 @@ model JournalEntry {
   @@index([user_id, created_at(sort: Desc)])
 }
 
+/// A completed worksheet. One row per filling-in, not per worksheet — a client
+/// may fill the same worksheet again on another day, and an assignment may
+/// legitimately be repeated.
+///
+/// Privacy by construction: there is NO therapist column here. The therapist
+/// can only reach a response through (a) `shared_with_therapist = true` AND
+/// (b) a live TherapistClient link to this user. Nothing copies a response to a
+/// per-therapist row, so revoking the share (setting the boolean false, clearing
+/// shared_at) removes it from every therapist's view in the same statement.
+///
+/// `safety_flagged` is the durable record that the mandated check ran and fired;
+/// the text it fired on is never duplicated here, and the corresponding
+/// SafetyFlag row carries the event the therapist is told about, with no content.
+model WorksheetResponse {
+  id             String   @id @default(uuid())
+  user_id        String
+  /// The worksheet catalogue entry (ToolRegistryEntry.tool_id, kind='worksheet').
+  worksheet_id   String
+  /// The assignment this answers, when it came from one. Null for a
+  /// self-serve worksheet. Kept on delete so a client's writing survives a
+  /// therapist tidying their homework list.
+  homework_id    String?
+  /// Answers keyed by the field ids in the approved content JSON. Free text
+  /// lives in here; it is client-authored and always safety-checked on write.
+  answers        Json
+  /// Optional self-report around the exercise, 1-5. Not a scored instrument
+  /// and never labelled as one.
+  feeling_before Int?
+  feeling_after  Int?
+  /// Optional free text: "what got in the way" / "whether it helped".
+  barriers       String?
+  helped         Boolean?
+  /// Did the safety check flag any text in `answers`? Recorded, no content.
+  safety_flagged Boolean  @default(false)
+  /// 'S3' | 'S4' when flagged; the level chat uses, same card is shown.
+  safety_level   String?
+  /// 'en' | 'hi' — which of content_en/content_hi was filled in.
+  language       String   @default("en")
+  /// Per-item share (owner decision 6, 9 Nov 2026). Never inferred from
+  /// chat access. Default false: not shared unless the client says so.
+  shared_with_therapist Boolean @default(false)
+  shared_at      DateTime?
+  /// Set when the client stops sharing. Kept for the audit trail; visibility
+  /// is the boolean, so un-sharing takes effect immediately.
+  unshared_at    DateTime?
+  completed_at   DateTime @default(now())
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  user           User     @relation("ClientToWorksheetResponse", fields: [user_id], references: [id], onDelete: Cascade)
+  worksheet      ToolRegistryEntry @relation("WorksheetToResponse", fields: [worksheet_id], references: [tool_id])
+  homework       Homework? @relation(fields: [homework_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, completed_at(sort: Desc)])
+  @@index([user_id, shared_with_therapist])
+  @@index([worksheet_id])
+}
+
+/// One "Open when..." collection. The four starting collections are rows owned
+/// by the client (`system_key` names them so copy can be translated and so they
+/// cannot be duplicated by a retry); clients can add their own, which have a
+/// null system_key and a name they chose.
+model TreasureCollection {
+  id         String   @id @default(uuid())
+  user_id    String
+  name       String
+  /// 'anxious' | 'low' | 'overwhelmed' | 'win' for the four seeded ones.
+  system_key String?
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  user       User     @relation("ClientToTreasureCollection", fields: [user_id], references: [id], onDelete: Cascade)
+  notes      TreasureNote[]
+
+  @@unique([user_id, system_key])
+  @@index([user_id, sort_order])
+}
+
+/// A Treasure Box note: something worth keeping, written by the client or sent
+/// by the therapist. `body` is client-visible text; every write is safety
+/// checked the same way chat is (owner decision 3).
+///
+/// Privacy by construction mirrors WorksheetResponse: no therapist column. A
+/// note reaches a therapist only through shared_with_therapist AND a live
+/// TherapistClient link, and un-sharing clears it from view immediately.
+model TreasureNote {
+  id         String   @id @default(uuid())
+  user_id    String
+  title      String?
+  body       String
+  /// 'self' | 'therapist' | 'worksheet' | 'journal' | 'chat' — where it came
+  /// from. `source_ref` points at the originating row (journal entry id,
+  /// worksheet response id, chat turn id...) without a polymorphic FK, because
+  /// those tables are allowed to be deleted while the kept note survives.
+  source     String   @default("self")
+  source_ref String?
+  collection_id String?
+  tags       String[] @default([])
+  pinned     Boolean  @default(false)
+  /// Per-item share (owner decision 6). Default false.
+  shared_with_therapist Boolean @default(false)
+  shared_at  DateTime?
+  unshared_at DateTime?
+  /// Recorded when the safety check fired on this note's text; no content.
+  safety_flagged Boolean @default(false)
+  safety_level String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  user       User     @relation("ClientToTreasureNote", fields: [user_id], references: [id], onDelete: Cascade)
+  collection TreasureCollection? @relation(fields: [collection_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, collection_id])
+  @@index([user_id, shared_with_therapist])
+  @@index([user_id, pinned])
+}
+
 enum SummaryStatus {
   PENDING
   COMPLETED
@@ -708,14 +855,61 @@ enum LanguageMode {
 /// reminders workstream) and on Homework (§5).
 model ToolRegistryEntry {
   id            String     @id @default(uuid())
+  /// Natural key. Exercises keep their original ids (`grounding_5431`, ...).
+  /// Worksheets are namespaced `ws_<slug>` so the two can never collide.
   tool_id       String     @unique
   label         String
   text          String
   chat_guidable Boolean    @default(true)
+  /// 'exercise' | 'worksheet'. The Library is ONE catalogue: the approved
+  /// exercises and the worksheets live in this table rather than in a second
+  /// list, so "nothing duplicated" holds at the data layer, and an assignment
+  /// (Homework.tool_id) points at either kind without a polymorphic join.
+  kind          String     @default("exercise")
+  /// --- Worksheet catalogue fields. Null for exercises. ---
+  /// Short one-line description shown under the title (and its Hinglish
+  /// twin). `label`/`text` stay the exercise copy columns; a worksheet stores
+  /// its body in `content_en`/`content_hi` as structured JSON (intro, fields,
+  /// closing) so the client renders approved wording rather than parsing prose.
+  summary       String?
+  summary_hi    String?
+  label_hi      String?
+  /// Library section key: notice_and_name | calm_my_body |
+  /// untangle_thoughts | do_what_matters | people_boundaries | be_kinder |
+  /// energy_life | before_after | safety.
+  section       String?
+  /// Which therapy it comes from (CBT, ACT, DBT, ...). Therapists only — never
+  /// serialized to a client response. The API layer enforces that; this column
+  /// is simply where it lives.
+  therapy_modality String?
+  /// Who can open it: 'open' (anyone), 'assigned' (only after the therapist
+  /// assigns it), 'in_session' (filled in together during a session).
+  access_mode   String     @default("open")
+  /// 'light' | 'demanding'. Drives the high-load gate (intensity above 5/10).
+  load_level    String?
+  est_minutes   Int?
+  /// Approved worksheet body, structured. Shape is owned by
+  /// packages/shared-types (added in the copy step); stored as JSON so the
+  /// approved wording is data, not code.
+  content_en    Json?
+  content_hi    Json?
+  /// 'draft' | 'approved' | 'retired'. Default draft on purpose: a worksheet
+  /// that is inserted without an explicit status must never reach a client.
+  /// Client queries filter kind='worksheet' AND status='approved'.
+  /// Exercises are 'approved'; `guided_breathing` is 'retired' (clinical review
+  /// v2.0.0) so it disappears from the Library without deleting the row that
+  /// old Homework/Reminder links still reference.
+  status        String     @default("draft")
+  approved_at   DateTime?
+  sort_order    Int        @default(0)
   created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
   reminders     Reminder[]
   homeworks     Homework[]
   preferences   UserToolPreference[]
+  worksheet_responses WorksheetResponse[] @relation("WorksheetToResponse")
+
+  @@index([kind, status, section, sort_order])
 }
 
 /// OKUVU v2.0: a client's chosen pace preset for one approved exercise —

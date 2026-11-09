@@ -42,6 +42,13 @@ export const SUBJECT_TABLES = [
   // The client inbox. Before the rows it refers to, though the ids are plain
   // strings rather than FKs — order here is about intent, not constraints.
   'notification',
+  // Library work (Step 1). Worksheet responses and Treasure notes are the
+  // client's own writing; they go before `homework` because a response holds a
+  // nullable FK to the assignment (ON DELETE SET NULL) and before
+  // `treasureCollection`, which a note points at.
+  'worksheetResponse',
+  'treasureNote',
+  'treasureCollection',
   'appointment',
   'inviteToken',
   'therapistClient',
@@ -183,6 +190,22 @@ export async function deleteAccount(
       record(
         'notification',
         await tx.notification.deleteMany({ where: { user_id: user.id } }),
+      );
+      // Library work (Step 1): a completed worksheet and a Treasure note are
+      // the client's own writing, and a response may point at a homework row
+      // (ON DELETE SET NULL), so both go before `homework`. Collections go last
+      // of the three because notes point at them.
+      record(
+        'worksheetResponse',
+        await tx.worksheetResponse.deleteMany({ where: { user_id: user.id } }),
+      );
+      record(
+        'treasureNote',
+        await tx.treasureNote.deleteMany({ where: { user_id: user.id } }),
+      );
+      record(
+        'treasureCollection',
+        await tx.treasureCollection.deleteMany({ where: { user_id: user.id } }),
       );
       record(
         'appointment',
