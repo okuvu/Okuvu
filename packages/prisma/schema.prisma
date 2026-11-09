@@ -64,9 +64,11 @@ model User {
   /// a small placeholder list per care plan (apps/api's quote-of-day.ts) —
   /// swap for a real source once one is decided; the toggle/plumbing is real.
   quote_of_day_enabled Boolean            @default(false)
-  /// Settings > Notifications toggles. Inert booleans, same shape as
-  /// quote_of_day_enabled/voice_mode_enabled — no push/FCM delivery exists
-  /// yet (see okuvu-remaining-changes.md), this is preference-capture only.
+  /// Settings > Notifications toggles. `appointment_reminders_enabled` is read
+  /// at write time by the therapist portal: it gates appointment notification
+  /// rows *and* the email that hangs off them, so one switch covers both
+  /// surfaces. `chat_nudges_enabled` is still preference-capture only — nothing
+  /// reads it, because nothing nudges yet.
   appointment_reminders_enabled Boolean   @default(true)
   chat_nudges_enabled Boolean             @default(true)
   clinical_config     ClinicalConfig?
@@ -495,10 +497,12 @@ model Appointment {
 /// the app's bell, unread badge and inbox list.
 ///
 /// One record, several possible readers: the bell and the list read this table,
-/// and any future delivery channel (push via FCM, email, SMS) is a sender
-/// hanging off the same row — never a parallel pipeline with its own state.
-/// Nothing delivers these yet: `GET /users/me/notifications` is still a pull,
-/// which is why a client only sees new items once they open the app.
+/// and any delivery channel hangs off the same row — never a parallel pipeline
+/// with its own state. Email is the first such sender: the therapist portal's
+/// `server/notifications.ts` sends it right after this row is committed, with
+/// logistics-only copy (no homework or reminder text), gated by the same
+/// appointment-reminders toggle. Push (FCM) does not exist yet, so opening the
+/// app is still the only way to see an item if email is missed or fails.
 ///
 /// `title`/`body` are authored server-side at write time and stored, not
 /// derived on read, so the wording a client saw in their inbox does not change

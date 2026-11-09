@@ -15,6 +15,13 @@ import { identityRef, redactEmails } from '@/lib/log-identity';
 
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 
+/**
+ * How long a send may hold the therapist's request open. Client-notification
+ * email is sent inside the mutation that writes the inbox row, so a Brevo
+ * connection that never answers must give up rather than pin a form submit.
+ */
+const EMAIL_SEND_TIMEOUT_MS = 5_000;
+
 export interface SendInviteEmailParams {
   to: string;
   therapistName: string;
@@ -373,6 +380,189 @@ export async function sendAdminTesterRequestEmail(
     return { sent: true };
   } catch (err) {
     console.error('[email] Brevo tester-request send threw', err);
+    return { sent: false };
+  }
+}
+
+/**
+ * The delivery half of the client inbox.
+ *
+ * Every therapist action (homework assigned, reminder set, appointment booked /
+ * moved / cancelled) writes a `Notification` row in the same request. That row
+ * is the single source of truth the app's bell and inbox read. This sender hangs
+ * off the same row: it is not a second pipeline, and it carries no state of its
+ * own — if it fails, the row still exists and the client still finds the item
+ * when they open the app.
+ *
+ * Why email and not push yet: push needs a Firebase project, device tokens and
+ * an FCM sender, none of which exist. Email does not buzz a pocket, but it does
+ * reach a client who does not open the app, and every client the portal
+ * registers has an address because email became the sign-in identity.
+ *
+ * ## What it may carry, and nothing else
+ *
+ * The inbox row legitimately contains clinical text — the homework body is an
+ * excerpt of the therapist's note. Email does not get that text. A phone sits
+ * face up on a shared table and an inbox preview is read by whoever is nearest.
+ * So this payload is logistics only: a generic "something new", or for an
+ * appointment the date and time. No homework text, no reminder text, no
+ * therapist name, no session mode or reason.
+ *
+ * There is also no link. Clients redeem and use Okuvu inside the Android app;
+ * there is no authenticated web surface to deep-link into, and minting a token
+ * in a URL would put a credential in a mailbox.
+ */
+export interface ClientNotificationEmailContext {
+  /** `Notification.kind`. Unknown values degrade to the generic wording. */
+  kind: string;
+  /** Appointment kinds only: the session time the copy refers to. */
+  scheduledAt?: Date | null;
+}
+
+export interface SendClientNotificationEmailParams extends ClientNotificationEmailContext {
+  /** The client's Google address — the identity their sign-in binds to. */
+  to: string;
+}
+
+export interface ClientNotificationEmailCopy {
+  subject: string;
+  htmlContent: string;
+}
+
+const IST = 'Asia/Kolkata';
+
+/** A date and time a client in India reads without translating. */
+export function formatSessionTime(at: Date): string {
+  const day = at.toLocaleDateString('en-IN', {
+    timeZone: IST,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  const time = at.toLocaleTimeString('en-IN', {
+    timeZone: IST,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  // en-IN renders "Sat, 7 Nov"; the comma is noise inside a sentence.
+  return `${day.replace(',', '')}, ${time} IST`;
+}
+
+const GENERIC_SUBJECT = 'Something new from your care team';
+const GENERIC_BODY =
+  "There's something new for you in Okuvu. Open the app to see it.";
+
+/**
+ * Pure copy builder, exported so the tests can pin the wording without a
+ * network call. Anything that varies by client or by clinical content must not
+ * appear here — see the disclosure note above.
+ */
+export function buildClientNotificationEmailCopy(
+  params: ClientNotificationEmailContext,
+): ClientNotificationEmailCopy {
+  const when =
+    params.scheduledAt instanceof Date && !Number.isNaN(params.scheduledAt.getTime())
+      ? formatSessionTime(params.scheduledAt)
+      : null;
+
+  let subject = GENERIC_SUBJECT;
+  let line = GENERIC_BODY;
+
+  switch (params.kind) {
+    case 'appointment_booked':
+      subject = 'Your session on Okuvu is confirmed';
+      line = when
+        ? `Your session is on ${when}. Open Okuvu for the details.`
+        : 'Your session is confirmed. Open Okuvu for the details.';
+      break;
+    case 'appointment_rescheduled':
+      subject = 'Your session on Okuvu has moved';
+      line = when
+        ? `Your session is now on ${when}. Open Okuvu for the details.`
+        : 'Your session has been moved. Open Okuvu for the new time.';
+      break;
+    case 'appointment_cancelled':
+      subject = 'Your session on Okuvu was cancelled';
+      line = when
+        ? `Your session on ${when} has been cancelled. Open Okuvu for the details.`
+        : 'Your session has been cancelled. Open Okuvu for the details.';
+      break;
+    default:
+      // homework_assigned, reminder_set, and any kind added later without its
+      // own wording: generic by design, never "fall through to the inbox body".
+      break;
+  }
+
+  const htmlContent = `
+    <p>Hi,</p>
+    <p>${escapeHtml(line)}</p>
+    <p>You are getting this because your therapist uses Okuvu. Reply to this
+    address if you would rather not receive these emails.</p>
+    <p>Okuvu is not an emergency service. If you are in danger now, call 112.</p>
+  `;
+
+  return { subject, htmlContent };
+}
+
+/**
+ * Send one notification email. Never throws: the notification row is already
+ * written and the therapist's action is already committed, so a Brevo outage
+ * must not surface as a failed form.
+ *
+ * Bounded on purpose. The portal request that triggered this waits for it, so a
+ * hung Brevo connection would hold a therapist's "Assign homework" click open.
+ * The abort keeps the worst case to a few seconds instead of the socket default.
+ */
+export async function sendClientNotificationEmail(
+  params: SendClientNotificationEmailParams,
+): Promise<{ sent: boolean }> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
+  const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
+  const { subject, htmlContent } = buildClientNotificationEmailCopy(params);
+
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — skipping client notification email', {
+      toRef: identityRef('c', params.to),
+      kind: params.kind,
+    });
+    return { sent: false };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email: params.to }],
+        subject,
+        htmlContent,
+      }),
+      signal: AbortSignal.timeout(EMAIL_SEND_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('[email] Brevo client notification send failed', {
+        status: response.status,
+        kind: params.kind,
+        body: redactEmails(body).slice(0, 500),
+      });
+      return { sent: false };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Brevo client notification send threw', {
+      kind: params.kind,
+      err,
+    });
     return { sent: false };
   }
 }
