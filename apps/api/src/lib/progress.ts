@@ -11,6 +11,12 @@ export async function recordMoodCheckin(
   authSubject: string,
   moodValue: number,
   log?: { info: LogFn },
+  /**
+   * The two screens the approved document adds after the check-in. Both are
+   * optional: a client who only taps an emoji still gets a saved check-in, which
+   * is how the app worked before this step.
+   */
+  extra?: { trigger?: string | null; intensity?: number | null },
 ): Promise<MoodCheckinResult> {
   const user = await prisma.user.findUnique({
     where: { auth_subject: authSubject },
@@ -43,10 +49,14 @@ export async function recordMoodCheckin(
       mood_value: moodValue,
       date_ist: dateIstValue,
       source: 'user_input',
+      trigger_text: extra?.trigger ?? null,
+      intensity_0_10: extra?.intensity ?? null,
     },
     update: {
       mood_value: moodValue,
       source: 'user_input',
+      ...(extra?.trigger !== undefined ? { trigger_text: extra.trigger } : {}),
+      ...(extra?.intensity !== undefined ? { intensity_0_10: extra.intensity } : {}),
     },
   });
 

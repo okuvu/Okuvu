@@ -55,7 +55,7 @@ export const WORKSHEET_LOAD_LEVELS = ['light', 'demanding'] as const;
 export type WorksheetLoadLevel = (typeof WORKSHEET_LOAD_LEVELS)[number];
 
 /** Buttons a worksheet can end with. Copy comes from the content, not here. */
-export const WORKSHEET_CLOSING_ACTIONS = ['done', 'treasure_box'] as const;
+export const WORKSHEET_CLOSING_ACTIONS = ['done', 'treasure_box', 'get_help'] as const;
 export type WorksheetClosingAction = (typeof WORKSHEET_CLOSING_ACTIONS)[number];
 
 export const WORKSHEET_FIELD_TYPES = [
@@ -125,11 +125,23 @@ export interface WorksheetFieldBase {
    * (Homework.personal_note). Off by default; the human decides where it sits.
    */
   therapistNote?: boolean;
+  /**
+   * Framing the therapist needs and the client must never see: the question to
+   * ask in session, or why this piece exists. Stripped from every client view
+   * by `toClientWorksheetView`, so it cannot leak by being in the body.
+   */
+  therapistPrompt?: string;
   visibleWhen?: WorksheetBranch;
 }
 
 export interface InstructionField extends WorksheetFieldBase {
   type: 'instruction';
+  /**
+   * Render the client's own answers so far under this instruction. Used by the
+   * "Here's your plan." screen, which reads back screens 3 to 9 before a hard
+   * conversation. A read-back, never a summary written by a machine.
+   */
+  showAnswers?: boolean;
 }
 
 export interface ShortTextField extends WorksheetFieldBase {
@@ -174,6 +186,11 @@ export interface FeelingsPickerField extends WorksheetFieldBase {
   maxSelections?: number;
   /** When true the client also rates each picked feeling on 0-10. */
   withStrength?: boolean;
+  /**
+   * The question shown above the per-feeling sliders, when the approved copy
+   * gives one ("How strong is each one?"). Data, like every other prompt.
+   */
+  strengthPrompt?: string;
 }
 
 export interface ChecklistField extends WorksheetFieldBase {
@@ -275,16 +292,26 @@ export const WORKSHEET_LIMITS = {
 const FIELD_ID_RE = /^[a-z][a-z0-9_]{0,47}$/;
 
 /** Keys each field type is allowed to carry, on top of the shared ones. */
-const COMMON_KEYS = ['id', 'type', 'prompt', 'required', 'helper', 'example', 'therapistNote', 'visibleWhen'];
+const COMMON_KEYS = [
+  'id',
+  'type',
+  'prompt',
+  'required',
+  'helper',
+  'example',
+  'therapistNote',
+  'therapistPrompt',
+  'visibleWhen',
+];
 
 const TYPE_KEYS: Record<WorksheetFieldType, string[]> = {
-  instruction: [],
+  instruction: ['showAnswers'],
   short_text: ['maxLength'],
   long_text: ['maxLength'],
   voice_note: ['maxLength'],
   scale_0_10: ['minLabel', 'maxLabel'],
   scale_0_100: ['minLabel', 'maxLabel'],
-  feelings_picker: ['feelings', 'maxSelections', 'withStrength'],
+  feelings_picker: ['feelings', 'maxSelections', 'withStrength', 'strengthPrompt'],
   checklist: ['options', 'minSelections', 'maxSelections'],
   choice: ['options'],
   row_list: ['columns', 'minRows', 'maxRows', 'addLabel'],
@@ -396,10 +423,20 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
     if (raw.therapistNote !== undefined && typeof raw.therapistNote !== 'boolean') {
       errors.push(`${at}.therapistNote: must be true or false`);
     }
+    if (raw.therapistPrompt !== undefined) {
+      if (!isNonEmptyString(raw.therapistPrompt)) {
+        errors.push(`${at}.therapistPrompt: must be a non-empty string`);
+      } else if ((raw.therapistPrompt as string).length > WORKSHEET_LIMITS.prompt) {
+        errors.push(`${at}.therapistPrompt: over ${WORKSHEET_LIMITS.prompt} characters`);
+      }
+    }
 
     // An instruction is not a question; marking it required is a setup mistake.
     if (fieldType === 'instruction' && raw.required === true) {
       errors.push(`${at}.required: an instruction piece is never required`);
+    }
+    if (raw.showAnswers !== undefined && typeof raw.showAnswers !== 'boolean') {
+      errors.push(`${at}.showAnswers: must be true or false`);
     }
 
     if (fieldType === 'closing_reflection') {
@@ -518,6 +555,16 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
       }
       if (raw.withStrength !== undefined && typeof raw.withStrength !== 'boolean') {
         errors.push(`${at}.withStrength: must be true or false`);
+      }
+      if (raw.strengthPrompt !== undefined) {
+        if (!isNonEmptyString(raw.strengthPrompt)) {
+          errors.push(`${at}.strengthPrompt: must be a non-empty string`);
+        } else if ((raw.strengthPrompt as string).length > WORKSHEET_LIMITS.prompt) {
+          errors.push(`${at}.strengthPrompt: over ${WORKSHEET_LIMITS.prompt} characters`);
+        }
+        if (raw.withStrength !== true) {
+          errors.push(`${at}.strengthPrompt: needs withStrength`);
+        }
       }
     }
 
@@ -1041,10 +1088,6 @@ export class InvalidWorksheetError extends Error {
 export function worksheetRowProblems(row: WorksheetRegistryRow): string[] {
   const problems: string[] = [];
 
-  if (row.kind !== 'worksheet') {
-    problems.push(`kind: expected "worksheet", found "${row.kind}"`);
-  }
-
   if (!row.summary || row.summary.trim().length === 0) {
     // The Library list needs a client-facing line. The therapist note is not a
     // substitute: it is not client-safe copy.
@@ -1124,11 +1167,6 @@ export function parseWorksheetRow(row: WorksheetRegistryRow): ParsedWorksheet {
  * this; the portal previews drafts on purpose.
  */
 export function assertClientServable(row: WorksheetRegistryRow): ParsedWorksheet {
-  if (row.kind !== 'worksheet') {
-    throw new InvalidWorksheetError(row.tool_id, [
-      `kind: expected "worksheet", found "${row.kind}"`,
-    ]);
-  }
   if (row.status !== 'approved') {
     throw new InvalidWorksheetError(row.tool_id, [`status: "${row.status}" is not approved`]);
   }
@@ -1154,6 +1192,26 @@ export interface ClientWorksheetView {
   content: WorksheetContent;
 }
 
+/**
+ * Remove every therapist-only string from a body before it goes to a client.
+ *
+ * `therapistPrompt` carries the framing a therapist needs ("What thoughts,
+ * feelings, situations or behaviours tell you things are getting difficult?").
+ * It lives in the same JSON as the client's questions, so the only safe rule is
+ * to strip it on the way out rather than trust each caller to remember. The
+ * object is copied, never mutated: the catalogue row stays intact.
+ */
+export function stripTherapistCopy(content: WorksheetContent): WorksheetContent {
+  const fields = content.fields.map((field) => {
+    if (!('therapistPrompt' in field) || field.therapistPrompt === undefined) return field;
+    const { therapistPrompt: _removed, ...rest } = field as WorksheetField & {
+      therapistPrompt?: string;
+    };
+    return rest as WorksheetField;
+  });
+  return { ...content, fields };
+}
+
 export function toClientWorksheetView(
   row: WorksheetRegistryRow,
   language: 'en' | 'hi' = 'en',
@@ -1169,6 +1227,6 @@ export function toClientWorksheetView(
     accessMode: row.access_mode as WorksheetAccessMode,
     loadLevel: (row.load_level as WorksheetLoadLevel | null) ?? null,
     estMinutes: row.est_minutes,
-    content,
+    content: stripTherapistCopy(content),
   };
 }

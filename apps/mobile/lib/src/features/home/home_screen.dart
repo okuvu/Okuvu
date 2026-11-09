@@ -162,6 +162,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       onTap: () => context.go('/journal'),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  // The Library: the approved exercises and the worksheets, in
+                  // one place. Its cards come from the catalogue, so nothing
+                  // unapproved can be offered from here.
+                  Expanded(
+                    child: QuickAccessTile(
+                      icon: '\u{1F4DA}',
+                      label: 'Library',
+                      subtitle: 'Exercises & worksheets',
+                      onTap: () => context.go('/library'),
+                    ),
+                  ),
                 ],
               );
             },

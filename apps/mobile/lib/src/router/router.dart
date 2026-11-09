@@ -29,6 +29,11 @@ import '../features/appointments/appointments_screen.dart';
 import '../features/appointments/appointment_detail_screen.dart';
 import '../features/notifications/notifications_inbox_screen.dart';
 import '../features/homework/homework_screen.dart';
+import '../features/home/breathing_screen.dart';
+import '../features/library/library_screen.dart';
+import '../features/library/worksheet_screen.dart';
+import '../features/library/grounding_screen.dart';
+import '../features/library/mood_checkin_screen.dart';
 import '../core/not_found_screen.dart';
 import '../core/providers.dart';
 
@@ -182,6 +187,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/homework',
         builder: (context, state) => const HomeworkScreen(),
+      ),
+      // The Library: one list of approved exercises and worksheets. Every card
+      // opens a screen that already existed or a worksheet body from the
+      // catalogue; nothing here is a second version of something in the app.
+      GoRoute(
+        path: '/library',
+        builder: (context, state) => const LibraryScreen(),
+      ),
+      GoRoute(
+        path: '/library/worksheet/:toolId',
+        builder: (context, state) =>
+            WorksheetScreen(toolId: state.pathParameters['toolId']!),
+      ),
+      GoRoute(
+        path: '/library/breathing',
+        builder: (context, state) => const BreathingScreen(),
+      ),
+      GoRoute(
+        path: '/library/grounding',
+        builder: (context, state) => const GroundingScreen(),
+      ),
+      GoRoute(
+        path: '/library/mood',
+        builder: (context, state) => const MoodCheckinScreen(),
       ),
       GoRoute(
         path: '/settings',

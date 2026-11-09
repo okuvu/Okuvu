@@ -68,8 +68,13 @@ describe('worksheetRowProblems', () => {
     expect(worksheetRowProblems(row({ est_minutes: 600 })).join(' ')).toMatch(/est_minutes/);
   });
 
-  it('rejects an exercise row passed as a worksheet', () => {
-    expect(worksheetRowProblems(row({ kind: 'exercise', content_en: null })).join(' ')).toMatch(/kind: expected/);
+  it('rejects a row with no body, whatever its kind', () => {
+    // The rule is "approved and has a body", not "kind is worksheet": grounding
+    // is an exercise that carries a body, and a worksheet with no body must
+    // still be refused.
+    expect(worksheetRowProblems(row({ kind: 'exercise', content_en: null })).join(' ')).toMatch(
+      /content_en/,
+    );
   });
 
   it('reports body errors with a content_en prefix', () => {

@@ -24,7 +24,12 @@ const Map<int, String> kMoodLabels = {
 };
 
 class MoodCheckIn extends ConsumerStatefulWidget {
-  const MoodCheckIn({super.key});
+  const MoodCheckIn({super.key, this.onMoodSelected});
+
+  /// Called after a check-in is saved. The Library uses it to continue into the
+  /// two screens the approved document adds after the check-in; Home passes
+  /// nothing and behaves exactly as before.
+  final void Function(int mood)? onMoodSelected;
 
   @override
   ConsumerState<MoodCheckIn> createState() => _MoodCheckInState();
@@ -61,6 +66,9 @@ class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
     }
 
     ref.read(moodCheckinProvider.notifier).checkIn(mood).then((success) {
+      if (success && mounted) {
+        widget.onMoodSelected?.call(mood);
+      }
       if (!success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

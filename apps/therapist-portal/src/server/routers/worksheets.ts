@@ -24,7 +24,10 @@ import {
 export const worksheetsRouter = router({
   list: therapistProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.toolRegistryEntry.findMany({
-      where: { kind: 'worksheet' },
+      // Placeholders are a name and a purpose for worksheets that do not exist
+      // yet. They are hidden from therapists as well as clients, so they never
+      // reach this list.
+      where: { kind: 'worksheet', status: { not: 'placeholder' } },
       orderBy: [{ section: 'asc' }, { sort_order: 'asc' }, { label: 'asc' }],
       select: {
         tool_id: true,
@@ -32,6 +35,7 @@ export const worksheetsRouter = router({
         summary: true,
         section: true,
         therapy_modality: true,
+        therapist_note: true,
         access_mode: true,
         load_level: true,
         est_minutes: true,
@@ -51,6 +55,7 @@ export const worksheetsRouter = router({
         summary: row.summary,
         section: row.section,
         modality: row.therapy_modality,
+        therapistNote: row.therapist_note,
         accessMode: row.access_mode,
         loadLevel: row.load_level,
         estMinutes: row.est_minutes,
@@ -74,6 +79,7 @@ export const worksheetsRouter = router({
           summary: true,
           section: true,
           therapy_modality: true,
+          therapist_note: true,
           access_mode: true,
           load_level: true,
           est_minutes: true,
@@ -83,8 +89,17 @@ export const worksheetsRouter = router({
       });
 
       if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Worksheet not found' });
-      if (row.kind !== 'worksheet') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'That entry is an exercise, not a worksheet' });
+      if (row.kind === 'group') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'That entry is a Library card, not a worksheet',
+        });
+      }
+      if (row.status === 'placeholder') {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'That worksheet does not exist yet',
+        });
       }
 
       const catalogueRow = row as WorksheetRegistryRow;
@@ -114,6 +129,7 @@ export const worksheetsRouter = router({
         // Therapist-only, and this router is therapist-only: the field never
         // appears in a client response because a different door serves those.
         modality: row.therapy_modality,
+        therapistNote: row.therapist_note,
         accessMode: row.access_mode,
         loadLevel: row.load_level,
         estMinutes: row.est_minutes,

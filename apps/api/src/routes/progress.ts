@@ -12,7 +12,17 @@ const DAYS_MAX = 365;
 
 interface MoodCheckinBody {
   mood_value: number;
+  /**
+   * The two screens added after the check-in. Optional so an older app build
+   * keeps working: it sends only mood_value.
+   */
+  trigger?: string | null;
+  intensity_0_10?: number | null;
 }
+
+const TRIGGER_MAX = 500;
+const INTENSITY_MIN = 0;
+const INTENSITY_MAX = 10;
 
 interface MoodQuery {
   days?: string;
@@ -23,7 +33,7 @@ export async function progressRoute(app: FastifyInstance): Promise<void> {
     preHandler: [verifyCognitoJWT],
     handler: async (request, reply) => {
       const { uid } = request.user;
-      const { mood_value } = request.body;
+      const { mood_value, trigger, intensity_0_10 } = request.body ?? ({} as MoodCheckinBody);
 
       if (
         typeof mood_value !== 'number' ||
@@ -39,7 +49,37 @@ export async function progressRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const result = await recordMoodCheckin(uid, mood_value, request.log);
+      if (trigger !== undefined && trigger !== null) {
+        if (typeof trigger !== 'string' || trigger.length > TRIGGER_MAX) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_TRIGGER',
+              message: `trigger must be text of at most ${TRIGGER_MAX} characters`,
+            },
+          });
+        }
+      }
+
+      if (intensity_0_10 !== undefined && intensity_0_10 !== null) {
+        if (
+          typeof intensity_0_10 !== 'number' ||
+          !Number.isInteger(intensity_0_10) ||
+          intensity_0_10 < INTENSITY_MIN ||
+          intensity_0_10 > INTENSITY_MAX
+        ) {
+          return reply.status(400).send({
+            error: {
+              code: 'INVALID_INTENSITY',
+              message: `intensity_0_10 must be an integer between ${INTENSITY_MIN} and ${INTENSITY_MAX}`,
+            },
+          });
+        }
+      }
+
+      const result = await recordMoodCheckin(uid, mood_value, request.log, {
+        trigger: typeof trigger === 'string' ? trigger.trim() || null : undefined,
+        intensity: typeof intensity_0_10 === 'number' ? intensity_0_10 : undefined,
+      });
 
       if (result.status === 'user_not_found') {
         return reply.status(401).send({

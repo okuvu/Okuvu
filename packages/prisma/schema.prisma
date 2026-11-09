@@ -631,6 +631,12 @@ model MoodLog {
   id         String   @id @default(uuid())
   user_id    String
   mood_value Int
+  /// The two screens the approved document adds after the mood check-in:
+  /// what was happening just before, and how strong the feeling is 0-10.
+  /// The daily value stays 1-5; the 0-10 intensity is a different measure and
+  /// is the one the demanding-worksheet gate reads.
+  trigger_text    String?
+  intensity_0_10  Int?
   date_ist   DateTime @db.Date
   source     String   @default("user_input")
   created_at DateTime @default(now())
@@ -884,6 +890,12 @@ model ToolRegistryEntry {
   /// serialized to a client response. The API layer enforces that; this column
   /// is simply where it lives.
   therapy_modality String?
+  /// The approved document's "For therapists:" line. Therapists only, and never
+  /// serialized to a client: it is framing, not copy.
+  therapist_note String?
+  /// Which Library card a row hangs off, e.g. the four breathing techniques are
+  /// `breathing`. NULL means the row is its own card.
+  library_group String?
   /// Who can open it: 'open' (anyone), 'assigned' (only after the therapist
   /// assigns it), 'in_session' (filled in together during a session).
   access_mode   String     @default("open")

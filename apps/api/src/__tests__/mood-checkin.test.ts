@@ -44,6 +44,8 @@ describe('POST /progress/mood/checkin', () => {
         mood_value: 4,
         date_ist: new Date('2026-07-07T00:00:00.000Z'),
         source: 'user_input',
+        trigger_text: null,
+        intensity_0_10: null,
         created_at: new Date(),
         updated_at: new Date(),
       });

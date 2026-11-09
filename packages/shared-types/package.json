@@ -11,6 +11,10 @@
     "./worksheet": {
       "types": "./worksheet.ts",
       "default": "./worksheet.ts"
+    },
+    "./worksheets": {
+      "types": "./worksheets/index.ts",
+      "default": "./worksheets/index.ts"
     }
   },
   "scripts": {
