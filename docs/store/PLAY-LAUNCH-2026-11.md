@@ -49,8 +49,10 @@ joining today. Nobody can compress the clock by uploading sooner.
    Testing → Closed testing → Create track → Create release → upload
    `app-prod-release.aab`, release name `1.0.9 (10)`.
 3. **App content declarations** — Data safety, content rating questionnaire, target
-   audience, ads, privacy policy `https://okuvu.in/privacy`, and reviewer sign-in
-   credentials with App access. Nothing on a testing track is reviewed before these exist.
+   audience, ads, privacy policy `https://okuvu.in/privacy`, terms of service
+   `https://okuvu.in/terms`, account deletion `https://okuvu.in/delete-account`, and
+   reviewer sign-in credentials with App access. Nothing on a testing track is reviewed
+   before these exist.
 
 ## Then, in order
 

@@ -5,9 +5,11 @@ import type { NotificationDto } from '@okuvu/shared-types';
  * Read side of the client inbox.
  *
  * Everything here is a pull: the app calls these when Home loads and when the
- * bell is tapped. Nothing in the product yet pushes, so a client who never opens
- * the app still sees none of this — that gap is delivery, not storage, and it is
- * why these rows exist: a sender can be attached to the same record later
+ * bell is tapped. Delivery is the therapist portal's job — it writes these rows
+ * and emails the client a logistics-only pointer to them (`server/notifications.ts`
+ * there). Nothing pushes a notification to the handset, so a client who opens no
+ * email and no app still sees none of this; that remaining gap is push, and it is
+ * why these rows exist: a push sender can be attached to the same record later
  * without a second system of record.
  */
 

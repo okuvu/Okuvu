@@ -708,7 +708,10 @@ export default function PrivacyPolicyPage() {
             <time dateTime={LAST_UPDATED}>{LAST_UPDATED}</time>
           </p>
           <p className="mt-2">
-            Questions:{' '}
+            <a className="text-royal-purple underline underline-offset-2" href="/terms">
+              Terms of Service
+            </a>{' '}
+            · Questions:{' '}
             <a className="text-royal-purple underline underline-offset-2" href={`mailto:${CONTACT_EMAIL}`}>
               {CONTACT_EMAIL}
             </a>

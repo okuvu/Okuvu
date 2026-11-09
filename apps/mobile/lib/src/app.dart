@@ -5,6 +5,7 @@ import 'core/providers.dart';
 import 'features/crisis/crisis_overlay.dart';
 import 'features/home/care_ended_screen.dart';
 import 'features/home/providers/today_card_provider.dart';
+import 'features/notifications/notification_banner.dart';
 import 'theme/app_theme.dart';
 
 class App extends ConsumerWidget {
@@ -37,6 +38,9 @@ class App extends ConsumerWidget {
         return Stack(
           children: [
             child ?? const SizedBox.shrink(),
+            // Below the crisis and care-ended slots on purpose: a safety
+            // overlay must win over a homework announcement.
+            const NotificationPopupSlot(),
             const _CareEndedOverlaySlot(),
             const _CrisisOverlaySlot(),
           ],
