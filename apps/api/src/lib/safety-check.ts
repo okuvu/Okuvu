@@ -12,11 +12,11 @@
  *   1. the deterministic crisis floor first (`hasCrisisLanguage`) — the only
  *      part that needs no model, so it works while the model does not;
  *   2. otherwise A1's classifier, under a hard deadline;
- *   3. and if A1 fails, throws or misses the deadline, the result is a
- *      POSSIBLE RISK (S3), never "safe". A write path has no reply to fall
- *      back on: the client has already typed the words, and treating an
- *      unreachable classifier as an all-clear is the one failure in this file
- *      that could cost someone.
+ *   3. and if A1 fails, throws or misses the deadline, the result is
+ *      **unscreened**: moderate concern (S2), never safe and never a crisis.
+ *      The client is offered help, the write is queued for a recheck, and the
+ *      therapist is alerted only if that recheck later finds risk. A crisis
+ *      card on every outage would train therapists to ignore the real ones.
  *
  * Callers do three things with the result and nothing else: save the text,
  * show the help card when `showHelp`, and record the flag through
@@ -24,14 +24,15 @@
  */
 
 import type { SafetyState } from '@okuvu/shared-types';
+import { SAFETY_CHECK_DEGRADED_LEVEL } from '@okuvu/shared-types/safety';
 import { classifySafety } from '../agents/a1/agent.js';
 import { hasCrisisLanguage } from '../agents/a1/crisis-keywords.js';
 
 /**
- * How long a non-chat write waits for the classifier before it is treated as a
- * possible risk. Shorter than a chat turn's budget on purpose: the client is
- * waiting on a Save button, and the outcome of a timeout is protective (S3),
- * not silent.
+ * How long a non-chat write waits for the classifier before it is treated as
+ * unscreened. Shorter than a chat turn's budget on purpose: the client is
+ * waiting on a Save button, and an unscreened write is saved, offered help and
+ * queued for a recheck — never dropped.
  */
 export const SAFETY_CHECK_TIMEOUT_MS = 8_000;
 
@@ -44,7 +45,16 @@ export interface TextSafetyResult {
   flagged: boolean;
   /** True whenever `flagged`: the client is shown help straight away. */
   showHelp: boolean;
-  /** The check could not reach a verdict; the level is the protective floor. */
+  /**
+   * True when the check could not reach a verdict AND the crisis floor found
+   * nothing. The client is offered help — "Help is here if you need it." — the
+   * write is queued for a recheck, and nobody is alerted yet. Moderate
+   * concern, never safe, never crisis (owner's rule, 9 Nov 2026).
+   */
+  helpOffer: boolean;
+  /** The write must be screened again once the classifier answers. */
+  recheck: boolean;
+  /** The check could not reach a verdict; `level` is the moderate floor (S2). */
   degraded: boolean;
   /** For logs and the flag row: why this level was chosen. */
   reason: string;
@@ -56,8 +66,38 @@ function result(
   degraded = false,
 ): TextSafetyResult {
   const flagged = level === 'S3' || level === 'S4';
-  return { level, flagged, showHelp: flagged, degraded, reason };
+  return {
+    level,
+    flagged,
+    showHelp: flagged,
+    helpOffer: false,
+    recheck: false,
+    degraded,
+    reason,
+  };
 }
+
+/**
+ * The unscreened result.
+ *
+ * A failed or slow check is moderate concern: no flag, no email, no crisis
+ * card. The client gets the gentle help offer, and the write is rechecked once
+ * the service answers — an alert only follows if that recheck actually finds
+ * risk. The crisis floor has already run and found nothing before this is
+ * reachable, so this is never applied to a keyword hit.
+ */
+function unscreened(reason: string): TextSafetyResult {
+  return {
+    level: SAFETY_CHECK_DEGRADED_LEVEL,
+    flagged: false,
+    showHelp: false,
+    helpOffer: true,
+    recheck: true,
+    degraded: true,
+    reason,
+  };
+}
+
 
 async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -107,9 +147,9 @@ export async function checkClientText(
 
     if (a1.fallbackUsed) {
       // A1 already ran its own keyword floor and found nothing. Its S2 is a
-      // technical fallback, not a verdict, and a non-chat write cannot treat
-      // "the classifier did not answer" as "this is safe".
-      return result('S3', `classifier_fallback:${a1.notes ?? 'unknown'}`, true);
+      // technical fallback, not a verdict: the write is unscreened, so it is
+      // queued for a recheck rather than called safe or elevated to a crisis.
+      return unscreened(`classifier_fallback:${a1.notes ?? 'unknown'}`);
     }
 
     if (a1.safetyState === 'S4') return result('S4', 'classifier_s4');
@@ -117,10 +157,10 @@ export async function checkClientText(
     return result(a1.safetyState, 'classifier');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[safety-check] classifier unreachable — treating as possible risk', {
+    console.error('[safety-check] classifier unreachable — unscreened, queued for recheck', {
       reason: message,
     });
-    return result('S3', `classifier_error:${message}`, true);
+    return unscreened(`classifier_error:${message}`);
   }
 }
 

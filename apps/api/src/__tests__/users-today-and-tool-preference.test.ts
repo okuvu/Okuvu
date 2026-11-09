@@ -22,6 +22,10 @@ vi.mock('../lib/prisma.js', () => ({
       findMany: vi.fn(),
       findFirst: vi.fn(),
     },
+    // Step 5 — the Today card's single item. No assignments and no light
+    // catalogue row means the card renders nothing, which is the case these
+    // tests are about.
+    toolRegistryEntry: { findFirst: vi.fn().mockResolvedValue(null) },
     userToolPreference: {
       findMany: vi.fn(),
       upsert: vi.fn(),
@@ -364,5 +368,132 @@ describe('GET /users/me/today — therapistChatAccess reflects the real read win
       chat_access_closed_at: null,
     });
     expect(access.granted).toBe(false);
+  });
+});
+
+/**
+ * Step 5 — the Today card shows ONE thing.
+ *
+ * The owner's rule: at most one item, the next assigned exercise that is due
+ * with its time in minutes, and one light exercise suggested when nothing is
+ * assigned. What the api decides is what the card renders, so these are the
+ * assertions that matter.
+ */
+describe('GET /users/me/today — the one item the Today card shows', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+    vi.clearAllMocks();
+  });
+
+  async function todayWith(overrides: {
+    assignments: Array<Record<string, unknown>>;
+    suggestion?: Record<string, unknown> | null;
+  }) {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(baseUserRow() as any);
+    vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.homework.findMany).mockResolvedValue(overrides.assignments as any);
+    vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.userToolPreference.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.toolRegistryEntry.findFirst).mockResolvedValue(
+      (overrides.suggestion ?? null) as any,
+    );
+    app = buildApp();
+
+    const response = await app.inject({ method: 'GET', url: '/users/me/today' });
+    expect(response.statusCode).toBe(200);
+    return response.json();
+  }
+
+  it('shows the soonest due assignment, with its minutes', async () => {
+    const body = await todayWith({
+      assignments: [
+        {
+          id: 'hw-later',
+          tool_id: 'ws_thought_record',
+          due_at: new Date('2026-11-20T10:00:00Z'),
+          assigned_at: new Date('2026-11-09T10:00:00Z'),
+          tool: { label: 'Thought record', est_minutes: 10, load_level: 'demanding' },
+        },
+        {
+          id: 'hw-sooner',
+          tool_id: 'ws_three_good_things',
+          due_at: new Date('2026-11-11T10:00:00Z'),
+          assigned_at: new Date('2026-11-10T10:00:00Z'),
+          tool: { label: 'Three good things', est_minutes: 3, load_level: 'light' },
+        },
+      ],
+    });
+
+    expect(body.next).toMatchObject({
+      source: 'assigned',
+      toolId: 'ws_three_good_things',
+      homeworkId: 'hw-sooner',
+      label: 'Three good things',
+      estMinutes: 3,
+      loadLevel: 'light',
+    });
+    expect(body.next.dueAt).toBe('2026-11-11T10:00:00.000Z');
+  });
+
+  it('shows one item even when several are assigned', async () => {
+    const body = await todayWith({
+      assignments: [
+        {
+          id: 'hw-a',
+          tool_id: 'ws_three_good_things',
+          due_at: null,
+          assigned_at: new Date('2026-11-08T10:00:00Z'),
+          tool: { label: 'Three good things', est_minutes: 3, load_level: 'light' },
+        },
+        {
+          id: 'hw-b',
+          tool_id: 'ws_energy_audit',
+          due_at: null,
+          assigned_at: new Date('2026-11-09T10:00:00Z'),
+          tool: { label: 'Energy audit', est_minutes: 5, load_level: 'light' },
+        },
+      ],
+    });
+
+    // Undated assignments are still candidates, and the older one wins so the
+    // card cannot reshuffle between two refreshes.
+    expect(body.next).toMatchObject({ source: 'assigned', homeworkId: 'hw-a' });
+    expect(body.next).not.toHaveProperty('items');
+  });
+
+  it('suggests one light exercise when nothing is assigned', async () => {
+    const body = await todayWith({
+      assignments: [],
+      suggestion: {
+        tool_id: 'grounding_5431',
+        label: '5-4-3-2-1 grounding',
+        est_minutes: 3,
+        load_level: 'light',
+      },
+    });
+
+    expect(body.next).toMatchObject({
+      source: 'suggested',
+      toolId: 'grounding_5431',
+      homeworkId: null,
+      estMinutes: 3,
+      dueAt: null,
+    });
+  });
+
+  it('renders nothing when the catalogue has nothing to suggest', async () => {
+    const body = await todayWith({ assignments: [], suggestion: null });
+
+    expect(body.next).toBeNull();
   });
 });

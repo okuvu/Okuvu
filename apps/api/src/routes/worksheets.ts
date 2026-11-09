@@ -12,6 +12,7 @@ import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { answersToText, checkClientText } from '../lib/safety-check.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
+import { enqueueSafetyRecheck } from '../lib/safety-recheck.js';
 import { parseWorksheetRow, worksheetRowProblems, type WorksheetRegistryRow } from '../lib/worksheet-content.js';
 import { generateContent } from '../lib/generate-content.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
@@ -152,6 +153,11 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
+      // The assignment this answer belongs to, when there is one. Kept on the
+      // response so the therapist can see it against the homework row, and
+      // closed here so the Today card moves on to the next due exercise rather
+      // than offering the same one forever.
+      let homeworkId: string | null = null;
       if (row.access_mode === 'assigned') {
         const assignment = await prisma.homework.findFirst({
           where: { client_user_id: user.id, tool_id: toolId, status: 'active' },
@@ -162,6 +168,21 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
             error: { code: 'NOT_ASSIGNED', message: 'Your therapist has not assigned this one.' },
           });
         }
+        homeworkId = assignment.id;
+      } else if (typeof body.homeworkId === 'string' && body.homeworkId.length > 0) {
+        // A self-serve worksheet may still have been opened from an assignment
+        // (an open-access exercise a therapist also assigned). Only count it
+        // when the row is really this client's and really this tool.
+        const assignment = await prisma.homework.findFirst({
+          where: {
+            id: body.homeworkId,
+            client_user_id: user.id,
+            tool_id: toolId,
+            status: 'active',
+          },
+          select: { id: true },
+        });
+        homeworkId = assignment?.id ?? null;
       }
 
       const feelingBefore = body.feelingBefore === undefined || body.feelingBefore === null
@@ -195,6 +216,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
         data: {
           user_id: user.id,
           worksheet_id: toolId,
+          homework_id: homeworkId,
           answers: body.answers as object,
           feeling_before: feelingBefore,
           feeling_after: body.feelingAfter === undefined ? null : readRating(body.feelingAfter),
@@ -207,12 +229,39 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
         select: { id: true },
       });
 
+      // A finished assigned worksheet closes its homework row: the client did
+      // the thing, so the Today card should offer the next one. Deliberately
+      // last, after the save, and deliberately independent of the safety
+      // result — a crisis does not mean the work was not done.
+      if (homeworkId) {
+        try {
+          await prisma.homework.update({
+            where: { id: homeworkId },
+            data: { status: 'completed' },
+          });
+        } catch (err) {
+          request.log.warn({
+            event: 'worksheet_homework_close_failed',
+            homework_id: homeworkId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       if (safety.flagged) {
         await flagSafetyEvent({
           userId: user.id,
           level: safety.level,
           source: 'worksheet_answer',
           subjectKind: 'worksheet_response',
+          subjectId: created.id,
+        });
+      } else if (safety.recheck) {
+        // Unscreened: moderate concern, no alert. The answers are queued and
+        // screened again when the classifier answers.
+        await enqueueSafetyRecheck({
+          userId: user.id,
+          surface: 'worksheet_answer',
           subjectId: created.id,
         });
       }
@@ -229,7 +278,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({
         id: created.id,
         success: true,
-        safety: { showHelp: safety.showHelp },
+        safety: { showHelp: safety.showHelp, helpOffer: safety.helpOffer },
       });
     },
   });

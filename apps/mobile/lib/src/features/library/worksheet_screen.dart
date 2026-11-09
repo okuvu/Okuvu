@@ -49,30 +49,62 @@ class WorksheetScreen extends ConsumerWidget {
       data: (entry) {
         try {
           final content = parseWorksheetContent(entry.content);
+          // The saved response id, so "Save to my Treasure Box" can point at the
+          // row it came from. Null until the answers are stored.
+          String? responseId;
+          Map<String, Object?> savedAnswers = const {};
+
           return WorksheetRunnerScreen(
             toolId: entry.toolId,
             userId: uid,
             content: content,
-            onFinished: (answers) async {
+            feelingBefore: feelingNow,
+            isAssigned: entry.accessMode == 'assigned',
+            onFinished: (answers, outcome) async {
               final api = ref.read(libraryApiProvider);
+              savedAnswers = Map<String, Object?>.from(answers);
 
               // The api runs the same safety check chat runs, before it stores
               // anything, and answers with whether the help card must be shown.
               final result = await api.submit(
                 entry.toolId,
                 answers: Map<String, Object?>.from(answers),
-                feelingBefore: feelingNow,
+                feelingBefore: outcome.feelingBefore ?? feelingNow,
+                feelingAfter: outcome.feelingAfter,
+                barriers: outcome.barriers,
+                helped: outcome.helped,
               );
+              responseId = result.id.isEmpty ? null : result.id;
 
               // Saved. Only now is the local draft safe to drop.
               await WorksheetDraftStore().clear(uid, entry.toolId);
 
               if (!context.mounted) return;
               if (result.showHelp) {
+                // Crisis: the answers are saved, and the card comes up at once.
                 ref.read(crisisOverlayProvider.notifier).show();
+              } else if (result.helpOffer) {
+                // The check could not run. Moderate concern, never a crisis and
+                // never silence: help is offered, and nobody is alerted until a
+                // recheck finds risk.
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Help is here if you need it.'),
+                    duration: const Duration(seconds: 8),
+                    action: SnackBarAction(
+                      label: 'Get help',
+                      onPressed: () =>
+                          ref.read(crisisOverlayProvider.notifier).show(),
+                    ),
+                  ),
+                );
               }
-              context.go('/library');
             },
+            onSaveToTreasureBox: () => ref.read(libraryApiProvider).saveToTreasureBox(
+                  title: entry.label,
+                  body: worksheetAsNoteText(content, savedAnswers),
+                  sourceRef: responseId,
+                ),
           );
         } on WorksheetContentException catch (error) {
           return Scaffold(

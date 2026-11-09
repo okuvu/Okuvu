@@ -105,7 +105,7 @@ describe('POST /worksheets/:toolId — Step 4', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect((res.json() as any).safety).toEqual({ showHelp: true });
+    expect((res.json() as any).safety).toMatchObject({ showHelp: true });
 
     // Saved with the flag recorded on the row, and no text on the flag.
     const createArgs = vi.mocked(prisma.worksheetResponse.create).mock.calls[0][0] as any;

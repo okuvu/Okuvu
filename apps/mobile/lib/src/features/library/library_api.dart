@@ -49,11 +49,16 @@ class LibraryEntry {
     required this.kind,
     required this.content,
     required this.children,
+    this.accessMode = 'open',
   });
 
   final String toolId;
   final String label;
   final String kind;
+
+  /// 'open' | 'assigned' | 'in_session'. Assigned worksheets ask the
+  /// did-you-do-it question; the rest do not.
+  final String accessMode;
 
   /// The worksheet body, validated on arrival by `parseWorksheetContent`.
   final Map<String, dynamic> content;
@@ -112,6 +117,7 @@ class LibraryApi {
       toolId: body['toolId'] as String,
       label: body['label'] as String,
       kind: (body['kind'] as String?) ?? 'worksheet',
+      accessMode: (body['accessMode'] as String?) ?? 'open',
       content: content is Map<String, dynamic>
           ? content
           : jsonDecode(jsonEncode(content)) as Map<String, dynamic>,
@@ -158,6 +164,7 @@ class LibraryApi {
     int? feelingBefore,
     int? feelingAfter,
     String? barriers,
+    bool? helped,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/worksheets/$toolId',
@@ -166,25 +173,63 @@ class LibraryApi {
         if (feelingBefore != null) 'feelingBefore': feelingBefore,
         if (feelingAfter != null) 'feelingAfter': feelingAfter,
         if (barriers != null && barriers.trim().isNotEmpty) 'barriers': barriers.trim(),
+        if (helped != null) 'helped': helped,
       },
     );
     final safety = res.data?['safety'];
     return WorksheetSubmitResult(
       id: (res.data?['id'] as String?) ?? '',
       showHelp: safety is Map && safety['showHelp'] == true,
+      helpOffer: safety is Map && safety['helpOffer'] == true,
     );
+  }
+
+  /// Keep a finished worksheet in the client's Treasure Box.
+  ///
+  /// The note is a copy of the client's own answers, so it is client-typed text
+  /// arriving at a write path — which is why it goes through POST /treasure/notes
+  /// and not around it: that route runs the same safety check as everything
+  /// else. `source_ref` points at the worksheet response it came from.
+  Future<bool> saveToTreasureBox({
+    required String title,
+    required String body,
+    String? sourceRef,
+  }) async {
+    try {
+      await _dio.post<Map<String, dynamic>>(
+        '/treasure/notes',
+        data: {
+          'title': title,
+          'body': body,
+          'source': 'worksheet',
+          if (sourceRef != null && sourceRef.isNotEmpty) 'sourceRef': sourceRef,
+        },
+      );
+      return true;
+    } on DioException {
+      return false;
+    }
   }
 }
 
 /// What the api answered when a finished worksheet was handed over.
 class WorksheetSubmitResult {
-  const WorksheetSubmitResult({required this.id, required this.showHelp});
+  const WorksheetSubmitResult({
+    required this.id,
+    required this.showHelp,
+    this.helpOffer = false,
+  });
 
   final String id;
 
   /// The client's own words tripped the safety check: show the help card now.
   /// The answers are already saved; nothing is lost.
   final bool showHelp;
+
+  /// The check could not run: moderate concern, not a crisis. Offer help
+  /// ("Help is here if you need it.") and let the client carry on — the answers
+  /// were saved and are screened again when the service is back.
+  final bool helpOffer;
 }
 
 final libraryApiProvider = Provider<LibraryApi>((ref) {

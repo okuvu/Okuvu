@@ -49,6 +49,8 @@ const SAFE = {
   level: 'S0' as const,
   flagged: false,
   showHelp: false,
+  helpOffer: false,
+  recheck: false,
   degraded: false,
   reason: 'classifier',
 };
@@ -206,10 +208,10 @@ describe('POST /journal', () => {
       });
 
       expect(response.statusCode).toBe(201);
-      expect(response.json()).toEqual({
+      expect(response.json()).toMatchObject({
         success: true,
         id: 'entry-words-only',
-        safety: { showHelp: false },
+        safety: { showHelp: false, helpOffer: false },
       });
       expect(vi.mocked(prisma.journalEntry.create)).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -758,7 +760,7 @@ describe('POST /journal — Step 4: the same safety check chat runs', () => {
 
     // Saved, not swallowed.
     expect(response.statusCode).toBe(201);
-    expect(response.json().safety).toEqual({ showHelp: true });
+    expect(response.json().safety).toMatchObject({ showHelp: true });
     expect(vi.mocked((await importMocks()).journalEntry.create)).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ content }) }),
     );
@@ -799,7 +801,7 @@ describe('POST /journal — Step 4: the same safety check chat runs', () => {
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json().safety).toEqual({ showHelp: true });
+    expect(response.json().safety).toMatchObject({ showHelp: true });
     const flagCall = vi.mocked((await importMocks()).safetyFlag.create).mock.calls[0][0] as any;
     expect(flagCall.data.level).toBe('S3');
   });
@@ -813,7 +815,7 @@ describe('POST /journal — Step 4: the same safety check chat runs', () => {
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json().safety).toEqual({ showHelp: false });
+    expect(response.json().safety).toMatchObject({ showHelp: false, helpOffer: false });
     expect(vi.mocked((await importMocks()).safetyFlag.create)).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,7 @@ import {
 import { checkBudget, withUsageMetering } from '../lib/token-budget.js';
 import { checkClientText } from '../lib/safety-check.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
+import { enqueueSafetyRecheck } from '../lib/safety-recheck.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
 import { getFallbackJournalPrompt } from '../agents/journal-prompt/fallback-prompts.js';
 
@@ -120,6 +121,15 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
           subjectKind: 'journal_entry',
           subjectId: entry.id,
         });
+      } else if (safety.recheck) {
+        // The check could not run. Moderate concern, not a crisis: no flag, no
+        // email, the client is offered help, and this row is screened again
+        // once the classifier answers (owner's rule, 9 Nov 2026).
+        await enqueueSafetyRecheck({
+          userId: user.id,
+          surface: 'journal_entry',
+          subjectId: entry.id,
+        });
       }
 
       request.log.info(
@@ -139,8 +149,9 @@ export async function journalRoute(app: FastifyInstance): Promise<void> {
         success: true,
         id: entry.id,
         // No level, no reason: the client is told to get help, not told how a
-        // classifier read them.
-        safety: { showHelp: safety.showHelp },
+        // classifier read them. `helpOffer` is the gentle offer shown when the
+        // check could not run — never a crisis card, never silence.
+        safety: { showHelp: safety.showHelp, helpOffer: safety.helpOffer },
       });
     },
   });

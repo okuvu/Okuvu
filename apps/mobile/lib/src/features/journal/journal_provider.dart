@@ -21,6 +21,11 @@ class JournalEntryFormState {
   /// card before it leaves.
   final bool showHelp;
 
+  /// The api could not run the check. Moderate concern, never a crisis: the
+  /// entry is saved, help is offered gently, and no therapist alert is sent
+  /// until a recheck finds risk.
+  final bool helpOffer;
+
   const JournalEntryFormState({
     this.emotion,
     this.intensity = 0,
@@ -29,6 +34,7 @@ class JournalEntryFormState {
     this.error,
     this.saved = false,
     this.showHelp = false,
+    this.helpOffer = false,
   });
 
   const JournalEntryFormState.initial()
@@ -38,7 +44,8 @@ class JournalEntryFormState {
         isSaving = false,
         error = null,
         saved = false,
-        showHelp = false;
+        showHelp = false,
+        helpOffer = false;
 
   JournalEntryFormState copyWith({
     String? Function()? emotion,
@@ -48,6 +55,7 @@ class JournalEntryFormState {
     String? Function()? error,
     bool? saved,
     bool showHelp = false,
+    bool helpOffer = false,
   }) {
     return JournalEntryFormState(
       emotion: emotion != null ? emotion() : this.emotion,
@@ -57,6 +65,7 @@ class JournalEntryFormState {
       error: error != null ? error() : this.error,
       saved: saved ?? this.saved,
       showHelp: showHelp || this.showHelp,
+      helpOffer: helpOffer || this.helpOffer,
     );
   }
 
@@ -134,7 +143,13 @@ class JournalEntryFormNotifier extends Notifier<JournalEntryFormState> {
         // look at the words itself, and cannot skip the check by not looking.
         final safety = response.data is Map ? response.data['safety'] : null;
         final showHelpNow = safety is Map && safety['showHelp'] == true;
-        state = state.copyWith(isSaving: false, saved: true, showHelp: showHelpNow);
+        final helpOfferNow = safety is Map && safety['helpOffer'] == true;
+        state = state.copyWith(
+          isSaving: false,
+          saved: true,
+          showHelp: showHelpNow,
+          helpOffer: helpOfferNow,
+        );
         return true;
       } else {
         state = state.copyWith(

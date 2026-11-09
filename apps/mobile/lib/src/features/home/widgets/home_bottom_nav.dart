@@ -7,15 +7,17 @@ import '../../../core/providers.dart';
 import '../../../core/websocket_service.dart';
 import '../../../theme/app_colors.dart';
 
-/// App wireframes H1/H2/C1/J1/A1 — bottom nav is Home | Chat | Journal on
-/// every one of those screens, not just Home. Progress and Settings moved
-/// to icon buttons in Home's AppBar (see home_screen.dart) instead of
-/// occupying nav slots, per the wireframe having no Progress/Settings tab
-/// anywhere in its bottom nav mockups.
+/// The bottom nav: Home | Chat | Toolkit.
+///
+/// Owner's Step 5 rule (9 Nov 2026) replaced the Journal slot with Toolkit:
+/// Breathe, Journal, Mood check-in, Library and Treasure Box all live under
+/// the Toolkit tab so the home screen stays simple, and Chat keeps its own
+/// slot because it is the thing the app is for. Progress and Settings stay as
+/// icon buttons in Home's AppBar.
 ///
 /// [currentIndex] is passed explicitly by each screen rather than derived
-/// from the route — this widget is now instantiated on three separate
-/// screens (Home, Chat, Journal), each of which already knows which tab it
+/// from the route — this widget is instantiated on several screens (Home,
+/// Chat, Toolkit, Journal), each of which already knows which tab it
 /// represents; that's simpler and less fragile than introspecting
 /// GoRouterState, and fixes the previous hardcoded-to-0 bug (this bar used
 /// to only ever render on Home, so the bug was latent until Chat/Journal
@@ -48,7 +50,7 @@ class HomeBottomNav extends ConsumerWidget {
           case 1:
             context.go('/chat');
           case 2:
-            context.go('/journal');
+            context.go('/toolkit');
         }
       },
       destinations: [
@@ -66,8 +68,8 @@ class HomeBottomNav extends ConsumerWidget {
           label: 'Chat',
         ),
         const NavigationDestination(
-          icon: Icon(LucideIcons.book),
-          label: 'Journal',
+          icon: Icon(LucideIcons.layoutGrid),
+          label: 'Toolkit',
         ),
       ],
     );

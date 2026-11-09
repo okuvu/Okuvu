@@ -21,6 +21,37 @@ import 'worksheet_spec.dart';
 /// the client wrote. The demanding-worksheet gate (feeling above 5/10 sends the
 /// client to grounding instead) belongs to the Library entry point, not here —
 /// this screen assumes the client is allowed to be in it.
+/// What the client reported around the worksheet itself.
+///
+/// All four are optional by design — the owner's rule is that the client "can
+/// rate how they feel before and after if they want to", so every one of these
+/// has a skip, and a skipped answer is stored as null rather than as a zero.
+class WorksheetOutcome {
+  const WorksheetOutcome({
+    this.feelingBefore,
+    this.feelingAfter,
+    this.didIt,
+    this.barriers,
+    this.helped,
+  });
+
+  /// 0-10, "How strong is what you're feeling right now?" — the gate answer when
+  /// the worksheet is demanding, otherwise whatever the client chose to give.
+  final int? feelingBefore;
+
+  /// 0-10, "How are you feeling now?"
+  final int? feelingAfter;
+
+  /// Assigned worksheets only: did the client get to it?
+  final bool? didIt;
+
+  /// Assigned worksheets only, when they did not: "What got in the way?"
+  final String? barriers;
+
+  /// The one-tap "This helped". Null means the client did not answer.
+  final bool? helped;
+}
+
 class WorksheetRunnerScreen extends ConsumerStatefulWidget {
   const WorksheetRunnerScreen({
     super.key,
@@ -31,11 +62,28 @@ class WorksheetRunnerScreen extends ConsumerStatefulWidget {
     this.draftStore,
     this.speech,
     this.onFinished,
+    this.onSaveToTreasureBox,
+    this.feelingBefore,
+    this.isAssigned = false,
   });
 
   final String toolId;
   final String userId;
   final WorksheetContent content;
+
+  /// The rating the client already gave at the demanding-worksheet gate. When
+  /// it is here the "before" question is not asked again — asking twice is how
+  /// two different numbers end up stored for one exercise.
+  final int? feelingBefore;
+
+  /// True when this worksheet came from a therapist's assignment, which is what
+  /// adds the "Did you do it?" / "What got in the way?" question.
+  final bool isAssigned;
+
+  /// "Save to my Treasure Box" — only called when the approved closing copy has
+  /// that button. Returns false when the save failed, so the screen can say so
+  /// instead of silently dropping what the client kept.
+  final Future<bool> Function()? onSaveToTreasureBox;
 
   /// The therapist's personal line (Homework.personal_note), shown under the
   /// piece that reserved space for it.
@@ -53,7 +101,8 @@ class WorksheetRunnerScreen extends ConsumerStatefulWidget {
   /// Async because the save is a network write the api safety-checks: the
   /// runner waits for it so a failed save can keep the draft instead of
   /// clearing it and losing what the client wrote.
-  final Future<void> Function(WorksheetAnswers answers)? onFinished;
+  final Future<void> Function(WorksheetAnswers answers, WorksheetOutcome outcome)?
+      onFinished;
 
   @override
   ConsumerState<WorksheetRunnerScreen> createState() => _WorksheetRunnerState();
@@ -67,8 +116,24 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   int _stepIndex = 0;
   bool _finished = false;
 
+  /// Step 5 — the optional self-report around the pieces themselves.
+  int? _feelingBefore;
+  int? _feelingAfter;
+  bool? _didIt;
+  String _barriers = '';
+  bool? _helped;
+
+  /// Where the client is in the whole flow. "One step per screen" now includes
+  /// the two rating questions and, for an assigned worksheet, the did-you-do-it
+  /// question — they are screens like any other rather than a form bolted onto
+  /// the last piece.
+  ///
+  /// 'before' | 'pieces' | 'after' | 'did' | 'closing'
+  String _stage = 'before';
+
   /// One "what does this mean?" request at a time.
   bool _helpLoading = false;
+  bool _savingToTreasure = false;
   bool _restoring = true;
   bool _isListening = false;
 
@@ -100,6 +165,11 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   void initState() {
     super.initState();
     _speech = widget.speech ?? ref.read(speechServiceProvider);
+    // A demanding worksheet already asked the question at the Library card, and
+    // that answer is the client's "before". Asking again here would store a
+    // second, possibly different, number for the same moment.
+    _feelingBefore = widget.feelingBefore;
+    _stage = widget.feelingBefore == null ? 'before' : 'pieces';
     _restore();
   }
 
@@ -110,6 +180,9 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       if (draft != null) {
         _answers = draft.answers;
         _stepIndex = draft.stepIndex;
+        // Anything already written means the flow has moved past the opening
+        // question, whether or not a rating was given.
+        _stage = 'pieces';
       }
       _restoring = false;
     });
@@ -190,11 +263,41 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
     );
   }
 
-  Future<void> _finish() async {
-    setState(() => _finished = true);
-    // Do not clear the draft here: the answers are only safe once the caller
-    // has stored them. The screen that saves clears it (see the Library step).
-    await widget.onFinished?.call(Map<String, Object?>.from(_answers));
+  void _goToAfter() {
+    setState(() => _stage = 'after');
+    _persist();
+  }
+
+  void _goToWrap() {
+    setState(() => _stage = 'wrap');
+    _persist();
+  }
+
+  /// Hand everything to the caller, which stores it. The screen then shows the
+  /// closing line and the approved buttons.
+  ///
+  /// The draft is deliberately NOT cleared here: the answers are only safe once
+  /// the caller has stored them, and the caller clears it (see WorksheetScreen).
+  Future<void> _submit() async {
+    setState(() {
+      _finished = true;
+      _stage = 'closing';
+    });
+    await widget.onFinished?.call(
+      Map<String, Object?>.from(_answers),
+      WorksheetOutcome(
+        feelingBefore: _feelingBefore,
+        feelingAfter: _feelingAfter,
+        didIt: widget.isAssigned ? _didIt : null,
+        // Only an assigned worksheet asks, and only when the client said they
+        // did not get to it — a barrier paragraph attached to a finished
+        // worksheet is noise on a therapist's dashboard.
+        barriers: widget.isAssigned && _didIt == false && _barriers.trim().isNotEmpty
+            ? _barriers.trim()
+            : null,
+        helped: _helped,
+      ),
+    );
   }
 
   Future<void> _toggleListening() async {
@@ -244,6 +347,15 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    if (_finished) return _buildClosing(theme);
+    if (_stage == 'before') return _buildBefore(theme);
+    if (_stage == 'after') return _buildAfter(theme);
+    if (_stage == 'wrap') return _buildWrap(theme);
+    return _buildPieceScreen(theme);
+  }
+
+  /// One piece, one screen.
+  Widget _buildPieceScreen(ThemeData theme) {
     final steps = _steps;
     if (steps.isEmpty) {
       return Scaffold(
@@ -251,8 +363,6 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
         body: const Center(child: Text('This worksheet is not ready yet.')),
       );
     }
-
-    if (_finished) return _buildClosing(theme);
 
     final rawIndex = _stepIndex < 0 ? 0 : _stepIndex;
     final index = rawIndex >= steps.length ? steps.length - 1 : rawIndex;
@@ -400,7 +510,9 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                     flex: 2,
                     child: FilledButton(
                       onPressed: canAdvanceFrom(field, _answers)
-                          ? () => index >= steps.length - 1 ? _finish() : _goTo(index + 1)
+                          ? () => index >= steps.length - 1
+                              ? _goToAfter()
+                              : _goTo(index + 1)
                           : null,
                       child: Text(index >= steps.length - 1 ? 'Finish' : 'Next'),
                     ),
@@ -411,6 +523,239 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// The optional "before" rating.
+  ///
+  /// Wording is the owner's approved gate question and scale, so the number
+  /// stored here means the same thing as the number the demanding-worksheet
+  /// gate reads. Skippable: the owner's rule is that the client can rate "if
+  /// they want to", and a rating someone felt obliged to give is not a rating.
+  Widget _buildBefore(ThemeData theme) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.content.fields.isEmpty ? 'Worksheet' : 'Before you start'),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.x),
+          tooltip: 'Close',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                "How strong is what you're feeling right now?",
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 16),
+              _ratingSlider(
+                key: const Key('worksheet_feeling_before'),
+                value: _feelingBefore,
+                onChanged: (value) => setState(() => _feelingBefore = value),
+              ),
+              const Spacer(),
+              FilledButton(
+                key: const Key('worksheet_before_continue'),
+                onPressed: () {
+                  setState(() => _stage = 'pieces');
+                  _persist();
+                },
+                child: const Text('Next'),
+              ),
+              TextButton(
+                key: const Key('worksheet_before_skip'),
+                onPressed: () {
+                  setState(() => _stage = 'pieces');
+                  _persist();
+                },
+                child: const Text('Skip'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The optional "after" rating. The approved copy is the same slider the
+  /// grounding and breathing screens use.
+  Widget _buildAfter(ThemeData theme) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Almost done'),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.x),
+          tooltip: 'Close',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('How are you feeling now?', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 16),
+              _ratingSlider(
+                key: const Key('worksheet_feeling_after'),
+                value: _feelingAfter,
+                onChanged: (value) => setState(() => _feelingAfter = value),
+              ),
+              const Spacer(),
+              FilledButton(
+                key: const Key('worksheet_after_continue'),
+                onPressed: _goToWrap,
+                child: const Text('Next'),
+              ),
+              TextButton(
+                key: const Key('worksheet_after_skip'),
+                onPressed: _goToWrap,
+                child: const Text('Skip'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The last screen before the closing line: "Did you do it?" for an assigned
+  /// worksheet, what got in the way when the answer is no, and the one-tap
+  /// "This helped".
+  ///
+  /// The questions' wording is the approved document's own ("Did you do it?",
+  /// "What got in the way?", "No judgement. This helps you and your therapist
+  /// plan better."). Nothing here is composed.
+  Widget _buildWrap(ThemeData theme) {
+    final showBarriers = widget.isAssigned && _didIt == false;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Almost done'),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.x),
+          tooltip: 'Close',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.isAssigned) ...[
+                Text('Did you do it?', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        key: const Key('worksheet_did_it_yes'),
+                        onPressed: () => setState(() {
+                          _didIt = true;
+                          _barriers = '';
+                        }),
+                        child: const Text('Yes'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton(
+                        key: const Key('worksheet_did_it_no'),
+                        onPressed: () => setState(() => _didIt = false),
+                        child: const Text('Not this time'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (showBarriers) ...[
+                  const SizedBox(height: 20),
+                  Text('What got in the way?', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    'No judgement. This helps you and your therapist plan better.',
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('worksheet_barriers'),
+                    maxLines: 3,
+                    onChanged: (text) => setState(() => _barriers = text),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Short answer, optional',
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
+              ],
+              Text('This helped', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              // One tap, and no "no" to press: a client who does not want to
+              // answer simply taps Finish.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ChoiceChip(
+                  key: const Key('worksheet_this_helped'),
+                  label: const Text('This helped'),
+                  selected: _helped == true,
+                  onSelected: (selected) =>
+                      setState(() => _helped = selected ? true : null),
+                ),
+              ),
+              const SizedBox(height: 28),
+              FilledButton(
+                key: const Key('worksheet_finish'),
+                onPressed: _submit,
+                child: const Text('Finish'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The approved 0-10 slider, with the owner's endpoint labels.
+  Widget _ratingSlider({
+    required Key key,
+    required int? value,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Column(
+      children: [
+        Text(
+          '${value ?? 5}',
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: AppColors.charcoalInk,
+          ),
+        ),
+        Slider(
+          key: key,
+          value: (value ?? 5).toDouble(),
+          min: 0,
+          max: 10,
+          divisions: 10,
+          label: '${value ?? 5}',
+          onChanged: (next) => onChanged(next.round()),
+        ),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('0 = barely there', style: TextStyle(fontSize: 12)),
+            Text("10 = the strongest I've felt", style: TextStyle(fontSize: 12)),
+          ],
+        ),
+      ],
     );
   }
 
@@ -437,14 +782,26 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: button.action == 'treasure_box'
                       ? OutlinedButton(
-                          onPressed: () {
-                            // The Treasure Box opens in its own step; until it
-                            // exists this button says so rather than doing
-                            // nothing silently.
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Your Treasure Box is coming next.')),
-                            );
-                          },
+                          key: const Key('worksheet_save_to_treasure'),
+                          onPressed: _savingToTreasure
+                              ? null
+                              : () async {
+                                  final save = widget.onSaveToTreasureBox;
+                                  if (save == null) return;
+                                  setState(() => _savingToTreasure = true);
+                                  final saved = await save();
+                                  if (!mounted) return;
+                                  setState(() => _savingToTreasure = false);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        saved
+                                            ? 'Kept in your Treasure Box.'
+                                            : "Couldn't save that just now. Try again in a moment.",
+                                      ),
+                                    ),
+                                  );
+                                },
                           child: Text(button.label),
                         )
                       : FilledButton(

@@ -3,12 +3,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
-import 'breathing_screen.dart';
 import 'providers/today_card_provider.dart';
 import 'widgets/home_bottom_nav.dart';
-import 'widgets/mood_check_in.dart';
 import 'widgets/next_session_card.dart';
-import 'widgets/quick_access_tile.dart';
 import 'widgets/today_card.dart';
 import 'widgets/pending_chat_access_banner.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
@@ -131,53 +128,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 16),
           const NextSessionCard(),
           const PendingChatAccessBanner(),
-          const MoodCheckIn(),
           const SizedBox(height: 16),
+          // The one thing the Today card shows (Step 5). Everything else —
+          // Breathe, Journal, Mood check-in, Library, Treasure Box — lives under
+          // the Toolkit tab so this screen stays simple.
           const TodayCard(),
-          const SizedBox(height: 16),
-          Consumer(
-            builder: (context, ref, _) {
-              final entryCount =
-                  ref.watch(journalListProvider).value?.length ?? 0;
-              return Row(
-                children: [
-                  Expanded(
-                    child: QuickAccessTile(
-                      icon: '\u{1F32B}',
-                      label: 'Breathe',
-                      subtitle: '4 min',
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const BreathingScreen(),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: QuickAccessTile(
-                      icon: '\u{1F4D4}',
-                      label: 'Journal',
-                      subtitle: '$entryCount entries',
-                      onTap: () => context.go('/journal'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // The Library: the approved exercises and the worksheets, in
-                  // one place. Its cards come from the catalogue, so nothing
-                  // unapproved can be offered from here.
-                  Expanded(
-                    child: QuickAccessTile(
-                      icon: '\u{1F4DA}',
-                      label: 'Library',
-                      subtitle: 'Exercises & worksheets',
-                      onTap: () => context.go('/library'),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
           const SizedBox(height: 16),
           Center(
             child: TextButton(

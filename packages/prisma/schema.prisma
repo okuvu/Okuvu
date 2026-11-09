@@ -95,6 +95,7 @@ model User {
   treasure_collections TreasureCollection[] @relation("ClientToTreasureCollection")
   treasure_notes      TreasureNote[]      @relation("ClientToTreasureNote")
   safety_plan         SafetyPlan?         @relation("ClientToSafetyPlan")
+  safety_rechecks     SafetyRecheck[]     @relation("ClientToSafetyRecheck")
 }
 
 /// The single global counter behind `User.client_code`'s four-digit serial.
@@ -210,6 +211,44 @@ model SafetyFlag {
 enum SafetyFlagLevel {
   S3
   S4
+}
+
+/// A client write the safety check could not screen.
+///
+/// When the classifier is unreachable or slow, the write is saved and the
+/// client is offered help — but nothing is claimed and nobody is alerted, on
+/// purpose: a crisis card on every outage would train therapists to ignore the
+/// real ones (owner's rule, 9 Nov 2026). This row is the promise that the text
+/// gets looked at again once the service answers, and the only thing that can
+/// raise an alert afterwards.
+///
+/// It stores a POINTER, never the content: `subject_kind` + `subject_id` name
+/// the journal entry, worksheet response or Treasure note, and the recheck
+/// re-reads that row. Deleting the client's row is what removes the text; this
+/// queue row goes with it (cascade), so an erasure request cannot leave
+/// unscreened text referenced by a queue.
+model SafetyRecheck {
+  id              String    @id @default(uuid())
+  user_id         String
+  /// Which surface the write came from: journal_entry | worksheet_answer |
+  /// treasure_note. Identical vocabulary to SafetyFlag.source.
+  surface         String
+  subject_kind    String
+  subject_id      String
+  /// Bumped on each attempt that still could not reach a verdict.
+  attempts        Int       @default(0)
+  next_attempt_at DateTime  @default(now())
+  /// Set when the sweep gave up (the classifier stayed down past the window).
+  /// The row is kept rather than deleted: "we never managed to screen this" is
+  /// a fact worth being able to query after the fact.
+  abandoned_at    DateTime?
+  created_at      DateTime  @default(now())
+  user            User      @relation("ClientToSafetyRecheck", fields: [user_id], references: [id], onDelete: Cascade)
+
+  /// One queue row per write: a retried save cannot enqueue the same row twice.
+  @@unique([subject_kind, subject_id])
+  @@index([next_attempt_at])
+  @@index([user_id, created_at])
 }
 
 model SessionLog {

@@ -47,32 +47,64 @@ describe('checkClientText — one check, used by every client write', () => {
     expect(result).toMatchObject({ level: 'S1', flagged: false, showHelp: false });
   });
 
-  it('treats a thrown classifier as a possible risk, never as safe', async () => {
+  // Owner's rule, 9 Nov 2026: a failed or slow check is MODERATE CONCERN —
+  // never safe, never crisis. It must not flag, must not alert, and must ask
+  // for a recheck instead. A crisis card on every outage is how therapists
+  // learn to ignore the real ones.
+  it('treats a thrown classifier as moderate concern, never a crisis', async () => {
     mockClassifySafety.mockRejectedValue(new Error('bedrock unavailable'));
 
     const result = await checkClientText('Nothing much to report.');
 
-    expect(result).toMatchObject({ level: 'S3', flagged: true, showHelp: true, degraded: true });
+    expect(result).toMatchObject({
+      level: 'S2',
+      flagged: false,
+      showHelp: false,
+      helpOffer: true,
+      recheck: true,
+      degraded: true,
+    });
   });
 
-  it('treats A1 fallback (no verdict) as a possible risk', async () => {
+  it('treats A1 fallback (no verdict) as moderate concern', async () => {
     mockClassifySafety.mockResolvedValue(
       classified('S2', { fallbackUsed: true, notes: 'llm_timeout' }),
     );
 
     const result = await checkClientText('Nothing much to report.');
 
-    expect(result).toMatchObject({ level: 'S3', flagged: true, degraded: true });
+    expect(result).toMatchObject({
+      level: 'S2',
+      flagged: false,
+      helpOffer: true,
+      recheck: true,
+      degraded: true,
+    });
     expect(result.reason).toContain('llm_timeout');
   });
 
-  it('treats a classifier that takes too long as a possible risk', async () => {
+  it('treats a classifier that takes too long as moderate concern', async () => {
     mockClassifySafety.mockImplementation(() => new Promise(() => {}));
 
     const result = await checkClientText('Nothing much to report.', { timeoutMs: 20 });
 
-    expect(result).toMatchObject({ level: 'S3', flagged: true, showHelp: true, degraded: true });
+    expect(result).toMatchObject({
+      level: 'S2',
+      flagged: false,
+      showHelp: false,
+      helpOffer: true,
+      recheck: true,
+      degraded: true,
+    });
     expect(result.reason).toContain('safety_check_timeout');
+  });
+
+  it('a clean verdict carries no help offer and no recheck', async () => {
+    mockClassifySafety.mockResolvedValue(classified('S1'));
+
+    const result = await checkClientText('A hard day at work.');
+
+    expect(result).toMatchObject({ helpOffer: false, recheck: false, degraded: false });
   });
 
   it('treats empty text as nothing to screen', async () => {
@@ -87,7 +119,12 @@ describe('checkClientText — one check, used by every client write', () => {
 
     const result = await checkClientText('honestly I want to end my life');
 
+    // A full crisis, not the moderate floor: the backstop ran before the
+    // classifier was ever asked.
     expect(result.level).toBe('S4');
+    expect(result.flagged).toBe(true);
+    expect(result.showHelp).toBe(true);
+    expect(result.recheck).toBe(false);
     expect(result.reason).toBe('crisis_keyword_floor');
   });
 });

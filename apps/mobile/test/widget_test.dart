@@ -181,7 +181,9 @@ void main() {
     await tester.tap(find.text('Start'));
     await tester.pumpAndSettle();
 
-    expect(find.text('How are you feeling today?'), findsOneWidget);
+    // Step 5 — the mood check-in moved to the Toolkit tab, so reaching Home is
+    // proved by what Home now holds: the greeting area and the crisis entry.
+    expect(find.text('Crisis Support'), findsOneWidget);
   });
 
   testWidgets('Crisis overlay shows all 5 crisis resources',

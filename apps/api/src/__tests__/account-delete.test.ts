@@ -44,6 +44,7 @@ const { USER_FK_TABLES, STRING_REF_TABLES, ALL_TABLES, prismaMock } = vi.hoisted
     // and the client's own "Open when..." collections.
     'worksheetResponse',
     'safetyPlan',
+    'safetyRecheck',
     'treasureNote',
     'treasureCollection',
   ] as const;
@@ -410,7 +411,7 @@ describe('erasure coverage vs packages/prisma/schema.prisma', () => {
 
   it('finds the schema and the known set of subject tables', () => {
     expect(models.length).toBeGreaterThan(30);
-    expect(modelsWithUserFk.length).toBe(24);
+    expect(modelsWithUserFk.length).toBe(25);
   });
 
   it('every relation to User declares onDelete: Cascade', () => {

@@ -242,3 +242,39 @@ Then, against the migrated database:
    exclusion applies to summaries generated from now on; no backfill of existing
    rows was attempted, because editing a clinical record to remove text is not
    reversible.
+
+---
+
+## Revision, 9 November 2026 — a failed check is moderate concern
+
+The Step 4 build treated a failed or slow check as **possible risk (S3)**. The
+owner changed that, and the change is the correction:
+
+> Don't treat a failed or slow check as a crisis. That would flood therapists
+> with false alarms during any outage, and they would start ignoring real ones.
+> A failed check counts as moderate concern, never as safe and never as crisis.
+
+What a failed check now does, exactly:
+
+1. **The crisis-word backstop still runs first.** It is the part that needs no
+   model, so it works while the model does not. A hit is a full crisis — help
+   card, flag with no text, therapist alert — exactly as before. Only silence
+   falls through to the rest.
+2. **Silence shows the client "Help is here if you need it."** with a *Get help*
+   button that opens the crisis screen. An offer, not an assertion: nothing is
+   claimed about them and nothing is being asked of them.
+3. **The write is queued for a recheck** (`SafetyRecheck`: a pointer to the
+   journal entry, worksheet response or Treasure note — never the text). No flag
+   row, no email, no Safety-card entry.
+4. **The recheck is what can alert.** A sweep screens queued writes again; an
+   S3/S4 verdict there writes the flag and sends the therapist the same alert
+   chat sends. A clean verdict clears the row. A check that still cannot run
+   backs off, and after eight attempts the row is abandoned and logged loudly
+   rather than deleted.
+
+`SAFETY_CHECK_DEGRADED_LEVEL` is `S2` (Elevated) — the moderate level, which is
+not a flag level. The reasoning lives in `packages/shared-types/safety.ts` and
+`apps/api/src/lib/safety-check.ts`, and
+`apps/api/src/__tests__/safety-outage-rule.test.ts` simulates the outage both
+ways: an ordinary entry produces no alert, and an entry with crisis words
+produces the full crisis.

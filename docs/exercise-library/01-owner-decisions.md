@@ -159,3 +159,27 @@ which becomes false once the safety pass lands.
   registry (`ToolRegistryEntry`, `kind='worksheet'`), assignment is the existing
   homework row, and the pieces are one shared definition
   (`packages/shared-types/worksheet.ts`) used by the api, the portal and the app.
+
+## Confirmations added 9 November 2026 (Step 5 round)
+
+- **A failed or slow safety check is MODERATE CONCERN** — never safe, never
+  crisis. The crisis-word backstop still runs first and a hit is a full crisis.
+  Silence shows "Help is here if you need it.", records that the check could not
+  run, and alerts nobody; the write is screened again when the service is back,
+  and only that recheck can alert. This replaces the Step 4 fallthrough that
+  treated an outage as possible risk. See `07-step-04-safety.md`.
+- **The safety plan card is hidden, not greyed out**, until the therapist has
+  made a plan with the client.
+- **Home is Chat and the Today card; everything else is behind one Toolkit tab**
+  (Breathe, Journal, Mood check-in, Library, Treasure Box). Existing screens,
+  not rebuilt ones.
+- **The Today card shows at most one thing**: the next due assigned exercise
+  with its length in minutes, or one light exercise when nothing is assigned.
+- **No pressure mechanics**: no streaks, no missed-day warnings, no red badges.
+- **The Treasure Box entry leads to a placeholder** until Step 6A.
+- **English only**; Hinglish stays switched off until approved.
+- **Old summaries stay untouched.** They may contain crisis text the Step 4 rule
+  would now exclude. Recorded here so Step 12's write-up carries it as an open
+  decision rather than a silent omission.
+- **The "becoming" spiral does not exist in the app.** Asked back to the owner as
+  a one-line question (which screen is it on?); no growth visual was invented.

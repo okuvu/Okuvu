@@ -219,6 +219,20 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         // before leaving the screen. The entry stays saved.
         if (next.showHelp) {
           ref.read(crisisOverlayProvider.notifier).show();
+        } else if (next.helpOffer) {
+          // The check could not run: offer help without claiming anything and
+          // without alarming anyone — an entry saved during an outage is
+          // screened again when the service is back.
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Help is here if you need it.'),
+              duration: const Duration(seconds: 8),
+              action: SnackBarAction(
+                label: 'Get help',
+                onPressed: () => ref.read(crisisOverlayProvider.notifier).show(),
+              ),
+            ),
+          );
         }
         // Clear the form (including any chat-handoff prefill) so a later,
         // unrelated visit to Journal doesn't silently reopen with this

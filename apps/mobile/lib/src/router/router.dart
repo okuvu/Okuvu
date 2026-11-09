@@ -10,6 +10,7 @@ import '../features/auth/waitlist_screen.dart';
 import '../features/consent/consent_screen.dart';
 import '../features/intake/cold_start_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/home/toolkit_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/history/session_history_screen.dart';
 import '../features/history/session_transcript_screen.dart';
@@ -33,6 +34,7 @@ import '../features/home/breathing_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/worksheet_screen.dart';
 import '../features/library/safety_plan_screen.dart';
+import '../features/library/treasure_box_screen.dart';
 import '../features/library/grounding_screen.dart';
 import '../features/library/mood_checkin_screen.dart';
 import '../core/not_found_screen.dart';
@@ -144,6 +146,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/home',
         builder: (context, state) => const HomeScreen(),
+      ),
+      // The Toolkit tab — Breathe, Journal, Mood check-in, Library and the
+      // Treasure Box behind one nav slot, so Home stays simple (Step 5).
+      GoRoute(
+        path: '/toolkit',
+        builder: (context, state) => const ToolkitScreen(),
+      ),
+      GoRoute(
+        path: '/treasure',
+        builder: (context, state) => const TreasureBoxScreen(),
       ),
       GoRoute(
         path: '/journal',

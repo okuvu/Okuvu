@@ -3,6 +3,7 @@ import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { checkClientText } from '../lib/safety-check.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
+import { enqueueSafetyRecheck } from '../lib/safety-recheck.js';
 
 const MAX_TITLE = 120;
 const MAX_BODY = 5_000;
@@ -139,6 +140,14 @@ export async function treasureRoute(app: FastifyInstance): Promise<void> {
           subjectKind: 'treasure_note',
           subjectId: note.id,
         });
+      } else if (safety.recheck) {
+        // Unscreened: moderate concern, no alert. The note is queued and
+        // screened again when the classifier answers.
+        await enqueueSafetyRecheck({
+          userId: user.id,
+          surface: 'treasure_note',
+          subjectId: note.id,
+        });
       }
 
       request.log.info({
@@ -152,7 +161,7 @@ export async function treasureRoute(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({
         success: true,
         id: note.id,
-        safety: { showHelp: safety.showHelp },
+        safety: { showHelp: safety.showHelp, helpOffer: safety.helpOffer },
       });
     },
   });
@@ -192,7 +201,11 @@ export async function treasureRoute(app: FastifyInstance): Promise<void> {
         select: { id: true, name: true, system_key: true },
       });
 
-      return reply.code(201).send({ success: true, collection, safety: { showHelp: safety.showHelp } });
+      return reply.code(201).send({
+        success: true,
+        collection,
+        safety: { showHelp: safety.showHelp, helpOffer: safety.helpOffer },
+      });
     },
   });
 }

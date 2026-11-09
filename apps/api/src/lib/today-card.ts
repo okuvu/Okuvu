@@ -3,12 +3,114 @@ import { getQuoteOfDay } from './quote-of-day.js';
 import { markClientActivatedIfNeeded } from './client-activation.js';
 import { getActiveHomework } from './homework.js';
 import { toView as toAppointmentView } from './appointments.js';
-import type { TodayCard } from '@okuvu/shared-types';
+import type { TodayCard, TodayNextItem } from '@okuvu/shared-types';
 import { chatAccessWindow } from '@okuvu/shared-types';
 
 export type GetTodayCardResult =
   | { status: 'ok'; card: TodayCard }
   | { status: 'user_not_found' };
+
+/**
+ * The one item the Today card shows (owner's Step 5 rule).
+ *
+ * Assigned first: the soonest due assignment that is still active, with its
+ * length from the catalogue. A row with no `due_at` is still a candidate — the
+ * therapist assigned it and it is not done — but a dated one wins, and ties
+ * break on the older assignment so the list cannot reshuffle between two
+ * refreshes and look like a different ask.
+ *
+ * Otherwise one light exercise from the catalogue. Deterministic on purpose
+ * (the first approved, open, light exercise by sort order): an exercise that
+ * changes every time the card refreshes reads as a notification the client has
+ * to keep up with.
+ */
+async function resolveNextItem(userId: string): Promise<TodayNextItem | null> {
+  try {
+    return await chooseNextItem(userId);
+  } catch (err) {
+    // The card is one line on the home screen; a catalogue read that fails must
+    // not take the greeting, the appointment and the rest of the payload down
+    // with it. No item is a worse card, not a broken home screen.
+    console.error('[today-card] could not choose the one item for today', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+async function chooseNextItem(userId: string): Promise<TodayNextItem | null> {
+  const assigned = await prisma.homework.findMany({
+    where: {
+      client_user_id: userId,
+      status: 'active',
+      tool_id: { not: null },
+      tool: { status: 'approved' },
+    },
+    select: {
+      id: true,
+      tool_id: true,
+      due_at: true,
+      assigned_at: true,
+      tool: { select: { label: true, est_minutes: true, load_level: true } },
+    },
+  });
+
+  if (assigned.length > 0) {
+    const soonest = [...assigned].sort((a, b) => {
+      const aDue = a.due_at ? a.due_at.getTime() : Number.POSITIVE_INFINITY;
+      const bDue = b.due_at ? b.due_at.getTime() : Number.POSITIVE_INFINITY;
+      if (aDue !== bDue) return aDue - bDue;
+      return a.assigned_at.getTime() - b.assigned_at.getTime();
+    })[0];
+
+    return {
+      source: 'assigned',
+      toolId: soonest.tool_id,
+      homeworkId: soonest.id,
+      label: soonest.tool?.label ?? 'An exercise from your therapist',
+      estMinutes: soonest.tool?.est_minutes ?? null,
+      dueAt: soonest.due_at ? soonest.due_at.toISOString() : null,
+      loadLevel: soonest.tool?.load_level ?? null,
+    };
+  }
+
+  // An exercise first (the thing "a light exercise" means to the client), then a
+  // light self-serve worksheet if the catalogue has no exercise row left.
+  const suggestion =
+    (await prisma.toolRegistryEntry.findFirst({
+      where: {
+        status: 'approved',
+        kind: 'exercise',
+        access_mode: 'open',
+        load_level: 'light',
+        library_group: null,
+      },
+      orderBy: [{ sort_order: 'asc' }, { tool_id: 'asc' }],
+      select: { tool_id: true, label: true, est_minutes: true, load_level: true },
+    })) ??
+    (await prisma.toolRegistryEntry.findFirst({
+      where: {
+        status: 'approved',
+        kind: 'worksheet',
+        access_mode: 'open',
+        load_level: 'light',
+      },
+      orderBy: [{ sort_order: 'asc' }, { tool_id: 'asc' }],
+      select: { tool_id: true, label: true, est_minutes: true, load_level: true },
+    }));
+
+  if (!suggestion) return null;
+
+  return {
+    source: 'suggested',
+    toolId: suggestion.tool_id,
+    homeworkId: null,
+    label: suggestion.label,
+    estMinutes: suggestion.est_minutes ?? null,
+    dueAt: null,
+    loadLevel: suggestion.load_level ?? null,
+  };
+}
 
 // §D Today-card — pull-based homework + active reminders. Push/scheduler
 // delivery is a separate, out-of-scope-this-pass workstream; this is what
@@ -109,6 +211,8 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
     include: { therapist: { select: { name: true } } },
   });
 
+  const next = await resolveNextItem(user.id);
+
   const card: TodayCard = {
     homeworkId: activeHomework?.id ?? null,
     homework: activeHomework?.description ?? null,
@@ -148,6 +252,7 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
     careEnded: endedRelationship !== null,
     careEndedByTherapistName: endedRelationship?.therapist.name ?? null,
     displayAbbreviation: user.clinical_config?.display_abbreviation ?? null,
+    next,
   };
 
   return { status: 'ok', card };

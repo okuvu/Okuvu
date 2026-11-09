@@ -27,6 +27,7 @@ try {
 import { buildApp } from './app.js';
 import { prisma } from './lib/prisma.js';
 import { assertWorkerReachable } from './lib/worker-health.js';
+import { startSafetyRecheckLoop } from './lib/safety-recheck.js';
 
 async function checkDatabaseConnection(app: ReturnType<typeof buildApp>): Promise<void> {
   try {
@@ -54,6 +55,13 @@ async function main() {
   // structural root of the reset-on-affirmation failures. Deliberately AFTER
   // the DB check so the error message names the right missing dependency.
   await assertWorkerReachable(app.log);
+
+  // The recheck queue: writes the safety check could not screen are screened
+  // again here once the classifier answers, and only that recheck can alert a
+  // therapist. Started after the DB check (it needs the queue table) and before
+  // the listener, so a deploy that recovered from an outage starts catching up
+  // immediately rather than on the first request.
+  startSafetyRecheckLoop(app.log);
 
   process.on('SIGTERM', async () => {
     app.log.info('Shutting down gracefully');

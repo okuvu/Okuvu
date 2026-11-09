@@ -51,6 +51,11 @@ export const SUBJECT_TABLES = [
   // clinical record and names the people they would call — it must not outlive
   // their account any more than the entries beside it.
   'safetyPlan',
+  // The recheck queue (Step 4 addendum). It holds a pointer to client writing
+  // that was never screened; it must not outlive the writing it points at, and
+  // it is erased explicitly as well as by cascade so an operator can see the
+  // queue emptied by the same pass that empties the rest.
+  'safetyRecheck',
   'treasureNote',
   'treasureCollection',
   'appointment',
@@ -175,6 +180,14 @@ export async function deleteAccount(
       );
       record('safetyState', await tx.safetyState.deleteMany({ where: { user_id: user.id } }));
       record('safetyFlag', await tx.safetyFlag.deleteMany({ where: { user_id: user.id } }));
+      // The recheck queue holds a pointer to writing that was saved while the
+      // classifier was down. The cascade from User would take it anyway, but
+      // the tombstone is retained on this path, so the cascade never fires —
+      // the queue has to be emptied here or an erasure leaves a pointer behind.
+      record(
+        'safetyRecheck',
+        await tx.safetyRecheck.deleteMany({ where: { user_id: user.id } }),
+      );
       record(
         'clinicalConfig',
         await tx.clinicalConfig.deleteMany({ where: { user_id: user.id } }),

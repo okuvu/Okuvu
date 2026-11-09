@@ -10,6 +10,10 @@ vi.mock('../lib/prisma.js', () => ({
     // client-activation path reads User.age_declined_at before stamping
     // activated_at. Null here means "not declined".
     user: { findUnique: vi.fn(), findFirst: vi.fn().mockResolvedValue(null) },
+    // Step 5 — the Today card's single item. No assignments and no light
+    // catalogue row means the card renders nothing, which is the case these
+    // tests are about.
+    toolRegistryEntry: { findFirst: vi.fn().mockResolvedValue(null) },
     reminder: { findMany: vi.fn() },
     therapistClient: {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),

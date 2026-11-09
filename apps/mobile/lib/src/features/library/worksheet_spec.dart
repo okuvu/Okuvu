@@ -686,3 +686,85 @@ class WorksheetDraft {
     );
   }
 }
+
+/// A finished worksheet as plain text, for the Treasure Box.
+///
+/// The answers are the client's own words, laid out under the prompts they
+/// answered, so a kept thought record still reads as a thought record months
+/// later. Only the pieces that are actually on screen for the answers given are
+/// included — a branch the client never saw is not something they wrote.
+///
+/// Long answers are cut at 5000 characters, which is the Treasure Box's note
+/// limit: the note is a keepsake, and the full response is already stored
+/// against the worksheet itself.
+const int treasureNoteMaxLength = 5000;
+
+String worksheetAsNoteText(WorksheetContent content, WorksheetAnswers answers) {
+  final blocks = <String>[];
+
+  for (final field in visibleFields(content, answers)) {
+    if (field.type == 'instruction') continue;
+    final text = _answerAsText(field, answers[field.id]);
+    if (text == null || text.trim().isEmpty) continue;
+    blocks.add('${field.prompt}\n${text.trim()}');
+  }
+
+  final joined = blocks.join('\n\n');
+  if (joined.length <= treasureNoteMaxLength) return joined;
+  return '${joined.substring(0, treasureNoteMaxLength - 1)}…';
+}
+
+String? _answerAsText(WorksheetField field, Object? value) {
+  if (value == null) return null;
+
+  String labelFor(String raw) {
+    for (final option in field.options) {
+      if (option.value == raw) return option.label;
+    }
+    for (final feeling in field.feelings) {
+      if (feeling.id == raw) return feeling.label;
+    }
+    return raw;
+  }
+
+  if (value is String) return value;
+  if (value is int) return '$value';
+
+  if (value is List) {
+    if (value.isEmpty) return null;
+    // row_list: each row is a map keyed by column id.
+    if (value.first is Map) {
+      final rows = <String>[];
+      for (final row in value.whereType<Map>()) {
+        final cells = <String>[];
+        for (final column in field.columns) {
+          final cell = row[column.id];
+          if (cell == null) continue;
+          if (cell is String && cell.trim().isEmpty) continue;
+          cells.add(
+            field.columns.length > 1 ? '${column.label}: $cell' : '$cell',
+          );
+        }
+        if (cells.isNotEmpty) rows.add(cells.join(' · '));
+      }
+      return rows.isEmpty ? null : rows.join('\n');
+    }
+    return value.map((entry) => labelFor(entry.toString())).join(', ');
+  }
+
+  if (value is Map) {
+    final picked = value['picked'];
+    if (picked is List) {
+      final strength = value['strength'];
+      return picked.map((id) {
+        final label = labelFor(id.toString());
+        if (strength is Map && strength[id] is int) {
+          return '$label (${strength[id]}/10)';
+        }
+        return label;
+      }).join(', ');
+    }
+  }
+
+  return value.toString();
+}

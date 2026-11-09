@@ -548,6 +548,33 @@ export interface AssignedExerciseView {
   pacePreset: string
 }
 
+/**
+ * The ONE thing the Today card shows.
+ *
+ * Owner's rule (9 Nov 2026): at most one item — the next assigned exercise that
+ * is due, with its length in minutes. When nothing is assigned, the card offers
+ * one light exercise instead of going blank, so the card always has something
+ * to say without ever turning into a list.
+ *
+ * `source` distinguishes the two cases so the card can word them differently:
+ * an assigned exercise is the therapist's ask; a suggested one is an offer the
+ * client can ignore.
+ */
+export interface TodayNextItem {
+  source: 'assigned' | 'suggested'
+  /** The catalogue row to open. Null only if the assignment has no tool body. */
+  toolId: string | null
+  /** The Homework row, for an assigned item. Null for a suggestion. */
+  homeworkId: string | null
+  label: string
+  /** How long it takes, from the catalogue. Null when the catalogue has no figure. */
+  estMinutes: number | null
+  /** ISO timestamp for a due assignment; null for a suggestion. */
+  dueAt: string | null
+  /** 'light' | 'demanding' — a demanding worksheet still asks the gate question. */
+  loadLevel: string | null
+}
+
 export interface TodayCard {
   homeworkId: string | null
   homework: string | null
@@ -578,6 +605,8 @@ export interface TodayCard {
   careEndedByTherapistName: string | null
   /** ClinicalConfig.display_abbreviation — the short name/abbreviation the client chose on the welcome screen (or a therapist set for them). Null until set. Used to personalize the Home greeting instead of a bare "Good morning". */
   displayAbbreviation: string | null
+  /** The single item the Today card renders (Step 5). Null only when the catalogue has nothing to offer at all. */
+  next: TodayNextItem | null
 }
 
 export type ReminderFrequency = 'off' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed'

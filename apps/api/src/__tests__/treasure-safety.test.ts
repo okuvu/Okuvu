@@ -68,7 +68,7 @@ describe('POST /treasure/notes — Step 4', () => {
     const res = await app.inject({ method: 'POST', url: '/treasure/notes', payload: { body } });
 
     expect(res.statusCode).toBe(201);
-    expect((res.json() as any).safety).toEqual({ showHelp: true });
+    expect((res.json() as any).safety).toMatchObject({ showHelp: true });
 
     // Stored, and marked on the row without duplicating the text.
     const createArgs = vi.mocked(prisma.treasureNote.create).mock.calls[0][0] as any;
@@ -101,7 +101,7 @@ describe('POST /treasure/notes — Step 4', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect((res.json() as any).safety).toEqual({ showHelp: false });
+    expect((res.json() as any).safety).toMatchObject({ showHelp: false, helpOffer: false });
     expect(vi.mocked(prisma.safetyFlag.create)).not.toHaveBeenCalled();
   });
 

@@ -114,6 +114,35 @@ export const PRIVACY_LINE =
   "Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support, without sharing what you wrote."
 
 /**
+ * When the safety check cannot run.
+ *
+ * Owner's rule (9 Nov 2026, replacing the Step 4 fallthrough): a failed or slow
+ * check is **moderate concern** — never safe, never crisis. Firing the crisis
+ * card on every classifier outage floods therapists with false alarms, and an
+ * alert they learn to ignore is worse than no alert.
+ *
+ * So a degraded check does three things and no more:
+ *
+ *  1. The deterministic crisis floor still runs first, and a hit there is a full
+ *     crisis (card, flag, alert) exactly as before. Only silence falls through.
+ *  2. Silence shows the client this line, as an offer rather than an assertion:
+ *     help is reachable, nothing is being claimed about them.
+ *  3. The write is queued for a recheck. If the recheck later finds risk, the
+ *     therapist is alerted then — not on the outage.
+ *
+ * The line is the owner's phrase; the button is the approved help button from
+ * the crisis copy ("tap Get help").
+ */
+export const SAFETY_CHECK_UNAVAILABLE_LINE = 'Help is here if you need it.'
+export const SAFETY_CHECK_UNAVAILABLE_BUTTON = 'Get help'
+
+/**
+ * The level a degraded check is recorded at: S2, the moderate one. It is not a
+ * flag level (S3/S4 are), so no alert email and no Safety-card row.
+ */
+export const SAFETY_CHECK_DEGRADED_LEVEL = 'S2' as const
+
+/**
  * Levels at which a client is treated as being in a crisis state.
  *
  * S3 is the grounding card, S4 the crisis card; both carry the helplines. A

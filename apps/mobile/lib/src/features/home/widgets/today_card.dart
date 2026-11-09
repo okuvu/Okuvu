@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../theme/app_colors.dart';
+import '../../library/library_launcher.dart';
 import '../providers/today_card_provider.dart';
 
-/// Today card — pull-based homework + active reminders. Push delivery isn't
-/// wired up (§D scope: pull-only this pass), so this simply shows whatever
-/// GET /users/me/today returns when the Home screen loads.
+/// Today card — one thing, and no more.
+///
+/// Owner's Step 5 rule: the card shows at most one item — the next assigned
+/// exercise that is due, with how long it takes — and offers one light exercise
+/// when nothing is assigned. It is not a list, and deliberately carries no
+/// streak, no counter and no "you missed" state: the card is an offer, and a
+/// card that scolds is a card the client stops opening.
+///
+/// Everything shown here comes from the api (`GET /users/me/today` → `next`),
+/// which decides assigned-first and which light exercise to suggest.
 class TodayCard extends ConsumerWidget {
   const TodayCard({super.key});
 
@@ -20,101 +28,61 @@ class TodayCard extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (data) {
-        if (data.homework == null && data.reminders.isEmpty && data.quote == null) {
-          return const SizedBox.shrink();
-        }
+        final next = data.next;
+        if (next == null || next.label.isEmpty) return const SizedBox.shrink();
 
         return Container(
+          key: const Key('today_card'),
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
+            color: AppColors.oatElevated,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.lavenderTint),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Today', style: theme.textTheme.titleMedium),
-              if (data.quote != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  data.quote!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              if (data.homework != null) ...[
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        data.homework!,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (data.homeworkId != null)
-                      TextButton(
-                        onPressed: () async {
-                          final success = await ref
-                              .read(homeworkCompleteProvider.notifier)
-                              .markComplete(data.homeworkId!);
-                          if (!success && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Couldn't save that. Please try again.",
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        child: const Text('Mark done'),
-                      ),
-                  ],
-                ),
-              ],
-              if (data.reminders.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                ...data.reminders.map(
-                  (r) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          LucideIcons.bell,
-                          size: 16,
-                          color: theme.colorScheme.onSurfaceVariant,
+              const SizedBox(height: 12),
+              InkWell(
+                key: const Key('today_card_item'),
+                borderRadius: BorderRadius.circular(12),
+                onTap: next.toolId == null
+                    ? null
+                    : () => openLibraryTool(
+                          context,
+                          toolId: next.toolId!,
+                          loadLevel: next.loadLevel,
                         ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.circle, size: 8, color: AppColors.violet),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          next.label,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.35,
+                            color: AppColors.charcoalInk,
+                          ),
+                        ),
+                      ),
+                      if (next.estMinutes != null) ...[
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            r.toolLabel != null
-                                ? '${r.scheduleNote} (${r.toolLabel})'
-                                : r.scheduleNote,
-                            style: theme.textTheme.bodySmall,
+                        Text(
+                          '${next.estMinutes} min',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.charcoalInk.withValues(alpha: 0.45),
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                ),
-              ],
-              // The card shows one active assignment; the homework screen shows
-              // all of them plus every reminder. Without this link the only way
-              // to reach that list would be a notification, which a client with
-              // older homework has none of.
-              const SizedBox(height: 4),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => context.go('/homework'),
-                  child: const Text('See all homework'),
                 ),
               ),
             ],

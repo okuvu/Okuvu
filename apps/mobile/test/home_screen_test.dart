@@ -131,14 +131,15 @@ void main() {
       await tester.pumpWidget(_buildHomeApp());
       await tester.pumpAndSettle();
 
-      // Wireframe's 3-tab nav (Home/Chat/Journal) — Progress and Settings
-      // moved to AppBar icon buttons instead (checked separately below).
-      // "Journal" also appears as a Home quick-access tile label, so scope
-      // to the NavigationBar itself.
+      // Step 5 (9 Nov 2026) — the nav is Home | Chat | Toolkit. Journal moved
+      // into the Toolkit tab with Breathe, Mood check-in, Library and the
+      // Treasure Box, so Home stays simple. Progress and Settings remain AppBar
+      // icon buttons (checked separately below).
       final navBar = find.byType(NavigationBar);
       expect(find.descendant(of: navBar, matching: find.text('Home')), findsOneWidget);
       expect(find.descendant(of: navBar, matching: find.text('Chat')), findsOneWidget);
-      expect(find.descendant(of: navBar, matching: find.text('Journal')), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.text('Toolkit')), findsOneWidget);
+      expect(find.descendant(of: navBar, matching: find.text('Journal')), findsNothing);
     });
 
     testWidgets('renders Progress and Settings as AppBar icons', (tester) async {
@@ -174,7 +175,8 @@ void main() {
       // Wireframe: no care plan, focus label, streaks, or counters ever
       // displayed on Home — ProgressSummary/HomeInsightCard/AffirmationCard
       // were removed, so this just checks the screen still renders cleanly.
-      expect(find.text('How are you feeling today?'), findsOneWidget);
+      // The mood check-in card and the quick-access tiles moved to the Toolkit
+      // tab in Step 5; Home keeps the Today card and the crisis entry.
       expect(find.text('Crisis Support'), findsOneWidget);
     });
 

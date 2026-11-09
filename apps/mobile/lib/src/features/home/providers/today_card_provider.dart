@@ -80,6 +80,46 @@ class AssignedExercise {
   }
 }
 
+/// The one item the Today card shows (owner's Step 5 rule): the next assigned
+/// exercise that is due, or one light exercise when nothing is assigned.
+class TodayNextItem {
+  /// 'assigned' — a therapist set it; 'suggested' — an offer, ignorable.
+  final String source;
+  final String? toolId;
+  final String? homeworkId;
+  final String label;
+  final int? estMinutes;
+  final DateTime? dueAt;
+  /// 'light' | 'demanding' — a demanding worksheet still asks the gate question
+  /// wherever it is opened from, including the Today card.
+  final String? loadLevel;
+
+  const TodayNextItem({
+    required this.source,
+    required this.toolId,
+    required this.homeworkId,
+    required this.label,
+    required this.estMinutes,
+    this.dueAt,
+    this.loadLevel,
+  });
+
+  bool get isAssigned => source == 'assigned';
+
+  factory TodayNextItem.fromJson(Map<String, dynamic> json) {
+    final rawDue = json['dueAt'] as String?;
+    return TodayNextItem(
+      source: json['source'] as String? ?? 'suggested',
+      toolId: json['toolId'] as String?,
+      homeworkId: json['homeworkId'] as String?,
+      label: json['label'] as String? ?? '',
+      estMinutes: json['estMinutes'] as int?,
+      dueAt: rawDue == null ? null : DateTime.tryParse(rawDue),
+      loadLevel: json['loadLevel'] as String?,
+    );
+  }
+}
+
 class TodayCardData {
   final String? homeworkId;
   final String? homework;
@@ -97,6 +137,9 @@ class TodayCardData {
   final bool careEnded;
   final String? careEndedByTherapistName;
   final String? displayAbbreviation;
+  /// The single item the Today card renders. Null only when the catalogue has
+  /// nothing light and open to offer a client with no assignments.
+  final TodayNextItem? next;
 
   const TodayCardData({
     required this.homeworkId,
@@ -112,6 +155,7 @@ class TodayCardData {
     required this.careEnded,
     required this.careEndedByTherapistName,
     required this.displayAbbreviation,
+    this.next,
   });
 
   factory TodayCardData.fromJson(Map<String, dynamic> json) {
@@ -163,6 +207,11 @@ class TodayCardData {
       // by a therapist) — powers the Home greeting's personalization.
       // Null until set; Home falls back to the plain time-of-day greeting.
       displayAbbreviation: json['displayAbbreviation'] as String?,
+      // Step 5 — one item, decided by the api: a due assignment wins, and a
+      // light exercise stands in when nothing is assigned.
+      next: json['next'] is Map<String, dynamic>
+          ? TodayNextItem.fromJson(json['next'] as Map<String, dynamic>)
+          : null,
     );
   }
 }
