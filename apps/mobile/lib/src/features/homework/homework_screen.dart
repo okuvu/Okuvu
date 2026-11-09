@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
+import '../home/breathing_content.dart';
+import '../home/breathing_screen.dart';
 import '../home/providers/today_card_provider.dart';
 import 'homework_provider.dart';
 
@@ -209,19 +211,7 @@ class _HomeworkCard extends ConsumerWidget {
           Row(
             children: [
               if (item.toolLabel != null) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.lavenderWash,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    item.toolLabel!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.violet,
-                    ),
-                  ),
-                ),
+                _ToolChip(item: item),
                 const SizedBox(width: 8),
               ],
               Text(
@@ -234,6 +224,64 @@ class _HomeworkCard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The technique chip on an assignment. Tappable when the app has a player for
+/// that technique: "Practice box breathing" is an instruction the client may
+/// want to start now, and a chip that looks like a button but does nothing is
+/// worse than a plain label. Tools with no player (e.g. `grounding_5431`) stay
+/// a label, because there is nowhere honest to send the tap.
+class _ToolChip extends StatelessWidget {
+  const _ToolChip({required this.item});
+
+  final HomeworkListItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final toolId = item.toolId;
+    final playable = toolId != null && breathingTechniqueFor(toolId) != null;
+
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.lavenderWash,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            item.toolLabel!,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: AppColors.violet,
+            ),
+          ),
+          if (playable) ...[
+            const SizedBox(width: 2),
+            const Icon(
+              LucideIcons.chevronRight,
+              size: 12,
+              color: AppColors.violet,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (!playable) return chip;
+
+    return InkWell(
+      key: ValueKey('homework_tool_${item.id}'),
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BreathingScreen(initialToolId: toolId),
+        ),
+      ),
+      child: chip,
     );
   }
 }

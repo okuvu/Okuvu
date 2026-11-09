@@ -15,12 +15,14 @@ Dio _inboxDio({
   required Map<String, dynamic> listResponse,
   Map<String, dynamic>? countResponse,
   List<String>? postedPaths,
+  List<Object?>? postedBodies,
 }) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
   dio.interceptors.add(InterceptorsWrapper(
     onRequest: (options, handler) {
       if (options.method == 'POST') {
         postedPaths?.add(options.path);
+        postedBodies?.add(options.data);
         handler.resolve(Response(
           requestOptions: options,
           statusCode: 200,
@@ -262,6 +264,60 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Nothing here yet'), findsOneWidget);
+    });
+
+    testWidgets('Mark done posts the completion with an explicit body', (tester) async {
+      // Regression: the POST went out with `Content-Type: application/json` and
+      // no body, which Fastify rejects with 400 before the handler runs — the
+      // client saw "Couldn't save that" and the assignment never completed. The
+      // body must be present, not null.
+      final postedPaths = <String>[];
+      final postedBodies = <Object?>[];
+      final dio = _inboxDio(
+        listResponse: {
+          'homework': [
+            homeworkJson(id: 'hw-1', description: 'Practice box breathing'),
+          ],
+          'reminders': [],
+        },
+        postedPaths: postedPaths,
+        postedBodies: postedBodies,
+      );
+
+      await tester.pumpWidget(_app(dio, const HomeworkScreen(), path: '/homework'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Mark done'));
+      await tester.pumpAndSettle();
+
+      expect(postedPaths, contains('/users/me/homework/hw-1/complete'));
+      expect(postedBodies.single, isA<Map<String, dynamic>>());
+    });
+
+    testWidgets('tapping the technique chip opens that exercise', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final dio = _inboxDio(listResponse: {
+        'homework': [
+          homeworkJson(id: 'hw-1', description: 'Practice box breathing', toolLabel: 'Box Breathing'),
+        ],
+        'reminders': [],
+      });
+
+      await tester.pumpWidget(_app(dio, const HomeworkScreen(), path: '/homework'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('homework_tool_hw-1')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // The Breathe screen, opened on the assigned technique rather than its
+      // own default — a chip that looks like a button must do something.
+      expect(find.text('Breathe'), findsOneWidget);
+      expect(find.byKey(const Key('breathing_exercise_dropdown')), findsOneWidget);
     });
   });
 
