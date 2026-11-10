@@ -8,9 +8,20 @@ Two independent checks, both fail-closed on CRITICAL severity:
       dependency has a CRITICAL advisory. HIGH is reported but does not fail.
 
   ecr --repo <name> --tag <tag> [--repo ... --tag ...] [--timeout 1800]
+                 [--exceptions scripts/security-gate-exceptions.json]
       Waits for the ECR basic scan of each pushed image to reach COMPLETE and
       fails if any image has a CRITICAL finding. A scan that never completes
       is treated as a failure: "unknown" is not "clean".
+
+  Exceptions are deliberate, dated and logged. A CRITICAL finding that has no
+  fix available inside the image (a base-image library, no `fixed_in_version`)
+  would otherwise block every deploy forever, and a gate that can never pass
+  gets removed — which protects nothing. So a finding may be excepted by an
+  entry in scripts/security-gate-exceptions.json that carries a CVE id, a
+  written reason, an owner and an expiry date. Every use is printed in the
+  build log, an expired entry is a breach (not a warning), and any CRITICAL
+  finding without an entry is still a breach. The file is code: it is reviewed
+  in a pull request and it expires on its own.
 
 Why CRITICAL and not HIGH: ECR basic scanning reports operating-system layer
 CVEs, and a Node base image routinely carries HIGH findings that have no
@@ -119,7 +130,60 @@ def _scan_once(repo: str, tag: str) -> tuple[str, dict]:
     return "PENDING", payload
 
 
-def cmd_ecr(pairs: list[tuple[str, str]], timeout_s: int) -> int:
+def _load_exceptions(path: str | None) -> tuple[dict[str, dict], str | None]:
+    """Read the exception file. Returns (by-cve, error).
+
+    A missing file means "no exceptions", which is the safe default: every
+    CRITICAL finding then breaches. A file that exists but cannot be parsed is
+    an error the caller must treat as a breach — an unreadable exception list
+    must never be read as "everything is excepted".
+    """
+    if not path:
+        return {}, None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        return {}, None
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, f"could not read exceptions file {path}: {exc}"
+
+    raw = data.get("exceptions") if isinstance(data, dict) else None
+    if raw is None:
+        return {}, None
+    if not isinstance(raw, list):
+        return {}, f"exceptions file {path} has a non-list 'exceptions'"
+
+    by_cve: dict[str, dict] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            return {}, f"exceptions file {path} has a non-object entry"
+        cve = str(item.get("cve", "")).strip().upper()
+        if not cve:
+            return {}, f"exceptions file {path} has an entry with no cve"
+        if not str(item.get("reason", "")).strip() or not str(item.get("owner", "")).strip():
+            return {}, f"exception {cve} needs both a reason and an owner"
+        by_cve[cve] = item
+    return by_cve, None
+
+
+def _exception_state(entry: dict, today: str) -> tuple[bool, str]:
+    """(is_valid_now, why). An expiry that cannot be read is not valid."""
+    expires = str(entry.get("expires", "")).strip()
+    if not expires:
+        return False, "no expiry date"
+    if expires < today:
+        return False, f"expired on {expires}"
+    return True, f"owner {entry.get('owner')}, expires {expires}"
+
+
+def cmd_ecr(pairs: list[tuple[str, str]], timeout_s: int,
+            exceptions_path: str | None = None) -> int:
+    exceptions, exc_error = _load_exceptions(exceptions_path)
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    if exc_error:
+        return _fail(exc_error)
+
     pending = list(pairs)
     results: dict[tuple[str, str], dict] = {}
     failures: dict[tuple[str, str], str] = {}
@@ -163,16 +227,32 @@ def cmd_ecr(pairs: list[tuple[str, str]], timeout_s: int) -> int:
         findings = (payload.get("imageScanFindings") or {}).get("findings") or []
         counts: dict[str, int] = {}
         criticals = []
+        excepted = []
         for f in findings:
             sev = str(f.get("severity", "")).upper()
             counts[sev] = counts.get(sev, 0) + 1
             if sev == "CRITICAL":
+                cve = str(f.get("name", "?")).upper()
+                entry = exceptions.get(cve)
+                if entry is not None:
+                    valid, why = _exception_state(entry, today)
+                    if valid:
+                        # Deliberate, dated, and printed: the build log names the
+                        # CVE, the owner and the day the exception lapses.
+                        excepted.append(f"  EXCEPTED {cve} ({why}): {entry.get('reason')}")
+                        continue
+                    criticals.append(
+                        f"  {cve}: exception is not valid ({why})"
+                    )
+                    continue
                 criticals.append(
-                    f"  {f.get('name', '?')}: "
+                    f"  {cve}: "
                     f"{(f.get('description') or '')[:110]}"
                 )
         summary = ", ".join(f"{k}={v}" for k, v in sorted(counts.items())) or "none"
         print(f"{repo}:{tag} — findings: {summary}")
+        if excepted:
+            print("\n".join(excepted))
         if criticals:
             breached = True
             print("\n".join(criticals), file=sys.stderr)
@@ -189,10 +269,12 @@ def main(argv: list[str]) -> int:
     p_audit = sub.add_parser("audit")
     p_audit.add_argument("report")
 
-    p_ecr = sub.add_parser("ecr")
+    p_ecr = sub.add_parser("ecr", allow_abbrev=False)
     p_ecr.add_argument("--repo", action="append", required=True)
     p_ecr.add_argument("--tag", action="append", required=True)
     p_ecr.add_argument("--timeout", type=int, default=1800)
+    p_ecr.add_argument("--exceptions", default=None,
+                       help="dated exception list; omitted means no exceptions")
 
     args = parser.parse_args(argv)
 
@@ -209,7 +291,8 @@ def main(argv: list[str]) -> int:
                 "give one --tag, or one --tag per --repo "
                 f"(got {len(args.repo)} repo(s), {len(args.tag)} tag(s))"
             )
-    return cmd_ecr(list(zip(args.repo, args.tag)), args.timeout)
+    return cmd_ecr(list(zip(args.repo, args.tag)), args.timeout,
+                   exceptions_path=getattr(args, "exceptions", None))
 
 
 if __name__ == "__main__":

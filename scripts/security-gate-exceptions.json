@@ -1,0 +1,15 @@
+{
+  "_readme": [
+    "Dated exceptions for the ECR image-scan gate (scripts/security-gate.py ecr).",
+    "An entry lets ONE named CVE through, for a fixed number of days, and every",
+    "use is printed in the build log with its owner and expiry. It exists because",
+    "a base-image CRITICAL with no `fixed_in_version` can never be fixed inside",
+    "this build, and a gate that can never pass gets deleted — which protects",
+    "nothing. Adding an entry is a risk acceptance: it is reviewed in a pull",
+    "request, it names an owner, and it lapses on its own.",
+    "Any CRITICAL finding without an entry still fails the build, and an expired",
+    "entry is a failure, not a warning. Keep this list as short as possible and",
+    "the expiry as close as possible."
+  ],
+  "exceptions": []
+}

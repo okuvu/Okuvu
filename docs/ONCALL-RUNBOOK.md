@@ -836,3 +836,31 @@ organisation that runs the line backs her figure.
 elevated-risk turn served during a model or quota outage got a warm reply and no number. She fixed
 that in revision 6 (§4.5): *"Take this at your own pace."* plus the short line, which names Tele-MANAS
 and 112.
+
+## 7. Failure class 5 — a deploy was blocked by a release gate
+
+Since 10 Nov 2026 the deploy refuses to run unless every gate passed in that
+build (`scripts/release-gates.py`; full detail in `docs/PIPELINE-SECURITY-GATE.md`).
+The shape to expect: the build is red, `post_build` printed `REFUSING TO DEPLOY`
+with the gate names, and **nothing changed in production** — which is the point.
+
+```bash
+# Which gate failed, and what it said
+aws codebuild batch-get-builds --ids <build-id> \
+  --query 'builds[0].phases[?phaseStatus==`FAILED`].{phase:phaseType,msg:contexts[0].message}' \
+  --output json
+```
+
+Then:
+
+* **`ecr-image-scan`** — a CRITICAL CVE in the pushed image. Bump the base image
+  if a fix exists. If it has no `fixed_in_version` (CVE-2026-4738 is this case:
+  `zlib` in the Node base image, no fix), the only way through is a dated entry in
+  `scripts/security-gate-exceptions.json` with an owner and a reason. Do not
+  delete the gate and do not push with the ledger bypassed by hand.
+* **`secret-scan` / `typecheck` / `unit-tests` / `esm-imports` / `dependency-audit`**
+  — ordinary build failures. Fix forward.
+* Never "make it deploy" by touching `/tmp/release-gates.json`, by moving the
+  guard, or by hand-running `deploy-beta.sh` to get around it. A manual deploy
+  bypasses the ledger; if one is genuinely needed during an incident, it is an
+  owner decision and it must be recorded in the release note.

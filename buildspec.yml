@@ -3,12 +3,23 @@
 # What it does, in order:
 #   1. install   — pnpm workspace dependencies (frozen lockfile)
 #   2. pre_build — secret scan (fail-closed on new secrets, advisory on history),
-#                  Prisma client, typecheck, unit tests, ECR login
+#                  Prisma client, typecheck, unit tests, dependency audit,
+#                  ESM import guard, ECR login. Each gate records its pass in the
+#                  release-gate ledger (scripts/release-gates.py).
 #   3. build     — docker build + push the api, worker and therapist-portal
-#                  images to ECR
+#                  images to ECR, then wait for the CRITICAL-severity image scan
 #   4. post_build— prisma migrate deploy against RDS, then roll all three ECS
 #                  services onto a new task-definition revision and wait for
 #                  the deployment to stabilise
+#
+# WHY THE LEDGER EXISTS: CodeBuild runs post_build even after the build phase
+# fails. Until 2026-11-10 every build in the history looked like BUILD FAILED /
+# POST_BUILD SUCCEEDED, and the services were rolled anyway — a failed security
+# gate coloured the build red and changed nothing. The ledger removes the deploy
+# path's dependence on phase order: post_build, the migrate block and the rollout
+# block each refuse to run unless every gate recorded a pass for this commit in
+# this build. Absence, corruption, a stale ledger or a missing gate all mean no
+# migration and no rollout.
 #
 # Deploy scope (scripts/deploy-scope.py, pre_build): a commit whose only changes are
 # inside docs/, evidence/ or plan/ cannot change a container, so it finishes the whole
@@ -123,6 +134,12 @@ phases:
         esac
         export DEPLOY_DECISION DEPLOY_SCOPE_REASON
         echo "deploy-scope: DEPLOY_DECISION=${DEPLOY_DECISION} reason=${DEPLOY_SCOPE_REASON:-none}"
+      - echo "=== Release-gate ledger (fail-closed; absent or incomplete means no deploy) ==="
+      # Every gate below records its pass here, and post_build refuses to touch
+      # production unless all of them are recorded FOR THIS COMMIT. The ledger
+      # starts empty: `reset` is the only creator, so a gate that passes cannot
+      # vouch for a build that never started one.
+      - python3 scripts/release-gates.py reset
       - echo "=== Secret scan gate (working tree, fail-closed) ==="
       # A credential committed to this repository is the one defect that cannot be
       # repaired afterwards: okuvu/Okuvu is public, so a pushed commit is cloneable
@@ -134,6 +151,7 @@ phases:
       # and the allowlist is required, so deleting it is not a way past the gate.
       # There is deliberately no `|| true` on this line.
       - python3 scripts/secret-scan.py tree --allowlist scripts/secret-scan-allowlist.txt
+      - python3 scripts/release-gates.py record secret-scan
       # The history report is ADVISORY and never fails the build. Every value in it
       # was published before this gate existed, and no pull request can remove it
       # from a clone that already exists. A gate that is permanently red for a leak
@@ -154,21 +172,25 @@ phases:
       - cd apps/api && npx tsc --noEmit && cd -
       - cd apps/worker && npx tsc --noEmit && cd -
       - cd apps/therapist-portal && npx tsc --noEmit && cd -
+      - python3 scripts/release-gates.py record typecheck
       - echo "=== Unit tests (api + worker + portal) ==="
       - cd apps/api && npx vitest run && cd -
       - cd apps/worker && npx vitest run && cd -
       - cd apps/therapist-portal && npx vitest run && cd -
+      - python3 scripts/release-gates.py record unit-tests
       - echo "=== Dependency audit gate (production deps) ==="
       # pnpm audit exits non-zero whenever it finds any advisory; the severity
       # policy lives in security-gate.py, not in this file. `|| true` keeps the
       # audit report flowing into the gate instead of aborting the phase first.
       - pnpm audit --prod --json > /tmp/audit.json || true
       - python3 scripts/security-gate.py audit /tmp/audit.json
+      - python3 scripts/release-gates.py record dependency-audit
       - echo "=== ESM import guard (a container-only failure class) ==="
       # api and worker run as plain node ESM: an extensionless relative import
       # typechecks and passes vitest, then dies in the container with
       # ERR_MODULE_NOT_FOUND. Check it before the docker build, not after.
       - python3 scripts/check-esm-imports.py
+      - python3 scripts/release-gates.py record esm-imports
       - echo "=== ECR login ==="
       - aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
@@ -189,18 +211,32 @@ phases:
       - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/portal:latest"
       - echo "=== ECR image scan gate ==="
       # Images are pushed but not yet rolled out: a CRITICAL CVE here fails the
-      # build before post_build touches ECS, so a vulnerable image never
-      # reaches a running service. The scan runs on push (ecr.tf scan_on_push).
+      # gate, and post_build's ledger guard then refuses to migrate or roll out
+      # (see scripts/release-gates.py). A CRITICAL that cannot be fixed inside
+      # this build must be excepted, dated, in scripts/security-gate-exceptions.json.
+      # This gate is the last command of the build phase, so a failure here does
+      # NOT stop CodeBuild from running post_build — the ledger guard is the
+      # control, not the phase order.
       - |
         python3 scripts/security-gate.py ecr \
           --repo "${NAME_PREFIX}/api" \
           --repo "${NAME_PREFIX}/worker" \
           --repo "${NAME_PREFIX}/portal" \
           --tag "${IMAGE_TAG}" \
+          --exceptions scripts/security-gate-exceptions.json \
           --timeout "${SCAN_GATE_TIMEOUT:-1800}"
+      - python3 scripts/release-gates.py record ecr-image-scan
 
   post_build:
     commands:
+      - echo "=== Release-gate ledger (no gate may be missing before this phase deploys) ==="
+      # CodeBuild runs post_build even when the build phase failed (proven by the
+      # 2026-11-07..11-10 build history: BUILD FAILED, POST_BUILD SUCCEEDED, three
+      # services rolled). This phase therefore cannot assume an earlier failure
+      # stopped it. The ledger check below is repeated inside both mutating
+      # blocks, because the guard has to travel with the dangerous command and not
+      # depend on phase order or on this line being first forever.
+      - python3 scripts/release-gates.py require
       - |
         if [ "${RUN_MIGRATIONS}" = "true" ]; then
           echo "=== Running Prisma migrations (in-VPC, against RDS) ==="
@@ -210,6 +246,12 @@ phases:
           DATABASE_URL="$(printf '%s' "${DB_SECRET_JSON}" | python3 -c "import json,sys,urllib.parse; s=json.load(sys.stdin); q=lambda v: urllib.parse.quote(str(v), safe=''); print('postgresql://%s:%s@%s:%s/%s?sslmode=require' % (q(s['username']), q(s['password']), s['host'], s['port'], s['dbname']))")"
           if [ -z "${DATABASE_URL}" ]; then
             echo "FATAL: could not compose DATABASE_URL from ${NAME_PREFIX}/database."
+            exit 1
+          fi
+          # Guard, again, immediately before the first command that changes live
+          # state. A failed or missing gate stops the phase here: no migration.
+          if ! python3 scripts/release-gates.py require; then
+            echo "FATAL: release gates did not all pass — refusing to migrate."
             exit 1
           fi
           # Beta-only bootstrap escape hatch. The database is empty and the
@@ -260,6 +302,16 @@ phases:
           echo "=== Build SUCCEEDS with all three services untouched ==="
         else
           echo "=== Deploy scope: DEPLOY (${DEPLOY_SCOPE_REASON}) ==="
+
+          # Guard immediately before the first ECS mutation. The decision to deploy
+          # is not the decision to be allowed to deploy: a failed security gate,
+          # typecheck or test run in this build stops here, even though CodeBuild
+          # ran this phase after a failed build phase.
+          if ! python3 scripts/release-gates.py require; then
+            echo "FATAL: release gates did not all pass — refusing to register a task"
+            echo "       definition or update a service."
+            exit 1
+          fi
 
           # Task-definition rewrite is the same helper the deploy scripts use, so
           # the CI rollout and a manual deploy pin images identically.

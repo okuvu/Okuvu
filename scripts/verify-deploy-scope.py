@@ -568,6 +568,17 @@ def rollout_cases(root: Path, work: Path, rollout: str, post_cmds: list[str]) ->
         env["ECR_REGISTRY"] = ACCOUNT_IMAGE.rsplit("/", 1)[0]
         env["IMAGE_TAG"] = "a1b2c3d4e5f6"
         env["RUN_MIGRATIONS"] = "false"
+        # post_build now refuses to roll out unless every release gate recorded a
+        # pass for this commit (scripts/release-gates.py). Supply a complete
+        # ledger so this harness still tests the rollout, not the guard — the
+        # guard's own behaviour is proven by scripts/verify-release-gates.py.
+        env["CODEBUILD_RESOLVED_SOURCE_VERSION"] = "a1b2c3d4e5f6"
+        gates = ("secret-scan", "typecheck", "unit-tests", "dependency-audit",
+                 "esm-imports", "ecr-image-scan")
+        Path("/tmp/release-gates.json").write_text(json.dumps({
+            "version": 1, "sha": "a1b2c3d4e5f6", "build": "harness",
+            "gates": {g: {"at": "2026-11-10T00:00:00Z", "ok": True} for g in gates},
+        }), encoding="utf-8")
         Path("/tmp/deploy-scope.env").write_text(
             f"DEPLOY_DECISION={decision}\nDEPLOY_SCOPE_REASON='harness'\n", encoding="utf-8"
         )
@@ -587,6 +598,7 @@ def rollout_cases(root: Path, work: Path, rollout: str, post_cmds: list[str]) ->
         else:
             c.ok = c.got == "no-mutations" and proc.returncode == 0 and "SUCCEEDS" in proc.stdout
         cases.append(c)
+        Path("/tmp/release-gates.json").unlink(missing_ok=True)
     return cases
 
 
