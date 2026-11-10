@@ -335,6 +335,9 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       _finished = true;
       _stage = 'closing';
     });
+    // Working through a worksheet to its closing line is one act of use — and
+    // only once it is actually stored, so a save that failed does not count.
+    ref.read(becomingJourneyProvider.notifier).recordMoment();
   }
 
   Future<void> _toggleListening() async {

@@ -26,6 +26,11 @@ export '../features/intake/onboarding_provider.dart'
     show hasCompletedOnboardingProvider;
 export '../features/journal/journal_provider.dart'
     show journalListProvider, journalEntryFormProvider;
+// The spiral of becoming counts acts of use; the screens that produce those
+// moments already import this file, so it is re-exported here rather than
+// imported into each of them.
+export '../features/home/providers/becoming_provider.dart'
+    show becomingJourneyProvider;
 
 class CrisisOverlayNotifier extends Notifier<bool> {
   @override

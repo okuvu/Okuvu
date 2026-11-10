@@ -250,6 +250,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     ref.read(chatMessagesProvider.notifier).addUserMessage(text);
     ref.read(webSocketServiceProvider).sendUserTurn(text);
+    ref.read(becomingJourneyProvider.notifier).recordMoment();
     _textController.clear();
     setState(() => _isAgentTyping = true);
     _startTypingTimeout();

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import 'providers/today_card_provider.dart';
+import 'widgets/becoming_spiral.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/next_session_card.dart';
 import 'widgets/today_card.dart';
@@ -143,7 +144,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 28),
+          // The spiral of becoming. It sits in the space under Crisis Support,
+          // which was empty, and fills a little with each act of use: a message
+          // sent, a check-in saved, an entry written, a worksheet finished. A
+          // completed turn restarts from the inner end in the next purple.
+          Center(
+            child: BecomingSpiral(journey: ref.watch(becomingJourneyProvider)),
+          ),
+          const SizedBox(height: 28),
         ],
       ),
       bottomNavigationBar: const HomeBottomNav(currentIndex: 0),

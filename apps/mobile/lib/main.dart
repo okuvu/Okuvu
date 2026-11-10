@@ -9,6 +9,7 @@ import 'src/config/app_config.dart';
 import 'src/core/crash_reporter.dart';
 import 'src/core/logger.dart';
 import 'src/theme/app_colors.dart';
+import 'src/features/home/providers/becoming_provider.dart';
 import 'src/features/intake/onboarding_provider.dart';
 
 void main() {
@@ -51,6 +52,11 @@ void main() {
       overrides: [
         hasCompletedOnboardingProvider.overrideWith(
           () => OnboardingCompleteNotifier(prefs),
+        ),
+        // The spiral of becoming counts acts of use across launches, so it
+        // takes the same pre-loaded instance rather than opening its own.
+        becomingJourneyProvider.overrideWith(
+          () => BecomingJourneyNotifier(prefs),
         ),
       ],
       child: const App(),

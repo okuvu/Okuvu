@@ -142,6 +142,9 @@ class JournalEntryFormNotifier extends Notifier<JournalEntryFormState> {
         // answer decides whether the help card is raised — the app does not
         // look at the words itself, and cannot skip the check by not looking.
         final safety = response.data is Map ? response.data['safety'] : null;
+        // A written entry is one act of use, counted only once the server has
+        // taken it — a failed save is not a moment.
+        ref.read(becomingJourneyProvider.notifier).recordMoment();
         final showHelpNow = safety is Map && safety['showHelp'] == true;
         final helpOfferNow = safety is Map && safety['helpOffer'] == true;
         state = state.copyWith(

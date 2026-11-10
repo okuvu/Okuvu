@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 
 import 'package:okuvu/src/config/app_config.dart';
 import 'package:okuvu/src/features/home/home_screen.dart';
+import 'package:okuvu/src/features/home/widgets/becoming_spiral.dart';
 import 'package:okuvu/src/features/chat/chat_screen.dart';
 import 'package:okuvu/src/features/progress/progress_screen.dart';
 import 'package:okuvu/src/features/settings/settings_screen.dart';
@@ -190,6 +191,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Crisis Support'), findsOneWidget);
+    });
+
+    testWidgets('the spiral of becoming sits under Crisis Support', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_buildHomeApp());
+      await tester.pumpAndSettle();
+
+      // Owner's request: the empty space under Crisis Support now carries the
+      // Okuvu spiral. It is below the crisis entry, not above it — the safety
+      // entry point may never move down the screen for an ornament.
+      final spiral = find.byType(BecomingSpiral);
+      expect(spiral, findsOneWidget);
+      expect(
+        tester.getTopLeft(spiral).dy,
+        greaterThan(tester.getTopLeft(find.text('Crisis Support')).dy),
+      );
     });
 
     testWidgets('greeting includes the display abbreviation once /users/me/today returns one', (tester) async {

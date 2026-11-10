@@ -40,6 +40,7 @@ class MoodCheckinNotifier extends Notifier<void> {
         data: {'mood_value': moodValue},
       );
       ref.invalidate(moodProgressProvider);
+      ref.read(becomingJourneyProvider.notifier).recordMoment();
       return true;
     } catch (_) {
       return false;
