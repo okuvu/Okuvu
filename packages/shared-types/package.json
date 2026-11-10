@@ -23,6 +23,10 @@
     "./sharing": {
       "types": "./sharing.ts",
       "default": "./sharing.ts"
+    },
+    "./worksheets/*": {
+      "types": "./worksheets/*.ts",
+      "default": "./worksheets/*.ts"
     }
   },
   "scripts": {

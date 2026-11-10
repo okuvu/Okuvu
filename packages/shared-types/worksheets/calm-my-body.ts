@@ -8,7 +8,7 @@
  * Breathing is one card that opens the four techniques already in the player;
  * guided breathing was retired in clinical review v2.0.0 and stays hidden.
  */
-import type { CatalogueEntry } from './types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 const grounding: CatalogueEntry = {
   tool_id: 'grounding_5431',

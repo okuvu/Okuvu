@@ -24,7 +24,7 @@ import type {
   WorksheetContent,
   WorksheetLoadLevel,
   WorksheetSection,
-} from '../worksheet';
+} from '@okuvu/shared-types/worksheet';
 
 /** Who approved the English wording, and when. Stored with every approved row. */
 export const ENGLISH_APPROVAL = {

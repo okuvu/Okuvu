@@ -5,8 +5,8 @@
  * NOT here: it lives at the point that decides whether a demanding worksheet
  * may open (the safety step), not in the worksheet's own definition.
  */
-import type { CatalogueEntry } from './types';
-import { FEELINGS_EN, FEELINGS_HI } from './feelings';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
+import { FEELINGS_EN, FEELINGS_HI } from '@okuvu/shared-types/worksheets/feelings';
 
 const thoughtRecord: CatalogueEntry = {
   tool_id: 'ws_thought_record',

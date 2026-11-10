@@ -1,7 +1,7 @@
 /**
  * DO WHAT MATTERS — worksheets 8 and 9.
  */
-import type { CatalogueEntry } from './types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 const smallThings: CatalogueEntry = {
   tool_id: 'ws_small_things',

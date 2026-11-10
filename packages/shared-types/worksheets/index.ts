@@ -7,21 +7,21 @@
  * approved document puts them. Placeholders are in the same list but are
  * `placeholder`, so every consumer filters them out with `isListable`.
  */
-import type { WorksheetRegistryRow } from '../worksheet';
-import { worksheetRowProblems } from '../worksheet';
-import { calmMyBodyEntries } from './calm-my-body';
-import { beKinderEntries } from './be-kinder';
-import { doWhatMattersEntries } from './do-what-matters';
-import { energyLifeEntries, beforeAfterEntries } from './energy-and-session';
-import { noticeAndNameEntries } from './notice-and-name';
-import { peopleBoundariesEntries } from './people-boundaries';
-import { placeholderEntries } from './placeholders';
-import { safetyEntries } from './safety';
-import { untangleThoughtsEntries } from './untangle-thoughts';
-import { ENGLISH_APPROVAL, isListable, type CatalogueEntry } from './types';
+import type { WorksheetRegistryRow } from '@okuvu/shared-types/worksheet';
+import { worksheetRowProblems } from '@okuvu/shared-types/worksheet';
+import { calmMyBodyEntries } from '@okuvu/shared-types/worksheets/calm-my-body';
+import { beKinderEntries } from '@okuvu/shared-types/worksheets/be-kinder';
+import { doWhatMattersEntries } from '@okuvu/shared-types/worksheets/do-what-matters';
+import { energyLifeEntries, beforeAfterEntries } from '@okuvu/shared-types/worksheets/energy-and-session';
+import { noticeAndNameEntries } from '@okuvu/shared-types/worksheets/notice-and-name';
+import { peopleBoundariesEntries } from '@okuvu/shared-types/worksheets/people-boundaries';
+import { placeholderEntries } from '@okuvu/shared-types/worksheets/placeholders';
+import { safetyEntries } from '@okuvu/shared-types/worksheets/safety';
+import { untangleThoughtsEntries } from '@okuvu/shared-types/worksheets/untangle-thoughts';
+import { ENGLISH_APPROVAL, isListable, type CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
-export * from './types';
-export * from './feelings';
+export * from '@okuvu/shared-types/worksheets/types';
+export * from '@okuvu/shared-types/worksheets/feelings';
 
 /** Every entry, in Library order. */
 export const CATALOGUE: CatalogueEntry[] = [

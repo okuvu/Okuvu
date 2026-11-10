@@ -10,8 +10,8 @@
  *
  * Run (writes the file): WRITE_WORKSHEET_SQL=1 npx vitest run __tests__/migration.test.ts
  */
-import { CATALOGUE, LISTABLE_CATALOGUE } from './index';
-import { BREATHING_CHILD_TOOL_IDS } from './types';
+import { CATALOGUE, LISTABLE_CATALOGUE } from '@okuvu/shared-types/worksheets';
+import { BREATHING_CHILD_TOOL_IDS } from '@okuvu/shared-types/worksheets/types';
 
 const MIGRATION_DIR = '20261109130000_seed_library_worksheets';
 

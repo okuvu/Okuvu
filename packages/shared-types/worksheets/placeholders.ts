@@ -10,7 +10,7 @@
  * The one-line purposes here are scaffolding, not client copy: nothing in this
  * file is approved wording and nothing in it can reach a client.
  */
-import type { CatalogueEntry } from './types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 function placeholder(
   tool_id: string,

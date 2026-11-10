@@ -5,8 +5,8 @@
  * and these two screens are added after it (`opens: 'mood_checkin'`).
  * 2 is a new worksheet.
  */
-import type { CatalogueEntry } from './types';
-import { FEELINGS_EN, FEELINGS_HI } from './feelings';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
+import { FEELINGS_EN, FEELINGS_HI } from '@okuvu/shared-types/worksheets/feelings';
 
 const moodCheckIn: CatalogueEntry = {
   tool_id: 'mood_checkin',

@@ -10,7 +10,7 @@
  * the finer words it names under "scared". No other family has finer words yet
  * — those would be new clinical copy, not a translation.
  */
-import type { WorksheetFeeling } from '../worksheet';
+import type { WorksheetFeeling } from '@okuvu/shared-types/worksheet';
 
 export const FEELINGS_EN: WorksheetFeeling[] = [
   { id: 'sad', label: 'sad' },

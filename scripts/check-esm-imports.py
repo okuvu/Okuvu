@@ -31,6 +31,15 @@ from pathlib import Path
 
 DEFAULT_APPS = ("apps/api", "apps/worker")
 
+# Packages whose *.ts SOURCE is loaded by the container at runtime (their
+# package.json `exports` point at .ts, so Node strips types on the fly). The
+# `.js` rule above does not apply here: there is no compiled .js to point at, so
+# the only specifier Node can resolve is a package subpath through the exports
+# map. A relative import without an extension typechecks, passes vitest, passes
+# this script's app scan — and then crash-loops the api with
+# `Cannot find module '/app/packages/shared-types/worksheets'`.
+RUNTIME_PACKAGES = ("packages/shared-types",)
+
 # import ... from './x' | export ... from '../y' | import './side-effect'
 IMPORT_RE = re.compile(
     r"""(?<![A-Za-z0-9_$])(?:import|export)\s
@@ -76,11 +85,27 @@ def main(argv: list[str]) -> int:
             for lineno, spec in violations_in(ts):
                 total += 1
                 print(f"{ts}:{lineno}: extensionless relative import {spec!r}")
+    for pkg in RUNTIME_PACKAGES:
+        root = Path(pkg)
+        if not root.is_dir():
+            continue
+        for ts in sorted(root.rglob("*.ts")):
+            if ts.name.endswith(".d.ts") or "__tests__" in ts.parts:
+                continue
+            checked += 1
+            for lineno, spec in violations_in(ts):
+                total += 1
+                print(
+                    f"{ts}:{lineno}: relative import {spec!r} in a runtime-loaded "
+                    "package (use a package subpath, e.g. "
+                    "'@okuvu/shared-types/worksheets/types')"
+                )
     print(f"checked {checked} files; {total} extensionless relative import(s)")
     if total:
         print(
             "FAIL: these compile and pass tests, then crash the container at boot "
-            "with ERR_MODULE_NOT_FOUND. Add the .js extension."
+            "with ERR_MODULE_NOT_FOUND. Add the .js extension (apps), or import "
+            "the package subpath (runtime-loaded packages)."
         )
         return 1
     print("OK: every relative import resolves under Node ESM")

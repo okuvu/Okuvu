@@ -5,7 +5,7 @@
  * they are read together in the Library's order; the section key on each row is
  * what places it, not the file it lives in.
  */
-import type { CatalogueEntry } from './types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 const energyAudit: CatalogueEntry = {
   tool_id: 'ws_energy_audit',

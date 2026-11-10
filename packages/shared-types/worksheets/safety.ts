@@ -10,7 +10,7 @@
  * (`therapistPrompt`). That string is stripped from every client view in
  * `toClientWorksheetView`, so the client never reads therapist framing.
  */
-import type { CatalogueEntry } from './types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 const safetyPlan: CatalogueEntry = {
   tool_id: 'ws_safety_plan',

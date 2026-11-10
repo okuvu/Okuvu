@@ -8,9 +8,9 @@
  *
  * Run (writes the file): WRITE_HINGLISH_MD=1 npx vitest run __tests__/hinglish.test.ts
  */
-import { LISTABLE_CATALOGUE } from '../worksheets/index';
-import type { CatalogueEntry } from '../worksheets/types';
-import type { WorksheetContent, WorksheetField } from '../worksheet';
+import { LISTABLE_CATALOGUE } from '@okuvu/shared-types/worksheets';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
+import type { WorksheetContent, WorksheetField } from '@okuvu/shared-types/worksheet';
 
 export const HINGLISH_PATH = 'docs/exercise-library/05-hinglish-for-review.md';
 

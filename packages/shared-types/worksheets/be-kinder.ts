@@ -1,7 +1,7 @@
 /**
  * BE KINDER TO ME — worksheets 11 and 12.
  */
-import type { CatalogueEntry } from './types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 const kindFriend: CatalogueEntry = {
   tool_id: 'ws_kind_friend_letter',

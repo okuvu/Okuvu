@@ -1,7 +1,7 @@
 /**
  * PEOPLE & BOUNDARIES — worksheet 10.
  */
-import type { CatalogueEntry } from './types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 const hardConversation: CatalogueEntry = {
   tool_id: 'ws_hard_conversation',
