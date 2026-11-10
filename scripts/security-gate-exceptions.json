@@ -11,5 +11,13 @@
     "entry is a failure, not a warning. Keep this list as short as possible and",
     "the expiry as close as possible."
   ],
-  "exceptions": []
+  "exceptions": [
+    {
+      "cve": "CVE-2026-4738",
+      "reason": "zlib buffer-bounds flaw in the node:22-alpine base image. ECR reports fixedInVersion null on every image, so it cannot be fixed inside this build; the fix is a base-image move, tracked separately. Present unchanged on the images live before this release (tag 5ab345ea6d0f for api/worker/portal), so it is not a regression of this deploy.",
+      "owner": "Rajwant",
+      "expires": "2026-12-10",
+      "accepted_at": "2026-11-10"
+    }
+  ]
 }
