@@ -73,11 +73,17 @@ phases:
       - |
         if [ "${RUN_MIGRATIONS}" = "true" ]; then
           echo "=== Prisma migrations (in-VPC, against RDS) ==="
-          DATABASE_URL="$(printf '%s' "${DB_SECRET_JSON}" | python3 -c "import json,sys,urllib.parse; s=json.load(sys.stdin); q=lambda v: urllib.parse.quote(str(v), safe=''); print('postgresql://%s:***@%s:%s/%s?sslmode=require' % (q(s['username']), q(s['password']), s['host'], s['port'], s['dbname']))")"
-          if [ -z "${DATABASE_URL}" ]; then
-            echo "FATAL: could not compose DATABASE_URL from ${NAME_PREFIX}/database."
-            exit 1
-          fi
+          # evia-beta/database stores the full, working database_url alongside its
+          # parts (verified: username/password/host/port/dbname, no placeholder).
+          # Read that field directly rather than recomposing the URI — the earlier
+          # recompose line passed five values to a four-placeholder format string
+          # and died with "not all arguments converted", which read in the log like
+          # a missing secret.
+          DATABASE_URL="$(printf '%s' "${DB_SECRET_JSON}" | python3 -c "import json,sys; print(json.load(sys.stdin)['database_url'])")"
+          case "${DATABASE_URL}" in
+            postgresql://*|postgres://*) : ;;
+            *) echo "FATAL: evia-beta/database.database_url is missing or not a postgres URI."; exit 1 ;;
+          esac
           ( cd packages/prisma && DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy )
         else
           echo "RUN_MIGRATIONS=false — skipping prisma migrate deploy."
