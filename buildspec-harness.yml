@@ -1,0 +1,86 @@
+# AWS CodeBuild buildspec — the chat-quality testing harness image only.
+#
+# Why a second buildspec rather than a third image in buildspec.yml: that file
+# ends in a full three-service rollout (worker → api → portal) and its
+# deploy-scope gate decides per commit whether to touch production. The harness
+# is a separate service with its own task definition and no production role, so
+# folding it in would let a harness change redeploy the product. This buildspec
+# does exactly one thing: build and push evia-beta/test-harness, then (when
+# asked) apply pending Prisma migrations in-VPC.
+#
+# Project requirements (set on the CodeBuild project, not here):
+#   - image aws/codebuild/standard:8.0, privileged mode ON (docker build)
+#   - VPC: same private subnets + the ECS security group as evia-beta-build, so
+#     `prisma migrate deploy` can reach RDS and the build can reach ECR.
+#   - role: evia-beta-codebuild (ECR push, secretsmanager:GetSecretValue on
+#     evia-beta/database)
+
+version: 0.2
+
+env:
+  # standard:8.0 runs commands through dash; the ${VAR:0:12} expansions below
+  # are bash-only and abort pre_build with "exit status 2" under dash.
+  shell: bash
+  variables:
+    AWS_REGION: ap-south-1
+    NAME_PREFIX: evia-beta
+    WORKLOAD: test-harness
+    PNPM_VERSION: 11.8.0
+    RUN_MIGRATIONS: "true"
+  secrets-manager:
+    DB_SECRET_JSON: evia-beta/database
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - corepack enable
+      - corepack prepare "pnpm@${PNPM_VERSION}" --activate
+      - pnpm --version
+      - pnpm install --frozen-lockfile
+
+  pre_build:
+    commands:
+      - AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+      - ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - IMAGE_TAG="${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}"
+      - IMAGE_TAG="${IMAGE_TAG:0:12}"
+      - export AWS_ACCOUNT_ID ECR_REGISTRY IMAGE_TAG
+      - echo "registry=${ECR_REGISTRY} tag=${IMAGE_TAG}"
+      - echo "=== Secret scan gate (working tree, fail-closed) ==="
+      - python3 scripts/secret-scan.py tree --allowlist scripts/secret-scan-allowlist.txt
+      - echo "=== Prisma client ==="
+      - cd packages/prisma && npx prisma generate && cd -
+      - echo "=== Harness typecheck + tests ==="
+      - cd apps/test-harness && npx tsc --noEmit && cd -
+      - cd apps/test-harness && npx vitest run && cd -
+      - echo "=== ECR login ==="
+      - aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+
+  build:
+    commands:
+      - echo "=== Building ${WORKLOAD} image ==="
+      - docker build -t "${ECR_REGISTRY}/${NAME_PREFIX}/${WORKLOAD}:${IMAGE_TAG}" -t "${ECR_REGISTRY}/${NAME_PREFIX}/${WORKLOAD}:latest" -f apps/test-harness/Dockerfile .
+      - echo "=== Pushing to ECR ==="
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/${WORKLOAD}:${IMAGE_TAG}"
+      - docker push "${ECR_REGISTRY}/${NAME_PREFIX}/${WORKLOAD}:latest"
+      - echo "=== Image digest ==="
+      - aws ecr describe-images --repository-name "${NAME_PREFIX}/${WORKLOAD}" --region "${AWS_REGION}" --image-ids imageTag="${IMAGE_TAG}" --query 'imageDetails[0].{tags:imageTags,digest:imageDigest,pushedAt:imagePushedAt}' --output json
+
+  post_build:
+    commands:
+      - |
+        if [ "${RUN_MIGRATIONS}" = "true" ]; then
+          echo "=== Prisma migrations (in-VPC, against RDS) ==="
+          DATABASE_URL="$(printf '%s' "${DB_SECRET_JSON}" | python3 -c "import json,sys,urllib.parse; s=json.load(sys.stdin); q=lambda v: urllib.parse.quote(str(v), safe=''); print('postgresql://%s:***@%s:%s/%s?sslmode=require' % (q(s['username']), q(s['password']), s['host'], s['port'], s['dbname']))")"
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "FATAL: could not compose DATABASE_URL from ${NAME_PREFIX}/database."
+            exit 1
+          fi
+          ( cd packages/prisma && DATABASE_URL="${DATABASE_URL}" npx prisma migrate deploy )
+        else
+          echo "RUN_MIGRATIONS=false — skipping prisma migrate deploy."
+        fi
+      - echo "=== Image ${ECR_REGISTRY}/${NAME_PREFIX}/${WORKLOAD}:${IMAGE_TAG} is in ECR ==="
+      - echo "This build does NOT touch ECS. Roll out with: aws ecs update-service --cluster ${NAME_PREFIX} --service ${NAME_PREFIX}-harness --force-new-deployment"
