@@ -9,7 +9,8 @@
     "start": "next start -p 3002",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke:campaign": "tsx scripts/campaign-smoke.ts"
   },
   "dependencies": {
     "@okuvu/api": "workspace:*",

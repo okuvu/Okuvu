@@ -965,6 +965,39 @@ model ConversationRun {
   @@index([campaign_id])
 }
 
+/// TH-S39 — one row per persona transcript sent to the clinical reviewer.
+///
+/// The email is the deliverable of the chat-quality loop: Shubhangi reads the
+/// conversation, not a score. The row exists so "was this transcript actually
+/// mailed, when, and with which Gmail message id" is answerable, and so a
+/// failed send is retryable without re-running the conversation (the turns
+/// themselves live in TestRun and never need to be regenerated).
+model TranscriptEmail {
+  id                  String    @id @default(uuid())
+  campaign_id         String?
+  /// The ConversationRun group this transcript came from.
+  group_id            String?
+  persona_id          String
+  to_email            String
+  from_email          String
+  subject             String
+  /// Plain-text body exactly as sent — the archive copy, not a re-render.
+  body                String
+  turn_count          Int
+  /// pending | sent | failed
+  status              String    @default("pending")
+  /// Gmail message id from the send response; proof the send landed.
+  provider_message_id String?
+  error               String?
+  attempts            Int       @default(0)
+  sent_at             DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  @@index([group_id])
+  @@index([status, created_at])
+}
+
 model CorpusCase {
   id                    String           @id @default(uuid())
   type                  CorpusCaseType

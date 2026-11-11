@@ -115,14 +115,19 @@ export function assertRunnerRails(environment: string): void {
   }
 }
 
-/** Rough per-turn cost estimate in USD from the recorded usage (spec §7: cheap but not free). */
+/**
+ * Per-turn cost estimate in USD from the recorded usage (spec §7: cheap but not
+ * free). Priced at the simulator's own model — DEFAULT_SIMULATOR_MODEL is
+ * google/gemini-2.0-flash-001 at ~$0.10 / $0.40 per 1M tokens. Previously this
+ * used $0.05 / $0.08 (fast-class Llama rates), which under-counted by up to 5x
+ * on output; the ceiling is a hard stop, so under-counting is the dangerous
+ * direction. Kept local rather than imported from campaign-plan.ts because
+ * campaign-plan.ts imports this module.
+ */
 function estimateTurnCostUsd(usage: { promptTokens: number; completionTokens: number } | null): number {
   if (!usage) return 0;
-  // Order-of-magnitude rates for the small models in play (USD per 1M tokens:
-  // ~$0.05 input / ~$0.08 output on Llama-3.1-8B, similar band for flash-class
-  // simulator models). Deliberately conservative (rounds up).
-  const inputUsd = (usage.promptTokens / 1_000_000) * 0.05;
-  const outputUsd = (usage.completionTokens / 1_000_000) * 0.08;
+  const inputUsd = (usage.promptTokens / 1_000_000) * 0.1;
+  const outputUsd = (usage.completionTokens / 1_000_000) * 0.4;
   return inputUsd + outputUsd;
 }
 

@@ -75,26 +75,75 @@ export interface SimulatorTurnResult {
   usage: { promptTokens: number; completionTokens: number } | null;
   /** Seed used for this call (echoed for per-turn telemetry). */
   seed: number;
+  /**
+   * True when the turn came from `cannedSimulatorTurn` rather than a model.
+   * Surfaced so a transcript can never be mistaken for a conversation, and so
+   * the campaign gate can refuse to start on it.
+   */
+  canned: boolean;
 }
 
-/** The default simulator model — deliberately NOT the A2 family (Llama). */
+/** The default simulator model on the OpenRouter path — deliberately NOT the A2 family (Llama). */
 export const DEFAULT_SIMULATOR_MODEL = 'google/gemini-2.0-flash-001';
 
-export function resolveSimulatorModel(): string {
-  const pinned = process.env.TEST_HARNESS_SIMULATOR_MODEL?.trim();
-  const model = pinned && pinned !== '' ? pinned : DEFAULT_SIMULATOR_MODEL;
-  const a2Model = process.env.OPENROUTER_MODEL?.trim() || 'meta-llama/llama-3.1-8b-instruct';
+/**
+ * The default simulator model on the Bedrock path (LLM_PROVIDER=bedrock).
+ *
+ * Gemma 3 12B is chosen for three reasons: it is a different model family from
+ * A2 (qwen3-32b), so the no-self-play guard still means something; it serves
+ * on-demand in ap-south-1 (Nova Lite refuses on-demand here and would need a
+ * cross-region inference profile outside India); and it is small enough to be
+ * cheap per turn. Measured 2026-11-11 with `bedrock-runtime converse`.
+ */
+export const DEFAULT_BEDROCK_SIMULATOR_MODEL = 'google.gemma-3-12b-it';
+
+function simulatorProvider(env: NodeJS.ProcessEnv | Record<string, string | undefined>): 'bedrock' | 'openrouter' {
+  return env.LLM_PROVIDER === 'bedrock' ? 'bedrock' : 'openrouter';
+}
+
+export function resolveSimulatorModel(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string {
+  const provider = simulatorProvider(env);
+  const pinned = env.TEST_HARNESS_SIMULATOR_MODEL?.trim();
+  const model =
+    pinned && pinned !== ''
+      ? pinned
+      : provider === 'bedrock'
+        ? DEFAULT_BEDROCK_SIMULATOR_MODEL
+        : DEFAULT_SIMULATOR_MODEL;
+
+  const a2Model =
+    provider === 'bedrock'
+      ? env.BEDROCK_MODEL_ID?.trim() || 'qwen.qwen3-32b-v1:0'
+      : env.OPENROUTER_MODEL?.trim() || 'meta-llama/llama-3.1-8b-instruct';
 
   // No self-play (spec TH-S33 "Critical"): refuse loudly rather than let a
   // misconfiguration silently measure A2 talking to itself.
   if (model === a2Model) {
     throw new Error(
-      `Simulator model ('${model}') is the same as the pipeline's A2 model (OPENROUTER_MODEL). ` +
+      `Simulator model ('${model}') is the same as the pipeline's A2 model. ` +
         'The user-simulator must run on a different model family than A2 (no self-play) — ' +
         'set TEST_HARNESS_SIMULATOR_MODEL to a distinct model.',
     );
   }
   return model;
+}
+
+/**
+ * True when the simulator would play the client from `cannedSimulatorTurn`
+ * instead of a model — i.e. every turn is a template and the transcript is
+ * not a conversation.
+ *
+ * This is a *blocking* condition on the testing page: a 20-turn transcript of
+ * the same canned line is worse than no transcript, because it looks like
+ * evidence. The OpenRouter path needs an API key; the Bedrock path needs
+ * nothing beyond the provider switch.
+ */
+export function simulatorIsCanned(env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env): boolean {
+  if (env.USE_CANNED_LLM_RESPONSE === 'true') return true;
+  if (simulatorProvider(env) === 'bedrock') return false;
+  return !env.OPENROUTER_API_KEY;
 }
 
 const SYSTEM_INSTRUCTION = `You are simulating a CLIENT in a text-based mental-health support conversation, for an automated test harness. You are NOT the therapist and never write the therapist's lines.
@@ -207,16 +256,54 @@ export function cannedSimulatorTurn(input: SimulatorTurnInput): string {
  */
 export async function generateUserTurn(input: SimulatorTurnInput): Promise<SimulatorTurnResult> {
   const model = resolveSimulatorModel();
+  const provider = simulatorProvider(process.env);
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   // Sandbox/dry-run path: deterministic, no spend, no API key needed.
-  const cannedActive = process.env.USE_CANNED_LLM_RESPONSE === 'true' || !apiKey;
+  const cannedActive =
+    process.env.USE_CANNED_LLM_RESPONSE === 'true' || (provider === 'openrouter' && !apiKey);
   if (cannedActive) {
     return {
       message: cannedSimulatorTurn(input),
       model,
       usage: null,
       seed: input.seed,
+      canned: true,
+    };
+  }
+
+  /**
+   * Bedrock path. Goes through the API's provider-agnostic `generateContent`
+   * (the same call site A1/A2/A9 and the judge use) so there is one
+   * credential story: the harness's own task role, no second API key.
+   *
+   * The temperature is 0 and the model is Nova Lite by default; neither is a
+   * policy choice about the client — it is repeatability. A simulated client
+   * that invents a different life each run is not evidence.
+   */
+  if (provider === 'bedrock') {
+    const { generateContent } = await import('@okuvu/api/src/lib/generate-content');
+    const result = await generateContent({
+      model,
+      systemInstruction: SYSTEM_INSTRUCTION,
+      contents: [{ role: 'user', parts: [{ text: buildUserPrompt(input) }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 300 },
+    });
+
+    const raw = result.text ?? '';
+    const message = cleanSimulatorMessage(raw);
+    if (!message) {
+      throw new Error('Simulator LLM returned an empty completion (bedrock)');
+    }
+
+    return {
+      message,
+      model,
+      usage: result.usage
+        ? { promptTokens: result.usage.inputTokens ?? 0, completionTokens: result.usage.outputTokens ?? 0 }
+        : null,
+      seed: input.seed,
+      canned: false,
     };
   }
 
@@ -267,6 +354,7 @@ export async function generateUserTurn(input: SimulatorTurnInput): Promise<Simul
         completionTokens: json.usage?.completion_tokens ?? 0,
       },
       seed: input.seed,
+      canned: false,
     };
   } finally {
     clearTimeout(timeout);
