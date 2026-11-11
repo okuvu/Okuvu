@@ -74,6 +74,7 @@ router:
 | `ci` | GitHub Actions regression workflow status/trigger (TH-S27), backing `/ci`. | `getGateStatus`, `triggerRegression` (PI/ENGINEER-only), `getHaltFailures` |
 | `simulator` | Ad hoc multi-turn chat against one synthetic session, with optional one-off fault injection per send — backs `/simulator`'s Chat view. | `startSession`, `sendMessage` |
 | `scorecard` | v2 scorecard aggregation, baseline pinning/regression diff (mvp-v2-engineering-spec.md §7). | `getScorecard`, `pinBaseline` (PI-only), `getLatestBaseline`, `compareToBaseline` |
+| `campaign` | TH-S38 `/campaign` console: persona-sheet import, dry-run estimate + start blockers, one `Campaign` per batch with one `ConversationRun` group per persona, resumable one-step advance with grading on the final step, per-conversation PASS/FAIL/UNGRADED/INCOMPLETE verdicts and transcripts. Sandbox runs are reported UNGRADED (canned replies are plumbing, not quality). | `listPersonas`, `importPersonas`, `estimate`, `start`, `advance`, `get`, `transcript`, `list` |
 
 **Note on `consent` (resolved, 2026-09-06):** this used to note a discrepancy — `consent.ts`'s and
 `ConsentPanel.tsx`'s comments described the router as "not yet registered in `_app.ts`," while
@@ -234,3 +235,54 @@ that module, update `scripts/generate-prompt-shim.mjs` too, and verify with a re
 
 All three are run with `npx tsx <path>` from `apps/test-harness/` — none are wired into
 `package.json`'s `scripts` block as of this writing.
+
+## Deploy notes — testing.okuvu.in (AWS, live since 2026-11-11)
+
+The chat-quality testing page (TH-S39) runs as a fourth ECS service in the evia-beta
+cluster, not on Vercel. Vercel could not reach the RDS instance in the private subnets
+and would have needed static AWS keys to call Bedrock; in-VPC Fargate gets both from
+its task role.
+
+| Thing | Value |
+|---|---|
+| URL | https://testing.okuvu.in (SNI cert on the existing 443 listener, host rule priority 20) |
+| ECS | cluster `evia-beta`, service `evia-beta-harness`, task def family `evia-beta-harness` |
+| Container | `562654496378.dkr.ecr.ap-south-1.amazonaws.com/evia-beta/test-harness:<sha12>`, port 3002 |
+| Image build | CodeBuild project `evia-beta-harness-build`, buildspec `buildspec-harness.yml` |
+| Target group | `evia-beta-harness-tg`, health check `/api/health` |
+| Sign-in | shared password from secret `evia-beta/testing-page-password` (accounts: `admin@okuvu.in`, `alphashubhangi@gmail.com`) |
+| Logs | `/ecs/evia-beta/harness` (30-day retention) |
+
+Rebuild and roll out:
+
+```
+aws codebuild start-build --project-name evia-beta-harness-build \
+  --source-version main --region ap-south-1
+# then pin the new SHA tag in the task definition and:
+aws ecs update-service --cluster evia-beta --service evia-beta-harness \
+  --task-definition evia-beta-harness:<rev> --force-new-deploy  --region ap-south-1
+```
+
+`buildspec-harness.yml` also runs `prisma migrate deploy` in-VPC (that is how
+`20261111120000_transcript_email` reached RDS). It builds and pushes only the harness
+image and never touches the api/worker/portal services.
+
+**Two security-group traps, both of which present as a 504 from the ALB, not an error:**
+
+1. The ECS security group (`sg-0e2bcf3db41664230`) allows inbound only on 8080 and 3000
+   from the ALB group. Port 3002 needed its own inbound rule.
+2. Less obvious and the one that cost the most time: the **ALB's own** egress rules are
+   restricted per port (`sg-0e746562100288508`: 3002 outbound was absent). A missing ALB
+   egress rule drops the health-check packets, so `describe-target-health` reports
+   `Target.Timeout` and the container's own health check stays green throughout. When a
+   new service on a new port shows Target.Timeout, check both directions.
+
+The harness also needed its own execution role (`evia-beta-harness-execution`) rather
+than reusing `evia-beta-ecs-execution`, whose secret allow-list is scoped to the
+portal/worker secrets. Its task role (`evia-beta-harness-task`) carries Bedrock
+`InvokeModel` so no API key is needed for either the agent or the simulator.
+
+**Transcript delivery** is still unconfigured: `composio-mailer.ts` needs
+`COMPOSIO_CLIENT_ID` and `COMPOSIO_REFRESH_TOKEN` in the task definition. Without them a
+run still stores every transcript and marks delivery "email not configured"; recipient
+defaults to `alphashubhangi@gmail.com`.
