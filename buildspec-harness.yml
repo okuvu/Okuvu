@@ -83,4 +83,6 @@ phases:
           echo "RUN_MIGRATIONS=false — skipping prisma migrate deploy."
         fi
       - echo "=== Image ${ECR_REGISTRY}/${NAME_PREFIX}/${WORKLOAD}:${IMAGE_TAG} is in ECR ==="
-      - echo "This build does NOT touch ECS. Roll out with: aws ecs update-service --cluster ${NAME_PREFIX} --service ${NAME_PREFIX}-harness --force-new-deployment"
+      # No colon-space anywhere in an unquoted YAML scalar: CodeBuild parses this
+      # list item as a mapping and fails DOWNLOAD_SOURCE with YAML_FILE_ERROR.
+      - echo "This build does NOT touch ECS. To roll out, run aws ecs update-service --cluster ${NAME_PREFIX} --service ${NAME_PREFIX}-harness --force-new-deployment"
