@@ -1,8 +1,14 @@
 # GLM 4.7 Flash as a candidate — 123-scenario v2 gate, 16 Nov 2026
 
-Three arms, one instrument, current code (commit `d6695c1`, guards landed). Each arm is
-123 scenarios × 3 repetitions = 369 judgements. `--mode gate`, no retries, `run_ok: true`
-on all three (no A1 fallbacks, no A2 failures, no judge failures).
+Three arms, one instrument, current code. Each arm is 123 scenarios × 3 repetitions = 369
+judgements. `--mode gate`, no retries, `run_ok: true` on all three (no A1 fallbacks, no A2
+failures, no judge failures).
+
+Provenance: the code measured is commit `93f0933`. The reports' `code.commit` says
+`d6695c1` with `tracked_tree_dirty_at_run_start: true`, because the §3 lint fix in
+`93f0933` was in the working tree but not yet committed when the arms ran. The first pass
+of these arms caught the two lint false positives that fix addresses; the numbers below
+are from the re-run on the fixed lint.
 
 | arm | model | judge | score | Wilson 95% lb | gate |
 |---|---|---|---|---|---|
