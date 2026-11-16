@@ -31,7 +31,7 @@ the model the pipeline calls, and the report records the override.
 | clinical_content | lb ≥ 0.85 | 62/66 (lb 85.4) PASS | 57/66 (lb 76.1) FAIL | 51/66 FAIL |
 | tone_alliance | lb ≥ 0.85 | 50/54 (lb 82.4) FAIL | 52/54 (lb 87.5) PASS | 50/54 FAIL |
 
-## What the 20-point difference actually is
+## What the difference actually is
 
 Not reply quality. Routing.
 
