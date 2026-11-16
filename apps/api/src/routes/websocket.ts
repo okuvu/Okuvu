@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from 'ws';
 import websocketPlugin from '@fastify/websocket';
 import { verifyCognitoJWT } from '../middleware/auth.js';
+import { requireAdultAccount } from '../middleware/age-gate.js';
 import { handleSessionOpen, type SendFrame } from '../lib/session-handler.js';
 import { closeSession } from '../lib/session-close.js';
 import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@okuvu/shared-types';
@@ -106,7 +107,9 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
 
   app.get('/ws', {
     websocket: true,
-    preHandler: [verifyCognitoJWT],
+    // Chat is clinical data, so a recorded 18+ refusal closes here too — the
+    // app's own screen is not the gate (middleware/age-gate.ts).
+    preHandler: [verifyCognitoJWT, requireAdultAccount],
   }, (socket: WebSocket, req: FastifyRequest) => {
     const connectionStart = Date.now();
     const { uid } = req.user;

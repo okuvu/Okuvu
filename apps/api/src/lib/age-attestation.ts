@@ -26,6 +26,9 @@ export type AgeAttestationResult =
   | { status: 'declined'; declinedAt: Date }
   | { status: 'user_not_found' };
 
+// The gate itself is `isAgeDeclined` in `@okuvu/shared-types`: the app, the API
+// and the console all read the same two columns.
+
 export async function recordAgeAttestation(
   authSubject: string,
   adult: boolean,

@@ -102,6 +102,7 @@ export const adminRouter = router({
       conversationsWeek,
       crisisFlaggedWeek,
       waitlistCount,
+      unassignedCount,
       lastConversation,
     ] = await Promise.all([
       ctx.db.therapist.count(),
@@ -118,6 +119,16 @@ export const adminRouter = router({
         where: { session_started_at: { gte: weekAgo }, crisis_flag_detected: true },
       }),
       ctx.db.waitlistEntry.count(),
+      // Anyone who created their own account and has nobody looking after them
+      // yet — the self-serve queue. Counted here so the console answers "how
+      // many people joined and are waiting for a therapist" without opening the
+      // client list.
+      ctx.db.user.count({
+        where: {
+          deleted_at: null,
+          assigned_therapists: { none: { ended_at: null } },
+        },
+      }),
       ctx.db.sessionLog.findFirst({
         orderBy: { session_started_at: 'desc' },
         select: { session_started_at: true },
@@ -135,6 +146,7 @@ export const adminRouter = router({
       conversationsWeek,
       crisisFlaggedWeek,
       waitlistCount,
+      unassignedCount,
       lastConversationAt: lastConversation?.session_started_at.toISOString() ?? null,
       generatedAt: now.toISOString(),
     };
@@ -534,6 +546,100 @@ export const adminRouter = router({
       // rather than leaving the Dashboard row without an ID until someone
       // notices. Best effort: the assignment has already happened, and a
       // numbering failure must not undo it.
+      try {
+        const profile = await ctx.db.user.findUnique({
+          where: { id: client.id },
+          select: { full_name: true, date_of_birth: true, gender: true, client_code: true },
+        });
+        if (profile && !profile.client_code && hasNumberableProfile(profile)) {
+          const code = await issueClientCode(ctx.db as unknown as ClientCodeCounterDb, profile);
+          if (code) {
+            await ctx.db.user.update({ where: { id: client.id }, data: { client_code: code } });
+          }
+        }
+      } catch (err) {
+        console.error('[ADMIN] could not issue a client record number', err);
+      }
+
+      if (input.languageMode) {
+        await ctx.db.user.update({
+          where: { id: client.id },
+          data: { language_mode: input.languageMode },
+        });
+      }
+
+      return {
+        success: true,
+        therapistEmail: therapist.email,
+        clientId: client.id,
+        wasAlreadyAssigned: Boolean(existing),
+      };
+    }),
+
+  /**
+   * The console's "Assign therapist" action for a client who joined on their
+   * own (self-serve signup).
+   *
+   * `assignClient` above looks the client up by phone number, and a self-serve
+   * client has none: they signed in with Google and were never given a phone
+   * field. This one takes the `User.id` the console already renders on the
+   * unassigned row, so attaching a therapist is one click instead of a lookup
+   * key nobody has.
+   *
+   * Same rules as `assignClient`: consent is only ever recorded on the first
+   * assignment (a repeat call must not silently re-grant or revoke it), and the
+   * label is the name the console already holds — for a self-serve client that
+   * is their email, because nothing has asked them for a legal name yet.
+   */
+  assignClientUser: adminMutation
+    .input(
+      z.object({
+        therapistId: z.string().min(1),
+        clientUserId: z.string().min(1),
+        chatAccessGranted: z.boolean().default(false),
+        languageMode: z.enum(['english', 'mirror']).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const client = await ctx.db.user.findFirst({
+        where: { id: input.clientUserId, deleted_at: null },
+        select: { id: true, full_name: true, email: true },
+      });
+      if (!client) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Client not found' });
+      }
+
+      const therapist = await ctx.db.therapist.findUnique({
+        where: { id: input.therapistId },
+        select: { id: true, email: true },
+      });
+      if (!therapist) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Therapist not found' });
+      }
+
+      const existing = await ctx.db.therapistClient.findUnique({
+        where: {
+          therapist_id_client_user_id: {
+            therapist_id: therapist.id,
+            client_user_id: client.id,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        await ctx.db.therapistClient.create({
+          data: {
+            therapist_id: therapist.id,
+            client_user_id: client.id,
+            chat_access_granted: input.chatAccessGranted,
+            client_label: client.full_name ?? client.email ?? client.id,
+          },
+        });
+      }
+
+      // Same repair `assignClient` does: if the client filled their own profile
+      // in the app, number them now rather than leaving an em dash on the row.
       try {
         const profile = await ctx.db.user.findUnique({
           where: { id: client.id },

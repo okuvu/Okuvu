@@ -83,17 +83,23 @@ Do not offer a retry on the same screen. A second attempt is a second answer
 from the same person, and treating a tapping error as a re-ask makes the gate
 feel negotiable. Signing in again is the recovery path, and it asks once more.
 
-## What the API will do (and does not yet)
+## What the API does
 
-The 403 on `today`/`context` is **not** implemented in this branch: those
-handlers do not read the attestation yet, because the app cannot be blocked by
-an endpoint it never calls and adding the 403 now would break every existing
-build on the beta track. It is the API half of the mobile task, and it is three
-lines in `apps/api/src/lib/today-card.ts` + `getAgentContextBundle`.
+As of the self-serve onboarding change, the 403 is implemented:
 
-Until it lands, the app is the only thing stopping an under-18 from using the
-product, which is why the screen above must ship with (not after) the mobile
-work.
+- `GET /users/me/today` → **403** `{ "error": { "code": "UNDER_18" } }`, answered
+  before the activation write.
+- `GET /users/me/context` → **403** `UNDER_18`; `getAgentContextBundle` returns
+  an empty, flagged bundle (no rolling summary, no care plan) and the route turns
+  the flag into the error.
+- `GET /ws` (chat) → **403** at the handshake.
+
+The predicate is `isAgeDeclined` in `packages/shared-types`, shared by the API,
+the app's flow and the console. Both timestamps null (never asked) passes —
+otherwise every pre-existing row would be locked out on deploy.
+
+Self-serve signup (`docs/app-contracts/self-serve-signup.md`) creates the account
+only after this answer, so a new client who declines never gets a row at all.
 
 ## Chat access — one change on the same call
 

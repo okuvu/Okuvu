@@ -55,6 +55,12 @@ Widget createTestApp(Dio dio, {FakeAuthService? authService}) {
         builder: (_, __) => const Scaffold(body: Text('COLDSTART_MARKER')),
       ),
       GoRoute(
+        path: '/onboarding/signup',
+        builder: (_, state) => Scaffold(
+          body: Text('SIGNUP_MARKER:${state.extra}'),
+        ),
+      ),
+      GoRoute(
         path: '/waitlist',
         builder: (_, state) => Scaffold(
           body: Text('WAITLIST_MARKER:${state.extra}'),
@@ -114,7 +120,7 @@ void main() {
       expect(find.text('COLDSTART_MARKER'), findsOneWidget);
     });
 
-    testWidgets('sends an unknown Google account to the waitlist with its email',
+    testWidgets('sends an unknown Google account to self-serve signup, not a waitlist',
         (tester) async {
       authService.hasAccountResult = false;
       authService.emailResult = 'stranger@example.com';
@@ -123,8 +129,9 @@ void main() {
       await tester.pumpAndSettle();
       await tapGoogleButton(tester);
 
-      expect(find.text('WAITLIST_MARKER:stranger@example.com'), findsOneWidget);
+      expect(find.text('SIGNUP_MARKER:stranger@example.com'), findsOneWidget);
       expect(find.text('COLDSTART_MARKER'), findsNothing);
+      expect(find.textContaining('WAITLIST_MARKER'), findsNothing);
     });
 
     testWidgets('renders the AuthService failure message and stays put',

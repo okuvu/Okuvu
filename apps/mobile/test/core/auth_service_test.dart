@@ -194,6 +194,84 @@ void main() {
     });
   });
 
+  group('signUp (self-serve onboarding)', () {
+    test('creates the account with the Google token from sign-in and its consents',
+        () async {
+      adapter.body = _successBody(hasAccount: false, email: 'stranger@example.com');
+      final service = build();
+      await service.signInWithGoogle();
+
+      adapter.body = jsonEncode({
+        'has_account': true,
+        'user_id': 'user-new',
+        'email': 'stranger@example.com',
+        'linked': false,
+        'already_registered': false,
+        'token': _fakeSessionToken(),
+        'expires_at':
+            DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch ~/ 1000,
+      });
+
+      await service.signUp(adult: true, shareSummaries: true);
+
+      expect(adapter.lastRequest?.path, contains('/auth/signup'));
+      final data = adapter.lastRequest?.data as Map<String, dynamic>;
+      expect(data['id_token'], _idToken);
+      expect(data['adult'], isTrue);
+      expect(
+        data['consents'],
+        {
+          'safety_monitoring': true,
+          'mood_inference': true,
+          'assessment': true,
+          'emergency_contact': false,
+        },
+      );
+      // The response's own session is kept, so a restart on this screen still
+      // ends signed in.
+      expect(store.session?.token, isNotEmpty);
+    });
+
+    test('surfaces UNDER_18 so the caller shows the closing screen', () async {
+      adapter.body = _successBody(hasAccount: false, email: 'kid@example.com');
+      final service = build();
+      await service.signInWithGoogle();
+
+      adapter.statusCode = 403;
+      adapter.body = '{"error": {"code": "UNDER_18", "message": "under 18"}}';
+
+      await expectLater(
+        service.signUp(adult: false, shareSummaries: false),
+        throwsA(isA<AuthException>().having((e) => e.code, 'code', 'UNDER_18')),
+      );
+    });
+
+    test('refuses to create an account without a fresh Google token', () async {
+      final service = build();
+
+      await expectLater(
+        service.signUp(adult: true, shareSummaries: false),
+        throwsA(isA<AuthException>().having((e) => e.code, 'code', 'NoIdToken')),
+      );
+      expect(adapter.lastRequest, isNull);
+    });
+
+    test('rejects a response that does not say the account exists', () async {
+      adapter.body = _successBody(hasAccount: false);
+      final service = build();
+      await service.signInWithGoogle();
+
+      adapter.body = '{"has_account": false}';
+
+      await expectLater(
+        service.signUp(adult: true, shareSummaries: false),
+        throwsA(
+          isA<AuthException>().having((e) => e.code, 'code', 'InvalidResponse'),
+        ),
+      );
+    });
+  });
+
   group('session lifecycle', () {
     test('restores a persisted session on startup', () async {
       store.session = StoredSession(

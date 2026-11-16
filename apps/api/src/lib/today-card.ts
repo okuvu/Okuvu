@@ -9,10 +9,11 @@ import {
 } from './homework.js';
 import { toView as toAppointmentView } from './appointments.js';
 import type { TodayCard, TodayNextItem } from '@okuvu/shared-types';
-import { chatAccessWindow } from '@okuvu/shared-types';
+import { chatAccessWindow, isAgeDeclined } from '@okuvu/shared-types';
 
 export type GetTodayCardResult =
   | { status: 'ok'; card: TodayCard }
+  | { status: 'under_18' }
   | { status: 'user_not_found' };
 
 /**
@@ -152,12 +153,21 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
     select: {
       id: true,
       quote_of_day_enabled: true,
+      age_confirmed_at: true,
+      age_declined_at: true,
       clinical_config: { select: { care_plan_id: true, display_abbreviation: true } },
     },
   });
 
   if (!user) {
     return { status: 'user_not_found' };
+  }
+
+  // Checked before the activation write and before anything is selected out of
+  // the record: a client who answered the 18+ question with "no" has no client
+  // surface at all (docs/app-contracts/age-attestation.md).
+  if (isAgeDeclined(user)) {
+    return { status: 'under_18' };
   }
 
   await markClientActivatedIfNeeded(user.id);

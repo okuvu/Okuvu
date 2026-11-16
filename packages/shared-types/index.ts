@@ -91,6 +91,25 @@ export function chatAccessWindow(
   return { grantedAt, expiresAt: new Date(grantedAt.getTime() + CHAT_ACCESS_WINDOW_MS) }
 }
 
+/**
+ * The client's own 18+ answer, as a predicate.
+ *
+ * The app shows the blocking screen, the API refuses `today`/`context` and the
+ * chat handshake, and the portal reads the same columns for its row state — so
+ * the condition lives here rather than being retyped in each surface, where one
+ * copy would eventually disagree with the others.
+ *
+ * A refusal counts only while no confirmation exists: answering again is the
+ * documented recovery path, and the API clears `age_declined_at` when someone
+ * confirms.
+ */
+export function isAgeDeclined(user: {
+  age_confirmed_at: Date | null
+  age_declined_at: Date | null
+}): boolean {
+  return user.age_declined_at !== null && user.age_confirmed_at === null
+}
+
 export type SafetyState = 'S0' | 'S1' | 'S2' | 'S3' | 'S4'
 
 export const SAFETY_LABELS: Record<SafetyState, string> = {
@@ -513,6 +532,13 @@ export interface AgentContextBundle {
   care_plan_focus: string | null
   /** OKUVU v2.0 — the client's most recent active Homework.description, or null. */
   homework: string | null
+  /**
+   * Set only when the client answered the 18+ question with "no": the bundle is
+   * then empty and `GET /users/me/context` answers 403 `UNDER_18` instead of
+   * sending it. Absent (not false) for everyone else, so every existing
+   * producer of this shape stays valid.
+   */
+  under_18?: boolean
 }
 
 // ─── §D Reminders / Today-card (pull-based; push/scheduler deferred) ────

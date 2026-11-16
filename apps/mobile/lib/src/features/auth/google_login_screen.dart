@@ -19,11 +19,12 @@ import '../../widgets/okuvu_app_bar_title.dart';
 /// a single client could sign in, and every client is already a Google user, so
 /// Google is both the faster path and the one that needs no new paperwork.
 ///
-/// The identity that matters is the **email**: the therapist portal's Add-Client
-/// wizard creates the client's `User` row from an email address, and
-/// `POST /auth/google` binds the Google subject to that row when the addresses
-/// match. An invite code stays available for clients whose therapist has not
-/// pre-registered them yet.
+/// The identity that matters is the **email**. Since self-serve onboarding, two
+/// ways in: a client the therapist portal already registered (first sign-in
+/// binds the Google subject to that row, so their therapist link survives), or a
+/// stranger who creates their own account on the next screen — unassigned, with
+/// no care plan, until the operator console attaches a therapist. An invite code
+/// stays available for clients whose therapist has not pre-registered them.
 class GoogleLoginScreen extends ConsumerStatefulWidget {
   const GoogleLoginScreen({super.key});
 
@@ -84,9 +85,11 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
       if (result.hasAccount) {
         ref.read(routerProvider).go('/onboarding/coldstart');
       } else {
-        // Verified by Google, but no Okuvu account and no invite — capture an
-        // email so there is a list to follow up on (S6).
-        ref.read(routerProvider).go('/waitlist', extra: result.email);
+        // Verified by Google, but no OKUVU account yet. Since self-serve
+        // onboarding, that is a person who creates their own account on the
+        // next screen (18+ answer + consent) — not a waitlist entry. The row
+        // starts unassigned; the operator console assigns a therapist.
+        ref.read(routerProvider).go('/onboarding/signup', extra: result.email);
       }
     } on AuthException catch (e) {
       if (!mounted) return;
@@ -164,7 +167,7 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
               Text('Welcome to OKUVU', style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),
               Text(
-                'Sign in with the Google account your therapist has for you',
+                'Sign in with Google to continue',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),

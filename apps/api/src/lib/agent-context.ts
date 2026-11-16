@@ -1,6 +1,6 @@
 import { prisma } from './prisma.js';
 import { getActiveHomework } from './homework.js';
-import { DEFAULT_CARE_PLAN_FOCUS } from '@okuvu/shared-types';
+import { DEFAULT_CARE_PLAN_FOCUS, isAgeDeclined } from '@okuvu/shared-types';
 import type { AgentContextBundle, SessionSummaryView } from '@okuvu/shared-types';
 import type { ConversationTurn } from '../agents/a1/types.js';
 
@@ -14,6 +14,28 @@ export function summariesToConversationTurns(summaries: SessionSummaryView[]): C
 }
 
 const FALLBACK_TURN_LIMIT = 20;
+
+/**
+ * The bundle for a subject with nothing to report — no `User` row at all, or a
+ * row whose owner refused the 18+ question. Those two cases answer with the
+ * same empty shape and differ only by `under_18`, which the route turns into a
+ * 403.
+ */
+function emptyBundle(under18: boolean): AgentContextBundle {
+  return {
+    safety_state: null,
+    care_plan: null,
+    recent_history: [],
+    session_summary: null,
+    engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
+    user_memory: null,
+    language_mode: 'english',
+    therapist_name: null,
+    care_plan_focus: null,
+    homework: null,
+    ...(under18 ? { under_18: true } : {}),
+  };
+}
 
 export async function getAgentContextBundle(authSubject: string): Promise<AgentContextBundle> {
   const user = await prisma.user.findUnique({
@@ -59,18 +81,14 @@ export async function getAgentContextBundle(authSubject: string): Promise<AgentC
   });
 
   if (!user) {
-    return {
-      safety_state: null,
-      care_plan: null,
-      recent_history: [],
-      session_summary: null,
-      engagement: { current_streak: 0, longest_streak: 0, voice_mode_enabled: false, consent_1: true, consent_2: false, consent_3: false, consent_4: false },
-      user_memory: null,
-      language_mode: 'english',
-      therapist_name: null,
-      care_plan_focus: null,
-      homework: null,
-    };
+    return emptyBundle(false);
+  }
+
+  // The client answered the 18+ question with "no". Nothing below may be built
+  // from their record — the bundle carries a rolling chat summary — so this
+  // returns the same empty shape as "no row", flagged for the route's 403.
+  if (isAgeDeclined(user)) {
+    return emptyBundle(true);
   }
 
   const recentHistory = user.session_logs.map((log) => ({

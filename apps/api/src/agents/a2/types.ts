@@ -11,7 +11,13 @@ export interface ConversationTurn {
 export interface A2Input {
   userId: string;
   message: string;
-  carePlan: CarePlan;
+  /**
+   * Vestigial: A2's prompt is driven by `carePlanFocus`, not by the plan id, so
+   * this is carried for tracing only. Null when the client has no assignment
+   * yet (self-serve signup) — do NOT default it to CP1, which would put a plan
+   * the therapist never chose into the record.
+   */
+  carePlan: CarePlan | null;
   safetyState: 'S0' | 'S1' | 'S2';
   sessionHistorySummary: string | null;
   perceivedIntensity: number | null;

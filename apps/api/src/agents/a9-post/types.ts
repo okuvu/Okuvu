@@ -25,7 +25,8 @@ export interface A9PostInput {
   /** A2's full draft reply — the text under review (text only; machine signal already stripped). */
   draftResponse: string;
   safetyState: string;
-  carePlan: string;
+  /** Null when nobody has assigned this client yet (self-serve signup) — no care plan exists to name. */
+  carePlan: string | null;
   /** Additive, null-safe (OKUVU v2.0): defaults to 'english' until the mirror-mode pipeline lands. */
   languageMode?: 'english' | 'mirror';
   /** Additive, null-safe (OKUVU v2.0): broad care-plan focus text, not yet wired from the orchestrator. */

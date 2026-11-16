@@ -27,6 +27,14 @@ class FakeAuthService implements AuthService {
   int signInCallCount = 0;
   bool signOutCalled = false;
 
+  /// Records the last [signUp] call — self-serve account creation.
+  int signUpCallCount = 0;
+  bool? signedUpAdult;
+  bool? signedUpShareSummaries;
+
+  /// When set, [signUp] throws it instead of creating the account.
+  AuthException? signUpError;
+
   final StreamController<AuthUser?> _controller =
       StreamController<AuthUser?>.broadcast();
 
@@ -59,6 +67,19 @@ class FakeAuthService implements AuthService {
       hasAccount: hasAccountResult,
       email: emailResult,
     );
+  }
+
+  @override
+  Future<void> signUp({
+    required bool adult,
+    required bool shareSummaries,
+  }) async {
+    signUpCallCount++;
+    signedUpAdult = adult;
+    signedUpShareSummaries = shareSummaries;
+
+    final error = signUpError;
+    if (error != null) throw error;
   }
 
   @override
