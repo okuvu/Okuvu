@@ -28,12 +28,12 @@
  *
  *     A1 safety gate      11,763 chars   3,122 tokens
  *     A9-pre governance   12,064 chars   3,201 tokens
- *     A2 companion        49,402 chars  13,110 tokens   (a2-okuvu-v2.4.txt)
+ *     A2 companion        50,810 chars  13,485 tokens   (a2-okuvu-v2.5.txt)
  *     A9-post reviewer     9,708 chars   2,576 tokens
- *     subtotal                          22,009 tokens
+ *     subtotal                          22,384 tokens
  *     + mid-session history (A2 receives every prior turn of the session;
  *       ~150 tokens per completed turn, averaged over a 20-turn session)  1,400
- *     total per turn                    23,400 tokens
+ *     total per turn                    23,784 tokens
  *
  *   The previous revision of this constant said 14,900 with the comment
  *   "A2 prompt (~13.5k) + A1 / A9 / history". That counted the A2 prompt and
@@ -81,12 +81,12 @@ export const USD_PER_MILLION = {
 export const TOKENS = {
   /**
    * Four Converse calls on the live path (A1 + A9-pre + A2 + A9-post) plus
-   * mid-session history: 22,009 measured + 1,400. Derivation and per-call
+   * mid-session history: 22,384 measured + 1,400. Derivation and per-call
    * counts are in this file's header comment; the pipeline-side counts come
    * from `buildSafetyPrompt`, `buildGovernancePrompt`, `buildConversationalPrompt`
    * and `buildA9PostPrompt` as they ship, priced against a live usage record.
    */
-  pipelineInputPerTurn: 23_400,
+  pipelineInputPerTurn: 23_784,
   /** Visible reply (mean 342 chars) + S-07 JSON + the three classifier JSONs. */
   pipelineOutputPerTurn: 290,
   simulatorInputPerTurn: 1_600,

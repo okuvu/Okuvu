@@ -51,10 +51,23 @@ const __dirname = dirname(__filename);
  *      split and sharpened, with three exchanges written out in §7.2, so a
  *      breathing exercise stops being the answer to all three.
  * No threshold, gold-set scenario, judge prompt or instrument file moved.
+ *
+ * v2.4 → v2.5: a layout change, for cost, with no change to a rule, threshold,
+ * example, banned phrase or clinical sentence. The ten per-turn values used to
+ * be interpolated into the body — the first at 6% depth — so the prompt differed
+ * from byte 3,093 onward on every single turn. A provider prompt cache matches a
+ * prefix from byte zero, which meant ~848 of A2's 12,634 instruction tokens were
+ * reusable and the other 11.8k were re-billed on every call. §12 at the end of
+ * the file now carries the values and the body only names the fields, so the
+ * instruction block is byte-identical turn to turn: the first `${` moved from
+ * 6% depth to 98.96% depth, and the cacheable prefix from ~7% to ~99%.
+ * The substitution contract in agents/a2/prompts.ts is unchanged — same ten
+ * `${snake_case}` tokens, just relocated.
+ * Measured cacheability and the hash of both files: evidence/E17-S14-prompt-v25.md.
  */
-export const A2_PROMPT_VERSION = 'v2.4';
+export const A2_PROMPT_VERSION = 'v2.5';
 
 export const A2_PROMPT = readFileSync(
-  join(__dirname, 'a2-okuvu-v2.4.txt'),
+  join(__dirname, 'a2-okuvu-v2.5.txt'),
   'utf-8',
 );
