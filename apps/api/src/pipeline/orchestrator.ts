@@ -14,7 +14,7 @@ import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-conte
 import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, CRISIS_THIRD_PARTY_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
 import { hasCrisisLanguage, hasSelfIngestion } from '../agents/a1/crisis-keywords.js';
-import { applySessionFloor, diagnosisLint } from './guards.js';
+import { applySessionFloor, diagnosisLint, medicationTitrationCap, medicationCapEnabled } from './guards.js';
 import { recordAuditEvent } from '../lib/audit-log.js';
 import type { SafetyNotice } from '@okuvu/shared-types';
 import type { PipelineResult, StageTiming, TestModeOptions, FallbackSource } from './types.js';
@@ -279,6 +279,17 @@ export async function processTurn(
       ? a1Result.value.safetyState
       : 'S2';
 
+  // ─── Guard C — the medication-titration cap (dark until signed) ───────────
+  //
+  // Runs BEFORE the floor and can only lower S3 to S2, so the floor still wins
+  // every conflict by being higher. Default OFF: `OKUVU_MED_CAP=on` enables it
+  // and nothing else does, because a cap is a §3/§7 downgrade and a downgrade
+  // is a clinical decision. See pipeline/guards.ts for the rule and why every
+  // exclusion resolves toward keeping the higher state.
+  const medCap = medicationCapEnabled()
+    ? medicationTitrationCap({ classifiedState: safetyState, currentMessage: message, sessionTurns: currentSessionTurns })
+    : { state: safetyState, capApplied: false, reason: 'not_s3' as const };
+
   // ─── §7 — the session floor ────────────────────────────────────────────────
   //
   // A judgment made about THIS message cannot see that the previous message was
@@ -295,7 +306,7 @@ export async function processTurn(
   // the state machine and the evidence that this recovers a model that reads
   // the joke as an ordinary sentence.
   const sessionFloor = applySessionFloor({
-    classifiedState: safetyState,
+    classifiedState: medCap.state,
     sessionTurns: currentSessionTurns,
     currentMessage: message,
   });
@@ -1128,6 +1139,9 @@ export async function processTurn(
       // when there was no crisis card in the session, which is most turns.
       classifier_state: a1ClassifiedState,
       session_floor: sessionFloor.floorApplied ? 'held_at_S3' : sessionFloor.reason,
+      // Guard C — null unless the cap actually moved the state, so a dark flag
+      // leaves no trace and an enabled one is auditable per turn.
+      medication_cap: medCap.capApplied ? `S3->${medCap.state}` : null,
     },
   });
 

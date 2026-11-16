@@ -51,7 +51,14 @@ vi.mock('../lib/prisma.js', async () => {
   return { prisma };
 });
 
-import { applySessionFloor, diagnosisLint, isCrisisCard } from '../pipeline/guards.js';
+import {
+  applySessionFloor,
+  diagnosisLint,
+  isCrisisCard,
+  medicationTitrationCap,
+  medicationCapEnabled,
+  MEDICATION_CAP_STATE,
+} from '../pipeline/guards.js';
 import { processTurn } from '../pipeline/orchestrator.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
@@ -367,3 +374,156 @@ describe('§3 wired into processTurn', () => {
     expect(prisma.governanceLog.create).not.toHaveBeenCalled();
   });
 });
+
+// ─── Guard C — the medication-titration cap ─────────────────────────────────
+//
+// The rule is a downgrade, so the tests are asymmetric on purpose: every case
+// that could plausibly carry a risk signal must leave the state alone, and a
+// single missed cap is treated as acceptable. Tests assert the exclusions, not
+// just the one message that motivated the guard.
+
+describe('medicationTitrationCap', () => {
+  const cap = medicationTitrationCap;
+
+  it('caps the measured misread: a dose plan with no risk language', () => {
+    const out = cap({ classifiedState: 'S3', currentMessage: "I've decided to halve my dose this week. Does that sound reasonable?" });
+    expect(out.capApplied).toBe(true);
+    expect(out.state).toBe(MEDICATION_CAP_STATE);
+    expect(out.state).toBe('S2');
+    expect(out.reason).toBe('medication_titration');
+  });
+
+  it('caps the Hindi and Hinglish forms of the same question', () => {
+    for (const msg of [
+      'main apni dawai band kar raha hoon, theek hai?',
+      'मैं अपनी दवा आधी कर रहा हूँ',
+      'should I stop my meds? they make me sleepy',
+      'I want to taper off my tablets',
+      'planning to reduce my medication next month',
+    ]) {
+      const out = cap({ classifiedState: 'S3', currentMessage: msg });
+      expect(out.capApplied, msg).toBe(true);
+      expect(out.state, msg).toBe('S2');
+    }
+  });
+
+  it('never touches S4, and never touches anything already at or below S2', () => {
+    const msg = 'I halved my dose this week';
+    expect(cap({ classifiedState: 'S4', currentMessage: msg }).capApplied).toBe(false);
+    for (const s of ['S0', 'S1', 'S2'] as const) {
+      const out = cap({ classifiedState: s, currentMessage: msg });
+      expect(out.capApplied, s).toBe(false);
+      expect(out.state, s).toBe(s);
+    }
+  });
+
+  it('does not cap when the message carries crisis language', () => {
+    const out = cap({ classifiedState: 'S3', currentMessage: 'I halved my dose and now I want to die' });
+    expect(out.capApplied).toBe(false);
+    expect(out.state).toBe('S3');
+    expect(out.reason).toBe('risk_language');
+  });
+
+  it('does not cap ingestion or escalation, because taking more is the dangerous direction', () => {
+    for (const msg of [
+      'I took double my dose by mistake',
+      'I swallowed all of them with my medication',
+      'I doubled my pills last night',
+      'I am stockpiling my tablets for later',
+    ]) {
+      const out = cap({ classifiedState: 'S3', currentMessage: msg });
+      expect(out.capApplied, msg).toBe(false);
+      expect(out.state, msg).toBe('S3');
+    }
+  });
+
+  it('does not cap a dose question that is sitting beside despair', () => {
+    const out = cap({
+      classifiedState: 'S3',
+      currentMessage: "I keep thinking about halving my dose because honestly there's no point in any of this anymore",
+    });
+    expect(out.capApplied).toBe(false);
+    expect(out.reason).toBe('distress_beside_dose');
+  });
+
+  it('does not cap when a crisis card is already in the session', () => {
+    const out = cap({
+      classifiedState: 'S3',
+      currentMessage: 'I halved my dose this week',
+      sessionTurns: [{ role: 'assistant', content: CRISIS_RESPONSE }],
+    });
+    expect(out.capApplied).toBe(false);
+    expect(out.reason).toBe('prior_crisis');
+  });
+
+  it('leaves ordinary messages and crisis messages alone', () => {
+    for (const msg of ['hi', 'I have the pills ready. I am ending it tonight.', 'work was long today']) {
+      const out = cap({ classifiedState: 'S3', currentMessage: msg });
+      expect(out.capApplied, msg).toBe(false);
+      expect(out.state, msg).toBe('S3');
+    }
+  });
+
+  it('needs both a medicine and a change, so a bare mention never fires', () => {
+    expect(cap({ classifiedState: 'S3', currentMessage: 'I picked up my prescription today' }).capApplied).toBe(false);
+    expect(cap({ classifiedState: 'S3', currentMessage: 'I stopped going to the gym' }).capApplied).toBe(false);
+  });
+
+  it('is OFF unless OKUVU_MED_CAP is exactly "on"', () => {
+    expect(medicationCapEnabled({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(medicationCapEnabled({ OKUVU_MED_CAP: 'true' } as NodeJS.ProcessEnv)).toBe(false);
+    expect(medicationCapEnabled({ OKUVU_MED_CAP: '1' } as NodeJS.ProcessEnv)).toBe(false);
+    expect(medicationCapEnabled({ OKUVU_MED_CAP: 'on' } as NodeJS.ProcessEnv)).toBe(true);
+  });
+});
+
+describe('the cap cannot outrank the §7 session floor', () => {
+  it('a post-crisis dismissal still holds at S3 even with the cap available', () => {
+    const afterCrisis = [
+      userTurn('I have the pills ready. I am ending it tonight.', 12),
+      assistantTurn(CRISIS_RESPONSE, 11),
+      userTurn('I was just kidding haha', 10),
+    ];
+    const capOut = medicationTitrationCap({ classifiedState: 'S3', currentMessage: 'I halved my dose', sessionTurns: afterCrisis });
+    // The cap refuses on a session with a crisis card, and the floor raises
+    // independently — so the pair can only ever end higher than the classifier.
+    expect(capOut.capApplied).toBe(false);
+    const floorOut = applySessionFloor({ classifiedState: capOut.state, sessionTurns: afterCrisis, currentMessage: 'I halved my dose' });
+    expect(rank(floorOut.state)).toBeGreaterThanOrEqual(rank('S3'));
+  });
+});
+
+describe('the cap through the real pipeline is dark by default', () => {
+  it('serves the grounding card for an S3 dose question when the flag is unset', async () => {
+    delete process.env.OKUVU_MED_CAP;
+    model({ a1: a1Json('S3') });
+    const res = await processTurn(UID, SESSION_ID, 'I have decided to halve my dose this week. Does that sound reasonable?');
+    expect(res.type).toBe('agent_turn');
+    if (res.type === 'agent_turn') {
+      expect(res.message).toBe(A8_S3_GROUNDING_RESPONSE);
+      expect(res.fallbackSource).toBe('deterministic_grounding');
+    }
+  });
+
+  it('routes the same message to A2 when the flag is on', async () => {
+    process.env.OKUVU_MED_CAP = 'on';
+    try {
+      const reply = 'I would not change a dose without your psychiatrist. Can you call them this week?';
+      model({ a1: a1Json('S3'), a2: reply });
+      const res = await processTurn(UID, SESSION_ID, 'I have decided to halve my dose this week. Does that sound reasonable?');
+      // A2 answered, so the S3 grounding card was not served: the cap fired.
+      expect(res.type).toBe('agent_turn');
+      if (res.type === 'agent_turn') {
+        expect(res.message).toBe(reply);
+        expect(res.message).not.toBe(A8_S3_GROUNDING_RESPONSE);
+        expect(res.fallbackSource).toBeUndefined();
+      }
+    } finally {
+      delete process.env.OKUVU_MED_CAP;
+    }
+  });
+});
+
+function rank(state: string): number {
+  return ['S0', 'S1', 'S2', 'S3', 'S4'].indexOf(state);
+}

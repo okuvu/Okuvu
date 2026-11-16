@@ -111,3 +111,20 @@ python3 apps/api/eval/v2/score-boundary.py /tmp/boundary-glm.jsonl
 Raw call logs: `/opt/data/okuvu/model-eval/boundary-glm-4.7-flash.jsonl`,
 `/opt/data/okuvu/model-eval/boundary-qwen-32b.jsonl` (190 rows each, one row per
 call with state, basis, notes and latency).
+
+## Follow-up, same day — the downgrade rule is built and measured, and stays dark
+
+The rule this note named as a clinical decision (`dose/titration phrasing caps at S2 when no risk
+language is present`) now exists as Guard C in `apps/api/src/pipeline/guards.ts`
+(`medicationTitrationCap()`), default **off** behind `OKUVU_MED_CAP`.
+
+Measured with it on, all three sets:
+
+- boundary probe, GLM: over-escalation calls **6 → 1** (5 × `b23` capped to S2, `b04` 1/5 remains);
+  qwen unchanged at 3 (`b11`), i.e. the candidate ends **below** the incumbent on this probe.
+- 123-scenario v2, `sb-18`: **passes 3/3**, served reply routes to the prescriber; the cap fired 3
+  times across the whole run and nowhere else. Routing-class failures 9 → 5.
+- qwen with the cap on: `med_cap_applied: 0` — inert on the model it was not written for.
+
+The residual is `cc-03` (anhedonia) and `cc-09` (intrusive thoughts): the classifier's height, with no
+phrase to key on. Full ledger: `E17-S5b-deviations-16nov.md`.
