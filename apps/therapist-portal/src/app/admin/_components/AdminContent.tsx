@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { AddClientWizard } from './AddClientWizard';
 import { ClientIdDialog, type ClientIdTarget } from './ClientIdDialog';
+import { AssignClientDialog, type AssignClientTarget } from './AssignClientDialog';
 import { RemoveClientDialog, type RemoveClientTarget } from './RemoveClientDialog';
 import { PHONE_FORMAT_HINT, toE164 } from '@/lib/phone';
 
@@ -171,6 +172,13 @@ export function AdminContent() {
   const [clientIdTarget, setClientIdTarget] = useState<ClientIdTarget | null>(null);
   const [clientIdMsg, setClientIdMsg] = useState<string | null>(null);
 
+  // A client who joined on their own and has no therapist yet — the row whose
+  // "Assign therapist" action was clicked. Self-serve signup means these rows
+  // exist without a phone number, so they are assigned by id through a dialog
+  // rather than through the phone-number form above.
+  const [assignTarget, setAssignTarget] = useState<AssignClientTarget | null>(null);
+  const [assignUserMsg, setAssignUserMsg] = useState<string | null>(null);
+
   // Portal P0 — the operator's half of the invite handover. Keyed by client id
   // so the row that is sending shows it, and the result is reported next to
   // the table rather than in a toast nobody reads.
@@ -313,6 +321,11 @@ export function AdminContent() {
                     label="Clients"
                     value={overviewQuery.data.clientCount}
                     hint={`${overviewQuery.data.activeAssignments} active · ${overviewQuery.data.pendingAssignments} invited`}
+                  />
+                  <Stat
+                    label="No therapist"
+                    value={overviewQuery.data.unassignedCount}
+                    hint="Joined the app · waiting for assignment"
                   />
                   <Stat
                     label="Appointments this week"
@@ -676,6 +689,12 @@ export function AdminContent() {
                   {clientIdMsg}
                 </p>
               )}
+              {/* …and of assigning a self-serve client to a therapist. */}
+              {!removeMsg && !clientIdMsg && assignUserMsg && (
+                <p role="status" aria-live="polite" className="bg-sage-tint px-6 py-3 text-xs text-sage-deep">
+                  {assignUserMsg}
+                </p>
+              )}
               {testerMsg && (
                 <p
                   role={testerMsg.kind === 'err' ? 'alert' : 'status'}
@@ -749,6 +768,27 @@ export function AdminContent() {
                           <Td className="text-xs text-ink-soft">{formatDate(c.joinedAt)}</Td>
                           <Td className="text-right">
                             <div className="flex items-center justify-end gap-3">
+                              {/* Self-serve signup: an account exists with nobody
+                                  holding it. The form above assigns by phone
+                                  number, which these clients never gave — this
+                                  assigns the row itself. */}
+                              {c.therapists.length === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAssignUserMsg(null);
+                                    setAssignTarget({
+                                      id: c.id,
+                                      label: c.name ?? c.email ?? c.phoneMasked,
+                                      email: c.email,
+                                    });
+                                  }}
+                                  aria-label={`Assign a therapist to ${c.name ?? c.email ?? c.phoneMasked}`}
+                                  className="whitespace-nowrap text-xs font-medium text-royal-purple hover:underline"
+                                >
+                                  Assign therapist
+                                </button>
+                              )}
                               {/* No record number yet: the only repair path.
                                   Hidden for numbered clients — the number is
                                   frozen, so there is nothing to set. */}
@@ -1045,6 +1085,21 @@ export function AdminContent() {
             setClientIdTarget(null);
             utils.admin.listClients.invalidate();
             utils.admin.overview.invalidate();
+          }}
+        />
+      )}
+
+      {assignTarget && (
+        <AssignClientDialog
+          target={assignTarget}
+          therapists={therapistsQuery.data ?? []}
+          onClose={() => setAssignTarget(null)}
+          onAssigned={(summary) => {
+            setAssignUserMsg(summary);
+            setAssignTarget(null);
+            clientsQuery.refetch();
+            utils.admin.overview.invalidate();
+            utils.admin.listAssignments.invalidate();
           }}
         />
       )}

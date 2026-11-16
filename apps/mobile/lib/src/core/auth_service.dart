@@ -106,6 +106,15 @@ class AuthService {
   AuthUser? _currentUser;
   Future<AuthUser?>? _restore;
 
+  /// The Google ID token from the most recent sign-in.
+  ///
+  /// Held in memory only, and only long enough to create an account: a stranger
+  /// signs in (identity proved, nothing created), lands on the 18+/consent
+  /// screen, and `signUp` presents this same token so the API can create the
+  /// row without a second Google consent dialog. It is never written to disk —
+  /// a token that can mint an account does not belong in preferences.
+  String? _pendingIdToken;
+
   /// `GoogleSignIn.initialize` may only be called once per process.
   static bool _googleInitialised = false;
 
@@ -154,6 +163,10 @@ class AuthService {
         'Google did not return a sign-in token. Please try again.',
       );
     }
+
+    // Kept for `signUp`, which needs the same proof of identity to create an
+    // account for someone who has none yet.
+    _pendingIdToken = idToken;
 
     Response<dynamic> response;
     try {
@@ -207,6 +220,91 @@ class AuthService {
       hasAccount: body['has_account'] == true,
       email: email,
     );
+  }
+
+  /// Creates this person's Okuvu account — self-serve onboarding.
+  ///
+  /// Signing in proves *who* someone is and deliberately creates nothing. This
+  /// is the one call that creates the `User` row, and it cannot run without the
+  /// client's own 18+ answer and safety-monitoring consent in the same request.
+  ///
+  /// The account starts unassigned: no therapist, no care plan. The operator
+  /// console lists them and assigns a therapist; until then the client sees the
+  /// whole app and the agent's turns are non-directional.
+  ///
+  /// Throws [AuthException] with `UNDER_18` when the client said they are under
+  /// 18 — nothing is created, and the caller shows the closing screen.
+  Future<void> signUp({
+    required bool adult,
+    required bool shareSummaries,
+  }) async {
+    final idToken = _pendingIdToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw const AuthException(
+        'NoIdToken',
+        'Please sign in with Google again to finish setting up your account.',
+      );
+    }
+
+    Response<dynamic> response;
+    try {
+      response = await _api.post<dynamic>(
+        '/auth/signup',
+        data: {
+          'id_token': idToken,
+          'adult': adult,
+          'consents': {
+            // Mandatory and not negotiable — the server refuses without it.
+            'safety_monitoring': true,
+            // One toggle on the onboarding card covers both derived-from-chat
+            // signals, matching the settings screen's single chip.
+            'mood_inference': shareSummaries,
+            'assessment': shareSummaries,
+            // Never asked at signup; the emergency-contact screen owns it.
+            'emergency_contact': false,
+          },
+        },
+      );
+    } on DioException catch (e) {
+      throw _fromDio(e);
+    }
+
+    final data = response.data;
+    if (data is! Map) {
+      throw const AuthException(
+        'InvalidResponse',
+        'Something went wrong. Please try again.',
+      );
+    }
+    final body = Map<String, dynamic>.from(data);
+    if (body['has_account'] != true) {
+      throw const AuthException(
+        'InvalidResponse',
+        'Something went wrong. Please try again.',
+      );
+    }
+
+    // The response carries a session of its own (the API mints one), so a build
+    // that reaches this screen after losing its stored session still ends up
+    // signed in without a second Google prompt.
+    final token = body['token'];
+    final expiresAt = body['expires_at'];
+    if (token is String && token.isNotEmpty && expiresAt is num) {
+      final email = body['email'] is String ? body['email'] as String : null;
+      final subject = _subjectOf(token) ?? email ?? '';
+      if (subject.isNotEmpty) {
+        await _persist(StoredSession(
+          token: token,
+          expiresAt:
+              DateTime.fromMillisecondsSinceEpoch(expiresAt.toInt() * 1000),
+          subject: subject,
+          email: email,
+        ));
+      }
+    }
+
+    // One-shot: the token is not needed again either way.
+    _pendingIdToken = null;
   }
 
   /// Clears the session locally and drops the Google account from this app.
@@ -282,6 +380,16 @@ class AuthService {
         return const AuthException(
           'ACCOUNT_DELETED',
           'This account has been closed.',
+        );
+      case 'UNDER_18':
+        return const AuthException(
+          'UNDER_18',
+          'OKUVU is for adults aged 18 and over.',
+        );
+      case 'CONSENT_REQUIRED':
+        return const AuthException(
+          'CONSENT_REQUIRED',
+          'Safety monitoring consent is required to use OKUVU.',
         );
       case 'SIGN_IN_NOT_CONFIGURED':
         return const AuthException(

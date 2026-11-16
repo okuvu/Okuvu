@@ -127,6 +127,13 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
     handler: async (request, reply) => {
       const { uid } = request.user;
       const bundle = await getAgentContextBundle(uid);
+      // The 18+ gate is answered inside the bundle, from the row it already
+      // loads — one query, and the same predicate the app and console use.
+      if (bundle.under_18) {
+        return reply.status(403).send({
+          error: { code: 'UNDER_18', message: 'Okuvu is for adults 18 and over.' },
+        });
+      }
       return reply.send(bundle);
     },
   });
@@ -143,6 +150,12 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
       if (result.status === 'user_not_found') {
         return reply.status(401).send({
           error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      if (result.status === 'under_18') {
+        return reply.status(403).send({
+          error: { code: 'UNDER_18', message: 'Okuvu is for adults 18 and over.' },
         });
       }
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/splash/splash_screen.dart';
 import '../features/auth/google_login_screen.dart';
+import '../features/auth/self_serve_signup_screen.dart';
 import '../features/onboarding_welcome/welcome_screen.dart';
 import '../features/onboarding_welcome/age_blocked_screen.dart';
 import '../features/auth/waitlist_screen.dart';
@@ -125,6 +126,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding/consent',
         builder: (context, state) => const ConsentScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding/signup',
+        builder: (context, state) =>
+            SelfServeSignupScreen(email: state.extra as String?),
       ),
       GoRoute(
         path: '/waitlist',

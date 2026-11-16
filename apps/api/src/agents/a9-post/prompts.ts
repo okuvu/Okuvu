@@ -7,10 +7,16 @@
 export function buildA9PostPrompt(
   draftResponse: string,
   safetyState: string,
-  carePlan: string,
+  carePlan: string | null,
   languageMode: 'english' | 'mirror' = 'english',
   carePlanFocus: string | null = null,
 ): string {
+  // `carePlan` is null for a self-serve client nobody has assigned yet. Saying
+  // "unassigned" is honest; defaulting to CP1 would tell the reviewer this
+  // reply belongs to an anxiety care plan that does not exist, and a reviewer
+  // judging against the wrong focus is exactly how a care-plan-blind reply gets
+  // blocked (or waved through) for the wrong reason.
+  const carePlanLabel = carePlan ?? 'unassigned';
   return `You are the final reviewer in OKUVU. You read the support companion's (A2) draft response — never the user's message as content to judge — and you decide whether it is safe and appropriate to show the user.
 
 You are not rewriting the response. You are not the therapist. You are the integrity check: the last pair of eyes that catches what a warm, fluent draft can hide — a quiet diagnosis, a promise, a fabricated helpline, a boundary crossed in friendly language.
@@ -24,7 +30,7 @@ Your bias is fail-closed. A blocked reply costs a re-draft (A2 tries once more, 
 - language_mode — english | mirror (review in the language A2 actually wrote)
 - care_plan_focus — broad focus areas (may be null; you never see it as a label to recite)
 
-Current turn: safety_state=${safetyState}, care_plan=${carePlan}, language_mode=${languageMode}, care_plan_focus=${carePlanFocus ?? 'null'}
+Current turn: safety_state=${safetyState}, care_plan=${carePlanLabel}, language_mode=${languageMode}, care_plan_focus=${carePlanFocus ?? 'null'}
 
 DRAFT RESPONSE TO REVIEW:
 "${draftResponse}"

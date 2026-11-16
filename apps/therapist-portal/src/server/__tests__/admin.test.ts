@@ -53,6 +53,7 @@ function buildPrisma(overrides: PrismaOverrides = {}) {
     therapistClient: {
       findUnique: vi.fn().mockResolvedValue(overrides.existingAssignment ?? null),
       upsert: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({}),
       findMany: vi.fn().mockResolvedValue([]),
     },
     inviteToken: {
@@ -442,5 +443,102 @@ describe('admin.listPendingInvites (therapist-portal wireframes C-07)', () => {
     expect(result).toHaveLength(1);
     expect(result[0].clientUserId).toBe('client_with_email');
     expect(result[0].clientEmail).toBe('shubhangi@example.com');
+  });
+});
+
+/**
+ * Self-serve signup: a `User` row can now exist with no therapist and no phone
+ * number, so the console assigns by the row's id instead of by phone.
+ */
+describe('admin.assignClientUser (self-serve clients)', () => {
+  beforeEach(() => {
+    process.env.ADMIN_EMAILS = ADMIN.email;
+  });
+
+  afterEach(() => {
+    process.env.ADMIN_EMAILS = ORIGINAL_ADMIN_EMAILS;
+  });
+
+  it('throws FORBIDDEN for a non-admin caller', async () => {
+    const caller = callerWith(buildPrisma(), false);
+    await expect(
+      caller.admin.assignClientUser({ therapistId: THERAPIST.id, clientUserId: 'client_1' }),
+    ).rejects.toThrow(/admin access required/i);
+  });
+
+  it('creates the assignment by client id, labelled with the email on the row', async () => {
+    const prisma = buildPrisma();
+    prisma.user.findFirst = vi.fn().mockResolvedValue({
+      id: 'client_1',
+      full_name: null,
+      email: 'selfserve@example.com',
+    });
+    const caller = callerWith(prisma);
+
+    const result = await caller.admin.assignClientUser({
+      therapistId: THERAPIST.id,
+      clientUserId: 'client_1',
+      chatAccessGranted: true,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      therapistEmail: THERAPIST.email,
+      clientId: 'client_1',
+      wasAlreadyAssigned: false,
+    });
+    expect(prisma.therapistClient.create).toHaveBeenCalledWith({
+      data: {
+        therapist_id: THERAPIST.id,
+        client_user_id: 'client_1',
+        chat_access_granted: true,
+        client_label: 'selfserve@example.com',
+      },
+    });
+    // No care plan is written: that is the therapist's decision on the client's
+    // own page, not part of assigning the caseload.
+    expect(prisma.clinicalConfig?.create).toBeUndefined();
+  });
+
+  it('is a no-op when the therapist already holds this client', async () => {
+    const prisma = buildPrisma({ existingAssignment: { id: 'tc_1' } });
+    const caller = callerWith(prisma);
+
+    const result = await caller.admin.assignClientUser({
+      therapistId: THERAPIST.id,
+      clientUserId: 'client_1',
+      chatAccessGranted: true,
+    });
+
+    expect(result.wasAlreadyAssigned).toBe(true);
+    // Consent is never silently re-granted or revoked by a repeat click.
+    expect(prisma.therapistClient.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a client id that does not exist', async () => {
+    const prisma = buildPrisma();
+    prisma.user.findFirst = vi.fn().mockResolvedValue(null);
+    const caller = callerWith(prisma);
+
+    await expect(
+      caller.admin.assignClientUser({ therapistId: THERAPIST.id, clientUserId: 'ghost' }),
+    ).rejects.toThrow(/client not found/i);
+    expect(prisma.therapistClient.create).not.toHaveBeenCalled();
+  });
+
+  it('sets the language preference when one is chosen', async () => {
+    const prisma = buildPrisma();
+    const caller = callerWith(prisma);
+
+    await caller.admin.assignClientUser({
+      therapistId: THERAPIST.id,
+      clientUserId: CLIENT.id,
+      languageMode: 'mirror',
+    });
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: CLIENT.id },
+      data: { language_mode: 'mirror' },
+    });
   });
 });

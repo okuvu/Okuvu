@@ -750,7 +750,10 @@ export async function processTurn(
       const a2ResultRaw = await handleTurn({
         userId: uid,
         message,
-        carePlan: (contextBundle.care_plan?.care_plan_id ?? 'CP1') as 'CP1' | 'CP2' | 'CP3',
+        // No assignment yet (self-serve signup) is a real state, not a reason
+        // to invent CP1: an unassigned client's turns are non-directional, and
+        // `care_plan_focus` reaches A2's prompt as null.
+        carePlan: contextBundle.care_plan?.care_plan_id ?? null,
         safetyState: safetyState as 'S0' | 'S1' | 'S2',
         sessionHistorySummary: contextBundle.session_summary,
         perceivedIntensity,
@@ -861,7 +864,7 @@ export async function processTurn(
       const a9PostResult = await a9PostReview({
         draftResponse: finalText,
         safetyState,
-        carePlan: contextBundle.care_plan?.care_plan_id ?? 'CP1',
+        carePlan: contextBundle.care_plan?.care_plan_id ?? null,
         // OKUVU v2.0: must match what A2 was actually given (see the shared
         // languageMode/carePlanFocus declaration above) — a review under the
         // wrong language_mode assumption would misjudge a Hinglish reply.
