@@ -34,6 +34,8 @@ import {
 import { getWorkerUrl } from '@/lib/worker-health';
 import { isCannedRunActive } from '@/lib/canned-mode';
 import { resolveSimulatorModel, simulatorIsCanned } from '@/lib/user-simulator';
+import { buildCampaignWorkbook, type CampaignExportGroup } from '@/lib/campaign-workbook';
+import { buildXlsxBuffer } from '@/lib/xlsx-export';
 
 function requirePrisma(client: PrismaClient | null): PrismaClient {
   if (!client) {
@@ -511,6 +513,94 @@ export const campaignRouter = router({
           invariantViolations: trace.invariantViolations?.length ?? 0,
           findings: verdict.findings.filter((finding) => finding.turnNumber === trace.turnNumber),
         })),
+      };
+    }),
+
+  /**
+   * One .xlsx for the whole campaign: the frozen parameters, one row per
+   * persona verdict, then every session, turn, finding and judge rationale
+   * behind those verdicts.
+   *
+   * Read-only. It re-reads the groups rather than trusting the screen's copy
+   * so the file is a record of what the database holds, not of what happened
+   * to be rendered. Bases the workbook on the same `foldGroupVerdict` the
+   * screen uses, so the spreadsheet and the table can never disagree.
+   */
+  exportWorkbook: protectedProcedure
+    .input(z.object({ campaignId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = requirePrisma(ctx.prisma);
+      const campaign = await db.campaign.findUnique({ where: { id: input.campaignId } });
+      if (!campaign) throw new TRPCError({ code: 'NOT_FOUND', message: `No campaign '${input.campaignId}'.` });
+
+      const groupIds = await db.conversationRun.findMany({
+        where: { campaign_id: input.campaignId },
+        orderBy: { created_at: 'asc' },
+        select: { id: true },
+      });
+
+      const exportGroups: CampaignExportGroup[] = [];
+      for (const group of groupIds) {
+        const loaded = await loadGroupEvidence(group.id);
+        if (!loaded) continue;
+        exportGroups.push({
+          groupId: group.id,
+          personaId: loaded.personaId,
+          personaVersion: loaded.personaVersion,
+          groupStatus: loaded.evidence.groupStatus,
+          turnsCompleted: loaded.turns.length,
+          sessionsCompleted: loaded.evidence.sessions.filter(
+            (session) => session.continuity?.C1 === 'pass' || session.continuity?.C1 === 'fail',
+          ).length,
+          costSoFarUsd: loaded.costSoFarUsd,
+          incompleteReason: loaded.evidence.incompleteReason,
+          verdict: foldGroupVerdict(loaded.evidence),
+          sessions: loaded.evidence.sessions,
+          turns: loaded.turns,
+          judgeVerdicts: loaded.evidence.judgeVerdicts,
+        });
+      }
+
+      if (exportGroups.length === 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'This campaign has no conversations yet — nothing to export.',
+        });
+      }
+
+      const { sheets, turnRows, findingRows, judgeRows } = buildCampaignWorkbook(
+        {
+          id: campaign.id,
+          label: campaign.label,
+          environment: campaign.environment,
+          target: campaign.target,
+          status: campaign.status,
+          sessions: campaign.sessions,
+          turnsMin: campaign.turns_min,
+          turnsMax: campaign.turns_max,
+          gapPlanMs: Array.isArray(campaign.gap_plan_ms) ? (campaign.gap_plan_ms as number[]) : [],
+          seed: campaign.seed,
+          judgeEnabled: campaign.judge_enabled,
+          costCeilingUsd: campaign.cost_ceiling_usd,
+          costEstimateUsd: campaign.cost_estimates_usd,
+          plannedTurns: campaign.planned_turns,
+          createdAt: campaign.created_at.toISOString(),
+        },
+        exportGroups,
+      );
+
+      const buffer = buildXlsxBuffer(sheets);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const safeLabel = campaign.label.replace(/[^a-zA-Z0-9-_]+/g, '-').slice(0, 40) || 'campaign';
+
+      return {
+        fileName: `okuvu-${safeLabel}-${stamp}.xlsx`,
+        base64: Buffer.from(buffer).toString('base64'),
+        personaRows: exportGroups.length,
+        turnRows,
+        findingRows,
+        judgeRows,
+        sheetNames: sheets.map((sheet) => sheet.name),
       };
     }),
 

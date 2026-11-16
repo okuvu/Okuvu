@@ -51,6 +51,7 @@ export default function LeftConfigPanel({
   onEndSession,
   endSessionDisabled,
   onExport,
+  onExportXlsx,
   exportDisabled,
   faultOption,
   onFaultChange,
@@ -66,6 +67,7 @@ export default function LeftConfigPanel({
   onEndSession: () => void;
   endSessionDisabled: boolean;
   onExport: () => void;
+  onExportXlsx: () => void;
   exportDisabled: boolean;
   faultOption: FaultOptionId;
   onFaultChange: (id: FaultOptionId) => void;
@@ -194,6 +196,16 @@ export default function LeftConfigPanel({
       >
         <Icon name="download" />
         Export conversation
+      </button>
+
+      <button
+        type="button"
+        onClick={onExportXlsx}
+        disabled={exportDisabled}
+        className="flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-dashed border-[var(--color-outline-variant)] px-4 py-2 text-[var(--text-body-main)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container-low)] disabled:opacity-50"
+      >
+        <Icon name="download" />
+        Export .xlsx
       </button>
 
       <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">

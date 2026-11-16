@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
+import DownloadXlsxButton from '@/app/components/DownloadXlsxButton';
+import { downloadBase64 } from '@/lib/xlsx-export';
 
 type Verdict = 'PASS' | 'FAIL' | 'UNGRADED' | 'INCOMPLETE' | 'RUNNING';
 
@@ -35,6 +37,7 @@ export function VerdictChip({ verdict }: { verdict: Verdict }) {
  */
 export default function CampaignResults({ campaignId }: { campaignId: string }) {
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const campaign = trpc.campaign.get.useQuery(
     { campaignId },
@@ -46,6 +49,13 @@ export default function CampaignResults({ campaignId }: { campaignId: string }) 
     { groupId: openGroupId ?? '' },
     { enabled: Boolean(openGroupId) },
   );
+  const exportWorkbook = trpc.campaign.exportWorkbook.useMutation({
+    onSuccess: (file) => {
+      setExportError(null);
+      downloadBase64(file.fileName, file.base64);
+    },
+    onError: (error) => setExportError(error.message),
+  });
 
   if (campaign.isLoading) {
     return <p className="text-[var(--text-body-main)] text-[var(--color-on-surface-variant)]">Loading results…</p>;
@@ -80,7 +90,26 @@ export default function CampaignResults({ campaignId }: { campaignId: string }) 
         {results.length === 0 ? (
           <span className="text-[var(--color-on-surface-variant)]">No conversations yet — advance the campaign.</span>
         ) : null}
+        <span className="ml-auto flex items-center gap-2">
+          <DownloadXlsxButton
+            onClick={() => exportWorkbook.mutate({ campaignId })}
+            disabled={results.length === 0}
+            pending={exportWorkbook.isPending}
+          />
+        </span>
       </div>
+
+      {exportError ? (
+        <p className="text-[var(--text-label-sm)] text-[var(--color-error)]">Export failed: {exportError}</p>
+      ) : null}
+      {exportWorkbook.data ? (
+        <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
+          Saved {exportWorkbook.data.fileName} — {exportWorkbook.data.personaRows} personas,{' '}
+          {exportWorkbook.data.turnRows} turns, {exportWorkbook.data.findingRows} findings,{' '}
+          {exportWorkbook.data.judgeRows} judge verdicts across{' '}
+          {exportWorkbook.data.sheetNames.length} sheets.
+        </p>
+      ) : null}
 
       {results.length > 0 ? (
         <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-outline-variant)]">
