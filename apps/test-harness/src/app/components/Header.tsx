@@ -12,9 +12,9 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-[var(--spacing-lg)] shadow-[var(--shadow-soft)]">
       <Link
-        href="/dashboard"
+        href="/"
         className="flex items-center gap-3 rounded-[var(--radius-md)] transition-opacity hover:opacity-75"
-        title="Back to dashboard"
+        title="Back to the harness home"
       >
         <h1 className="text-[var(--text-section-header)] font-[var(--text-section-header--font-weight)] text-[var(--color-primary)]">
           OKUVU

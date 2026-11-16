@@ -13,6 +13,38 @@ it reconciles against what's actually built today, see
 
 ---
 
+## 0. Information architecture (where everything lives)
+
+The harness surface was flattened into two levels: a two-tile landing page, and one
+menu of test types shared by every test screen. If you are looking for a screen that
+used to be on the front page, this table is the map.
+
+| Screen | URL | Reached from |
+|---|---|---|
+| Landing (Chat, Results) | `/` | The `OKUVU` wordmark in the header links back here |
+| Short-chat fidelity | `/simulator` | Tab 1 — one conversation, per-turn plain-language trace |
+| Persona testing | `/campaign` | Tab 2 — clinical run (default) + advanced campaign, one backend |
+| Agent testing | `/agents` | Tab 3 — one agent in isolation |
+| Pipeline testing | `/pipeline` | Tab 4 — agent-to-agent wiring |
+| Fault injection | `/faults` | Tab 5 — force a failure, check the fail-safe |
+| Care plan & exercise | — | Tab 6, disabled: needs the care-plan columns and runner pass-through |
+| Results | `/results` | Landing tile |
+| Operator dashboard | `/dashboard` | Linked in small print on the landing page — env status, recent runs, gate summary, sign-off |
+| Persona Conversation Driver | `/conversations` | URL only — superseded by Persona testing, kept for scripted turn-stepping |
+| Deferred screens | `/corpus`, `/review`, `/config`, `/sampling`, `/determinism`, `/ci`, `/beta` | `/dashboard` nav, or URL |
+
+Rules that follow from this and are easy to break:
+
+- **The tab bar is the only menu.** `src/app/components/TestTabs.tsx`. Add a test type there,
+  not as a new tile on `/`.
+- **Two persona screens must not come back.** The clinical run (`campaign/_components/
+  ClinicalRunConsole.tsx`, fixed 15–20 turns, transcript emailed) and the advanced campaign
+  (`CampaignConsole.tsx`, sessions/gaps/seed/ceiling) are two modes of one screen. A change to
+  the runner shows up in both; do not fork a third front door.
+- **The chat screen holds one conversation.** Bulk runners (the scripted persona battery, the
+  corpus replay) live behind the collapsed "More tools" bar in `SimulatorWorkspace.tsx`, and are
+  not mounted until it is opened.
+
 ## 1. Local dev setup
 
 See the [README's "Getting Started" section](../../apps/test-harness/README.md)

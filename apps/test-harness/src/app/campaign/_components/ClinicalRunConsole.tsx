@@ -12,12 +12,14 @@ import {
 } from '@/lib/persona-sheet';
 
 /**
- * TH-S39 — the testing.okuvu.in landing screen.
+ * TH-S39 — the clinical run. Moved here from the old testing.okuvu.in landing
+ * page, where it sat next to (and duplicated) CampaignConsole.
  *
  * One job: take a sheet of client personas, hold one 15–20 turn conversation
  * per persona against the real pipeline, and mail each transcript to the
- * clinical reviewer. So the page has three states and no settings: choose a
- * file, press Run, read what was sent.
+ * clinical reviewer. So the screen has three states and no settings: choose a
+ * file, press Run, read what was sent. The knobs live in the sibling
+ * "Advanced campaign" tab, which is the same backend with the plan exposed.
  *
  * The turn range is fixed here rather than exposed as a control because the
  * requirement is "a 15–20 turn conversation", and a per-persona count drawn
@@ -49,7 +51,7 @@ function randomSeed(): number {
   return Math.floor(Math.random() * 2_000_000_000) + 1;
 }
 
-export default function TestingConsole() {
+export default function ClinicalRunConsole() {
   const utils = trpc.useUtils();
   const config = trpc.testing.config.useQuery();
 
