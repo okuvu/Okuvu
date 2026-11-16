@@ -191,6 +191,36 @@ async function main() {
     }
   }
 
+  // ── The workbook download, end to end ──────────────────────────────────
+  // The whole point of the export is that a reviewer can open one file. So
+  // generate it through the same router mutation the button calls, write real
+  // bytes, read them back, and assert the sheets and row counts. A builder
+  // that only typechecks is exactly the failure this catches.
+  const exported = await caller.exportWorkbook({ campaignId: started.campaignId });
+  const XLSX = await import('xlsx');
+  const fs = await import('node:fs/promises');
+  const outPath = `/tmp/${exported.fileName}`;
+  await fs.writeFile(outPath, Buffer.from(exported.base64, 'base64'));
+  const written = await XLSX.read(await fs.readFile(outPath), { type: 'buffer' });
+  const summaryRows = XLSX.utils.sheet_to_json(written.Sheets.Summary ?? {});
+  const turnSheetRows = XLSX.utils.sheet_to_json(written.Sheets.Turns ?? {});
+  console.log('export:', {
+    file: outPath,
+    bytes: (await fs.stat(outPath)).size,
+    sheets: written.SheetNames,
+    summaryRows: summaryRows.length,
+    turnRows: turnSheetRows.length,
+    findingRows: exported.findingRows,
+    judgeRows: exported.judgeRows,
+  });
+  if (written.SheetNames.join(',') !== 'Run,Summary,Sessions,Turns,Findings,Judge') {
+    throw new Error(`unexpected sheets: ${written.SheetNames.join(',')}`);
+  }
+  if (summaryRows.length !== read.results.length) {
+    throw new Error(`Summary sheet has ${summaryRows.length} rows for ${read.results.length} personas`);
+  }
+  if (turnSheetRows.length === 0) throw new Error('Turns sheet is empty — the export lost the transcript');
+
   const campaignRow = await prisma.campaign.findUnique({ where: { id: started.campaignId } });
   const groups = await prisma.conversationRun.findMany({ where: { campaign_id: started.campaignId } });
   const runs = await prisma.testRun.count({

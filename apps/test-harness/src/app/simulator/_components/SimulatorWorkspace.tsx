@@ -5,6 +5,7 @@ import { trpc } from '@/trpc/client';
 import { useEnvironment } from '@/lib/environment-context';
 import { PERSONA_SCRIPTS, type PersonaId } from '@/lib/persona-scripts';
 import { exportTraceToClinicianFormat, type PerTurnTrace } from '@/lib/trace-export';
+import { cell, downloadSheets } from '@/lib/xlsx-export';
 import { simulateSessionCloseAction } from '@/app/conversations/actions';
 import LeftConfigPanel from './LeftConfigPanel';
 import ChatPane from './ChatPane';
@@ -181,6 +182,44 @@ export default function SimulatorWorkspace() {
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * The same conversation as a workbook, because the clinician-review path
+   * wants a table she can sort and filter, not a JSON tree. Signals get their
+   * own sheet: one row per pipeline signal, so "which agent said what on turn
+   * 7" is answerable without expanding a blob.
+   */
+  const handleExportXlsx = () => {
+    if (turns.length === 0) return;
+    const conversationRows = turns.map((turn) => ({
+      turnNumber: turn.turnNumber,
+      clientMessage: cell(turn.message),
+      agentReply: cell(turn.response ?? ''),
+      resultType: turn.resultType,
+      safetyState: turn.safetyState ?? '',
+      fallbackUsed: turn.fallbackUsed,
+      latencyMs: Math.round(turn.latencyMs),
+      invariantViolations: (turn.invariantViolations ?? []).map((violation) => violation.rule).join('; '),
+    }));
+
+    const signalRows = turns.flatMap((turn) =>
+      (turn.signals ?? []).map((signal) => {
+        const record = (signal ?? {}) as Record<string, unknown>;
+        return {
+          turnNumber: turn.turnNumber,
+          boundary: cell(record.boundary),
+          agent: cell(record.agent),
+          timestamp: cell(record.timestamp),
+          payload: cell(record.payload),
+        };
+      }),
+    );
+
+    downloadSheets(`simulator-conversation-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`, [
+      { name: 'Conversation', rows: conversationRows },
+      { name: 'Signals', rows: signalRows },
+    ]);
+  };
+
   const latestTurn = turns.length > 0 ? turns[turns.length - 1] : null;
   const chatDisabled = !session || sendMessageMutation.isPending || crisisEnded;
   const disabledReason = !session
@@ -232,6 +271,7 @@ export default function SimulatorWorkspace() {
               onEndSession={handleEndSession}
               endSessionDisabled={!session}
               onExport={handleExport}
+              onExportXlsx={handleExportXlsx}
               exportDisabled={turns.length === 0}
               faultOption={faultOption}
               onFaultChange={setFaultOption}
