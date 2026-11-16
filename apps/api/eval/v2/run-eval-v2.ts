@@ -85,7 +85,7 @@ import { routeTurn } from '../../src/agents/a8-router.js';
 import { resolveContentBackend, resolveAwsRegion, resolveBedrockModelId } from '../../src/lib/provider-config.js';
 import { classifyLlmFailure } from '../../src/lib/llm-failure.js';
 import { hasCrisisLanguage, hasSelfIngestion } from '../../src/agents/a1/crisis-keywords.js';
-import { applySessionFloor, diagnosisLint } from '../../src/pipeline/guards.js';
+import { applySessionFloor, diagnosisLint, medicationTitrationCap } from '../../src/pipeline/guards.js';
 import { hasMedicalEmergencyLanguage } from '../../src/agents/a1/medical-emergency-keywords.js';
 import {
   CRISIS_RESPONSE,
@@ -156,6 +156,16 @@ const CALL_TIMEOUT_MS = 90_000;
  */
 function guardsEnabled(): boolean {
   return arg('guards', 'on') !== 'off';
+}
+
+/**
+ * `--med-cap on` applies Guard C (the medication-titration cap) to the
+ * classifier's answer. Off by default and off in the product too: it is a
+ * downgrade, so it is measured under the harness and shipped only on a
+ * clinical signature.
+ */
+function medCapEnabled(): boolean {
+  return arg('med-cap', 'off') === 'on';
 }
 
 /** §7 through the shipped guard, or a no-op that keeps the classifier's answer. */
@@ -229,6 +239,7 @@ const counters = {
   // counts of what they caught, not of a model's behaviour.
   session_floor_raised: 0,
   diagnosis_lint_blocked: 0,
+  med_cap_applied: 0,
 };
 
 async function sleep(ms: number): Promise<void> {
@@ -403,13 +414,20 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
   const crisisFloorMatched = hasCrisisLanguage(scenario.message);
   const keywordState = (crisisFloorMatched ? 'S4' : classified.safety_state) as 'S0' | 'S1' | 'S2' | 'S3' | 'S4';
 
+  const sessionTurns = ((scenario.context.session_turns as Array<{ role: string; content: string }> | undefined) ?? []);
+
+  // Guard C, before the floor so the floor still wins by being higher.
+  const medCap = medCapEnabled()
+    ? medicationTitrationCap({ classifiedState: keywordState, currentMessage: scenario.message, sessionTurns })
+    : { state: keywordState, capApplied: false, reason: 'not_s3' as const };
+  if (medCap.capApplied) counters.med_cap_applied += 1;
+
   // §7 — the same session floor the product applies, from the same module. A
   // v2 scenario is one message with no session turns, so this is a no-op today;
   // it is wired here rather than omitted so a multi-turn gold scenario cannot
   // measure a pipeline the product does not run.
-  const sessionTurns = ((scenario.context.session_turns as Array<{ role: string; content: string }> | undefined) ?? []);
   const floor = applyFloor({
-    classifiedState: keywordState,
+    classifiedState: medCap.state,
     sessionTurns,
     currentMessage: scenario.message,
   });
@@ -924,6 +942,10 @@ async function runGate(): Promise<void> {
       session_floor: 'src/pipeline/guards.ts applySessionFloor() — §7: a crisis card in the session holds the state at S3 until two re-engaged messages, no new risk, no dismissal since the last one',
       diagnosis_lint: 'src/pipeline/guards.ts diagnosisLint() — §3: a draft that labels the client with a clinical condition (or attributes their state to a named cause) is replaced by getSafeFallback() before serving',
       session_floor_raised: counters.session_floor_raised,
+      medication_cap: medCapEnabled()
+        ? 'enabled — src/pipeline/guards.ts medicationTitrationCap() — §1: S3 -> S2 on a medicine-titration question with no risk language, no ingestion, no distress beside it; clinical sign-off pending'
+        : 'off (product default)',
+      med_cap_applied: counters.med_cap_applied,
       diagnosis_lint_blocked: counters.diagnosis_lint_blocked,
       lint_blocks: flat
         .filter((row) => row.turn.lint_blocked)
