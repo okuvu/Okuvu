@@ -84,6 +84,36 @@ apps/api/src/agents/<id>/prompts.ts   prompt builders (when the agent has a prom
 by inspecting prose after. New payload-producing agents must run the same
 checks rather than writing local ones.
 
+### 5a. Prompt layout — volatile values go last
+
+A prompt's per-turn values (therapist name, care plan, history summary,
+retrieved context, intensity) go in one trailing section at the end of the
+instruction text, never inline in the body. The body must be byte-identical
+turn to turn.
+
+Why: this product re-sends 10–13k tokens of fixed instruction on every call, and
+input tokens are ~99% of the bill. Bedrock will reuse a repeated prompt *prefix*,
+so a value interpolated at 6% depth makes every turn a different prompt from
+byte 3,093 onward and forfeits essentially all of it. A2 lost this way until
+v2.5: 848 of 12,634 tokens were reusable. Moving the ten values into §12 took
+the shared prefix from 6% to 99% of the prompt.
+
+Rules that follow from it:
+
+- Interpolate `value` or `value ?? 'null'`, never a sentence. A trailing
+  appendix stays cacheable only if it is the only part that changes.
+- A prompt whose body must vary per turn (a rendered transcript, an injected
+  document) should be split so the invariant part is its own leading block, and
+  say in the comment which part is expected to be stable.
+- Prompt builders declare the same `${snake_case}` tokens wherever the values
+  live; relocating a value must not silently drop a substitution. Assert the
+  rendered prompt contains no `${` (see `prompt-model-header.test.ts` and the
+  builder tests).
+- Whether the provider honours the cache is measured, not assumed: the reuse
+  observed for `qwen.qwen3-32b-v1:0` is best-effort (~1 call in 3) and its model
+  card documents no caching at all. State the measured rate, not the layout's
+  ceiling.
+
 ## 6. Authority
 
 `roster.ts` is the single source of truth: `writes` (anything absent is

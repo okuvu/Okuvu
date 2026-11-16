@@ -1,27 +1,40 @@
 /**
  * Bedrock's OpenAI-compatible **Chat Completions** transport, used for one
- * reason: it is the only Bedrock surface that honours prompt caching for the
- * open-weight model this product runs (`qwen.qwen3-32b-v1:0`).
+ * reason: it is the only Bedrock surface that will serve this model's repeated
+ * instruction block from a prompt cache. `ConverseCommand` with a `cachePoint`
+ * answers `AccessDeniedException` — "You invoked an unsupported model or your
+ * request did not allow prompt caching". Probed against this account in
+ * ap-south-1, not inferred from a model card. The same bytes sent to
+ * `/openai/v1/chat/completions` come back with
+ * `usage.prompt_tokens_details.cached_tokens` populated.
  *
- * Why not Converse: sending the same instruction block to `ConverseCommand`
- * with a `cachePoint` answers `AccessDeniedException` — "You invoked an
- * unsupported model or your request did not allow prompt caching". Probed
- * against this account in ap-south-1, not inferred from a model card. The same
- * bytes sent to `/openai/v1/chat/completions` with an explicit breakpoint come
- * back with `usage.prompt_tokens_details.cached_tokens` populated, and cache
- * reads bill at a fraction of the input rate.
+ * What is actually established, and what is not (re-measured 16 Nov 2026, see
+ * evidence/E17-S6.md §5d — this header previously claimed more than the probes
+ * support):
  *
- * What that is worth here (measured, see evidence/E17-S6.md §5b): the four
- * turn-path calls re-send ~20.7k tokens of fixed instruction every turn, and
- * input is ~99% of the tokens billed. A turn is four prompts, not one, and
- * nothing is shared between them.
+ *   Established: with a ~13k-token prompt whose first ~99% is byte-identical
+ *   between calls, the surface reports ~12.9k of ~13.0k input tokens as
+ *   `cached_tokens` on roughly a third of calls, and 0 on the rest. That rate
+ *   did not move when the explicit `prompt_cache_breakpoint` /
+ *   `prompt_cache_options` fields were removed (5 hits of 16 calls either way),
+ *   nor when the per-turn values were moved from the system message into a user
+ *   message (5 of 16 again). So the reuse is **implicit and best-effort, and the
+ *   per-host cache story is the likely reason for the ~1-in-3 rate** — a cache
+ *   entry lives on the host that served the first request.
  *
- * The bill is per *prompt*, so the cache is per prompt too: A1's rubric, A9-pre
- * and A9-post are byte-stable and cache almost whole. A2's instruction text is
- * interrupted by `${interpolated}` values at ~6% depth, and a prefix cache
- * matches from byte zero, so only that head is cacheable until the values move
- * into a trailing appendix (see the prompt-token-budget rules in
- * docs/AGENT-CODE-STANDARD.md).
+ *   Not established: that these explicit controls do anything for this model.
+ *   AWS's Qwen3-32B model card lists neither implicit nor explicit prompt
+ *   caching, and the explicit-caching table names Claude, GPT, Nova, GLM and Kimi
+ *   but not Qwen. The fields are kept because they are inert here and would be
+ *   honoured by a model that supports them; do not read their presence as proof
+ *   that they are the mechanism.
+ *
+ * What the cache is worth here: the four turn-path calls re-send ~20.7k tokens
+ * of fixed instruction every turn, and input is ~99% of the tokens billed. A
+ * turn is four prompts, not one, and nothing is shared between them. The lever
+ * is therefore making each prompt's body byte-identical turn to turn, which is
+ * why A2's per-turn values live in §12 at the end of its prompt rather than
+ * inline (see the prompt-layout rule in docs/AGENT-CODE-STANDARD.md §5).
  *
  * Failure contract: every function here either returns parsed content or
  * `{ ok: false }` with a reason. It never throws into the turn path and never
