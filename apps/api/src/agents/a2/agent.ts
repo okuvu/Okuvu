@@ -1,5 +1,8 @@
 import { generateContent } from '../../lib/generate-content.js';
 import { buildConversationalPrompt } from './prompts.js';
+import { decideClinicalBoundaries } from './topic-gate.js';
+import { examplesForTurn } from './example-bank.js';
+import { compressHistory, isHistoryCompressionEnabled } from '../../lib/history-compression.js';
 import { A2_PROMPT_VERSION } from '../../prompts/index.js';
 import type {
   A2Input,
@@ -7,6 +10,29 @@ import type {
   A2ParsedResponse,
   S07Signal,
 } from './types.js';
+
+/**
+ * E17-S6 cost controls, live on the A2 path.
+ *
+ * All three change what the model reads, so each has an env kill switch and the
+ * decision is logged per turn. They are independent on purpose: turning off
+ * retrieval must not turn off the gate, and vice versa.
+ *
+ *  • `OKUVU_A2_TOPIC_GATE=off` — sends §5.1 unconditionally (pre-E17 behaviour).
+ *  • `OKUVU_A2_EXAMPLE_RETRIEVAL=off` — sends all three worked-example blocks
+ *    inline instead of retrieving the matching one.
+ *  • `OKUVU_A2_HISTORY_COMPRESSION=on` — OFF by default: compressing a therapy
+ *    conversation is a clinical decision (see `lib/history-compression.ts`), so
+ *    it must be switched on deliberately rather than inherited.
+ */
+function isTopicGateEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OKUVU_A2_TOPIC_GATE !== 'off';
+}
+
+function isExampleRetrievalEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OKUVU_A2_EXAMPLE_RETRIEVAL !== 'off';
+}
+
 
 /**
  * Canned/sandbox mode never calls Gemini — without this, every A2 turn got
@@ -52,6 +78,40 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     languageMode,
   } = input;
 
+  // E17-S6: compress the older part of the transcript before it is re-read one
+  // more time. Disabled by default (see the flags above).
+  const history = isHistoryCompressionEnabled()
+    ? compressHistory(recentHistory)
+    : { turns: recentHistory, stats: null };
+
+  // E17-S6: the turn decides which instruction blocks it actually needs. The
+  // gate never invents a decision: `decideClinicalBoundaries()` loads §5.1 on
+  // every uncertain turn, and the prompt builder leaves a standing route
+  // instruction in its place when it is omitted.
+  const gateEnabled = isTopicGateEnabled();
+  const retrievalEnabled = isExampleRetrievalEnabled();
+  const boundary = decideClinicalBoundaries({
+    message,
+    safetyState,
+    sessionHistorySummary,
+    languageMode,
+  });
+  const retrievedExamples = retrievalEnabled
+    ? examplesForTurn(message, { hasHistory: history.turns.length > 0 })
+    : null;
+
+  console.info(
+    {
+      boundary: boundary.reason,
+      boundaryLoaded: boundary.load,
+      gateEnabled,
+      retrievalEnabled,
+      examples: retrievedExamples ? retrievedExamples.length : 0,
+      compression: history.stats,
+    },
+    'A2 prompt assembly',
+  );
+
   let systemInstruction = buildConversationalPrompt({
     safetyState,
     sessionHistorySummary,
@@ -63,6 +123,9 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     homework,
     toolkit,
     languageMode,
+    omitExamples: retrievalEnabled,
+    additionalExamples: retrievedExamples,
+    omitClinicalBoundaries: gateEnabled && !boundary.load,
   });
 
   if (toolResultContext) {
@@ -70,7 +133,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
   }
 
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> =
-    recentHistory.map((turn) => ({
+    history.turns.map((turn) => ({
       role: turn.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: turn.content }],
     }));
@@ -83,6 +146,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
   const result = await generateContent({
     systemInstruction,
     contents,
+    callRole: 'dialogue',
     cannedResponse: buildCannedReply(message),
   });
 

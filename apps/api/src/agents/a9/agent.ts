@@ -66,6 +66,7 @@ export async function classifyGovernance(
       systemInstruction,
       contents: [{ role: 'user', parts: [{ text: input.message }] }],
       model: resolveModelOverride(),
+      callRole: 'safety',
       generationConfig: {
         // Deterministic classification (OKUVU v2.0 spec) — A9-pre previously
         // had no explicit temperature, inheriting the provider default of 0.7.

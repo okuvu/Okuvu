@@ -15,6 +15,8 @@ import { isCannedRequested, buildCannedResult } from './canned-response.js';
 import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 import { classifyLlmFailure } from './llm-failure.js';
 import { recordModelUsage } from './token-budget.js';
+import { decideServiceTier, DEFAULT_FLEX_TIMEOUT_MS } from './service-tier.js';
+import type { BedrockServiceTier } from './service-tier.js';
 import type { TokenUsage } from './llm-types.js';
 import {
   resolveAwsRegion,
@@ -311,10 +313,78 @@ export async function generateContent(
     return buildCannedResult(params, model);
   }
 
-  const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const generationConfig = params.generationConfig ?? {};
   const tools = buildToolConfig(params);
 
+  // E17-S6 service tier. `decideServiceTier` returns `default` for every
+  // unclassified call site and for the safety/review roles, so this can only
+  // ever move a dialogue or background call onto the cheaper lane, and only
+  // when `OKUVU_BEDROCK_FLEX=true`.
+  const decision = decideServiceTier(params.callRole);
+  const tiers: BedrockServiceTier[] = decision.tier === 'default' ? ['default'] : [decision.tier, 'default'];
+
+  let last: GenerateContentResult | null = null;
+
+  for (let i = 0; i < tiers.length; i++) {
+    const tier = tiers[i];
+    // A flex call gets the shorter queue budget; the guaranteed retry that
+    // follows gets the caller's normal timeout. Without the shorter budget a
+    // queued flex call would consume the whole turn's patience and the retry
+    // would never get to run.
+    const timeoutMs =
+      tier === 'flex'
+        ? (params.timeoutMs ?? DEFAULT_FLEX_TIMEOUT_MS)
+        : (params.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
+    const result = await sendOnce(params, model, generationConfig, tools, tier, timeoutMs);
+    last = result;
+
+    if (!result.fallbackUsed) {
+      if (tier !== 'default') recordServiceTier(tier, decision.reason, model, result.usage);
+      return result;
+    }
+
+    const nextTier = tiers[i + 1];
+    if (nextTier) {
+      // Say so out loud: a saturated flex lane must be visible as a re-run on
+      // the guaranteed tier (paid twice), not as a silent price change.
+      console.warn(
+        {
+          model,
+          abandonedTier: tier,
+          failureKind: result.failureKind ?? null,
+          reason: decision.reason,
+        },
+        'Bedrock tier call failed — re-running on the guaranteed tier',
+      );
+    } else {
+      recordServiceTier(tier, decision.reason, model, result.usage);
+    }
+  }
+
+  // Every tier failed. `last` is the final (guaranteed-tier) failure, which is
+  // the one whose failureKind the caller should see.
+  return last as GenerateContentResult;
+}
+
+function recordServiceTier(
+  tier: BedrockServiceTier,
+  reason: string,
+  model: string,
+  usage: TokenUsage | undefined,
+): void {
+  if (tier === 'default') return;
+  console.info({ tier, reason, model, usage: usage ?? null }, 'Bedrock service tier');
+}
+
+async function sendOnce(
+  params: GenerateContentParams,
+  model: string,
+  generationConfig: NonNullable<GenerateContentParams['generationConfig']>,
+  tools: ReturnType<typeof buildToolConfig>,
+  tier: BedrockServiceTier,
+  timeoutMs: number,
+): Promise<GenerateContentResult> {
   const input: ConverseCommandInput = {
     modelId: model,
     system: params.systemInstruction ? [{ text: params.systemInstruction }] : undefined,
@@ -332,6 +402,7 @@ export async function generateContent(
         ? { stopSequences: generationConfig.stopSequences }
         : {}),
     },
+    ...(tier === 'default' ? {} : { serviceTier: { type: tier } }),
     ...(tools ? { toolConfig: tools.toolConfig } : {}),
   };
 
@@ -376,12 +447,13 @@ export async function generateContent(
     const message = err instanceof Error ? err.message : String(err);
     const failureKind = classifyLlmFailure(err, timedOut);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
-    console.error({ reason: failureReason, failureKind, err: message, model }, 'Bedrock call failed');
+    console.error({ reason: failureReason, failureKind, err: message, model, tier }, 'Bedrock call failed');
     return { text: SAFETY_UNAVAILABLE_RESPONSE, fallbackUsed: true, failureReason, failureKind, model, canned: false };
   } finally {
     clearTimeout(timer);
   }
 }
+
 
 // ─── Embeddings (InvokeModel) ────────────────────────────────────────────────
 //

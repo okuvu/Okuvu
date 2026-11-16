@@ -78,6 +78,8 @@ import { fileURLToPath } from 'node:url';
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
 import { buildConversationalPrompt } from '../../src/agents/a2/prompts.js';
+import { examplesForTurn, pickExampleUnits } from '../../src/agents/a2/example-bank.js';
+import { decideClinicalBoundaries } from '../../src/agents/a2/topic-gate.js';
 import { parseA2Response } from '../../src/agents/a2/agent.js';
 import { A2_PROMPT_VERSION } from '../../src/prompts/index.js';
 import { classifySafety } from '../../src/agents/a1/agent.js';
@@ -133,6 +135,36 @@ const PROMPT_FILE = join(
   'src/prompts',
   `a2-okuvu-${A2_PROMPT_VERSION}.txt`,
 );
+
+/**
+ * E17-S6 prompt-size experiment. `base` sends the shipped prompt unchanged and
+ * is the only value production ever sees. `compressed` drops A2's three
+ * worked-example blocks; `retrieval` drops them and appends the one or two
+ * units that match this turn. `gated` leaves the examples alone and instead
+ * omits §5.1/§5.1.1 on turns that ask for no clinical call — the boundary gate
+ * in `agents/a2/topic-gate.ts`. The variant is a property of the run, recorded
+ * in the report, so two arms can never be mixed in one results table.
+ */
+type PromptVariant = 'base' | 'compressed' | 'retrieval' | 'gated' | 'full';
+let promptVariant: PromptVariant = 'base';
+/**
+ * 'full' = the production shape after E17-S6: retrieval AND the §5.1 gate on the
+ * same turn. Kept as one arm so the interaction between the two is measured
+ * rather than inferred by adding two single-change arms together.
+ *
+ * Declared at module scope because the report's prompt metadata reads them too;
+ * computing them inside the per-scenario function left the metadata unable to
+ * describe the variant it had just run.
+ */
+const usesRetrieval = () => promptVariant === 'retrieval' || promptVariant === 'full';
+const usesGate = () => promptVariant === 'gated' || promptVariant === 'full';
+
+/** How often each example unit was retrieved, so the report shows what was loaded. */
+const retrievedUnitCounts: Record<string, number> = {};
+/** How often the boundary gate omitted §5.1, and why it loaded when it did. */
+const boundaryGateCounts = { omitted: 0, loaded: 0 };
+const boundaryGateReasons: Record<string, number> = {};
+
 const JUDGE_PROMPT_FILE = join(__dirname, 'judge-prompt.txt');
 
 // Production inference defaults for A2 — identical to lib/bedrock.ts
@@ -420,6 +452,35 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
     };
   }
 
+  const variantExamples =
+    usesRetrieval()
+      ? examplesForTurn(scenario.message, {
+          hasHistory: Boolean(scenario.context.session_history_summary),
+        })
+      : null;
+  if (usesRetrieval()) {
+    for (const id of pickExampleUnits(scenario.message, {
+      hasHistory: Boolean(scenario.context.session_history_summary),
+    })) {
+      retrievedUnitCounts[id] = (retrievedUnitCounts[id] ?? 0) + 1;
+    }
+  }
+
+  const boundaryDecision =
+    usesGate()
+      ? decideClinicalBoundaries({
+          message: scenario.message,
+          safetyState: effectiveState,
+          sessionHistorySummary: (scenario.context.session_history_summary as string | null) ?? null,
+          languageMode: ((scenario.context.language_mode as 'english' | 'mirror') ?? 'english'),
+        })
+      : null;
+  if (boundaryDecision) {
+    if (boundaryDecision.load) boundaryGateCounts.loaded += 1;
+    else boundaryGateCounts.omitted += 1;
+    boundaryGateReasons[boundaryDecision.reason] = (boundaryGateReasons[boundaryDecision.reason] ?? 0) + 1;
+  }
+
   const systemInstruction = buildConversationalPrompt({
     safetyState: effectiveState,
     sessionHistorySummary: (scenario.context.session_history_summary as string | null) ?? null,
@@ -431,6 +492,9 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
     homework: (scenario.context.homework as string | null) ?? null,
     toolkit: (scenario.context.toolkit as string[] | undefined) ?? [],
     languageMode: ((scenario.context.language_mode as 'english' | 'mirror') ?? 'english'),
+    omitExamples: promptVariant === 'compressed' || usesRetrieval(),
+    additionalExamples: variantExamples,
+    omitClinicalBoundaries: boundaryDecision !== null && !boundaryDecision.load,
   });
 
   counters.a2_calls += 1;
@@ -573,6 +637,28 @@ async function runGate(): Promise<void> {
   const outPath = resolve(REPO_ROOT, arg('out', `evidence/E17-S5-v2-runs/${label}.json`));
   const reps = Number(arg('reps', '3'));
   const concurrency = Number(arg('concurrency', '6'));
+
+  // E17-S6: which A2 prompt arm this run measures. Validated rather than
+  // coerced, because a typo silently falling back to 'base' would publish a
+  // baseline run under a variant label.
+  const variantArg = arg('variant', 'base');
+  if (
+    variantArg !== 'base' &&
+    variantArg !== 'compressed' &&
+    variantArg !== 'retrieval' &&
+    variantArg !== 'gated' &&
+    variantArg !== 'full'
+  ) {
+    console.error(
+      JSON.stringify(
+        { ok: false, stage: 'arguments', error: `--variant must be base|compressed|retrieval|gated|full, got "${variantArg}"` },
+        null,
+        2,
+      ),
+    );
+    process.exit(3);
+  }
+  promptVariant = variantArg;
 
   let environment: ApiEnvironment;
   try {
@@ -846,6 +932,18 @@ async function runGate(): Promise<void> {
       file: `apps/api/src/prompts/a2-okuvu-${A2_PROMPT_VERSION}.txt`,
       sha256: sha256File(PROMPT_FILE),
       built_by: 'buildConversationalPrompt() from src/agents/a2/prompts.ts',
+      // E17-S6 prompt-size experiment: which arm this run measured. 'base' is the
+      // shipped prompt untouched; 'compressed' drops the three worked-example
+      // blocks; 'retrieval' drops them and appends this turn's matching unit.
+      variant: promptVariant,
+      omit_examples: promptVariant === 'compressed' || usesRetrieval(),
+      retrieved_units: retrievedUnitCounts,
+      boundary_gate: {
+        mode: usesGate() ? 'decideClinicalBoundaries() — src/agents/a2/topic-gate.ts' : 'off',
+        omitted: boundaryGateCounts.omitted,
+        loaded: boundaryGateCounts.loaded,
+        reasons: boundaryGateReasons,
+      },
     },
     code: {
       branch: git(['rev-parse', '--abbrev-ref', 'HEAD']),

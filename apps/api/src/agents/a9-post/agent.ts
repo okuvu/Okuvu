@@ -29,6 +29,7 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
       systemInstruction,
       contents: [{ role: 'user', parts: [{ text: draftResponse }] }],
       model: resolveModelOverride(),
+      callRole: 'review',
       // OKUVU v2.0's checklist-heavy prompt (helpline-integrity, impersonation,
       // subtlety-lens worked examples) is ~9KB, well past the old v1.0 prompt's
       // size — confirmed live that a real OpenRouter/Llama call now regularly

@@ -1,6 +1,7 @@
 import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal, ToolCardType } from '@okuvu/shared-types';
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
+import { classifyTriage, isMergedTriageEnabled } from '../agents/merged/triage.js';
 import { routeTurn } from '../agents/a8-router.js';
 import { handleTurn, formatUserMemory } from '../agents/a2/agent.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
@@ -191,6 +192,36 @@ export async function processTurn(
     retrievalPromise = Promise.resolve(testMode.injectRetrievedContext);
   } else {
     retrievalPromise = timedRetrieval();
+  }
+
+  // E17-S6 — one classifier instead of two, when explicitly enabled and no
+  // harness hook is injecting either half. The two promises below are the same
+  // object, so a caller cannot see a safety answer from one call and a
+  // governance answer from another.
+  //
+  // Off unless `OKUVU_MERGED_TRIAGE=true`: this is new safety-critical prompt
+  // text (A1's approved rubric plus A9-pre's approved rules in one pass) and it
+  // has to be scored on the gold set before it becomes the production
+  // classifier. See `agents/merged/triage.ts` for the fail-closed table.
+  const mergedTriageEligible =
+    isMergedTriageEnabled() &&
+    testMode?.injectA1 === undefined &&
+    testMode?.injectA9 === undefined &&
+    testMode?.faults?.boundary !== 'A1' &&
+    testMode?.faults?.boundary !== 'A9_pre';
+
+  if (mergedTriageEligible) {
+    const mergedStart = now();
+    const mergedPromise = classifyTriage({
+      message,
+      recentHistory: summariesToConversationTurns(contextBundle.recent_history ?? []),
+      gap_before_ms: computeGapBeforeMs(currentSessionTurns),
+      repetition_count: computeRepetitionCount(currentSessionTurns, message),
+      userId: uid,
+    }).finally(() => recordTiming(timing, 'A1+A9_pre', mergedStart, now()));
+
+    a1Promise = mergedPromise.then((r) => r.safety);
+    a9Promise = mergedPromise.then((r) => r.governance);
   }
 
   const [a1Result, a9Result, retrievalResult] = await Promise.allSettled([

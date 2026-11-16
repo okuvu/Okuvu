@@ -22,9 +22,20 @@ export interface GenerateContentParams {
   timeoutMs?: number;
   model?: string;
   /**
-   * Structured-generation constraints. `type` is the JSON-schema-ish token
-   * agents use ('object', 'array', 'string', …); each backend maps it onto its
-   * own schema dialect (Bedrock: lowercase JSON Schema types).
+   * E17-S6 — what this call is for, which decides its Bedrock service tier
+   * (`lib/service-tier.ts`). Required for a call to be flex-eligible: an
+   * unclassified call site lands on the standard tier, so forgetting this field
+   * can never quietly move a safety decision onto the half-price queue.
+   *
+   * Only the Bedrock backend reads it. OpenRouter has no service tier and
+   * ignores it.
+   */
+  callRole?: import('./service-tier.js').CallRole;
+  /**
+   * Backend-neutral structured generation constraints. `type` is the
+   * JSON-schema-ish token agents use ('object', 'array', 'string', …); each
+   * backend maps it onto its own schema dialect (Bedrock: lowercase JSON Schema
+   * types).
    */
   generationConfig?: {
     responseMimeType?: string;
