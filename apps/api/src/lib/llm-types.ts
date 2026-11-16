@@ -73,6 +73,17 @@ export interface GenerateContentParams {
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
+  /**
+   * Input tokens the provider served from a prompt-cache hit, when it says so
+   * (`usage.prompt_tokens_details.cached_tokens` on the Chat Completions
+   * surface). Carried for the usage ledger and the cost logs only: the
+   * per-session budget still prices every input token at the full input rate,
+   * so a cache hit makes that guard conservative — it refuses earlier than the
+   * real bill would demand, never later. Cache reads bill below the input rate,
+   * so this number is the visible part of the saving, not a discount applied to
+   * the ceiling.
+   */
+  cachedInputTokens?: number;
   totalTokens?: number;
 }
 

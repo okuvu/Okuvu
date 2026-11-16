@@ -12,6 +12,11 @@ import type {
   ToolConfiguration,
 } from '@aws-sdk/client-bedrock-runtime';
 import { isCannedRequested, buildCannedResult } from './canned-response.js';
+import {
+  callChatCompletions,
+  clearChatCompletionsSigner,
+  isPromptCachingEnabled,
+} from './bedrock-chat.js';
 import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 import { classifyLlmFailure } from './llm-failure.js';
 import { recordModelUsage } from './token-budget.js';
@@ -91,6 +96,7 @@ function getClient(): BedrockRuntimeClient {
 /** Test seam: drop the memoised client after changing region/credentials env. */
 export function clearBedrockClient(): void {
   client = null;
+  clearChatCompletionsSigner();
 }
 
 /**
@@ -197,16 +203,40 @@ const PERMISSIVE_JSON_SCHEMA: Record<string, unknown> = {
   additionalProperties: true,
 };
 
+/**
+ * The caller's structured-output ask, resolved once and handed to both
+ * transports, so the schema document sent to Converse and to Chat Completions is
+ * one object rather than two hand-maintained copies. `json` is present only when
+ * the caller supplied a real schema; JSON mode without a schema carries none.
+ */
+interface StructuredRequest {
+  hasSchema: boolean;
+  wantsJson: boolean;
+  json?: Record<string, unknown>;
+}
+
+export function resolveStructuredRequest(params: GenerateContentParams): StructuredRequest {
+  const schema = params.generationConfig?.responseSchema as Record<string, unknown> | undefined;
+  const wantsJson = params.generationConfig?.responseMimeType === 'application/json';
+
+  if (!schema && !wantsJson) return { hasSchema: false, wantsJson: false };
+
+  return {
+    hasSchema: Boolean(schema),
+    wantsJson,
+    ...(schema ? { json: toBedrockJsonSchema(schema) } : {}),
+  };
+}
+
 function buildToolConfig(params: GenerateContentParams): {
   toolConfig: ToolConfiguration;
   expectsJson: boolean;
 } | null {
-  const schema = params.generationConfig?.responseSchema as Record<string, unknown> | undefined;
-  const wantsJson = params.generationConfig?.responseMimeType === 'application/json';
+  const structured = resolveStructuredRequest(params);
+  if (!structured.wantsJson) return null;
 
-  if (!schema && !wantsJson) return null;
-
-  const json = schema ? toBedrockJsonSchema(schema) : PERMISSIVE_JSON_SCHEMA;
+  const schema = structured.hasSchema;
+  const json = structured.json ?? PERMISSIVE_JSON_SCHEMA;
 
   const tool: Tool = {
     toolSpec: {
@@ -302,6 +332,19 @@ function toTokenUsage(
   return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
 }
 
+/**
+ * Bedrock entry point for every agent call.
+ *
+ * Two surfaces, one contract. The **Chat Completions** path goes first because
+ * it is the only Bedrock surface that honours prompt caching for this model
+ * (`bedrock-chat.ts` explains why, with the probe that settles it), and the four
+ * turn-path calls re-send ~20.7k tokens of fixed instruction every turn. If that
+ * path refuses, fails or comes back without the tool call a schema required,
+ * `callConverse` runs instead — so a cache-wrapper fault degrades to the
+ * previously-shipped surface rather than to a failed turn.
+ *
+ * `BEDROCK_PROMPT_CACHE=off` skips the first path entirely.
+ */
 export async function generateContent(
   params: GenerateContentParams,
 ): Promise<GenerateContentResult> {
@@ -312,6 +355,43 @@ export async function generateContent(
   }
 
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // One deadline for both attempts: a slow cache-path failure must not buy
+  // itself a second full timeout and hold the turn open twice as long.
+  const deadline = Date.now() + timeoutMs;
+
+  if (isPromptCachingEnabled()) {
+    const structured = resolveStructuredRequest(params);
+    const cached = await callChatCompletions(params, model, {
+      region: resolveAwsRegion(),
+      deadline,
+      ...(structured.json ? { schema: structured.json } : {}),
+      wantsJson: structured.wantsJson,
+    });
+
+    if (cached.ok) {
+      recordModelUsage(cached.usage);
+      return { text: cached.text, fallbackUsed: false, model, canned: false, usage: cached.usage };
+    }
+
+    console.log(
+      { model, reason: cached.reason, surface: 'chat_completions' },
+      'prompt-cache surface unavailable for this call; using Converse',
+    );
+  }
+
+  return callConverse(params, model, deadline);
+}
+
+/**
+ * The Converse call — the shipped surface, kept as the fallback and as the whole
+ * path when caching is switched off.
+ */
+async function callConverse(
+  params: GenerateContentParams,
+  model: string,
+  deadline: number,
+): Promise<GenerateContentResult> {
+  const timeoutMs = Math.max(1, deadline - Date.now());
   const generationConfig = params.generationConfig ?? {};
   const tools = buildToolConfig(params);
 

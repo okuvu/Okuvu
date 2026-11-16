@@ -30,6 +30,7 @@ import { clearBedrockClient, generateContent, generateEmbedding } from '../lib/b
 import { DEFAULT_BEDROCK_MODEL_ID, resolveBedrockModelId } from '../lib/provider-config.js';
 
 const ENV_KEYS = [
+  'BEDROCK_PROMPT_CACHE',
   'BEDROCK_MODEL_ID',
   'BEDROCK_EMBEDDING_MODEL_ID',
   'BEDROCK_EMBEDDING_DIMENSIONS',
@@ -51,6 +52,9 @@ describe('E17-S1: the generation path sends ConverseCommand, never InvokeModelCo
       saved[key] = process.env[key];
       delete process.env[key];
     }
+    // This file pins the Converse command object; the cache-capable surface is
+    // pinned by bedrock-chat-completions.test.ts.
+    process.env.BEDROCK_PROMPT_CACHE = 'off';
   });
 
   afterEach(() => {

@@ -20,6 +20,7 @@ import { SAFETY_UNAVAILABLE_RESPONSE } from '../pipeline/fallbacks.js';
 const SAFE_FALLBACK = SAFETY_UNAVAILABLE_RESPONSE;
 
 const ENV_KEYS = [
+  'BEDROCK_PROMPT_CACHE',
   'BEDROCK_MODEL_ID',
   'BEDROCK_EMBEDDING_MODEL_ID',
   'BEDROCK_EMBEDDING_DIMENSIONS',
@@ -48,6 +49,9 @@ describe('bedrock generateContent', () => {
       saved[key] = process.env[key];
       delete process.env[key];
     }
+    // These cases pin the Converse mapping; the cache-capable surface has its
+    // own file (bedrock-chat-completions.test.ts).
+    process.env.BEDROCK_PROMPT_CACHE = 'off';
   });
 
   afterEach(() => {
@@ -333,6 +337,9 @@ describe('bedrock generateEmbedding', () => {
       saved[key] = process.env[key];
       delete process.env[key];
     }
+    // These cases pin the Converse mapping; the cache-capable surface has its
+    // own file (bedrock-chat-completions.test.ts).
+    process.env.BEDROCK_PROMPT_CACHE = 'off';
   });
 
   afterEach(() => {

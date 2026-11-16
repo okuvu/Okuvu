@@ -84,6 +84,7 @@ function converseReply(text: string): string {
 }
 
 const ENV_KEYS = [
+  'BEDROCK_PROMPT_CACHE',
   'BEDROCK_MODEL_ID',
   'AWS_REGION',
   'AWS_DEFAULT_REGION',
@@ -104,6 +105,9 @@ describe('E17-S1: the runtime calls bedrock-runtime Converse', () => {
   async function useStub(next: Stub): Promise<void> {
     process.env.AWS_ENDPOINT_URL = next.url;
     process.env.AWS_REGION = 'ap-south-1';
+    // Caching off pins *this* file to the Converse surface; the cache-capable
+    // Chat Completions path has its own file and its own loopback stub.
+    process.env.BEDROCK_PROMPT_CACHE = 'off';
     process.env.AWS_ACCESS_KEY_ID = 'test-access-key';
     process.env.AWS_SECRET_ACCESS_KEY = 'test-secret-key';
     delete process.env.AWS_PROFILE;
