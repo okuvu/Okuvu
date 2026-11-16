@@ -14,6 +14,7 @@ import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-conte
 import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, CRISIS_THIRD_PARTY_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
 import { hasCrisisLanguage, hasSelfIngestion } from '../agents/a1/crisis-keywords.js';
+import { applySessionFloor, diagnosisLint } from './guards.js';
 import { recordAuditEvent } from '../lib/audit-log.js';
 import type { SafetyNotice } from '@okuvu/shared-types';
 import type { PipelineResult, StageTiming, TestModeOptions, FallbackSource } from './types.js';
@@ -278,6 +279,28 @@ export async function processTurn(
       ? a1Result.value.safetyState
       : 'S2';
 
+  // ─── §7 — the session floor ────────────────────────────────────────────────
+  //
+  // A judgment made about THIS message cannot see that the previous message was
+  // "I have the pills ready. I'm ending it tonight." and this one is "I was just
+  // kidding haha". The per-turn keyword screen cannot see it either — the
+  // dismissal is not crisis phrasing. So the session remembers: while a crisis
+  // card is in this session's own turns, the state cannot fall below S3 until
+  // §7's de-escalation pattern is met (two re-engaged messages, no new risk, no
+  // dismissal since the last one).
+  //
+  // It can only RAISE, never lower, and it never returns S4 — an explicit
+  // disclosure on the current message is the keyword floor's job above, which
+  // runs on the message rather than on the session. See pipeline/guards.ts for
+  // the state machine and the evidence that this recovers a model that reads
+  // the joke as an ordinary sentence.
+  const sessionFloor = applySessionFloor({
+    classifiedState: safetyState,
+    sessionTurns: currentSessionTurns,
+    currentMessage: message,
+  });
+  const effectiveSafetyState: SafetyState = sessionFloor.state;
+
   const governanceState: GovernanceState =
     a9Result.status === 'fulfilled' ? a9Result.value.governanceState : 'Restricted';
 
@@ -303,7 +326,7 @@ export async function processTurn(
         : (getRetrievedContext(sessionId) ?? 'null');
 
   if (testMode?.captureSignalBus) {
-    signals.push({ boundary: 'A1_result', agent: 'A1', payload: safetyState, timestamp: new Date().toISOString() });
+    signals.push({ boundary: 'A1_result', agent: 'A1', payload: effectiveSafetyState, timestamp: new Date().toISOString() });
     signals.push({ boundary: 'A9_pre_result', agent: 'A9-pre', payload: governanceState, timestamp: new Date().toISOString() });
   }
 
@@ -314,7 +337,7 @@ export async function processTurn(
   } else {
     const a8Start = now();
     decision = routeTurn({
-      safety_state: safetyState,
+      safety_state: effectiveSafetyState,
       governance_state: governanceState,
       session_count: sessionCount,
       turn_count: nextTurnNumber,
@@ -367,8 +390,8 @@ export async function processTurn(
     });
     await prisma.safetyState.upsert({
       where: { user_id: user.id },
-      update: { safety_state_current: safetyState },
-      create: { user_id: user.id, safety_state_current: safetyState },
+      update: { safety_state_current: effectiveSafetyState },
+      create: { user_id: user.id, safety_state_current: effectiveSafetyState },
     });
     await prisma.sessionLog.update({
       where: { id: sessionId },
@@ -382,7 +405,7 @@ export async function processTurn(
     // changes the reply (lib/safety-flags.ts).
     await flagSafetyEvent({
       userId: user.id,
-      level: safetyState,
+      level: effectiveSafetyState,
       source: 'third_party_crisis',
       sessionId,
       turnId: tpAssistantTurn?.id ?? null,
@@ -393,7 +416,7 @@ export async function processTurn(
       action: 'SAFETY_CRISIS_THIRD_PARTY_ROUTED',
       object: `turn:${tpAssistantTurn?.id ?? `${sessionId}:${tpTurnCount}`}`,
       detail: {
-        safety_state: safetyState,
+        safety_state: effectiveSafetyState,
         third_party_screen: true,
         classifier_state: a1Result.status === 'fulfilled' ? a1Result.value.safetyState : null,
         classifier_fallback: a1FallbackUsed,
@@ -469,8 +492,8 @@ export async function processTurn(
     });
     await prisma.safetyState.upsert({
       where: { user_id: user.id },
-      update: { safety_state_current: safetyState },
-      create: { user_id: user.id, safety_state_current: safetyState },
+      update: { safety_state_current: effectiveSafetyState },
+      create: { user_id: user.id, safety_state_current: effectiveSafetyState },
     });
     if (crisisFlag) {
       await prisma.sessionLog.update({
@@ -485,7 +508,7 @@ export async function processTurn(
     // fire-and-forget, and a failure in either is logged rather than served.
     await flagSafetyEvent({
       userId: user.id,
-      level: safetyState,
+      level: effectiveSafetyState,
       source: 'crisis_card',
       sessionId,
       turnId: crisisAssistantTurn?.id ?? null,
@@ -498,7 +521,7 @@ export async function processTurn(
       action: 'SAFETY_CRISIS_ROUTED',
       object: `turn:${crisisAssistantTurn?.id ?? `${sessionId}:${crisisTurnCount}`}`,
       detail: {
-        safety_state: safetyState,
+        safety_state: effectiveSafetyState,
         crisis_floor: crisisFloorClaimed,
         // E17-S10: which mechanism put this turn at S4. Null when A1's own
         // classification did it, so a floor claim is never implied.
@@ -541,7 +564,7 @@ export async function processTurn(
   // message, the copy below keeps the helplines after the ambulance and the
   // session is flagged — nothing is withdrawn from that user.
   if (decision.agent === 'medical-emergency') {
-    const medicalCrisisOverlap = safetyState === 'S4' || crisisFlag;
+    const medicalCrisisOverlap = effectiveSafetyState === 'S4' || crisisFlag;
     const medicalResponse = medicalCrisisOverlap
       ? MEDICAL_EMERGENCY_CRISIS_RESPONSE
       : MEDICAL_EMERGENCY_RESPONSE;
@@ -565,8 +588,8 @@ export async function processTurn(
     });
     await prisma.safetyState.upsert({
       where: { user_id: user.id },
-      update: { safety_state_current: safetyState },
-      create: { user_id: user.id, safety_state_current: safetyState },
+      update: { safety_state_current: effectiveSafetyState },
+      create: { user_id: user.id, safety_state_current: effectiveSafetyState },
     });
     if (medicalCrisisOverlap) {
       await prisma.sessionLog.update({
@@ -582,7 +605,7 @@ export async function processTurn(
     // stops being read.
     await flagSafetyEvent({
       userId: user.id,
-      level: safetyState,
+      level: effectiveSafetyState,
       source: 'medical_emergency',
       sessionId,
       turnId: medicalAssistantTurn?.id ?? null,
@@ -593,7 +616,7 @@ export async function processTurn(
       action: 'SAFETY_MEDICAL_EMERGENCY_ROUTED',
       object: `turn:${medicalAssistantTurn?.id ?? `${sessionId}:${medicalTurnCount}`}`,
       detail: {
-        safety_state: safetyState,
+        safety_state: effectiveSafetyState,
         medical_screen: true,
         crisis_copy: medicalCrisisOverlap,
         classifier_fallback: a1FallbackUsed,
@@ -751,7 +774,7 @@ export async function processTurn(
         userId: uid,
         message,
         carePlan: (contextBundle.care_plan?.care_plan_id ?? 'CP1') as 'CP1' | 'CP2' | 'CP3',
-        safetyState: safetyState as 'S0' | 'S1' | 'S2',
+        safetyState: effectiveSafetyState as 'S0' | 'S1' | 'S2',
         sessionHistorySummary: contextBundle.session_summary,
         perceivedIntensity,
         // A2 fix (see the currentSessionTurns comment near the top): the
@@ -803,7 +826,7 @@ export async function processTurn(
       // A2's own text is discarded rather than forwarded: on this path it is
       // the model client's sentinel, not a reply.
       if (a2Result.fallbackUsed) {
-        finalText = getModelUnavailableFallback(safetyState);
+        finalText = getModelUnavailableFallback(effectiveSafetyState);
         fallbackSource = a2Result.failureKind === 'throttled' ? 'model_throttled' : 'model_unavailable';
         safetyNotice = {
           code: a2Result.failureKind === 'throttled' ? 'MODEL_THROTTLED' : 'MODEL_UNAVAILABLE',
@@ -860,7 +883,7 @@ export async function processTurn(
 
       const a9PostResult = await a9PostReview({
         draftResponse: finalText,
-        safetyState,
+        safetyState: effectiveSafetyState,
         carePlan: contextBundle.care_plan?.care_plan_id ?? 'CP1',
         // OKUVU v2.0: must match what A2 was actually given (see the shared
         // languageMode/carePlanFocus declaration above) — a review under the
@@ -873,7 +896,7 @@ export async function processTurn(
 
       if (a9PostResult.decision === 'BLOCKED') {
         a9PostBlockedContent = finalText;
-        finalText = getSafeFallback(safetyState);
+        finalText = getSafeFallback(effectiveSafetyState);
         a9PostBlocked = true;
         a9PostViolation = a9PostResult.violation_type;
         // A4: the user is now looking at a governed substitute, not A2's
@@ -894,8 +917,8 @@ export async function processTurn(
       const errMsg = error instanceof Error ? error.message : String(error);
       console.info({ err: errMsg }, 'A9-post: call failed, applying failover strategy');
 
-      if (safetyState === 'S2') {
-        finalText = getSafeFallback(safetyState);
+      if (effectiveSafetyState === 'S2') {
+        finalText = getSafeFallback(effectiveSafetyState);
         a9PostBlocked = true;
         a9PostViolation = 'a9_post_unavailable_s2';
         a9PostConfidence = 'low';
@@ -928,6 +951,39 @@ export async function processTurn(
     recordTiming(timing, 'A9_post', a9PostStart, now());
   }
 
+  // ─── §3 — the covert-diagnosis lint ────────────────────────────────────────
+  //
+  // The last gate before the text is served, and it is deterministic on
+  // purpose. A2's prompt already forbids "it sounds like you're dealing with
+  // anxiety" and "never 'you have health anxiety'"; a cheaper model follows the
+  // register and misses the rule (GLM 4.7 Flash approved that draft 3/3 — see
+  // model-eval/details-bedrock-16nov.json). Asking a second model to catch it
+  // costs a third of the saving and can disagree with itself; a lint cannot.
+  //
+  // Only model-written text is linted: `turnModelVersion` is null for every
+  // static substitute above (crisis card, grounding card, medical copy,
+  // A9-pre block, A2 fallback) and for text A9-post already replaced. The
+  // approved crisis card carries no condition nouns, but it must never be in a
+  // position where a future edit plus a widened pattern could block it.
+  //
+  // A hit serves the same governed substitute an A9-post block serves, and is
+  // recorded in the same table, so the portal shows it as a governance block
+  // rather than as an unexplained degrade.
+  let diagnosisLintViolation: string | null = null;
+  let diagnosisLintBlockedContent: string | null = null;
+  if (turnModelVersion !== null) {
+    const violation = diagnosisLint(finalText);
+    if (violation) {
+      diagnosisLintBlockedContent = finalText;
+      finalText = getSafeFallback(effectiveSafetyState);
+      diagnosisLintViolation = `diagnosis_lint:${violation.rule}`;
+      a2Fallback = true;
+      fallbackSource = 'diagnosis_lint';
+      turnModelVersion = null;
+      turnPromptVersion = null;
+    }
+  }
+
   const newTurnCount = await incrementTurnCount(sessionId);
 
   const [userTurn, assistantTurn] = await prisma.$transaction([
@@ -941,7 +997,7 @@ export async function processTurn(
       data: {
         session_id: sessionId, user_id: user.id, turn_number: newTurnCount,
         role: 'assistant', content: finalText,
-        is_a9_fallback: a9PostBlocked || a9PreBlocked,
+        is_a9_fallback: a9PostBlocked || a9PreBlocked || diagnosisLintViolation !== null,
         fallback_source: fallbackSource,
         model_version: turnModelVersion,
         prompt_version: turnPromptVersion,
@@ -990,10 +1046,29 @@ export async function processTurn(
     });
   }
 
+  // §3 lint blocks land in the same table and the same gate as an A9-post
+  // block, because the therapist reading the portal is asking one question —
+  // "was this reply stopped before my client saw it?" — and the answer does not
+  // depend on which rule caught it. `confidence: 'high'` is not a model's
+  // opinion here: the pattern matched literally.
+  if (diagnosisLintViolation !== null) {
+    await prisma.governanceLog.create({
+      data: {
+        session_id: sessionId,
+        turn_number: newTurnCount,
+        gate: 'A9-POST',
+        decision: 'BLOCKED',
+        violation_type: diagnosisLintViolation,
+        confidence: 'high',
+        blocked_content: diagnosisLintBlockedContent,
+      },
+    });
+  }
+
   await prisma.safetyState.upsert({
     where: { user_id: user.id },
-    update: { safety_state_current: safetyState },
-    create: { user_id: user.id, safety_state_current: safetyState },
+    update: { safety_state_current: effectiveSafetyState },
+    create: { user_id: user.id, safety_state_current: effectiveSafetyState },
   });
 
   if (crisisFlag) {
@@ -1008,11 +1083,11 @@ export async function processTurn(
   // flag belongs. S4 normally returns from the crisis branch far above; the
   // level/source pair is computed from the state rather than assumed so a
   // future route change cannot label a crisis card as grounding.
-  if (safetyState === 'S3' || safetyState === 'S4') {
+  if (effectiveSafetyState === 'S3' || effectiveSafetyState === 'S4') {
     await flagSafetyEvent({
       userId: user.id,
-      level: safetyState,
-      source: safetyState === 'S4' ? 'crisis_card' : 's3_grounding',
+      level: effectiveSafetyState,
+      source: effectiveSafetyState === 'S4' ? 'crisis_card' : 's3_grounding',
       sessionId,
       turnId: assistantTurn?.id ?? null,
     });
@@ -1044,11 +1119,15 @@ export async function processTurn(
     action: auditAction,
     object: `turn:${assistantTurn?.id ?? `${sessionId}:${newTurnCount}`}`,
     detail: {
-      safety_state: safetyState,
+      safety_state: effectiveSafetyState,
       governance_state: governanceState,
       fallback_source: fallbackSource ?? 'none',
       safety_code: safetyNotice?.code ?? 'none',
       classifier_fallback: a1FallbackUsed,
+      // §7 — what the model said versus what the session floor allowed. Null
+      // when there was no crisis card in the session, which is most turns.
+      classifier_state: a1ClassifiedState,
+      session_floor: sessionFloor.floorApplied ? 'held_at_S3' : sessionFloor.reason,
     },
   });
 

@@ -85,12 +85,14 @@ import { routeTurn } from '../../src/agents/a8-router.js';
 import { resolveContentBackend, resolveAwsRegion, resolveBedrockModelId } from '../../src/lib/provider-config.js';
 import { classifyLlmFailure } from '../../src/lib/llm-failure.js';
 import { hasCrisisLanguage, hasSelfIngestion } from '../../src/agents/a1/crisis-keywords.js';
+import { applySessionFloor, diagnosisLint } from '../../src/pipeline/guards.js';
 import { hasMedicalEmergencyLanguage } from '../../src/agents/a1/medical-emergency-keywords.js';
 import {
   CRISIS_RESPONSE,
   CRISIS_THIRD_PARTY_RESPONSE,
   A8_S3_GROUNDING_RESPONSE,
   A9_PRE_BLOCKED_RESPONSE,
+  getSafeFallback,
   MEDICAL_EMERGENCY_RESPONSE,
   MEDICAL_EMERGENCY_CRISIS_RESPONSE,
   SAFETY_UNAVAILABLE_RESPONSE,
@@ -146,6 +148,23 @@ const A2_TEMPERATURE = 0.7;
 const JUDGE_MAX_TOKENS = 3000;
 const JUDGE_TEMPERATURE = 0;
 const CALL_TIMEOUT_MS = 90_000;
+
+/**
+ * `--guards off` exists so a run can attribute what the deterministic guards
+ * (§7 floor, §3 lint) changed. Without it, a score difference between two
+ * models could be the model or the guards, and nobody could say which.
+ */
+function guardsEnabled(): boolean {
+  return arg('guards', 'on') !== 'off';
+}
+
+/** §7 through the shipped guard, or a no-op that keeps the classifier's answer. */
+function applyFloor(input: Parameters<typeof applySessionFloor>[0]): ReturnType<typeof applySessionFloor> {
+  if (!guardsEnabled()) {
+    return { state: input.classifiedState, floorApplied: false, messagesSinceCrisis: 0, reason: 'no_prior_crisis' };
+  }
+  return applySessionFloor(input);
+}
 
 const TASK_DEFINITION_FAMILY = 'evia-beta-api';
 const TASK_DEFINITION_REGION = 'ap-south-1';
@@ -206,6 +225,10 @@ const counters = {
   probe_calls: 0,
   probe_failures_expected: 0,
   retries: 0,
+  // Guards (§7 session floor, §3 diagnosis lint) — deterministic, so these are
+  // counts of what they caught, not of a model's behaviour.
+  session_floor_raised: 0,
+  diagnosis_lint_blocked: 0,
 };
 
 async function sleep(ms: number): Promise<void> {
@@ -275,6 +298,10 @@ interface ServedTurn {
   model_call: { ok: boolean; usage: unknown; stop_reason: string | null; error: string | null };
   /** a hard routing invariant the shipped screens imply, checked after serving */
   routing_invariant: string;
+  /** §3 lint: set when the model's draft was replaced before serving. */
+  lint_blocked: string | null;
+  /** what the model actually wrote, when the lint replaced it. */
+  lint_blocked_text?: string;
   elapsed_ms: number;
 }
 
@@ -327,6 +354,7 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
           classified: null,
           model_call: { ok: true, usage: call.usage, stop_reason: call.stopReason, error: null },
           routing_invariant: 'PROBE DID NOT FAIL: the unreachable model id answered',
+          lint_blocked: null,
           elapsed_ms: Date.now() - started,
         };
       }
@@ -341,6 +369,7 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
       classified: null,
       model_call: { ok: true, usage: null, stop_reason: `deterministic:${detail}`, error: null },
       routing_invariant: want === 'fail_closed' ? 'ok' : `expected ${want}, served fail_closed`,
+      lint_blocked: null,
       elapsed_ms: Date.now() - started,
     };
   }
@@ -366,12 +395,27 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
       classified: null,
       model_call: { ok: false, usage: null, stop_reason: null, error: 'a1 threw' },
       routing_invariant: 'A1 THREW — nothing was served',
+      lint_blocked: null,
       elapsed_ms: Date.now() - started,
     };
   }
 
   const crisisFloorMatched = hasCrisisLanguage(scenario.message);
-  const effectiveState = (crisisFloorMatched ? 'S4' : classified.safety_state) as 'S0' | 'S1' | 'S2' | 'S3' | 'S4';
+  const keywordState = (crisisFloorMatched ? 'S4' : classified.safety_state) as 'S0' | 'S1' | 'S2' | 'S3' | 'S4';
+
+  // §7 — the same session floor the product applies, from the same module. A
+  // v2 scenario is one message with no session turns, so this is a no-op today;
+  // it is wired here rather than omitted so a multi-turn gold scenario cannot
+  // measure a pipeline the product does not run.
+  const sessionTurns = ((scenario.context.session_turns as Array<{ role: string; content: string }> | undefined) ?? []);
+  const floor = applyFloor({
+    classifiedState: keywordState,
+    sessionTurns,
+    currentMessage: scenario.message,
+  });
+  if (floor.floorApplied) counters.session_floor_raised += 1;
+  const effectiveState = floor.state;
+
   const decision = routeTurn({
     message: scenario.message,
     safety_state: effectiveState,
@@ -416,6 +460,7 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
       classified,
       model_call: { ok: true, usage: null, stop_reason: `deterministic:${path}`, error: null },
       routing_invariant: invariant,
+      lint_blocked: null,
       elapsed_ms: Date.now() - started,
     };
   }
@@ -444,14 +489,39 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
       classified,
       model_call: { ok: false, usage: null, stop_reason: null, error: call.error },
       routing_invariant: invariant,
+      lint_blocked: null,
       elapsed_ms: Date.now() - started,
     };
   }
   const parsed = parseA2Response(call.text);
+
+  // §3 — the covert-diagnosis lint, exactly as pipeline/orchestrator.ts applies
+  // it: model-written text only, replaced by the same governed substitute an
+  // A9-post block serves. A hit is counted and recorded rather than hidden,
+  // because a blocked reply can lower the tone_alliance numbers on a run whose
+  // behaviour actually improved.
+  const lint = guardsEnabled() ? diagnosisLint(parsed.userContent) : null;
+  if (lint) {
+    counters.diagnosis_lint_blocked += 1;
+    return {
+      path,
+      routing: `${routing}; §3 lint blocked (${lint.rule}: "${lint.frame}")`,
+      served_text: getSafeFallback(effectiveState),
+      lint_blocked: `${lint.rule}: ${lint.frame}`,
+      lint_blocked_text: parsed.userContent,
+      classified,
+      signal_present: parsed.signal !== null,
+      model_call: { ok: true, usage: call.usage, stop_reason: call.stopReason, error: null },
+      routing_invariant: invariant,
+      elapsed_ms: Date.now() - started,
+    };
+  }
+
   return {
     path,
     routing,
     served_text: parsed.userContent,
+    lint_blocked: null,
     classified,
     signal_present: parsed.signal !== null,
     model_call: { ok: true, usage: call.usage, stop_reason: call.stopReason, error: null },
@@ -587,7 +657,25 @@ async function runGate(): Promise<void> {
 
   const backend = resolveContentBackend();
   const region = resolveAwsRegion();
+
+  // Candidate-model runs. The task definition still supplies the production
+  // environment; `--model` swaps ONLY the model the pipeline calls, and
+  // `--judge-model` lets the instrument stay fixed while the subject changes.
+  // Both are recorded in the report, and the run is marked `model_override` so
+  // no one mistakes a candidate run for the shipped gate.
+  const modelOverride = arg('model', '');
+  const judgeOverride = arg('judge-model', '');
+  if (modelOverride) {
+    process.env.BEDROCK_MODEL_ID = modelOverride;
+  }
   const modelId = resolveBedrockModelId();
+  const judgeModelId = judgeOverride || modelId;
+  const modelOverrideNote = modelOverride
+    ? `--model ${modelOverride} (candidate run; the task definition says ${environment.BEDROCK_MODEL_ID})`
+    : null;
+  if (modelOverride) {
+    process.stderr.write(`candidate model: ${modelOverride} | judge: ${judgeModelId}\n`);
+  }
   if (backend !== 'bedrock') {
     console.error(JSON.stringify({ ok: false, stage: 'environment', error: `LLM_PROVIDER resolves to "${backend}", not bedrock` }, null, 2));
     process.exit(4);
@@ -642,7 +730,7 @@ async function runGate(): Promise<void> {
 
   process.stderr.write(
     `E17-S5 v2 — ${label}: ${goldSet.scenarios.length} scenarios x ${reps} reps = ${tasks.length} judgements ` +
-      `(A2 ${modelId}, judge ${modelId} at temperature ${JUDGE_TEMPERATURE}), concurrency ${concurrency}\n`,
+      `(A2 ${modelId}, judge ${judgeModelId} at temperature ${JUDGE_TEMPERATURE}), concurrency ${concurrency}\n`,
   );
 
   let done = 0;
@@ -671,7 +759,7 @@ async function runGate(): Promise<void> {
       counters.judge_calls += 1;
       const judgeCall = await converse(
         client,
-        modelId,
+        judgeModelId,
         judgePrompt,
         buildJudgeMessage(task.scenario, turn.path, turn.served_text),
         JUDGE_MAX_TOKENS,
@@ -828,9 +916,22 @@ async function runGate(): Promise<void> {
       max_tokens: A2_MAX_TOKENS,
       temperature: A2_TEMPERATURE,
       note: 'A2 runs at the production default, so the served text differs between repetitions by design',
+      override: modelOverrideNote,
+      task_definition_model_id: environment.BEDROCK_MODEL_ID,
+    },
+    guards: {
+      enabled: guardsEnabled(),
+      session_floor: 'src/pipeline/guards.ts applySessionFloor() — §7: a crisis card in the session holds the state at S3 until two re-engaged messages, no new risk, no dismissal since the last one',
+      diagnosis_lint: 'src/pipeline/guards.ts diagnosisLint() — §3: a draft that labels the client with a clinical condition (or attributes their state to a named cause) is replaced by getSafeFallback() before serving',
+      session_floor_raised: counters.session_floor_raised,
+      diagnosis_lint_blocked: counters.diagnosis_lint_blocked,
+      lint_blocks: flat
+        .filter((row) => row.turn.lint_blocked)
+        .map((row) => ({ id: row.scenario.id, rep: row.rep.rep, rule: row.turn.lint_blocked, draft: row.turn.lint_blocked_text })),
     },
     judge: {
-      model_id: modelId,
+      model_id: judgeModelId,
+      fixed_across_arms: judgeOverride ? true : null,
       region,
       api: 'bedrock Converse',
       temperature: JUDGE_TEMPERATURE,
@@ -929,7 +1030,7 @@ async function runGate(): Promise<void> {
 
   console.log(`\nE17-S5 v2 eval gate — ${label}`);
   console.log(`env      ${environment.task_definition}: LLM_PROVIDER=${environment.LLM_PROVIDER} AWS_REGION=${environment.AWS_REGION} BEDROCK_MODEL_ID=${environment.BEDROCK_MODEL_ID}`);
-  console.log(`judge    ${modelId} (${region}, Converse) temperature ${JUDGE_TEMPERATURE} prompt sha256=${report.judge.prompt_sha256.slice(0, 16)}…`);
+  console.log(`judge    ${judgeModelId} (${region}, Converse) temperature ${JUDGE_TEMPERATURE} prompt sha256=${report.judge.prompt_sha256.slice(0, 16)}…`);
   console.log(`commit   ${report.code.commit} (${report.code.branch})`);
   console.log(`calls    A1 ${counters.a1_classifications} (${counters.a1_fallbacks} fallback) | A2 ${counters.a2_calls} (${counters.a2_failures} failed) | judge ${counters.judge_calls} (${counters.judge_call_failures} failed, ${counters.judge_parse_failures} unparseable) | 0 retries`);
   console.log('');
