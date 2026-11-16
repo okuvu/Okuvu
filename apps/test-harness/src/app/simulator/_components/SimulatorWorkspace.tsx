@@ -11,9 +11,50 @@ import ChatPane from './ChatPane';
 import FlowStatusPane from './FlowStatusPane';
 import ScenarioBattery from './ScenarioBattery';
 import CorpusRunner from './CorpusRunner';
-import AgentTester from './AgentTester';
 import { FAULT_OPTIONS, type FaultOptionId } from './fault-options';
 import { choiceLabel, type ScenarioChoice } from './scenario-choice';
+
+/**
+ * The two bulk runners that used to sit permanently under the chat pane.
+ *
+ * They are not part of "have one conversation and read it" — the battery runs
+ * all five scripted personas at once and the corpus runner replays a list of
+ * single-line cases. Both were making the screen look like three tools stacked
+ * on top of each other, so they are collapsed and only mounted once opened
+ * (a closed <details> would still mount both components and fire their
+ * queries). Agent testing left this page entirely: /agents is its own tab now.
+ */
+function MoreTools({ environment }: { environment: 'sandbox' | 'staging' | 'beta' }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-[var(--spacing-md)] py-3 text-left"
+      >
+        <span className="material-symbols-outlined text-[18px] leading-none text-[var(--color-on-surface-variant)]" aria-hidden="true">
+          {open ? 'expand_less' : 'expand_more'}
+        </span>
+        <span className="text-[var(--text-label-sm)] font-medium text-[var(--color-on-surface)]">
+          More tools
+        </span>
+        <span className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
+          run all five scripted personas · replay a corpus of single-line cases
+        </span>
+      </button>
+
+      {open ? (
+        <div className="flex flex-col gap-[var(--spacing-md)] border-t border-[var(--color-outline-variant)] p-[var(--spacing-md)]">
+          <ScenarioBattery environment={environment} />
+          <CorpusRunner environment={environment} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 interface ActiveSession {
   runId: string;
@@ -219,9 +260,7 @@ export default function SimulatorWorkspace() {
           </div>
         </div>
 
-        <ScenarioBattery environment={environment} />
-        <CorpusRunner environment={environment} />
-        <AgentTester />
+        <MoreTools environment={environment} />
       </div>
 
     </>

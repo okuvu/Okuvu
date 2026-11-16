@@ -28,7 +28,7 @@ const MVP_SCREENS: { href: string; label: string; description: string }[] = [
   { href: '/simulator', label: 'Chat', description: 'Simulator — plain-language chat (short-chat fidelity)' },
   { href: '/agents', label: 'Agent', description: 'Single Agent — A1 / A9-pre / A8 / A2 / A9-post in isolation' },
   { href: '/pipeline', label: 'Pipeline', description: 'Pipeline Runner — the agent-to-agent view' },
-  { href: '/conversations', label: 'Personas', description: 'Conversation Driver — scripted + simulated multi-session runs' },
+  { href: '/campaign', label: 'Personas', description: 'Persona testing — clinical run + advanced campaign' },
   { href: '/results', label: 'Results', description: 'Results & Traces — runs, compare, bulk .xlsx export' },
 ];
 
