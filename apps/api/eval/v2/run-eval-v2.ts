@@ -93,11 +93,10 @@ import {
   A9_PRE_BLOCKED_RESPONSE,
   MEDICAL_EMERGENCY_RESPONSE,
   MEDICAL_EMERGENCY_CRISIS_RESPONSE,
-  SAFETY_UNAVAILABLE_RESPONSE,
-  getModelUnavailableFallback,
 } from '../../src/pipeline/fallbacks.js';
 
 import { legacyScoreScenario, type ServedPath as LegacyPath } from './legacy-regex.js';
+import { runFailClosedProbe } from './fail-closed-probes.js';
 import { appliesTo, buildJudgeMessage, parseJudgeOutput, requirementsFor, type JudgeOutput } from './judge.js';
 import type { GoldSet, Scenario, ServedPath } from './types.js';
 import {
@@ -276,28 +275,6 @@ interface ServedTurn {
   /** a hard routing invariant the shipped screens imply, checked after serving */
   routing_invariant: string;
   elapsed_ms: number;
-}
-
-function runFailClosedProbe(scenario: Scenario, classifierKind: string): { served: string; detail: string } {
-  const probe = scenario.probe!;
-  if (probe.kind === 'classifier_unavailable') {
-    const crisisFloorMatched = hasCrisisLanguage(probe.message);
-    const state = crisisFloorMatched ? 'S4' : 'S2';
-    if (crisisFloorMatched) {
-      return { served: CRISIS_RESPONSE, detail: `a1 unavailable, crisis floor matched (${state}) -> crisis path` };
-    }
-    return { served: SAFETY_UNAVAILABLE_RESPONSE, detail: `a1 unavailable, no crisis language (${state}) -> static substitute, A2 not called` };
-  }
-  if (probe.kind === 'model_throttled') {
-    return {
-      served: getModelUnavailableFallback(probe.safety_state ?? 'S0'),
-      detail: `classifier=throttled (simulated ThrottlingException) kind=${classifierKind} state=${probe.safety_state} -> getModelUnavailableFallback`,
-    };
-  }
-  return {
-    served: getModelUnavailableFallback(probe.safety_state ?? 'S0'),
-    detail: `real Converse error classified as ${classifierKind} state=${probe.safety_state} -> getModelUnavailableFallback`,
-  };
 }
 
 /** What the shipped deterministic screens say the path must be, for the categories where that is a safety invariant. */

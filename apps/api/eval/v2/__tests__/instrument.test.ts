@@ -352,8 +352,19 @@ describe('the instrument does not become a phrase checklist', () => {
     // message, category, threshold or behavioural requirement changed — the
     // counts and thresholds below still enforce that, and the retired numbers
     // must not reappear in the instrument either.
+    //
+    // 2.0.4 (16 Nov 2026) is the second, and it runs the other way: the rubric
+    // was corrected to the copy that is actually served, not the copy relaxed.
+    // fc-05 accepted "right here with you" / "not going anywhere", which the
+    // rev 6 sign-off struck from every failure path (the promise rule); the
+    // constant the probe serves is her signed text, so the scenario could only
+    // pass if the judge ignored its own rubric, and it failed three of three
+    // repetitions in every run. No threshold, scenario count, message or
+    // category changed. That class of defect is now caught offline by
+    // __tests__/fail-closed-rubric.test.ts, which holds every fail-closed
+    // scenario's phrase list to the constant its probe serves.
     const raw = readFileSync(join(__dirname, '../gold-set.v2.json'), 'utf-8');
-    expect(raw).toContain('"version": "2.0.3"');
+    expect(raw).toContain('"version": "2.0.4"');
     expect(raw).not.toContain('1860-2662-345');
     expect(raw).not.toContain('080-46110007');
     expect(goldSet.thresholds).toEqual({
