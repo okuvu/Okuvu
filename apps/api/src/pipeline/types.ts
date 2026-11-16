@@ -80,6 +80,11 @@ export type FallbackSource =
   // the deterministic third-party crisis copy (helper-facing, 112 for immediate
   // danger). Same tier as 'medical_emergency': no model wrote this turn.
   | 'crisis_third_party'
+  // §3 — the model's reply labelled the client with a clinical condition (or
+  // attributed their state to a named cause), so it was replaced by the same
+  // governed substitute an A9-post block serves. Deterministic lint, not a
+  // model call: see pipeline/guards.ts.
+  | 'diagnosis_lint'
 
 export type PipelineResult =
   | {
