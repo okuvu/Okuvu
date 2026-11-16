@@ -17,6 +17,8 @@
 /** What `generate-content.ts` should call. */
 export type ContentBackend = 'bedrock' | 'openrouter';
 
+import type { CallRole } from './llm-types.js';
+
 /**
  * ap-south-1 (Mumbai) is the only region that satisfies the DPDP 2026 data
  * residency constraint the previous stack enforced with asia-south1.
@@ -49,6 +51,26 @@ export const DEFAULT_AWS_REGION = 'ap-south-1';
  * with BEDROCK_MODEL_ID rather than editing this constant.
  */
 export const DEFAULT_BEDROCK_MODEL_ID = 'qwen.qwen3-32b-v1:0';
+
+/**
+ * Model for the **dialogue** lane (A2 — the companion that writes every reply
+ * the client reads, ~62% of a turn's token spend).
+ *
+ * `zai.glm-4.7-flash` is served on-demand in ap-south-1 at $0.08/$0.48 per 1M
+ * (half that on the flex tier), i.e. 54% below the model of record. It is not a
+ * global swap: it was rejected for the *safety gate* because it reads a dose
+ * question as a crisis 5/5 — see `evidence/E17-S5b-boundary-16nov.md` — and a
+ * gate that over-escalates serves the helpline card instead of a reply. On
+ * reply writing the same eval found it level with the incumbent (8 failed
+ * judgements of 357 against 13, inside that set's 8–20 swing), and A2's output
+ * is still reviewed by A9-post on the model of record before it is served.
+ *
+ * So the split is deliberate: the two governance gates and the reviewer stay on
+ * `qwen.qwen3-32b-v1:0`, and only the talker moves. Override with
+ * `BEDROCK_MODEL_ID_DIALOGUE`; set it to `qwen.qwen3-32b-v1:0` to undo the
+ * split without a code change.
+ */
+export const DEFAULT_DIALOGUE_MODEL_ID = 'zai.glm-4.7-flash';
 
 /**
  * Titan Text Embeddings V2 is the one Bedrock embedding model that can emit the
@@ -85,18 +107,51 @@ export function resolveAwsRegion(): string {
 }
 
 /**
- * Bedrock model id for this call. `params.model` (the per-call override every
- * agent already threads through) wins, then BEDROCK_MODEL_ID, then the
- * in-region default. This is a bare Bedrock model id — there is no
- * project/publisher resource path to build.
+ * Bedrock model id for this call.
+ *
+ * Resolution order, highest first:
+ *   1. `params.model` — the per-call override every agent already threads.
+ *   2. the lane's own env override (`BEDROCK_MODEL_ID_DIALOGUE` for dialogue,
+ *      `BEDROCK_MODEL_ID` for everything else).
+ *   3. the lane's default — `DEFAULT_DIALOGUE_MODEL_ID` for dialogue,
+ *      `DEFAULT_BEDROCK_MODEL_ID` otherwise.
+ *
+ * The lane override is consulted *before* `BEDROCK_MODEL_ID` on purpose: the
+ * live task definition pins `BEDROCK_MODEL_ID=qwen.qwen3-32b-v1:0` for the
+ * safety gates, and if that value also governed the dialogue lane then the
+ * split could only be turned on by editing Terraform — which no build applies.
  */
-export function resolveBedrockModelId(override?: string): string {
-  const model = override ?? process.env.BEDROCK_MODEL_ID ?? DEFAULT_BEDROCK_MODEL_ID;
+export function resolveBedrockModelId(override?: string, callRole?: CallRole): string {
+  const laneOverride =
+    callRole === 'dialogue' ? process.env.BEDROCK_MODEL_ID_DIALOGUE : process.env.BEDROCK_MODEL_ID;
+  const laneDefault = callRole === 'dialogue' ? DEFAULT_DIALOGUE_MODEL_ID : DEFAULT_BEDROCK_MODEL_ID;
+
+  const model = override ?? laneOverride ?? laneDefault;
   const trimmed = model.trim();
   if (trimmed === '') {
     throw new Error('BEDROCK_MODEL_ID is set but empty — unset it to use the default model.');
   }
   return trimmed;
+}
+
+/**
+ * Bedrock service tier for this call: `'flex'` (half price, queued) or
+ * `'standard'`.
+ *
+ * `safety` and `review` are standard, unconditionally — there is no env var
+ * that can put a crisis gate on the slow queue. `dialogue` and `background`
+ * default to flex and can be turned off globally with
+ * `OKUVU_BEDROCK_FLEX=false`.
+ *
+ * Default-on is deliberate: the levers have to be live when the image rolls,
+ * and a Terraform env var is not applied by CodeBuild, so a default-off flag
+ * would ship nothing. The escape hatch is the env var, not the default.
+ */
+export function resolveServiceTier(callRole?: CallRole): 'flex' | 'standard' {
+  if (callRole === 'dialogue' || callRole === 'background') {
+    return process.env.OKUVU_BEDROCK_FLEX === 'false' ? 'standard' : 'flex';
+  }
+  return 'standard';
 }
 
 export function resolveBedrockEmbeddingModelId(): string {

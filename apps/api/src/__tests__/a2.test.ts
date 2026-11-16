@@ -686,4 +686,43 @@ describe('A5 signal-marker stripping (B4 regression seed)', () => {
 
     expect(result.userContent).toBe('You are not alone in this.');
   });
+
+});
+
+describe('A2 dialogue lane and bounded history (16 Nov 2026)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false, model: 'zai.glm-4.7-flash' });
+  });
+
+  function longHistory(count: number) {
+    return Array.from({ length: count }, (_, i) => ({
+      role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: `ordinary week chat ${i + 1}`,
+    }));
+  }
+
+  it('classifies itself as the dialogue lane, which is what selects GLM and permits the flex tier', async () => {
+    await handleTurn(makeInput({ safetyState: 'S0' }));
+
+    expect(mockGenerateContent.mock.calls[0][0].callRole).toBe('dialogue');
+  });
+
+  it('folds a long risk-free history into a digest so the prompt stops growing with the session', async () => {
+    await handleTurn(makeInput({ safetyState: 'S0', recentHistory: longHistory(20) }));
+
+    const contents = mockGenerateContent.mock.calls[0][0].contents as Array<{ parts: Array<{ text: string }> }>;
+    // digest + 6 verbatim turns + the current message
+    expect(contents).toHaveLength(8);
+    expect(contents[0]!.parts[0]!.text).toContain('Earlier in this conversation');
+    expect(contents[1]!.parts[0]!.text).toContain('ordinary week chat 15');
+  });
+
+  it('leaves the same history verbatim when the session is carrying risk', async () => {
+    await handleTurn(makeInput({ safetyState: 'S1', recentHistory: longHistory(20) }));
+
+    const contents = mockGenerateContent.mock.calls[0][0].contents as Array<{ parts: Array<{ text: string }> }>;
+    expect(contents).toHaveLength(21);
+    expect(contents[0]!.parts[0]!.text).toBe('ordinary week chat 1');
+  });
 });

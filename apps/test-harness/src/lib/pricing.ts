@@ -42,7 +42,9 @@ function inrPer1k(usdPer1M: number): number {
 }
 
 // Keys match the model_version values the pipeline actually resolves to —
-// BEDROCK_MODEL_ID (default 'qwen.qwen3-32b-v1:0') on the Bedrock path, or
+// BEDROCK_MODEL_ID (default 'qwen.qwen3-32b-v1:0', and
+// BEDROCK_MODEL_ID_DIALOGUE default 'zai.glm-4.7-flash' for the A2 lane) on the
+// Bedrock path, or
 // OPENROUTER_MODEL (default 'meta-llama/llama-3.1-8b-instruct') on the
 // OpenRouter path (see apps/api/src/lib/generate-content.ts and
 // apps/api/src/lib/provider-config.ts).
@@ -53,6 +55,10 @@ export const MODEL_PRICING_INR: Record<string, ModelPricing> = {
   // Retired as the default on 28 Oct 2026 but kept in the table so historical
   // runs recorded against it still price correctly.
   // $0.94 / 1M in, $3.76 / 1M out (ap-south-1, on-demand).
+  // Dialogue lane (A2) since 16 Nov 2026 — $0.08 / 1M in, $0.48 / 1M out
+  // (ap-south-1, on-demand, standard tier; flex is half that). A2 is ~62% of a
+  // turn's tokens, so this row is what makes a harness run price honestly.
+  'zai.glm-4.7-flash': { inputPer1k: inrPer1k(0.08), outputPer1k: inrPer1k(0.48) },
   'amazon.nova-pro-v1:0': { inputPer1k: inrPer1k(0.94), outputPer1k: inrPer1k(3.76) },
   // Embeddings are input-only; the model emits a fixed 768-dim vector, so
   // there is no output-token charge to model.

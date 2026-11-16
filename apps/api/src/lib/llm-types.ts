@@ -13,6 +13,29 @@
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
+/**
+ * Which lane a call belongs to, and therefore which model and which Bedrock
+ * service tier it may use.
+ *
+ *   'safety'     — A1 intake risk classification (routing decision, fail-closed)
+ *   'review'     — A9-post reply review (gates what the client is served)
+ *   'dialogue'   — A2 companion (writes the reply; ~62% of a turn's tokens)
+ *   'background' — off-turn-path work (summaries, extraction); latency-tolerant
+ *
+ * The lane is chosen per message, so one conversation can mix them.
+ *
+ * Two rules this type exists to enforce, both learned the hard way:
+ *
+ *  • `safety` and `review` NEVER take the flex service tier. A crisis turn's
+ *    gate is the one call whose queue wait is a client-safety problem, and a
+ *    flex call that times out and is retried is also paid twice.
+ *  • An unclassified call site lands on the shipped model on the standard
+ *    tier. A new agent that forgets to classify itself can therefore never
+ *    quietly join the cheap lane — which is why this is optional and absence
+ *    is the safe default rather than a fourth enum member.
+ */
+export type CallRole = 'safety' | 'review' | 'dialogue' | 'background';
+
 export interface GenerateContentParams {
   systemInstruction: string;
   contents: Array<{
@@ -21,6 +44,8 @@ export interface GenerateContentParams {
   }>;
   timeoutMs?: number;
   model?: string;
+  /** Lane for model + service-tier routing. Omitted ⇒ standard tier, shipped model. */
+  callRole?: CallRole;
   /**
    * Structured-generation constraints. `type` is the JSON-schema-ish token
    * agents use ('object', 'array', 'string', …); each backend maps it onto its

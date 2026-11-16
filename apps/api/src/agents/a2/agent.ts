@@ -1,5 +1,6 @@
 import { generateContent } from '../../lib/generate-content.js';
 import { buildConversationalPrompt } from './prompts.js';
+import { compactHistory } from './history-compaction.js';
 import { A2_PROMPT_VERSION } from '../../prompts/index.js';
 import type {
   A2Input,
@@ -69,8 +70,20 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     systemInstruction += '\n\n' + toolResultContext;
   }
 
+  // Bound the history before it reaches the prompt. Compaction is skipped
+  // wholesale for any session that is not at S0 or whose history trips the
+  // crisis screens — see history-compaction.ts. `reason` is logged rather than
+  // returned so a live conversation shows in the logs which rule applied.
+  const compaction = compactHistory(recentHistory, { safetyState });
+  if (compaction.compacted) {
+    console.info(
+      { omitted: compaction.omitted, kept: recentHistory.length - compaction.omitted, safetyState },
+      'A2 history compacted',
+    );
+  }
+
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> =
-    recentHistory.map((turn) => ({
+    compaction.turns.map((turn) => ({
       role: turn.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: turn.content }],
     }));
@@ -83,6 +96,9 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
   const result = await generateContent({
     systemInstruction,
     contents,
+    // Dialogue lane: runs the talker model and may take the flex tier. The
+    // safety gates and the reviewer are classified separately and never do.
+    callRole: 'dialogue',
     cannedResponse: buildCannedReply(message),
   });
 

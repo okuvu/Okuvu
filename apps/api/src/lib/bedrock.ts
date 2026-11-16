@@ -20,6 +20,7 @@ import {
   resolveAwsRegion,
   resolveBedrockEmbeddingModelId,
   resolveBedrockModelId,
+  resolveServiceTier,
   resolveEmbeddingDimensions,
 } from './provider-config.js';
 
@@ -302,16 +303,28 @@ function toTokenUsage(
   return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
 }
 
-export async function generateContent(
-  params: GenerateContentParams,
-): Promise<GenerateContentResult> {
-  const model = resolveBedrockModelId(params.model);
+/**
+ * Budget for a flex-tier attempt. Flex is a queued lane: it can wait, and a wait
+ * that outlives the turn's patience is worse than the ~50% it saves, because the
+ * retry on the standard tier is billed twice. So a flex attempt gets its own
+ * shorter clock, and anything short of an answer inside it re-runs once on the
+ * guaranteed tier (see `generateContent` below).
+ */
+export const FLEX_TIMEOUT_MS = 20_000;
 
-  if (isCannedRequested(params)) {
-    return buildCannedResult(params, model);
-  }
+interface ConverseAttempt {
+  params: GenerateContentParams;
+  model: string;
+  tier: 'flex' | 'standard';
+  timeoutMs: number;
+}
 
-  const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+/**
+ * One Converse call at one service tier. Returns a result object on every
+ * outcome — a thrown call becomes `fallbackUsed:true` with a classified reason,
+ * never an exception — because the caller has to be able to decide to retry.
+ */
+async function converseOnce({ params, model, tier, timeoutMs }: ConverseAttempt): Promise<GenerateContentResult> {
   const generationConfig = params.generationConfig ?? {};
   const tools = buildToolConfig(params);
 
@@ -319,6 +332,9 @@ export async function generateContent(
     modelId: model,
     system: params.systemInstruction ? [{ text: params.systemInstruction }] : undefined,
     messages: toBedrockMessages(params.contents),
+    // The tier is on the wire, so it is provable from the request body and
+    // echoed in the response — never inferred from a flag being set.
+    ...(tier === 'flex' ? { serviceTier: { type: 'flex' as const } } : {}),
     inferenceConfig: {
       maxTokens: generationConfig.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
       temperature: generationConfig.temperature ?? 0.7,
@@ -364,6 +380,7 @@ export async function generateContent(
           stopReason: response.stopReason,
           usage: response.usage,
           model,
+          tier,
           expectsJson: tools?.expectsJson ?? false,
         },
         'Bedrock returned an empty candidate',
@@ -376,11 +393,53 @@ export async function generateContent(
     const message = err instanceof Error ? err.message : String(err);
     const failureKind = classifyLlmFailure(err, timedOut);
     const failureReason: 'timeout' | 'api_error' = timedOut ? 'timeout' : 'api_error';
-    console.error({ reason: failureReason, failureKind, err: message, model }, 'Bedrock call failed');
+    console.error({ reason: failureReason, failureKind, err: message, model, tier }, 'Bedrock call failed');
     return { text: SAFETY_UNAVAILABLE_RESPONSE, fallbackUsed: true, failureReason, failureKind, model, canned: false };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * The Bedrock entry point. Resolves the model from `params.callRole` (dialogue
+ * runs a different model from the safety gates — see `provider-config.ts`) and
+ * the service tier from the same lane, then makes the call.
+ *
+ * A flex call that does not produce an answer — timeout, throttle, an
+ * unsupported-tier rejection — is retried **once** on the standard tier with the
+ * full timeout. That retry is what keeps a queued lane from turning into a
+ * missing reply, and it is also what bounds the saving: a retried turn is paid
+ * for twice.
+ */
+export async function generateContent(
+  params: GenerateContentParams,
+): Promise<GenerateContentResult> {
+  const model = resolveBedrockModelId(params.model, params.callRole);
+  const tier = resolveServiceTier(params.callRole);
+
+  if (isCannedRequested(params)) {
+    return buildCannedResult(params, model);
+  }
+
+  const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  if (tier !== 'flex') {
+    return converseOnce({ params, model, tier: 'standard', timeoutMs });
+  }
+
+  const flex = await converseOnce({
+    params,
+    model,
+    tier: 'flex',
+    timeoutMs: Math.min(timeoutMs, FLEX_TIMEOUT_MS),
+  });
+  if (!flex.fallbackUsed) return flex;
+
+  console.error(
+    { model, role: params.callRole, failureKind: flex.failureKind, reason: flex.failureReason },
+    'Flex-tier attempt produced no answer — retrying once on the standard tier',
+  );
+  return converseOnce({ params, model, tier: 'standard', timeoutMs });
 }
 
 // ─── Embeddings (InvokeModel) ────────────────────────────────────────────────

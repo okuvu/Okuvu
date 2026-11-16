@@ -127,6 +127,8 @@ export async function classifySafety(input: A1Input): Promise<A1Output> {
     result = await generateContent({
       systemInstruction,
       contents,
+      // Lane: safety — the pre-reply gate; never the flex tier (llm-types.ts CallRole).
+      callRole: 'safety',
       generationConfig: {
         // Deterministic classification (OKUVU v2.0 spec) — A1 previously had
         // no explicit temperature, inheriting the provider default of 0.7.

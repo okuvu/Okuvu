@@ -3,11 +3,13 @@ import {
   DEFAULT_AWS_REGION,
   DEFAULT_BEDROCK_EMBEDDING_MODEL_ID,
   DEFAULT_BEDROCK_MODEL_ID,
+  DEFAULT_DIALOGUE_MODEL_ID,
   DEFAULT_EMBEDDING_DIMENSIONS,
   resolveAwsRegion,
   resolveBedrockEmbeddingModelId,
   resolveBedrockModelId,
   resolveContentBackend,
+  resolveServiceTier,
   resolveEmbeddingDimensions,
   resolveSecretId,
   resolveSqsQueueUrl,
@@ -32,6 +34,8 @@ const ENV_KEYS = [
   'AWS_DEFAULT_REGION',
   'AWS_SECRETS_PREFIX',
   'BEDROCK_MODEL_ID',
+  'BEDROCK_MODEL_ID_DIALOGUE',
+  'OKUVU_BEDROCK_FLEX',
   'BEDROCK_EMBEDDING_MODEL_ID',
   'BEDROCK_EMBEDDING_DIMENSIONS',
   'SQS_QUEUE_URL',
@@ -297,6 +301,62 @@ describe('provider-config', () => {
       process.env.COGNITO_CLIENT_ID = 'client123';
 
       expect(validateAwsConfig()).toEqual(['COGNITO_USER_POOL_ID']);
+    });
+  });
+
+  describe('lane routing (16 Nov 2026)', () => {
+    it('sends the dialogue lane to GLM and every other lane to the model of record', () => {
+      expect(resolveBedrockModelId(undefined, 'dialogue')).toBe(DEFAULT_DIALOGUE_MODEL_ID);
+      expect(DEFAULT_DIALOGUE_MODEL_ID).toBe('zai.glm-4.7-flash');
+
+      for (const role of ['safety', 'review', 'background', undefined] as const) {
+        expect(resolveBedrockModelId(undefined, role)).toBe(DEFAULT_BEDROCK_MODEL_ID);
+      }
+    });
+
+    it('lets the lane env override win over the pinned task-definition model — that is what makes the split shippable by image', () => {
+      // Exactly what production sets for the safety gates.
+      process.env.BEDROCK_MODEL_ID = 'qwen.qwen3-32b-v1:0';
+
+      expect(resolveBedrockModelId(undefined, 'safety')).toBe('qwen.qwen3-32b-v1:0');
+      expect(resolveBedrockModelId(undefined, 'dialogue')).toBe(DEFAULT_DIALOGUE_MODEL_ID);
+
+      process.env.BEDROCK_MODEL_ID_DIALOGUE = 'zai.glm-5.3-flash';
+      expect(resolveBedrockModelId(undefined, 'dialogue')).toBe('zai.glm-5.3-flash');
+
+      // Undoing the split needs no code change.
+      process.env.BEDROCK_MODEL_ID_DIALOGUE = 'qwen.qwen3-32b-v1:0';
+      expect(resolveBedrockModelId(undefined, 'dialogue')).toBe('qwen.qwen3-32b-v1:0');
+    });
+
+    it('still lets a per-call override beat both', () => {
+      process.env.BEDROCK_MODEL_ID_DIALOGUE = 'zai.glm-5.3-flash';
+      expect(resolveBedrockModelId('google.gemma-3-12b-it', 'dialogue')).toBe('google.gemma-3-12b-it');
+    });
+
+    it('rejects an explicitly empty dialogue model id rather than silently using the default', () => {
+      process.env.BEDROCK_MODEL_ID_DIALOGUE = '   ';
+      expect(() => resolveBedrockModelId(undefined, 'dialogue')).toThrow(/empty/);
+    });
+
+    it('puts only dialogue and background on flex, and there is no env var that moves a gate', () => {
+      expect(resolveServiceTier('dialogue')).toBe('flex');
+      expect(resolveServiceTier('background')).toBe('flex');
+      expect(resolveServiceTier('safety')).toBe('standard');
+      expect(resolveServiceTier('review')).toBe('standard');
+      expect(resolveServiceTier(undefined)).toBe('standard');
+
+      for (const value of ['false', 'true', '1', 'yes']) {
+        process.env.OKUVU_BEDROCK_FLEX = value;
+        expect(resolveServiceTier('safety')).toBe('standard');
+        expect(resolveServiceTier('review')).toBe('standard');
+      }
+    });
+
+    it('turns flex off for the lanes that use it when OKUVU_BEDROCK_FLEX=false', () => {
+      process.env.OKUVU_BEDROCK_FLEX = 'false';
+      expect(resolveServiceTier('dialogue')).toBe('standard');
+      expect(resolveServiceTier('background')).toBe('standard');
     });
   });
 });

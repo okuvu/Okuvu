@@ -36,6 +36,8 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
       // and throwing, silently defeating content review on every turn). 20000ms
       // leaves real headroom without adopting the full 30000ms platform default.
       timeoutMs: 20000,
+      // Lane: review — never the flex tier, see llm-types.ts CallRole.
+      callRole: 'review',
       generationConfig: {
         // Real root cause of the empty-response failures (confirmed live via
         // provider client's finishReason diagnostic): maxOutputTokens: 100 was
