@@ -102,10 +102,11 @@ export default function HomePage() {
 
         <p className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
           Operator detail — environment status, recent runs and gate sign-offs — is at{' '}
-          <Link href="/dashboard" className="underline">
-            /dashboard
+          <Link href="/operator" className="underline">
+            /operator
           </Link>
-          . Deferred screens are reachable by URL and are listed there.
+          . Deferred screens are reachable by URL and are listed there. Any older bookmark to
+          /dashboard now lands here.
         </p>
       </main>
     </AuthenticatedShell>

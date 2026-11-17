@@ -55,7 +55,7 @@ list, grouped roughly by role:
 | Route | Screen |
 |---|---|
 | `/auth` | Sign in |
-| `/dashboard` | Env status, recent runs, gate summary, config-drift banner, gate sign-off (PI) |
+| `/operator` | Env status, recent runs, gate summary, config-drift banner, gate sign-off (PI). `/dashboard` redirects to `/` |
 | `/config` | Model Config Registry — pin model version/temperature, prompt hashes (PI writes) |
 | `/agents` | Single-agent invocation (A1/A2/A8/A9-pre/A9-post/A13/A15) against mock context |
 | `/faults` | Fault injection console (timeout/api_error at a pipeline boundary) |

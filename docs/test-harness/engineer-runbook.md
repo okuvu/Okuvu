@@ -29,9 +29,9 @@ used to be on the front page, this table is the map.
 | Fault injection | `/faults` | Tab 5 — force a failure, check the fail-safe |
 | Care plan & exercise | — | Tab 6, disabled: needs the care-plan columns and runner pass-through |
 | Results | `/results` | Landing tile |
-| Operator dashboard | `/dashboard` | Linked in small print on the landing page — env status, recent runs, gate summary, sign-off |
+| Operator detail | `/operator` | Linked in small print on the landing page — env status, recent runs, gate summary, sign-off. `/dashboard` redirects to `/` |
 | Persona Conversation Driver | `/conversations` | URL only — superseded by Persona testing, kept for scripted turn-stepping |
-| Deferred screens | `/corpus`, `/review`, `/config`, `/sampling`, `/determinism`, `/ci`, `/beta` | `/dashboard` nav, or URL |
+| Deferred screens | `/corpus`, `/review`, `/config`, `/sampling`, `/determinism`, `/ci`, `/beta` | `/operator` nav, or URL |
 
 Rules that follow from this and are easy to break:
 
