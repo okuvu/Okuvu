@@ -359,6 +359,71 @@ describe('A9-post content review agent', () => {
     });
   });
 
+  describe('forced-tool envelope written out as text', () => {
+    /**
+     * Live failure (testing.okuvu.in, 17 Nov): qwen.qwen3-32b-v1:0 wrote the
+     * forced tool call out as prose instead of making the call, so `result.text`
+     * was {"name":"emit_structured_json","arguments":{...}}. The verdict inside
+     * was a clean APPROVED; the parser looked for `decision` at the top level,
+     * failed closed to BLOCKED, and the client got "something went wrong" in
+     * place of a good reply.
+     */
+    it('reads the verdict from inside the envelope instead of blocking', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({
+          name: 'emit_structured_json',
+          arguments: { decision: 'APPROVED', violation_type: null, confidence: 'high', notes: null },
+        }),
+        fallbackUsed: false,
+      });
+
+      const result = await a9PostReview(makeInput());
+
+      expect(result.decision).toBe('APPROVED');
+      expect(result.violation_type).toBeNull();
+    });
+
+    it('still blocks when the envelope carries a blocked verdict', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({
+          name: 'emit_structured_json',
+          arguments: { decision: 'BLOCKED', violation_type: 'diagnosis_explicit', confidence: 'high' },
+        }),
+        fallbackUsed: false,
+      });
+
+      const result = await a9PostReview(makeInput());
+
+      expect(result.decision).toBe('BLOCKED');
+      expect(result.violation_type).toBe('diagnosis_explicit');
+    });
+
+    it('unwraps an envelope whose arguments are a JSON string', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({
+          name: 'emit_structured_json',
+          arguments: JSON.stringify({ decision: 'APPROVED', violation_type: null, confidence: 'medium' }),
+        }),
+        fallbackUsed: false,
+      });
+
+      const result = await a9PostReview(makeInput());
+
+      expect(result.decision).toBe('APPROVED');
+    });
+
+    it('fails closed when the envelope holds no usable verdict', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({ name: 'emit_structured_json', arguments: { something: 'else' } }),
+        fallbackUsed: false,
+      });
+
+      const result = await a9PostReview(makeInput());
+
+      expect(result.decision).toBe('BLOCKED');
+    });
+  });
+
   describe('fallback — missing or invalid fields (fail-closed, OKUVU v2.0 / audit P2 fix)', () => {
     it('fails closed to BLOCKED when response is not an object', async () => {
       mockGenerateContent.mockResolvedValue({

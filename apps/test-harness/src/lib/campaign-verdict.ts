@@ -84,7 +84,30 @@ export function foldGroupVerdict(evidence: GroupEvidence): GroupVerdict {
   const findings = evaluateChatQuality(evidence.turns);
 
   const erroredTurns = evidence.turns.filter((turn) => turn.resultType === 'error').length;
-  const fallbackTurns = evidence.turns.filter((turn) => turn.fallbackUsed).length;
+  // A fallbackUsed turn is not automatically a degradation. Three different
+  // things set it, and only one of them is the model failing:
+  //   • A2_result.fallbackUsed      — the model call failed. A real degrade.
+  //   • A9_post_result BLOCKED      — the reviewer refused A2's draft. The
+  //                                   pipeline working, and the reply the
+  //                                   client saw is the governed substitute.
+  //   • deterministic floors        — crisis / S3 grounding / A9-pre block.
+  // Live (17 Nov) a campaign was reported as "the agent degraded silently"
+  // when the only thing that had happened was A9-post blocking, so the count
+  // is split by the signal that caused it instead of reported as one number.
+  const fallbackTurnList = evidence.turns.filter((turn) => turn.fallbackUsed);
+  const fallbackTurns = fallbackTurnList.length;
+  const governanceBlockedTurns = fallbackTurnList.filter((turn) => {
+    const signals = (turn.signals ?? []) as Array<{ boundary?: string; payload?: unknown }>;
+    const a9Post = signals.find((signal) => signal.boundary === 'A9_post_result')?.payload;
+    return Boolean(a9Post && (a9Post as { decision?: string }).decision === 'BLOCKED');
+  }).length;
+  const modelFailedTurns = fallbackTurnList.filter((turn) => {
+    const signals = (turn.signals ?? []) as Array<{ boundary?: string; payload?: unknown }>;
+    const a2 = signals.find((signal) => signal.boundary === 'A2_result')?.payload as
+      | { fallbackUsed?: boolean }
+      | undefined;
+    return Boolean(a2?.fallbackUsed);
+  }).length;
   const invariantViolations = evidence.turns.reduce(
     (total, turn) => total + (turn.invariantViolations?.length ?? 0),
     0,
@@ -193,10 +216,21 @@ export function foldGroupVerdict(evidence: GroupEvidence): GroupVerdict {
     };
   }
   if (fallbackTurns > 0) {
+    const parts: string[] = [];
+    if (modelFailedTurns > 0) {
+      parts.push(`${modelFailedTurns} turn${modelFailedTurns === 1 ? '' : 's'} lost the model reply (technical failure)`);
+    }
+    if (governanceBlockedTurns > 0) {
+      parts.push(`${governanceBlockedTurns} turn${governanceBlockedTurns === 1 ? '' : 's'} was replaced by the governed substitute after the reviewer refused the draft`);
+    }
+    const unaccounted = fallbackTurns - modelFailedTurns - governanceBlockedTurns;
+    if (unaccounted > 0) {
+      parts.push(`${unaccounted} turn${unaccounted === 1 ? '' : 's'} served a deterministic floor reply (crisis, S3 grounding or governance block)`);
+    }
     return {
       verdict: 'FAIL',
       code: 'hard_fail',
-      reason: `${fallbackTurns} turn${fallbackTurns === 1 ? '' : 's'} used the fallback reply — the agent degraded silently.`,
+      reason: `${fallbackTurns} fallback turn${fallbackTurns === 1 ? '' : 's'}: ${parts.join('; ')}.`,
       findings,
       checks,
     };
