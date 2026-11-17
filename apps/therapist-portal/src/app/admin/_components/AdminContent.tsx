@@ -6,6 +6,7 @@ import { AddClientWizard } from './AddClientWizard';
 import { ClientIdDialog, type ClientIdTarget } from './ClientIdDialog';
 import { AssignClientDialog, type AssignClientTarget } from './AssignClientDialog';
 import { RemoveClientDialog, type RemoveClientTarget } from './RemoveClientDialog';
+import { AdminBroadcast } from './AdminBroadcast';
 import { PHONE_FORMAT_HINT, toE164 } from '@/lib/phone';
 
 function formatDate(iso: string): string {
@@ -34,7 +35,7 @@ function relativeDays(iso: string | null): string {
   return `${days} days ago`;
 }
 
-type Section = 'overview' | 'therapists' | 'clients' | 'mapping' | 'progress' | 'money';
+type Section = 'overview' | 'therapists' | 'clients' | 'mapping' | 'progress' | 'money' | 'notices';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'overview', label: 'Today' },
@@ -43,6 +44,9 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: 'mapping', label: 'Mapping' },
   { id: 'progress', label: 'Progress' },
   { id: 'money', label: 'Money' },
+  // Admin → everyone. Last on purpose: it is the only control here that can
+  // buzz every phone at once, so it should not sit next to routine lookups.
+  { id: 'notices', label: 'Notices' },
 ];
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -988,6 +992,9 @@ export function AdminContent() {
             )}
           </Card>
         )}
+
+        {/* ── Notices (admin → everyone) ─────────────────────────────── */}
+        {section === 'notices' && <AdminBroadcast />}
 
         {/* ── Money ─────────────────────────────────────────────────── */}
         {section === 'money' && (

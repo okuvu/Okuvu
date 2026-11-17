@@ -7,6 +7,8 @@ import { sendInviteEmail, sendClientInviteEmail } from '@/lib/email';
 import { hashInviteToken } from '@/lib/invite-token-hash';
 import { isAdminEmail } from '@/lib/admin-allowlist';
 import { maskPhone } from '@/lib/format';
+import { sendBroadcastPush } from '@/server/push';
+import { BROADCAST_KINDS } from '@okuvu/shared-types';
 import {
   GENDER_OPTIONS,
   buildClientCode,
@@ -1138,5 +1140,91 @@ export const adminRouter = router({
         label: client.full_name ?? client.email ?? 'this client',
         erased,
       };
+    }),
+
+  /**
+   * How many clients a notice would go to. Free, and separate from sending on
+   * purpose: the number that matters before pressing send is the audience, and
+   * asking it should not be the same click as doing it.
+   */
+  broadcastAudience: adminProcedure.query(async ({ ctx }) => {
+    const [recipients, optedOut] = await Promise.all([
+      ctx.db.user.count({ where: { deleted_at: null } }),
+      ctx.db.user.count({ where: { deleted_at: null, broadcast_push_enabled: false } }),
+    ]);
+    return { recipients, optedOut, buzzable: recipients - optedOut };
+  }),
+
+  /** The last few notices, so a second admin can see one already went out today. */
+  broadcastHistory: adminProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.notification.findMany({
+      where: { kind: { in: [...BROADCAST_KINDS] } },
+      select: { kind: true, title: true, body: true, created_at: true },
+      orderBy: { created_at: 'desc' },
+      take: 400,
+    });
+
+    // Grouped in memory: one row is written per recipient, and the admin wants
+    // "what did we send", not "who". Rows from one campaign are contiguous
+    // because `createMany` writes them in one statement.
+    const sends: Array<{ kind: string; title: string; body: string; sentAt: string; recipients: number }> = [];
+    for (const row of rows) {
+      const last = sends[sends.length - 1];
+      if (last && last.title === row.title && last.body === row.body && last.kind === row.kind) {
+        last.recipients += 1;
+        continue;
+      }
+      sends.push({
+        kind: row.kind,
+        title: row.title,
+        body: row.body,
+        sentAt: row.created_at.toISOString(),
+        recipients: 1,
+      });
+    }
+
+    return sends.slice(0, 10);
+  }),
+
+  /**
+   * Admin → every client: service news or a festival greeting.
+   *
+   * The portal does not send this itself — it asks the api, which owns the FCM
+   * credential, builds the lock-screen wording and enforces the one-per-client-
+   * per-day cap. The `campaignId` is minted here, on the server, so a double
+   * submit from one press cannot become two campaigns (the browser sends the
+   * same mutation twice; the id is stable per press only because every press is
+   * a new call — the dedupe is for a retried *request*, which is what a flaky
+   * connection actually produces).
+   */
+  sendBroadcast: adminMutation
+    .input(
+      z.object({
+        kind: z.enum(BROADCAST_KINDS),
+        title: z.string().trim().min(3).max(120),
+        body: z.string().trim().min(3).max(500),
+        confirmed: z.literal(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const campaignId = `admin-${Date.now()}-${randomInt(1_000_000)}`;
+      const result = await sendBroadcastPush({
+        kind: input.kind,
+        title: input.title,
+        body: input.body,
+        campaignId,
+      });
+
+      if (!result.sent) {
+        // Never report a silent no-op as a send: the admin would assume clients
+        // had been told.
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message:
+            'The notice was not sent — the notification service is not reachable or not configured. Nothing was delivered.',
+        });
+      }
+
+      return { campaignId, ...result };
     }),
 });
