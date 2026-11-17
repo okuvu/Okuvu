@@ -318,3 +318,22 @@ portal/worker secrets. Its task role (`evia-beta-harness-task`) carries Bedrock
 `COMPOSIO_CLIENT_ID` and `COMPOSIO_REFRESH_TOKEN` in the task definition. Without them a
 run still stores every transcript and marks delivery "email not configured"; recipient
 defaults to `alphashubhangi@gmail.com`.
+
+## A2 structured output (E17-S18) — what a run measures now
+
+A2 is asked for its answer through a forced tool schema rather than in prose
+(see `evidence/E17-S18-structured-output.md`). Practical consequences for a
+harness run:
+
+- `technique_used`, `tool_launched`, `intensity`, `taper_state`,
+  `closure_offered` and `journal_prompt_suggested` are populated on every turn
+  instead of a large minority of them, so the technique checks read real values
+  rather than nulls.
+- The reply is delivered exactly as before — it comes out of `userContent`, and
+  no JSON reaches a transcript, the judge, or the client.
+- `A2_STRUCTURED_OUTPUT=off` on the task definition restores the old prose
+  contract with no other change. Set it there and roll the service if a run
+  suggests replies got flatter; nothing else needs reverting.
+
+The sheet is unchanged (still v2.4), so `A2_PROMPT_VERSION` did not move and the
+existing per-turn prompt attribution stays correct.
