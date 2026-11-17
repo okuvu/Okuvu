@@ -295,9 +295,14 @@ describe('E17-S4 — an unassessable turn is served as a governed fallback', () 
     }
 
     // The reply model was never asked: an ungated reply at an unknown safety
-    // state is the fail-open outcome this path exists to prevent.
+    // state is the fail-open outcome this path exists to prevent. Identified by
+    // the A2 sheet's header rather than by call shape — E17-S18 gave A2 a
+    // response schema, and the old "no generation config" proxy would have made
+    // this assertion pass even if A2 had been asked.
     const a2Calls = mocks.generateContent.mock.calls.filter(
-      ([params]) => (params as { generationConfig?: unknown }).generationConfig === undefined,
+      ([params]) =>
+        typeof (params as { systemInstruction?: string }).systemInstruction === 'string' &&
+        (params as { systemInstruction: string }).systemInstruction.includes('A2 — SUPPORT COMPANION'),
     );
     expect(a2Calls).toEqual([]);
   });

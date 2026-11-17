@@ -393,10 +393,19 @@ function model(options: { a1?: ModelReply; a2?: ModelReply; a9pre?: ModelReply; 
   });
 }
 
-/** Calls that reach the reply model — A2 is the only agent with no generation config. */
+/**
+ * Calls that reach the reply model.
+ *
+ * Identified by the A2 sheet's own header, not by "has no generation config":
+ * E17-S18 gave A2 a response schema, so the old proxy started counting zero and
+ * would have let every "the reply model was never asked" assertion pass for the
+ * wrong reason. Prompt identity is stable; call shape is not.
+ */
 function a2Calls(): unknown[] {
   return mocks.generateContent.mock.calls.filter(
-    ([params]) => (params as { generationConfig?: unknown }).generationConfig === undefined,
+    ([params]) =>
+      typeof (params as { systemInstruction?: string }).systemInstruction === 'string' &&
+      (params as { systemInstruction: string }).systemInstruction.includes('A2 — SUPPORT COMPANION'),
   );
 }
 

@@ -795,3 +795,172 @@ describe('A2 empty-reply protection', () => {
     expect(result.failureKind).toBe('timeout');
   });
 });
+
+/**
+ * E17-S18 — the structured-output path.
+ *
+ * The four-arm probe (evidence/E17-S18-emission-4arm.md) measured the two-block
+ * envelope appearing on 34/63 turns when §10/§11 asked for it in prose and 63/63
+ * when the same sheet was paired with a forced tool schema. These tests cover
+ * the wiring, not the rate: that the schema is actually handed to the provider,
+ * that the envelope is read back into `userContent` + `S07Signal`, that a prose
+ * answer still parses, and that the empty-reply repair keeps working in either
+ * shape.
+ */
+describe('A2 structured output (E17-S18)', () => {
+  const envelope = (overrides: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+      signal: 'S-07',
+      agent: 'A2',
+      reply: 'That sounds exhausting. What feels heaviest right now?',
+      technique_used: 'box_breathing',
+      tool_launched: 'grounding_5431',
+      taper_state: 'none',
+      closure_offered: true,
+      frustration_event: false,
+      homework_referenced: true,
+      therapist_referral: false,
+      intensity: 6,
+      primary_emotion: 'drained',
+      mood_confidence: 'high',
+      journal_prompt_suggested: 'none',
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.A2_STRUCTURED_OUTPUT;
+  });
+
+  it('hands the provider a response schema by default', async () => {
+    mockGenerateContent.mockResolvedValue({ text: envelope(), fallbackUsed: false });
+
+    await handleTurn(makeInput());
+
+    const callArgs = mockGenerateContent.mock.calls[0][0];
+    const schema = callArgs.generationConfig?.responseSchema as {
+      required?: string[];
+      properties?: Record<string, unknown>;
+    };
+    expect(schema).toBeDefined();
+    // `reply` must be required, or the model can satisfy the schema with a
+    // signal and no words — the exact blank-bubble failure this all began with.
+    expect(schema.required).toContain('reply');
+    expect(schema.required).toContain('technique_used');
+    expect(Object.keys(schema.properties ?? {})).toContain('primary_emotion');
+  });
+
+  it('reads the reply and the signal out of the envelope', async () => {
+    mockGenerateContent.mockResolvedValue({ text: envelope(), fallbackUsed: false });
+
+    const result = await handleTurn(makeInput());
+
+    expect(result.userContent).toBe('That sounds exhausting. What feels heaviest right now?');
+    expect(result.fallbackUsed).toBe(false);
+    expect(result.signal).not.toBeNull();
+    expect(result.signal!.signal).toBe('S-07');
+    expect(result.signal!.agent).toBe('A2');
+    expect(result.signal!.technique_used).toBe('box_breathing');
+    expect(result.signal!.tool_launched).toBe('grounding_5431');
+    expect(result.signal!.intensity).toBe(6);
+    expect(result.signal!.homework_referenced).toBe(true);
+    // The flat wire fields are reassembled into the nested type here.
+    expect(result.signal!.mood_inference.primary_emotion).toBe('drained');
+    expect(result.signal!.mood_inference.confidence).toBe('high');
+  });
+
+  it('maps the schema sentinels back to null', async () => {
+    mockGenerateContent.mockResolvedValue({
+      text: envelope({
+        technique_used: 'none',
+        tool_launched: 'N/A',
+        intensity: 0,
+        primary_emotion: 'none',
+        journal_prompt_suggested: '',
+        taper_state: 'something-invalid',
+      }),
+      fallbackUsed: false,
+    });
+
+    const result = await handleTurn(makeInput());
+
+    expect(result.signal!.technique_used).toBeNull();
+    expect(result.signal!.tool_launched).toBeNull();
+    expect(result.signal!.intensity).toBeNull();
+    expect(result.signal!.mood_inference.primary_emotion).toBeNull();
+    expect(result.signal!.journal_prompt_suggested).toBeNull();
+    expect(result.signal!.taper_state).toBe('none');
+  });
+
+  it('still parses a prose answer — the schema is a request, never an assumption', async () => {
+    // OpenRouter ignores responseSchema (see lib/openrouter.ts), and a model can
+    // answer in prose anyway. Either must keep working unchanged.
+    mockGenerateContent.mockResolvedValue({
+      text: 'I hear you.\n\n```json\n{"signal":"S-07","agent":"A2","technique_used":null}\n```',
+      fallbackUsed: false,
+    });
+
+    const result = await handleTurn(makeInput());
+
+    expect(result.userContent).toBe('I hear you.');
+    expect(result.signal!.technique_used).toBeNull();
+  });
+
+  it('does not mistake prose that quotes JSON for an envelope', () => {
+    const prose =
+      'Here is the shape I mean: {"signal":"S-07","reply":"hello"} — we would say the second part.';
+
+    const parsed = parseA2Response(prose);
+
+    expect(parsed.userContent).toContain('Here is the shape I mean');
+  });
+
+  it('accepts a fenced envelope', () => {
+    const parsed = parseA2Response('```json\n' + envelope() + '\n```');
+
+    expect(parsed.userContent).toBe('That sounds exhausting. What feels heaviest right now?');
+    expect(parsed.signal!.technique_used).toBe('box_breathing');
+  });
+
+  it('is switched off by A2_STRUCTURED_OUTPUT=off', async () => {
+    process.env.A2_STRUCTURED_OUTPUT = 'off';
+    mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+
+    const result = await handleTurn(makeInput());
+
+    const callArgs = mockGenerateContent.mock.calls[0][0];
+    expect(callArgs.generationConfig).toBeUndefined();
+    expect(result.userContent).toBe('I hear you.');
+  });
+
+  it('repairs a blank envelope reply and keeps the schema on the repair call', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: envelope({ reply: '' }), fallbackUsed: false })
+      .mockResolvedValueOnce({
+        text: envelope({ reply: 'You do not have to decide that tonight.' }),
+        fallbackUsed: false,
+      });
+
+    const result = await handleTurn(makeInput());
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    expect(result.userContent).toBe('You do not have to decide that tonight.');
+    expect(result.replyRepaired).toBe(true);
+    // The repair must ask in the same shape as the first attempt.
+    expect(mockGenerateContent.mock.calls[1][0].generationConfig?.responseSchema).toBeDefined();
+    // And keep the signal the first attempt did produce.
+    expect(result.signal!.technique_used).toBe('box_breathing');
+  });
+
+  it('fails closed when both attempts come back with no words', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: envelope({ reply: '   ' }), fallbackUsed: false })
+      .mockResolvedValueOnce({ text: envelope({ reply: '   ' }), fallbackUsed: false });
+
+    const result = await handleTurn(makeInput());
+
+    expect(result.userContent).toBe('');
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.replyRepaired).toBe(false);
+  });
+});

@@ -1,6 +1,11 @@
 import { generateContent } from '../../lib/generate-content.js';
 import { buildConversationalPrompt } from './prompts.js';
 import { A2_PROMPT_VERSION } from '../../prompts/index.js';
+import {
+  A2_STRUCTURED_OUTPUT_SCHEMA,
+  isA2StructuredOutputEnabled,
+  parseStructuredEnvelope,
+} from './structured-schema.js';
 import type {
   A2Input,
   A2Output,
@@ -141,10 +146,23 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     parts: [{ text: message }],
   });
 
+  // E17-S18 — the same system instruction either way (see structured-schema.ts);
+  // the only difference is whether the two-block envelope is *requested in prose*
+  // (§10/§11 of the sheet — honoured on ~54% of turns in the four-arm probe) or
+  // *constrained by a forced tool schema* (63/63 in the same probe, with the
+  // reply inside the schema's `reply` field). `A2_STRUCTURED_OUTPUT=off` restores
+  // the prose contract exactly, so a warmth regression is one env change from
+  // diagnosed rather than a revert.
+  const structuredOutput = isA2StructuredOutputEnabled();
+  const generationConfig = structuredOutput
+    ? { responseSchema: A2_STRUCTURED_OUTPUT_SCHEMA }
+    : undefined;
+
   const result = await generateContent({
     systemInstruction,
     contents,
     cannedResponse: buildCannedReply(message),
+    ...(generationConfig ? { generationConfig } : {}),
   });
 
   let parsed = parseA2Response(result.text);
@@ -167,6 +185,9 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
       systemInstruction: systemInstruction + REPLY_ONLY_REPAIR_DIRECTIVE,
       contents,
       cannedResponse: buildCannedReply(message),
+      // Same schema as the first attempt: a repair that came back in prose would
+      // reintroduce the very failure it exists to fix.
+      ...(generationConfig ? { generationConfig } : {}),
     });
 
     const repaired = parseA2Response(repair.text);
@@ -249,6 +270,21 @@ export function formatUserMemory(memory: {
 }
 
 export function parseA2Response(raw: string): A2ParsedResponse {
+  // E17-S18 — the forced-tool shape first. A structured answer is one JSON
+  // object carrying both halves, so every prose heuristic below (strip fences,
+  // find a fenced JSON block, recover fenced prose, catch a leaked signal) is
+  // answering a question this shape has already answered. Doing it here rather
+  // than in `handleTurn` means every existing caller — the eval probes, the
+  // evidence readers, the harness — keeps working on structured text with no
+  // change of its own, and a prose answer still falls through unchanged.
+  const structured = parseStructuredEnvelope(raw);
+  if (structured) {
+    return {
+      userContent: stripSpeakerLabel(structured.userContent),
+      signal: structured.signal,
+    };
+  }
+
   let userContent = stripFencedBlocks(raw);
   userContent = stripSignalMarkers(userContent);
 
