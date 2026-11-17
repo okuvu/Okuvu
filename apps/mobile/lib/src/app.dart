@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router/router.dart';
 import 'core/providers.dart';
+import 'core/app_update/app_update_gate.dart';
 import 'features/crisis/crisis_overlay.dart';
 import 'features/home/care_ended_screen.dart';
 import 'features/home/providers/today_card_provider.dart';
@@ -37,7 +38,11 @@ class App extends ConsumerWidget {
       builder: (context, child) {
         return Stack(
           children: [
-            child ?? const SizedBox.shrink(),
+            // The update gate wraps the routed content, not the whole Stack:
+            // every slot above it still renders, so a client mid-emergency is
+            // never replaced by an update screen even when the server has
+            // raised its floor.
+            AppUpdateGate(child: child ?? const SizedBox.shrink()),
             // Below the crisis and care-ended slots on purpose: a safety
             // overlay must win over a homework announcement.
             const NotificationPopupSlot(),

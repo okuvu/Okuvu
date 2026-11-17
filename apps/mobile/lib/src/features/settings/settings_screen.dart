@@ -6,6 +6,7 @@ import '../../widgets/voice_toggle.dart';
 import '../../widgets/quote_of_day_toggle.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
+import '../../core/app_update/version_policy.dart';
 
 const _kIconColor = AppColors.inkSoft;
 const _kLabelColor = AppColors.charcoalInk;
@@ -89,7 +90,8 @@ class SettingsScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
-                  'Version 1.0.0',
+                  ref.watch(appBuildInfoProvider).asData?.value.label ??
+                      'Version unavailable',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

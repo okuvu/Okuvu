@@ -15,6 +15,7 @@ import { waitlistRoute } from './waitlist.js';
 import { auditRoute } from './audit.js';
 import { homeworkRoute } from './homework.js';
 import { notificationsRoute } from './notifications.js';
+import { appVersionRoute } from './app-version.js';
 import { libraryRoute } from './library.js';
 import { worksheetsRoute } from './worksheets.js';
 import { treasureRoute } from './treasure.js';
@@ -45,4 +46,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(safetyPlanRoute);
   await app.register(sharingRoute);
   await app.register(mySpaceRoute);
+  await app.register(appVersionRoute);
 }

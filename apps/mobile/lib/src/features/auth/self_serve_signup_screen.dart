@@ -206,7 +206,7 @@ class _SelfServeSignupScreenState extends ConsumerState<SelfServeSignupScreen> {
                   // 2. Consent. Written once here and enforced server-side: the
                   // safety card cannot be turned off, and the summary sharing
                   // card is off unless the client turns it on.
-                  _ConsentCard(
+                  const _ConsentCard(
                     icon: LucideIcons.lifeBuoy,
                     title: 'Safety comes first',
                     description:
