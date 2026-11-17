@@ -35,6 +35,67 @@ function buildCannedReply(message: string): string {
   return CANNED_REPLIES[hashString(message) % CANNED_REPLIES.length];
 }
 
+/**
+ * Appended to the system instruction on the one repair attempt after an empty
+ * visible reply.
+ *
+ * The observed failure (E17-S14 follow-up, 17 Nov): on a closing turn — client
+ * says "Alright, I can try that this week" — Qwen3-32B returned Block 2 alone.
+ * The whole response was the fenced S-07 JSON and nothing else, so the parser
+ * correctly stripped the machine block and was left with an empty string, and
+ * `fallbackUsed` was false because the call itself had succeeded. The client
+ * would have received a blank bubble. The prompt already says "never send
+ * Block 1 alone" (§11); this is the mirror case it never named, so the repair
+ * asks for the missing half directly rather than hoping a re-roll complies.
+ *
+ * Same system instruction, same history: the repair must keep the voice and the
+ * rules that produced the signal, not restart the turn under a different brief.
+ */
+export const REPLY_ONLY_REPAIR_DIRECTIVE = `
+
+# REPAIR — THIS ATTEMPT ONLY
+Your previous attempt returned only the machine signal block and no reply for the person. Write Block 1 now: two to four sentences of your actual reply to them, in their register, following every rule above. Do not output the machine block again. Do not explain this instruction.`;
+
+/** A reply that carries no words is not a reply — see REPLY_ONLY_REPAIR_DIRECTIVE. */
+function isBlankReply(text: string): boolean {
+  return text.replace(/[\s\p{P}\p{S}]/gu, '').length === 0;
+}
+
+/**
+ * Fenced-block recovery for the other shape of the same failure: a model that
+ * wraps its *prose* in a fence (```text / ```markdown, or bare ```) leaves
+ * `stripFencedBlocks` with nothing, because that function removes every fenced
+ * block on the assumption that fences are machine signal. Recovering the prose
+ * costs nothing and avoids a model call; the signal block is skipped by shape,
+ * not by position, so a reply that legitimately quotes a JSON snippet still
+ * comes through.
+ */
+function recoverFencedProse(raw: string): string | null {
+  const blocks = raw.matchAll(/```([\w-]*)[^\S\r\n]*\r?\n([\s\S]*?)```/g);
+  for (const block of blocks) {
+    const lang = block[1].toLowerCase();
+    const body = block[2].trim();
+    if (body.length === 0) continue;
+    if (lang === 'json') continue;
+    if (body.includes('"signal"') && body.includes('S-07')) continue;
+    if (isBlankReply(body)) continue;
+    return body;
+  }
+  return null;
+}
+
+/**
+ * A model that labels its own output ("OKUVU: …", "A2: …") is leaking the
+ * scaffolding the same way the improvised "BLOCK 2" headers did (see
+ * stripSignalMarkers). Observed live: a reply that opened `OKUVU: "You're not
+ * asking me to fix it…`. Stripping the label is not cosmetic on a first line —
+ * it is the difference between a companion and a machine announcing itself.
+ */
+function stripSpeakerLabel(text: string): string {
+  return text.replace(/^\s*(?:OKUVU|A2|Companion)\s*[:—–]\s*/i, '').trim();
+}
+
+
 export async function handleTurn(input: A2Input): Promise<A2Output> {
   const {
     message,
@@ -86,10 +147,56 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     cannedResponse: buildCannedReply(message),
   });
 
-  const parsed = parseA2Response(result.text);
+  let parsed = parseA2Response(result.text);
+  let replyText = result.text;
+  let replyRepaired = false;
+
+  // An empty visible reply is a technical failure of this agent's contract, not
+  // a quiet turn: the client gets a blank bubble and the transcript records a
+  // turn that said nothing. One repair attempt, then fail closed — never
+  // deliver ''. Canned replies are exempt: they are fixed prose that the
+  // parser cannot empty, and re-calling in sandbox mode would spend nothing but
+  // would also prove nothing.
+  if (!result.fallbackUsed && !result.canned && isBlankReply(parsed.userContent)) {
+    console.error(
+      { chars: result.text.length, hasSignal: parsed.signal !== null, model: result.model },
+      'A2: empty visible reply — attempting one repair',
+    );
+
+    const repair = await generateContent({
+      systemInstruction: systemInstruction + REPLY_ONLY_REPAIR_DIRECTIVE,
+      contents,
+      cannedResponse: buildCannedReply(message),
+    });
+
+    const repaired = parseA2Response(repair.text);
+    if (!repair.fallbackUsed && !repair.canned && !isBlankReply(repaired.userContent)) {
+      parsed = { userContent: repaired.userContent, signal: repaired.signal ?? parsed.signal };
+      replyText = repair.text;
+      replyRepaired = true;
+    } else {
+      // Fail closed. `userContent` stays empty on purpose — the caller must not
+      // be able to forward a substituted string as if A2 had written it; the
+      // orchestrator serves the governed fallback and records the turn as a
+      // fallback rather than a reply.
+      console.error({ model: result.model }, 'A2: repair produced no visible reply — failing closed');
+      return {
+        response: replyText,
+        userContent: '',
+        signal: parsed.signal,
+        fallbackUsed: true,
+        failureReason: 'api_error',
+        failureKind: 'unavailable',
+        modelVersion: result.model,
+        promptVersion: A2_PROMPT_VERSION,
+        canned: result.canned,
+        replyRepaired: false,
+      };
+    }
+  }
 
   return {
-    response: result.text,
+    response: replyText,
     userContent: parsed.userContent,
     signal: parsed.signal,
     fallbackUsed: result.fallbackUsed,
@@ -98,6 +205,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     modelVersion: result.model,
     promptVersion: A2_PROMPT_VERSION,
     canned: result.canned,
+    replyRepaired,
   };
 }
 
@@ -175,6 +283,19 @@ export function parseA2Response(raw: string): A2ParsedResponse {
     console.warn({ userContentLength: userContent.length }, 'A2: defense-in-depth caught leaked S-07 signal in userContent');
     userContent = userContent.replace(leakedJson, '').replace(/\n{3,}/g, '\n\n').trim();
   }
+
+  // Last recovery before this is reported as a blank reply: the model fenced
+  // its own prose (see recoverFencedProse). Runs after the signal block has
+  // been located, so it cannot pick the machine block up as the reply.
+  if (isBlankReply(userContent)) {
+    const recovered = recoverFencedProse(raw);
+    if (recovered) {
+      console.warn({ chars: recovered.length }, 'A2: visible reply was fenced — recovered Block 1 from the fence');
+      userContent = recovered;
+    }
+  }
+
+  userContent = stripSpeakerLabel(userContent);
 
   return { userContent, signal };
 }

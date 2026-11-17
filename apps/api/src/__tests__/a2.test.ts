@@ -687,3 +687,111 @@ describe('A5 signal-marker stripping (B4 regression seed)', () => {
     expect(result.userContent).toBe('You are not alone in this.');
   });
 });
+
+/**
+ * E17-S14 follow-up. Observed live on testing.okuvu.in: on closing turns Qwen3
+ * returned Block 2 (the S-07 JSON) alone. The call succeeded, the parse
+ * succeeded, `fallbackUsed` was false, and `userContent` was '' — so the client
+ * received a blank reply. These pin every layer of the fix.
+ */
+describe('A2 empty-reply protection', () => {
+  const SIGNAL_ONLY = [
+    '```json',
+    JSON.stringify({
+      signal: 'S-07',
+      agent: 'A2',
+      technique_used: null,
+      tool_launched: null,
+      taper_state: 'solution_reached',
+      closure_offered: true,
+      frustration_event: false,
+      homework_referenced: false,
+      therapist_referral: false,
+      intensity: 3,
+      mood_inference: { primary_emotion: 'calm', confidence: 'high' },
+      journal_prompt_suggested: null,
+    }),
+    '```',
+  ].join('\n');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('parses a signal-only response to empty prose and keeps the signal', () => {
+    const parsed = parseA2Response(SIGNAL_ONLY);
+
+    expect(parsed.userContent).toBe('');
+    expect(parsed.signal).not.toBeNull();
+    expect(parsed.signal!.closure_offered).toBe(true);
+  });
+
+  it('recovers a reply the model fenced, without a model call', async () => {
+    const parsed = parseA2Response('```markdown\nThat sounds heavy. What feels most present right now?\n```');
+
+    expect(parsed.userContent).toBe('That sounds heavy. What feels most present right now?');
+  });
+
+  it('does not mistake the signal block for a fenced reply', () => {
+    const parsed = parseA2Response('I hear you.\n\n```json\n{"signal":"S-07"}\n```');
+
+    expect(parsed.userContent).toBe('I hear you.');
+    expect(parsed.signal).not.toBeNull();
+  });
+
+  it('strips a speaker label the model leaked onto the first line', () => {
+    const parsed = parseA2Response('OKUVU: You are not asking me to fix it — you are asking what to do with it.');
+
+    expect(parsed.userContent).toBe('You are not asking me to fix it — you are asking what to do with it.');
+  });
+
+  it('repairs once when the first attempt has no visible reply', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: SIGNAL_ONLY, fallbackUsed: false, model: 'qwen.qwen3-32b-v1:0' })
+      .mockResolvedValueOnce({ text: "You're welcome. Take the pause with you.", fallbackUsed: false, model: 'qwen.qwen3-32b-v1:0' });
+
+    const result = await handleTurn(makeInput());
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    expect(result.userContent).toBe("You're welcome. Take the pause with you.");
+    expect(result.replyRepaired).toBe(true);
+    expect(result.fallbackUsed).toBe(false);
+    // The repair keeps A2's own brief — same system instruction, plus the
+    // directive — and keeps the signal the first attempt produced.
+    const repairCall = mockGenerateContent.mock.calls[1][0];
+    expect(repairCall.systemInstruction).toContain('REPAIR');
+    expect(result.signal).not.toBeNull();
+    expect(result.signal!.closure_offered).toBe(true);
+  });
+
+  it('fails closed when the repair also returns only the block', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce({ text: SIGNAL_ONLY, fallbackUsed: false, model: 'qwen.qwen3-32b-v1:0' })
+      .mockResolvedValueOnce({ text: SIGNAL_ONLY, fallbackUsed: false, model: 'qwen.qwen3-32b-v1:0' });
+
+    const result = await handleTurn(makeInput());
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    expect(result.userContent).toBe('');
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.failureKind).toBe('unavailable');
+    expect(result.failureReason).toBe('api_error');
+    expect(result.replyRepaired).toBe(false);
+  });
+
+  it('does not attempt a repair when the provider already failed closed', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: 'SAFETY_UNAVAILABLE',
+      fallbackUsed: true,
+      failureReason: 'timeout',
+      failureKind: 'timeout',
+      model: 'qwen.qwen3-32b-v1:0',
+    });
+
+    const result = await handleTurn(makeInput());
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.failureKind).toBe('timeout');
+  });
+});

@@ -450,3 +450,29 @@ describe('A2 — current-session history reaches handleTurn (B4 regression seed)
     expect(history.some((t) => t.content === 'okay')).toBe(false);
   });
 });
+
+describe('processTurn — no empty reply reaches the client', () => {
+  it('serves the governed fallback when A2 produced no visible text', async () => {
+    vi.mocked(classifySafety).mockResolvedValue({ safetyState: 'S1', fallbackUsed: false, crisis_language_detected: false, basis: 'literal', signal_strength: 'medium', notes: null });
+    vi.mocked(classifyGovernance).mockResolvedValue({ governanceState: 'Active', fallbackUsed: false, reasonCode: null, confidence: 'medium', notes: null });
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'A2', mode: 'normal' });
+    vi.mocked(handleTurn).mockResolvedValue(defaultA2Result);
+
+    const result = await processTurn(UID, SESSION_ID, 'test', null, {
+      testMode: {
+        // Whitespace, not '', so the guard is tested against the shape a
+        // stripped machine block actually leaves behind.
+        signalOverride: { boundary: 'a2_result', payload: { userContent: '   ' } },
+      },
+    });
+
+    expect(result.type).toBe('agent_turn');
+    if (result.type === 'agent_turn') {
+      expect(result.message.trim().length).toBeGreaterThan(0);
+      expect(result.message).not.toBe(A2_DEGRADED_RESPONSE);
+      // Recorded as a fallback, not as a clean model turn.
+      expect(result.fallbackUsed).toBe(true);
+      expect(result.failureReason).toBe('api_error');
+    }
+  });
+});
