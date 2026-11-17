@@ -49,11 +49,16 @@ state injection, config-drift monitoring, beta retention, and the hosting domain
 
 ## Screens
 
-There is currently no in-app navigation menu — screens are reached by direct URL. The full route
-list, grouped roughly by role:
+The two-tile landing page (`/` → Chat, Results) and a single test-type menu (`TestTabs`) sit above
+the test screens; the remaining routes are reached by direct URL. The full route list, grouped
+roughly by role:
 
 | Route | Screen |
 |---|---|
+| `/` | Landing page — Chat and Results |
+| `/simulator` | Short-chat fidelity: one conversation, one reply at a time, with the pipeline trace beside it |
+| `/campaign` | Persona testing: upload a sheet of clients, run multi-turn conversations, read PASS/FAIL/UNGRADED/INCOMPLETE verdicts, export .xlsx |
+| `/results` | Stored runs of every type, expandable traces, compare two, export .xlsx |
 | `/auth` | Sign in |
 | `/operator` | Env status, recent runs, gate summary, config-drift banner, gate sign-off (PI). `/dashboard` redirects to `/` |
 | `/config` | Model Config Registry — pin model version/temperature, prompt hashes (PI writes) |
