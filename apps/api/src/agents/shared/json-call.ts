@@ -145,6 +145,46 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
   return isRecord(value) ? value : null;
 }
 
+/**
+ * Unwrap a forced-tool-call envelope that arrived as *text*.
+ *
+ * Bedrock structured output is a forced tool use named `emit_structured_json`:
+ * the fields land in `toolUse.input`, and `bedrock.ts` re-serialises exactly
+ * that object, so a well-behaved turn needs no unwrapping. But a model that
+ * does not support forced tool use can instead *write the call out* as prose —
+ * confirmed live on qwen.qwen3-32b-v1:0, where A9-post's "raw" was
+ * `{"name":"emit_structured_json","arguments":{"decision":"APPROVED","confidence":"high"}}`.
+ * The verdict inside it was a clean APPROVED; the parser looked for
+ * `decision` at the top level, found nothing, and failed closed to BLOCKED —
+ * throwing away a good reply and showing the client "something went wrong".
+ *
+ * Unwrapping is not a relaxation of the contract: the caller still validates
+ * every field of whatever comes back, and a genuinely unreadable payload still
+ * fails closed. It only reads the same fields from where the model actually put
+ * them. `arguments` may itself be a JSON *string* (the OpenAI-style shape), so
+ * that is parsed once and only kept if it parses to an object.
+ */
+export function unwrapStructuredEnvelope(value: unknown): unknown {
+  const obj = asRecord(value);
+  if (!obj) return value;
+
+  for (const key of ['arguments', 'input'] as const) {
+    const inner = obj[key];
+    if (isRecord(inner)) return inner;
+    if (typeof inner === 'string' && inner.trim().startsWith('{')) {
+      try {
+        const parsed: unknown = JSON.parse(inner);
+        if (isRecord(parsed)) return parsed;
+      } catch {
+        // Not JSON — fall through to the original value and let validation
+        // fail closed on it.
+      }
+    }
+  }
+
+  return value;
+}
+
 export function isEnum<T extends string>(value: unknown, allowed: ReadonlySet<string>): value is T {
   return typeof value === 'string' && allowed.has(value);
 }

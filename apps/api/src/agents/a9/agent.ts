@@ -1,4 +1,5 @@
 import { generateContent } from '../../lib/generate-content.js';
+import { unwrapStructuredEnvelope } from '../shared/json-call.js';
 import { buildGovernancePrompt } from './prompts.js';
 import type {
   GovernanceConfidence,
@@ -84,17 +85,23 @@ export async function classifyGovernance(
       }),
     });
 
-    const parsed: unknown = JSON.parse(result.text);
+    const parsed: unknown = unwrapStructuredEnvelope(JSON.parse(result.text));
     const obj = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : undefined;
     const state = obj?.governanceState;
     const reasonCode = obj?.reasonCode;
     const confidence = obj?.confidence;
     const notes = obj?.notes;
 
+    // `reasonCode: undefined` means the model omitted the field, which is what
+    // it does when there is nothing to report — live, `{"governanceState":
+    // "Active","confidence":"high"}` was rejected as invalid, fell back to
+    // Restricted, and A9-pre then blocked a turn that needed no governance at
+    // all. Absent is the same as null here (the return type already
+    // normalises it), exactly as `notes` is treated below.
     if (
       typeof state !== 'string' ||
       !VALID_STATES.has(state) ||
-      (reasonCode !== null && !isValidReasonCode(reasonCode)) ||
+      (reasonCode !== null && reasonCode !== undefined && !isValidReasonCode(reasonCode)) ||
       !isValidConfidence(confidence) ||
       (notes !== null && notes !== undefined && typeof notes !== 'string')
     ) {

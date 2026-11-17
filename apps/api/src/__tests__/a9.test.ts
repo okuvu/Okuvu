@@ -248,6 +248,35 @@ describe('A9 Governance Agent', () => {
       expect(result.fallbackUsed).toBe(true);
     });
 
+    it('accepts an omitted reasonCode as null instead of blocking the turn', async () => {
+      // Live shape on qwen.qwen3-32b: nothing to report, so the field is
+      // simply absent. The old `reasonCode !== null` test read undefined as an
+      // unknown code, fell back to Restricted, and A9-pre then blocked a turn
+      // that needed no governance at all.
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({ governanceState: 'Active', confidence: 'high' }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.governanceState).toBe('Active');
+      expect(result.reasonCode).toBeNull();
+      expect(result.fallbackUsed).toBe(false);
+    });
+
+    it('unwraps a forced-tool envelope that arrived as text', async () => {
+      mockGenerateContent.mockResolvedValue({
+        text: JSON.stringify({ name: 'emit_structured_json', arguments: { governanceState: 'Restricted', reasonCode: 'medication_request', confidence: 'high', notes: null } }),
+        fallbackUsed: false,
+      });
+
+      const result = await classifyGovernance(makeInput());
+
+      expect(result.governanceState).toBe('Restricted');
+      expect(result.reasonCode).toBe('medication_request');
+    });
+
     it('falls back to Restricted when reasonCode is an unknown value', async () => {
       mockGenerateContent.mockResolvedValue({
         text: validJson({ reasonCode: 'not_a_real_code' }),

@@ -1,4 +1,5 @@
 import { generateContent } from '../../lib/generate-content.js';
+import { unwrapStructuredEnvelope } from '../shared/json-call.js';
 import { buildA9PostPrompt } from './prompts.js';
 import type { A9PostInput, A9PostResult } from './types.js';
 
@@ -88,7 +89,11 @@ export async function a9PostReview(input: A9PostInput): Promise<A9PostResult> {
   // a re-draft/fallback; a wrongly-approved one reaches a vulnerable user.
   let parsed: unknown;
   try {
-    parsed = JSON.parse(resultText);
+    // A model that writes the forced tool call out as text instead of making
+    // it wraps the schema's fields in `{name, arguments}` — see
+    // unwrapStructuredEnvelope. Without this, a clean APPROVED was read as
+    // "no decision" and failed closed to BLOCKED, discarding a good reply.
+    parsed = unwrapStructuredEnvelope(JSON.parse(resultText));
   } catch {
     console.info({ chars: resultText.length }, 'A9-post: invalid JSON, failing closed to BLOCKED');
     return { decision: 'BLOCKED', violation_type: 'parse_failure', confidence: 'low', notes: 'parse_failure' };
