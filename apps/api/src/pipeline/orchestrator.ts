@@ -852,6 +852,22 @@ export async function processTurn(
         turnPromptVersion = null;
       }
 
+      // Second lock, at the point text becomes the reply. A2 repairs a blank
+      // Block 1 and fails closed on its own (see agents/a2/agent.ts), so this
+      // should never fire — which is the point: no future A2 change, test hook
+      // or signal override can put an empty string in front of a client. An
+      // empty assistant turn is indistinguishable from a broken product and
+      // records a transcript row that says nothing.
+      if (!a2Fallback && finalText.trim() === '') {
+        console.error({ model: a2Result.modelVersion }, 'orchestrator: A2 returned no visible text — serving the governed fallback');
+        finalText = getModelUnavailableFallback(effectiveSafetyState);
+        a2Fallback = true;
+        a2FailureReason = 'api_error';
+        fallbackSource = 'model_unavailable';
+        turnModelVersion = null;
+        turnPromptVersion = null;
+      }
+
       if (testMode?.captureSignalBus) {
         signals.push({ boundary: 'A2_result', agent: 'A2', payload: a2Result, timestamp: new Date().toISOString() });
       }

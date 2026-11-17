@@ -48,6 +48,15 @@ export interface A2Output {
   promptVersion: string;
   /** True when `response` is canned/test-hook text, not a real model call — callers persisting modelVersion/promptVersion as provenance must treat both as null when this is true. */
   canned: boolean;
+  /**
+   * True when the first attempt produced no visible reply and a second,
+   * reply-only attempt was used instead. Optional so existing callers and
+   * fixtures do not need it; present on every output `handleTurn` returns.
+   *
+   * Carried into the A2_result signal payload, so a transcript can distinguish
+   * a turn the model answered from a turn that had to be asked twice.
+   */
+  replyRepaired?: boolean;
 }
 
 export interface S07MoodInference {
