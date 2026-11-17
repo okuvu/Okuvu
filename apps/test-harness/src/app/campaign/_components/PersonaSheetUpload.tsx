@@ -84,12 +84,6 @@ export default function PersonaSheetUpload({ onImported }: { onImported: () => v
 
   return (
     <div className="flex flex-col gap-[var(--spacing-sm)]">
-      <p className="text-[var(--text-body-main)] text-[var(--color-on-surface-variant)]">
-        Upload a .csv or .xlsx sheet, one row per client. Semicolons separate list values inside a cell.
-        Required: <strong>personaId</strong>, <strong>personaVersion</strong>, <strong>expectedBehavior</strong>.
-        A persona without a rubric can be run but never graded.
-      </p>
-
       <input
         type="file"
         accept=".csv,.xlsx"
