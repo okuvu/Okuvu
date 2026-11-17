@@ -8,6 +8,7 @@ import { shouldUseCanned, withCannedMode, isCannedRunActive } from '../../lib/ca
 import { PERSONA_SCRIPTS, type PersonaId } from '../../lib/persona-scripts';
 import { exportTraceToClinicianFormat, missingStimulusTurns, type PerTurnTrace } from '../../lib/trace-export';
 import { invokeAgent } from '../../lib/agent-adapter';
+import { resolveDbUserId } from '../../lib/worker-user-id';
 import { resolveFrozenTriple } from '../../lib/frozen-triple';
 import { hasDegenerateLoop } from '../../lib/hard-fail-rules';
 import { checkPipelineInvariants, type InvariantViolation } from '../../lib/pipeline-invariants';
@@ -319,7 +320,7 @@ export const conversationRouter = router({
 
       const summaryResult = await invokeAgent('A13', {
         sessionId: input.sessionId,
-        userId: input.userId,
+        userId: await resolveDbUserId(input.userId),
       });
       const summaryOutput = summaryResult.output as { error?: string; processed?: boolean } | null;
       const summaryTriggered = Boolean(summaryOutput) && !summaryOutput?.error;

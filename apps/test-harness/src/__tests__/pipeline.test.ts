@@ -18,6 +18,7 @@ vi.mock('../lib/agent-adapter', () => ({
 }));
 
 const mockUserUpsert = vi.hoisted(() => vi.fn());
+const mockUserFindUnique = vi.hoisted(() => vi.fn(async () => ({ id: 'db-user-id' })));
 const mockSessionLogCreate = vi.hoisted(() => vi.fn());
 const mockSessionLogFindUnique = vi.hoisted(() => vi.fn());
 const mockTestRunCreate = vi.hoisted(() => vi.fn());
@@ -33,7 +34,7 @@ const mockSafetyStateFindUnique = vi.hoisted(() => vi.fn());
 // unchanged.
 vi.mock('@/lib/prisma', () => {
   const mockPrisma: any = {
-    user: { upsert: mockUserUpsert },
+    user: { upsert: mockUserUpsert, findUnique: mockUserFindUnique },
     sessionLog: { create: mockSessionLogCreate, findUnique: mockSessionLogFindUnique },
     testRun: { create: mockTestRunCreate, findUnique: mockTestRunFindUnique },
     modelConfigPin: { findFirst: mockModelConfigPinFindFirst },
