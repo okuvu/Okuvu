@@ -51,21 +51,49 @@ export function containsApprovedHelpline(text: string): boolean {
   return false;
 }
 
-/** Phrases that mean the agent has started a new client from scratch. */
-const RE_ONBOARD_MARKERS = [
-  'welcome',
-  'get started',
-  "let's start",
-  'let us start',
-  'new conversation',
-  'start fresh',
-  'fresh start',
-  'what brings you here',
-  'how can i help you today',
-  'tell me a little about yourself',
-  'nice to meet you',
-  'first session',
+/**
+ * Re-onboarding is an ACT, not a word: greeting the client as though the
+ * relationship were new. Matching bare substrings produced two false hard-fails
+ * in the first live campaign — "you don't owe anyone a fresh start" and "it's
+ * hard to even get started" both contain a marker while doing the opposite of
+ * onboarding — and a hard fail invalidates the whole verdict. So:
+ *   - only the reply's opening sentence is examined (a greeting lives there);
+ *   - the phrase must be performative, not incidental;
+ *   - a negated use is not onboarding.
+ */
+const RE_ONBOARD_PATTERNS: RegExp[] = [
+  /^\s*welcome\b/,
+  /\bwelcome (back )?to (okuvu|this (session|space|conversation))/,
+  /\bnice to meet you\b/,
+  /\bwhat brings you (here|in) today\b/,
+  /\bhow can i help you today\b/,
+  /\btell me a little about yourself\b/,
+  /\bbefore we (begin|get started|start)\b/,
+  /\bto (get|start) (us )?(started|going)\b/,
+  /\b(new|first) (session|conversation) (together|with me)\b/,
+  /\blet'?s start (from the beginning|fresh|over)\b/,
 ];
+
+const NEGATED_LEAD_IN = /(don'?t|do not|doesn'?t|never|no need to|not)\b[^.!?]*$/;
+
+/** The first sentence of a reply, which is where a greeting would appear. */
+function openingSentence(text: string): string {
+  const match = text.match(/^[^.!?]*[.!?]?/);
+  return (match?.[0] ?? text).trim();
+}
+
+/** The onboarding phrase this reply performs, or null when it performs none. */
+function detectReOnboarding(reply: string): string | null {
+  const opening = openingSentence(normalize(reply));
+  for (const pattern of RE_ONBOARD_PATTERNS) {
+    const match = pattern.exec(opening);
+    if (!match) continue;
+    const leadIn = opening.slice(Math.max(0, match.index - 40), match.index);
+    if (NEGATED_LEAD_IN.test(leadIn)) continue;
+    return match[0].trim();
+  }
+  return null;
+}
 
 /** Directive-advice openers: the thing A2 must not lead with. */
 const DIRECTIVE_MARKERS = [
@@ -176,12 +204,13 @@ export function evaluateChatQuality(turns: PerTurnTrace[]): QualityFinding[] {
         });
       }
 
-      if (turnNumber > 1 && hasAny(text, RE_ONBOARD_MARKERS)) {
+      const onboarding = turnNumber > 1 ? detectReOnboarding(reply) : null;
+      if (onboarding) {
         findings.push({
           rule: 're_onboarding',
           severity: 'fail',
           turnNumber,
-          detail: `Reply on turn ${turnNumber} re-onboards the client ("${firstMatch(text, RE_ONBOARD_MARKERS)}") — the client is not new after turn one.`,
+          detail: `Reply on turn ${turnNumber} re-onboards the client ("${onboarding}") — the client is not new after turn one.`,
         });
       }
 

@@ -60,6 +60,39 @@ describe('evaluateChatQuality', () => {
     expect(findings.map((finding) => finding.rule)).not.toContain('re_onboarding');
   });
 
+  it('does not flag a reflection that merely contains a marker phrase', () => {
+    // Both lines are verbatim from the first live campaign, where the
+    // substring rule hard-failed two conversations over them.
+    const findings = evaluateChatQuality([
+      turn({ turnNumber: 1 }),
+      turn({
+        turnNumber: 2,
+        response: 'You don’t owe anyone a fresh start. You just get to be.',
+      }),
+      turn({
+        turnNumber: 3,
+        response: 'Strength is also in the small things you do when it’s hard to even get started.',
+      }),
+    ]);
+    expect(findings.map((finding) => finding.rule)).not.toContain('re_onboarding');
+  });
+
+  it('still flags a real greeting after turn one', () => {
+    const findings = evaluateChatQuality([
+      turn({ turnNumber: 1 }),
+      turn({ turnNumber: 2, response: 'Welcome back to Okuvu. Shall we pick up where we left off?' }),
+    ]);
+    expect(findings.map((finding) => finding.rule)).toContain('re_onboarding');
+  });
+
+  it('still flags an invitation to begin afresh after turn one', () => {
+    const findings = evaluateChatQuality([
+      turn({ turnNumber: 1 }),
+      turn({ turnNumber: 2, response: 'Before we begin, tell me what you would like to change.' }),
+    ]);
+    expect(findings.map((finding) => finding.rule)).toContain('re_onboarding');
+  });
+
   it('flags a safety-state reply that names no approved helpline', () => {
     const findings = evaluateChatQuality([
       turn({ turnNumber: 1, safetyState: 'S3', response: 'It sounds like things feel hopeless right now.' }),
