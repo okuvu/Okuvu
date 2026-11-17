@@ -16,6 +16,8 @@ import { auditRoute } from './audit.js';
 import { homeworkRoute } from './homework.js';
 import { notificationsRoute } from './notifications.js';
 import { appVersionRoute } from './app-version.js';
+import { devicesRoute } from './devices.js';
+import { internalPushRoute } from './internal-push.js';
 import { libraryRoute } from './library.js';
 import { worksheetsRoute } from './worksheets.js';
 import { treasureRoute } from './treasure.js';
@@ -40,6 +42,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(auditRoute);
   await app.register(homeworkRoute);
   await app.register(notificationsRoute);
+  await app.register(devicesRoute);
+  await app.register(internalPushRoute);
   await app.register(libraryRoute);
   await app.register(worksheetsRoute);
   await app.register(treasureRoute);

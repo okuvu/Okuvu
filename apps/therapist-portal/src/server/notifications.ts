@@ -11,6 +11,7 @@ import {
   type NotificationDraft,
 } from '@okuvu/shared-types';
 import { sendClientNotificationEmail, sendClientUpdateEmail } from '@/lib/email';
+import { sendClientPush } from './push';
 
 /**
  * Writes the client-facing notification rows for therapist actions.
@@ -196,6 +197,27 @@ async function write(
       err,
     );
     return;
+  }
+
+  // Push is the second sender hanging off the same committed row, and it runs
+  // before the email branch on purpose: a client with no email address on file
+  // still has a phone, and today they were told nothing at all. The api builds
+  // the lock-screen wording from `draft.kind`, so no clinical text leaves here.
+  //
+  // Wrapped as well as internally guarded: `sendClientPush` swallows its own
+  // network errors, but a sender added later that throws would otherwise turn a
+  // successful assignment into a failed form submit for the therapist. The row
+  // is the record of care; nothing hanging off it may fail the action.
+  try {
+    await sendClientPush({
+      clientUserId: userId,
+      kind: draft.kind,
+      appointmentAt: options.scheduledAt ?? null,
+      homeworkId: draft.homeworkId ?? null,
+      appointmentId: draft.appointmentId ?? null,
+    });
+  } catch (err) {
+    console.error(`[NOTIFY] ${draft.kind} push could not be sent for user ${userId}`, err);
   }
 
   if (!recipient.email) {

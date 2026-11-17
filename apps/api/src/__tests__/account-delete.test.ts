@@ -53,6 +53,10 @@ const { USER_FK_TABLES, STRING_REF_TABLES, ALL_TABLES, prismaMock } = vi.hoisted
     // Finding and assigning exercises (Step 8). The therapist's working goals
     // for this client — therapist-authored, but they name the subject.
     'clientGoal',
+    // Push addresses. Not clinical, but a row naming a handset that belonged to
+    // the subject is theirs: a surviving token keeps delivering to a phone that
+    // no longer belongs to the erased account.
+    'deviceToken',
   ] as const;
 
   const STRING_REF_TABLES = ['governanceLog', 'betaConsent', 'waitlistEntry'] as const;
@@ -417,7 +421,7 @@ describe('erasure coverage vs packages/prisma/schema.prisma', () => {
 
   it('finds the schema and the known set of subject tables', () => {
     expect(models.length).toBeGreaterThan(30);
-    expect(modelsWithUserFk.length).toBe(27);
+    expect(modelsWithUserFk.length).toBe(28);
   });
 
   it('every relation to User declares onDelete: Cascade', () => {

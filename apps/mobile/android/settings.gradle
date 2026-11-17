@@ -20,6 +20,11 @@ plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
     id "com.android.application" version "8.13.1" apply false
     id "org.jetbrains.kotlin.android" version "2.2.20" apply false
+    // Firebase Cloud Messaging: reads android/app/google-services.json and turns
+    // it into the resources firebase_core needs. Without the file the plugin
+    // fails the build, which is deliberate — a push feature that silently builds
+    // without its config is a feature that silently never delivers.
+    id "com.google.gms.google-services" version "4.4.0" apply false
 }
 
 include ":app"

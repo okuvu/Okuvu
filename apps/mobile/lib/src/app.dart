@@ -7,6 +7,7 @@ import 'features/crisis/crisis_overlay.dart';
 import 'features/home/care_ended_screen.dart';
 import 'features/home/providers/today_card_provider.dart';
 import 'features/notifications/notification_banner.dart';
+import 'features/notifications/push_lifecycle.dart';
 import 'theme/app_theme.dart';
 
 class App extends ConsumerWidget {
@@ -36,19 +37,21 @@ class App extends ConsumerWidget {
       theme: AppTheme.theme,
       routerConfig: router,
       builder: (context, child) {
-        return Stack(
-          children: [
-            // The update gate wraps the routed content, not the whole Stack:
-            // every slot above it still renders, so a client mid-emergency is
-            // never replaced by an update screen even when the server has
-            // raised its floor.
-            AppUpdateGate(child: child ?? const SizedBox.shrink()),
-            // Below the crisis and care-ended slots on purpose: a safety
-            // overlay must win over a homework announcement.
-            const NotificationPopupSlot(),
-            const _CareEndedOverlaySlot(),
-            const _CrisisOverlaySlot(),
-          ],
+        return PushLifecycle(
+          child: Stack(
+            children: [
+              // The update gate wraps the routed content, not the whole Stack:
+              // every slot above it still renders, so a client mid-emergency is
+              // never replaced by an update screen even when the server has
+              // raised its floor.
+              AppUpdateGate(child: child ?? const SizedBox.shrink()),
+              // Below the crisis and care-ended slots on purpose: a safety
+              // overlay must win over a homework announcement.
+              const NotificationPopupSlot(),
+              const _CareEndedOverlaySlot(),
+              const _CrisisOverlaySlot(),
+            ],
+          ),
         );
       },
     );

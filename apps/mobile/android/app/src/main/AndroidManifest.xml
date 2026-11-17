@@ -2,6 +2,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Android 13+ shows no notification at all without this, and the OS grant
+         is per-app and revocable. Declared here; asked once from the sign-in
+         path, never at cold start (see core/push_service.dart). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
         <intent>
@@ -42,6 +46,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Fallback channel for a message that names none. The server always
+             names okuvu_care_team; this keeps a hand-built test message from
+             landing on Android's silent fallback channel. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="okuvu_care_team" />
 
         <meta-data
             android:name="flutterEmbedding"

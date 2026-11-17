@@ -73,6 +73,11 @@ export const SUBJECT_TABLES = [
   'sessionLog',
   'betaConsent',
   'waitlistEntry',
+  // Push addresses. Not clinical, but a row naming a handset that belonged to
+  // the subject is still theirs: erasing the account must stop it buzzing, and
+  // a surviving token would keep delivering the next account's alerts to the
+  // same phone.
+  'deviceToken',
 ] as const;
 
 /**
@@ -220,6 +225,13 @@ export async function deleteAccount(
       record(
         'notification',
         await tx.notification.deleteMany({ where: { user_id: user.id } }),
+      );
+      // Push addresses. Not clinical, but the row says "this handset belongs to
+      // this person", and a token that survived erasure would keep delivering to
+      // a phone the account no longer owns.
+      record(
+        'deviceToken',
+        await tx.deviceToken.deleteMany({ where: { user_id: user.id } }),
       );
       // Library work (Step 1): a completed worksheet and a Treasure note are
       // the client's own writing, and a response may point at a homework row

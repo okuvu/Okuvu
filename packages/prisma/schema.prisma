@@ -83,6 +83,19 @@ model User {
   /// and never derived from the user id, so the link cannot be guessed for
   /// someone else.
   email_update_token   String?             @unique
+  /// Settings > Notifications → Push. Gates the therapist-side buzz only (a
+  /// homework, a reminder, a session change). A client who switches it off
+  /// still gets the inbox row and the email; the phone just stops buzzing.
+  push_notifications_enabled Boolean        @default(true)
+  /// Same switch, separate policy, for admin broadcasts (service news,
+  /// greetings). Never one switch for both: a talkative admin that can mute a
+  /// therapist's reminder teaches clients to turn the whole app off.
+  broadcast_push_enabled Boolean            @default(true)
+  /// The IST day of the last admin broadcast this client received. The cap's
+  /// record, written before the fan-out so a second campaign in the same day
+  /// cannot buzz the same phone twice.
+  last_broadcast_at    DateTime?
+  device_tokens        DeviceToken[]
   clinical_config     ClinicalConfig?
   emergency_contact   EmergencyContact?
   engagement_profile  EngagementProfile?
@@ -1550,4 +1563,28 @@ enum HarnessRole {
 enum GateDecision {
   APPROVED
   REJECTED
+}
+
+/// One FCM registration token: one handset, one install.
+///
+/// Deduped on `token`, not on `user_id`, because the token is what FCM
+/// addresses — a re-install mints a new token and leaves the old one dead, and
+/// two accounts on one shared handset must not both receive the first account's
+/// alerts. `last_seen_at` is refreshed on every app open; a token FCM reports as
+/// unregistered is deleted rather than retried, since retrying a dead token for
+/// ever is how a sender quietly stops working.
+model DeviceToken {
+  id           String   @id @default(uuid())
+  user_id      String
+  token        String   @unique
+  /// 'android' today. iOS needs an Apple Developer account and an APNs key
+  /// before a token can mean anything there, so nothing else is written yet.
+  platform     String   @default("android")
+  created_at   DateTime @default(now())
+  /// Bumped on each registration/refresh. A token idle for months is a
+  /// phone that uninstalled without telling us.
+  last_seen_at DateTime @default(now())
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
 }

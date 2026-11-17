@@ -30,9 +30,9 @@ export interface VersionPolicy {
 
 /** The launch build (1.0.13 / versionCode 14). Nothing below it ever shipped. */
 const DEFAULT_MIN_VERSION_CODE = 14;
-/** The build this image was released beside (1.0.21 / versionCode 22). */
-const DEFAULT_LATEST_VERSION_CODE = 22;
-const DEFAULT_LATEST_VERSION_NAME = '1.0.21';
+/** The build this image was released beside (1.0.22 / versionCode 23). */
+const DEFAULT_LATEST_VERSION_CODE = 23;
+const DEFAULT_LATEST_VERSION_NAME = '1.0.22';
 const DEFAULT_STORE_URL =
   'https://play.google.com/store/apps/details?id=ai.okuvu.app';
 

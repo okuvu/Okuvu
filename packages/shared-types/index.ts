@@ -1015,6 +1015,98 @@ export const CLIENT_EMAIL_BODY =
 
 export const CLIENT_EMAIL_FOOTER = 'Pause these emails'
 
+// ---------------------------------------------------------------------------
+// Push copy — the lock screen is a public surface.
+//
+// An inbox row is written for a screen the client chose to open. A push lands on
+// a phone lying face up on a shared table, so nothing here repeats the stored
+// row: no homework title, no therapist name, no session reason, no mode, no
+// assessment score. Logistics and a pointer only.
+//
+// The stored `Notification.title` / `.body` stay exactly as they are — the app's
+// inbox copy is the clinical wording and does not change because a sender was
+// added. Generic text is a property of the sender, not of the row, which is also
+// what keeps the mail/push provider a minimal-data sub-processor.
+//
+// A broadcast (admin → everyone) is its own class with its own words and its own
+// switch: a service note or a greeting must never be able to buzz a client with
+// something that reads like a therapist's clinical message.
+// ---------------------------------------------------------------------------
+
+/** Kinds an admin may broadcast to the whole client population. */
+export const BROADCAST_KINDS = ['service_update', 'festival_greeting'] as const
+export type BroadcastKind = (typeof BROADCAST_KINDS)[number]
+
+/**
+ * Generic push for every therapist-side kind. Deliberately identical for all of
+ * them: distinguishing "homework" from "a session change" on a lock screen is
+ * already more than a stranger needs to know.
+ */
+export const PUSH_CARE_TEAM_TITLE = 'Something new from your care team'
+export const PUSH_CARE_TEAM_BODY = 'Open OKUVU to see it.'
+
+/** Appointment pushes carry the time and nothing else. */
+export const PUSH_APPOINTMENT_TITLE = 'Your session'
+
+/** Broadcast class — never clinical, never a therapist's words. */
+export const PUSH_BROADCAST_TITLE = 'News from OKUVU'
+export const PUSH_BROADCAST_BODY = 'Tap to read the latest from OKUVU.'
+
+export interface PushCopy {
+  title: string
+  body: string
+}
+
+/**
+ * The one place a push body is chosen. The api builds it server-side from the
+ * kind, so the portal cannot inject arbitrary text onto a lock screen over the
+ * internal hop — the most it can do is name a kind.
+ *
+ * `appointmentAt` is passed as a Date rather than parsed from row prose for the
+ * same reason the email sender gets it: the row stores a sentence, and re-parsing
+ * copy for a time is how a session ends up announced at the wrong hour.
+ */
+export function buildPushCopy(
+  kind: string,
+  options: { appointmentAt?: Date | null } = {},
+): PushCopy {
+  if (kind === 'appointment_booked' || kind === 'appointment_rescheduled') {
+    const at = options.appointmentAt
+    return {
+      title: PUSH_APPOINTMENT_TITLE,
+      body: at ? `Your session is on ${formatPushAppointment(at)}.` : PUSH_CARE_TEAM_BODY,
+    }
+  }
+
+  if (kind === 'appointment_cancelled') {
+    return { title: PUSH_APPOINTMENT_TITLE, body: 'Your care team has an update about a session.' }
+  }
+
+  if (kind === 'service_update' || kind === 'festival_greeting') {
+    return { title: PUSH_BROADCAST_TITLE, body: PUSH_BROADCAST_BODY }
+  }
+
+  return { title: PUSH_CARE_TEAM_TITLE, body: PUSH_CARE_TEAM_BODY }
+}
+
+/**
+ * "Fri 20 Nov, 4:30 pm" in IST — the same fixed offset used everywhere else in
+ * this package, because the alpine api image may have no tz database and a
+ * missing zone renders UTC (90 minutes late) without erroring.
+ */
+export function formatPushAppointment(date: Date): string {
+  const shifted = new Date(date.getTime() + 330 * 60 * 1000)
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  let hour = shifted.getUTCHours()
+  const minute = shifted.getUTCMinutes()
+  const meridiem = hour >= 12 ? 'pm' : 'am'
+  hour = hour % 12 === 0 ? 12 : hour % 12
+  const padded = minute.toString().padStart(2, '0')
+  return `${days[shifted.getUTCDay()]} ${shifted.getUTCDate()} ${months[shifted.getUTCMonth()]}, ${hour}:${padded} ${meridiem}`
+}
+
+
 
 /** One stored row, as the app receives it. */
 export interface NotificationDto {

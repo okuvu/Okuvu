@@ -45,8 +45,8 @@ describe('GET /app/version', () => {
 
     expect(body).toEqual({
       minimumSupportedVersionCode: 14,
-      latestVersionCode: 22,
-      latestVersionName: '1.0.21',
+      latestVersionCode: 23,
+      latestVersionName: '1.0.22',
       storeUrl: 'https://play.google.com/store/apps/details?id=ai.okuvu.app',
     });
     await app.close();
@@ -81,6 +81,8 @@ describe('GET /app/version', () => {
       await app.inject({ method: 'GET', url: '/app/version' })
     ).json();
 
+    // The env override sets the newest build to 22, so the floor clamps to 22
+    // rather than to a shipped default the deployment has moved past.
     expect(body.minimumSupportedVersionCode).toBe(22);
     expect(body.latestVersionCode).toBe(22);
     await app.close();
@@ -97,7 +99,7 @@ describe('GET /app/version', () => {
     ).json();
 
     expect(body.minimumSupportedVersionCode).toBe(14);
-    expect(body.latestVersionCode).toBe(22);
+    expect(body.latestVersionCode).toBe(23);
     await app.close();
   });
 });

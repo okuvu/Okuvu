@@ -7,6 +7,7 @@ import 'websocket_service.dart';
 import 'auth_service.dart';
 import 'dio_client.dart';
 import 'auth_interceptor.dart';
+import 'push_service.dart';
 import 'tts_service.dart';
 import 'speech_service.dart';
 import 'analytics_service.dart';
@@ -64,6 +65,15 @@ final dioClientProvider = Provider<Dio>((ref) {
   dio.interceptors
       .add(AuthInterceptor(ref.read(authServiceProvider), dio.options));
   return dio;
+});
+
+/// The handset half of push. Built on the same authenticated Dio client every
+/// other call uses, so `/devices` carries the client's own token and cannot be
+/// pointed at another account.
+final pushServiceProvider = Provider<PushService>((ref) {
+  final service = PushService(api: ref.read(dioClientProvider));
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 final connectivityProvider = StreamProvider<bool>((ref) {
@@ -178,7 +188,8 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _onAgentTurn(AgentTurnFrame frame) {
-    if (frame.turnId != null && state.messages.any((m) => m.id == frame.turnId)) {
+    if (frame.turnId != null &&
+        state.messages.any((m) => m.id == frame.turnId)) {
       return;
     }
 
