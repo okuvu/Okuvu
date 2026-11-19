@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1156.0",
+    "@aws-sdk/client-sqs": "^3.1156.0",
     "@okuvu/prisma": "workspace:*",
     "@okuvu/shared-types": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",

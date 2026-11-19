@@ -88,3 +88,49 @@ export function resolveEmbeddingDimensions(): number {
   }
   return parsed;
 }
+
+/**
+ * SQS queue this worker *consumes* summary jobs from (A6 in
+ * docs/AWS-MIGRATION-PLAN.md — the consumer that replaced the Cloud Tasks OIDC
+ * HTTP endpoint).
+ *
+ * Same two accepted names as `apps/api/src/lib/provider-config.ts`, because
+ * both sides must agree on one queue: `SQS_SUMMARY_QUEUE_URL` is what
+ * `infrastructure/aws/evia-beta/ecs.tf` injects through
+ * `local.shared_environment` (api and worker share that block), and
+ * `SQS_QUEUE_URL` is the documented name in the env template. Reading only one
+ * of them is how a deployed worker ends up polling nothing while the api
+ * happily enqueues — the exact failure this consumer exists to fix.
+ *
+ * Returns `undefined` when unset so the caller can log a named verdict instead
+ * of throwing at import time; a bad *value* throws, because that is a
+ * misconfiguration the operator has to see.
+ */
+export function resolveSqsQueueUrl(): string | undefined {
+  // First *non-empty* of the two accepted names. An env var set to "" (the
+  // shape `vi.stubEnv` and some ECS definitions produce) must fall through to
+  // the next name instead of counting as "configured but empty", which would
+  // disable the consumer silently — the precise failure this file exists to end.
+  const raw = [process.env.SQS_QUEUE_URL, process.env.SQS_SUMMARY_QUEUE_URL].find(
+    (value) => value !== undefined && value.trim() !== '',
+  );
+  if (raw === undefined) return undefined;
+
+  const url = raw.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`SQS_QUEUE_URL="${url}" is not a valid URL.`);
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error(`SQS_QUEUE_URL="${url}" must be an http(s) URL.`);
+  }
+  if (parsed.pathname.replace(/^\/+/, '') === '') {
+    throw new Error(
+      `SQS_QUEUE_URL="${url}" is missing the queue name path segment (expected .../123456789012/queue-name).`,
+    );
+  }
+  return url;
+}

@@ -26,6 +26,11 @@ const LOCAL_DEV_BYPASS_AUTH = process.env.LOCAL_DEV_BYPASS_AUTH;
 checkProductionBypass(NODE_ENV, LOCAL_DEV_BYPASS_AUTH);
 
 import { buildApp } from './app.js';
+import {
+  createSummaryConsumer,
+  setActiveSummaryConsumer,
+  type SummaryJobConsumer,
+} from './lib/summary-consumer.js';
 
 async function checkDatabaseConnection(): Promise<void> {
   const { getPrisma } = await import('./lib/prisma.js');
@@ -33,6 +38,7 @@ async function checkDatabaseConnection(): Promise<void> {
 }
 
 let app: ReturnType<typeof buildApp> | undefined;
+let summaryConsumer: SummaryJobConsumer | null = null;
 
 async function main() {
   app = buildApp();
@@ -51,11 +57,34 @@ async function main() {
   }
 
   await app.listen({ port: PORT, host: HOST });
+
+  // A6: the worker is the *consumer* of summary jobs. Starting the poll loop
+  // after `listen` means the api's boot probe (assertWorkerReachable) can never
+  // be blocked by an SQS endpoint that is slow or throttling: `/health` is
+  // answering before the first long poll begins.
+  //
+  // A null here is not fatal — the worker still serves `/health`,
+  // `/tasks/summary` (local dev bypass, test harness) and the cleanup routes —
+  // but it is logged as a warning naming the reason, because a worker that
+  // answers health while consuming nothing is the exact state that hid this
+  // bug for the whole beta.
+  summaryConsumer = createSummaryConsumer(app.log);
+  if (summaryConsumer) {
+    setActiveSummaryConsumer(summaryConsumer);
+    await summaryConsumer.start();
+  }
 }
 
 process.on('SIGTERM', async () => {
   if (app) {
     app.log.info('SIGTERM received, shutting down gracefully...');
+  }
+  // Stop polling first, then disconnect: an in-flight summary must be allowed
+  // to finish while Prisma is still connected, otherwise the row it is writing
+  // fails and the message is redelivered for nothing.
+  if (summaryConsumer) {
+    await summaryConsumer.stop().catch(() => undefined);
+    setActiveSummaryConsumer(null);
   }
   const { getPrisma } = await import('./lib/prisma.js');
   await getPrisma().$disconnect();
