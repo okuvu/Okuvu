@@ -22,6 +22,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
+# Non-TS assets: tsc compiles only TypeScript, and memory-extraction reads its
+# prompt template from dist/prompts at runtime. Without this the worker logs
+# `ENOENT .../dist/prompts/memory-extraction-v2.0.txt` for every summary and
+# silently skips the memory/continuity step (caught, so the summary itself still
+# succeeds — which is why it went unnoticed).
+COPY --from=builder /app/apps/worker/src/prompts ./apps/worker/dist/prompts
 COPY --from=builder /app/apps/worker/node_modules ./apps/worker/node_modules
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
