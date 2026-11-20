@@ -436,27 +436,34 @@ model TherapistClient {
   /// added" action; `invite_sent_at` is the email that follows it.
   tester_access_added_at DateTime?
   invite_sent_at         DateTime?
-  /// OKUVU v2.0: client's consent for this therapist to view raw chat
-  /// content (vs. summaries only). Defaults false (opt-in). Enforced on
-  /// Report Card, Session Prep, and clients.detail's careReviewFlagged.
-  /// Settable via admin.assignClient's Add-Client flow (an admin/therapist
-  /// attestation that consent was obtained out-of-band — there is still no
-  /// client-facing consent UI). Field name matches
-  /// docs/okuvu-v2.0/01-parity-audit-v1.md's own proposal.
-  chat_access_granted Boolean @default(false)
-  /// Therapist-portal wireframes: set when the therapist clicks "Request
-  /// chat access" (clients.requestChatAccess). Cleared by the client's own
-  /// grant/deny via PATCH /users/me/chat-access. Null = never requested.
-  chat_access_requested_at DateTime?
-  /// When the CLIENT approved the request above. The 30-day read-only window
-  /// is measured from this timestamp, not from the ask — an ask the client
-  /// never answered opens nothing (see clients.ts#chatAccessWindow).
-  chat_access_granted_at DateTime?
+  /// The CLIENT's consent for this therapist to read session SUMMARIES — the
+  /// themes, emotional state, homework progress and open loops Worker 05
+  /// writes — and nothing else. Raw conversation is never readable by a
+  /// therapist on any surface: there is no transcript route, no transcript
+  /// page, and no column that opens one.
+  /// Renamed from chat_access_granted (2026-11): the app has always shown this
+  /// as "Chat summaries", while the portal had started reading it as
+  /// permission to show messages. Summaries are strictly less than that, so
+  /// narrowing the column kept every grant honest instead of revoking a
+  /// consent no client had withdrawn.
+  /// Only the client ever writes it, via PATCH /users/me/summary-access. The
+  /// portal can ask (requestSummaryAccess) and can never set this — a
+  /// therapist-side attestation of consent is not consent.
+  summary_access_granted Boolean @default(false)
+  /// Therapist-portal wireframes: set when the therapist clicks "Ask to read
+  /// summaries" (clients.requestSummaryAccess). Cleared by the client's own
+  /// grant/deny via PATCH /users/me/summary-access. Null = never requested.
+  summary_access_requested_at DateTime?
+  /// When the CLIENT approved the request above. The 30-day read window is
+  /// measured from this timestamp, not from the ask — an ask the client never
+  /// answered opens nothing, and neither does a flag an operator set without
+  /// it (see clients.ts#summaryAccessWindow).
+  summary_access_granted_at DateTime?
   /// When the window closed: the client revoked, or the migration that made
   /// approval mandatory closed a window that had only ever been asked for.
   /// The window is half-open on [granted_at, min(granted_at+30d,
   /// closed_at)) — a closed_at in the past closes it immediately.
-  chat_access_closed_at  DateTime?
+  summary_access_closed_at  DateTime?
   /// Status lifecycle (wireframes C-07/C-08) is DERIVED, not stored, from
   /// created_at/activated_at/ended_at — see clients.ts's deriveStatus() —
   /// to avoid a redundant field that can drift from the timestamps.
@@ -649,7 +656,7 @@ model ClinicalAccessLog {
 /// creation time, not a recurrence-rule field. Reschedule creates a NEW
 /// row with rescheduled_from pointing back and sets the old row's
 /// cancelled_at (superseded, never deleted). Not gated on
-/// chat_access_granted — appointment logistics aren't raw chat content.
+/// summary_access_granted — appointment logistics aren't session content.
 /// remind_24h/remind_1h are stored but not acted on yet (no push/SMS
 /// infra exists anywhere — see okuvu-remaining-changes.md), matching the
 /// wireframe's own "infra incomplete" annotation.

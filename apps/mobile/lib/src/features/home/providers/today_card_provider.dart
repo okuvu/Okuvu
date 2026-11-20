@@ -23,33 +23,33 @@ class TodayCardReminder {
   }
 }
 
-class PendingChatAccessRequest {
+class PendingSummaryAccessRequest {
   final String therapistId;
   final String? therapistName;
 
-  const PendingChatAccessRequest({required this.therapistId, this.therapistName});
+  const PendingSummaryAccessRequest({required this.therapistId, this.therapistName});
 
-  factory PendingChatAccessRequest.fromJson(Map<String, dynamic> json) {
-    return PendingChatAccessRequest(
+  factory PendingSummaryAccessRequest.fromJson(Map<String, dynamic> json) {
+    return PendingSummaryAccessRequest(
       therapistId: json['therapistId'] as String,
       therapistName: json['therapistName'] as String?,
     );
   }
 }
 
-class TherapistChatAccess {
+class TherapistSummaryAccess {
   final String therapistId;
   final String? therapistName;
   final bool granted;
 
-  const TherapistChatAccess({
+  const TherapistSummaryAccess({
     required this.therapistId,
     this.therapistName,
     required this.granted,
   });
 
-  factory TherapistChatAccess.fromJson(Map<String, dynamic> json) {
-    return TherapistChatAccess(
+  factory TherapistSummaryAccess.fromJson(Map<String, dynamic> json) {
+    return TherapistSummaryAccess(
       therapistId: json['therapistId'] as String,
       therapistName: json['therapistName'] as String?,
       granted: json['granted'] as bool,
@@ -137,8 +137,8 @@ class TodayCardData {
   final String? homework;
   final List<TodayCardReminder> reminders;
   final String? quote;
-  final PendingChatAccessRequest? pendingChatAccessRequest;
-  final TherapistChatAccess? therapistChatAccess;
+  final PendingSummaryAccessRequest? pendingSummaryAccessRequest;
+  final TherapistSummaryAccess? therapistSummaryAccess;
   final AppointmentView? nextAppointment;
   final List<AssignedExercise> assignedExercises;
   final String defaultBoxBreathingPacePreset;
@@ -158,8 +158,8 @@ class TodayCardData {
     required this.homework,
     required this.reminders,
     required this.quote,
-    required this.pendingChatAccessRequest,
-    required this.therapistChatAccess,
+    required this.pendingSummaryAccessRequest,
+    required this.therapistSummaryAccess,
     required this.nextAppointment,
     required this.assignedExercises,
     required this.defaultBoxBreathingPacePreset,
@@ -172,8 +172,14 @@ class TodayCardData {
 
   factory TodayCardData.fromJson(Map<String, dynamic> json) {
     final rawReminders = json['reminders'] as List<dynamic>? ?? [];
-    final rawPending = json['pendingChatAccessRequest'] as Map<String, dynamic>?;
-    final rawChatAccess = json['therapistChatAccess'] as Map<String, dynamic>?;
+    // The api sends both the current keys and the pre-rename aliases
+    // (pendingChatAccessRequest / therapistChatAccess) for one release, so read
+    // the current key and fall back to the alias. That keeps a build working
+    // against an api that has not been redeployed yet.
+    final rawPending = (json['pendingSummaryAccessRequest'] ??
+        json['pendingChatAccessRequest']) as Map<String, dynamic>?;
+    final rawSummaryAccess = (json['therapistSummaryAccess'] ??
+        json['therapistChatAccess']) as Map<String, dynamic>?;
     final rawNextAppointment = json['nextAppointment'] as Map<String, dynamic>?;
     final rawAssignedExercises = json['assignedExercises'] as List<dynamic>? ?? [];
     return TodayCardData(
@@ -187,13 +193,13 @@ class TodayCardData {
       quote: json['quote'] as String?,
       // therapist-portal wireframes C-08 — null unless a therapist has
       // requested chat access and the client hasn't answered yet.
-      pendingChatAccessRequest:
-          rawPending != null ? PendingChatAccessRequest.fromJson(rawPending) : null,
+      pendingSummaryAccessRequest:
+          rawPending != null ? PendingSummaryAccessRequest.fromJson(rawPending) : null,
       // App wireframes T3 — current grant state regardless of pending
       // status, so Settings can offer a revoke toggle. Null only if the
       // client has no assigned therapist.
-      therapistChatAccess:
-          rawChatAccess != null ? TherapistChatAccess.fromJson(rawChatAccess) : null,
+      therapistSummaryAccess:
+          rawSummaryAccess != null ? TherapistSummaryAccess.fromJson(rawSummaryAccess) : null,
       // App wireframes A1 — the single soonest upcoming, non-cancelled
       // appointment. Null if nothing's booked.
       nextAppointment:
@@ -293,10 +299,10 @@ final toolPreferenceProvider = NotifierProvider<ToolPreferenceNotifier, void>(
   ToolPreferenceNotifier.new,
 );
 
-/// PATCH /users/me/chat-access — therapist-portal wireframes C-08. The
-/// first-ever client-facing write path for chat_access_granted; previously
+/// PATCH /users/me/summary-access — therapist-portal wireframes C-08. The
+/// first-ever client-facing write path for summary_access_granted; previously
 /// only settable via the portal's own admin attestation.
-class ChatAccessRequestNotifier extends Notifier<void> {
+class SummaryAccessRequestNotifier extends Notifier<void> {
   @override
   void build() {}
 
@@ -304,7 +310,7 @@ class ChatAccessRequestNotifier extends Notifier<void> {
     final dio = ref.read(dioClientProvider);
     try {
       await dio.patch(
-        '/users/me/chat-access',
+        '/users/me/summary-access',
         data: {'therapist_id': therapistId, 'granted': granted},
       );
       ref.invalidate(todayCardProvider);
@@ -315,6 +321,6 @@ class ChatAccessRequestNotifier extends Notifier<void> {
   }
 }
 
-final chatAccessRequestProvider = NotifierProvider<ChatAccessRequestNotifier, void>(
-  ChatAccessRequestNotifier.new,
+final summaryAccessRequestProvider = NotifierProvider<SummaryAccessRequestNotifier, void>(
+  SummaryAccessRequestNotifier.new,
 );

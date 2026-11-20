@@ -210,7 +210,6 @@ export function AdminContent() {
   const [assignTherapistId, setAssignTherapistId] = useState('');
   const [assignPhone, setAssignPhone] = useState('');
   const [assignLanguageMode, setAssignLanguageMode] = useState('');
-  const [assignChatAccessGranted, setAssignChatAccessGranted] = useState(false);
   const [assignMsg, setAssignMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   const addTherapist = trpc.admin.addTherapist.useMutation({
@@ -231,13 +230,12 @@ export function AdminContent() {
         result.wasAlreadyAssigned
           ? {
               kind: 'ok',
-              text: `Client was already assigned to ${result.therapistEmail} — consent/language preference unchanged.`,
+              text: `Client was already assigned to ${result.therapistEmail} — language preference unchanged.`,
             }
           : { kind: 'ok', text: `Assigned client to ${result.therapistEmail}.` },
       );
       setAssignPhone('');
       setAssignLanguageMode('');
-      setAssignChatAccessGranted(false);
       await therapistsQuery.refetch();
     },
     onError: (err) => {
@@ -564,7 +562,6 @@ export function AdminContent() {
                     assignClient.mutate({
                       therapistId: assignTherapistId,
                       clientPhoneNumber: phone,
-                      chatAccessGranted: assignChatAccessGranted,
                       languageMode: assignLanguageMode ? (assignLanguageMode as 'english' | 'mirror') : undefined,
                     });
                   }}
@@ -627,20 +624,6 @@ export function AdminContent() {
                         <option value="mirror">Mirror (Hinglish)</option>
                       </select>
                     </div>
-                  </div>
-
-                  <div className="flex items-start gap-2">
-                    <input
-                      id="assign-consent"
-                      type="checkbox"
-                      checked={assignChatAccessGranted}
-                      onChange={(e) => setAssignChatAccessGranted(e.target.checked)}
-                      disabled={assignClient.isPending}
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-royal-purple focus:ring-violet disabled:opacity-60"
-                    />
-                    <label htmlFor="assign-consent" className="text-xs text-ink-soft">
-                      Client has given permission for their therapist to view raw chat content
-                    </label>
                   </div>
 
                   <div>
@@ -759,7 +742,7 @@ export function AdminContent() {
                                   {t.label}
                                   <span className="ml-1 text-ink-soft">
                                     ({t.activated ? 'active' : 'invited'}
-                                    {t.chatAccess ? ', chat access' : ''})
+                                    {t.summaryAccess ? ', summaries shared' : ''})
                                   </span>
                                 </div>
                               ))
@@ -923,7 +906,7 @@ export function AdminContent() {
                         <Td>
                           <StateChip state={row.state} />
                         </Td>
-                        <Td className="text-xs text-ink-soft">{row.chatAccess ? 'granted' : 'not granted'}</Td>
+                        <Td className="text-xs text-ink-soft">{row.summaryAccess ? 'shared' : 'not shared'}</Td>
                         <Td className="text-xs text-ink-soft">{formatDate(row.createdAt)}</Td>
                       </tr>
                     ))}

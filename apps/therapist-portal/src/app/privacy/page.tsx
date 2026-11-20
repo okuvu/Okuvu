@@ -23,7 +23,7 @@ import type { Metadata } from 'next';
  *                                apps/worker/src/routes/beta-retention.ts
  *   - deletion ................. apps/api/src/lib/account.ts
  *   - therapist access audit ... packages/prisma/schema.prisma (ClinicalAccessLog),
- *                                TherapistClient.chat_access_granted
+ *                                TherapistClient.summary_access_granted
  *
  * Do not add "clinically reviewed", certification, or compliance-badge claims
  * here. The last section states plainly what is still unconfirmed.
@@ -239,7 +239,7 @@ export default function PrivacyPolicyPage() {
                 ],
                 [
                   <strong key="g">Consent and safety records</strong>,
-                  'Whether you consented to safety monitoring and mood inference; changes to whether your therapist may see raw chat (versus summaries only); an audit log each time a therapist opens your record; and a safety/governance log recording which gate blocked or flagged model output, including the blocked text.',
+                  'Whether you consented to safety monitoring, mood inference and your therapist reading session summaries; an audit log each time a therapist opens your record; and a safety/governance log recording which gate blocked or flagged model output, including the blocked text.',
                   'Proving what you agreed to, honouring withdrawal of consent, and reviewing whether the safety system behaved correctly.',
                 ],
                 [
@@ -383,9 +383,10 @@ export default function PrivacyPolicyPage() {
             </p>
             <ul className="list-disc space-y-2 pl-5">
               <li>
-                <strong>Your therapist sees summaries by default — not your raw chat.</strong> Raw
-                chat is visible only if you switch it on, and you can switch it off again at any
-                time. The setting is stored per therapist relationship and enforced on the server,
+                <strong>Your therapist sees summaries — never your messages.</strong> They can read
+                the themes, homework progress and open questions a session produced, and only after
+                you switch that on for them. There is no setting anywhere that shows anyone your raw
+                chat. The setting is stored per therapist relationship and enforced on the server,
                 not just hidden in the interface.
               </li>
               <li>
@@ -583,8 +584,8 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>
                 <strong>Withdraw consent</strong> at any time — for safety monitoring, mood
-                inference, or your therapist seeing raw chat — without losing access to the parts of
-                the service that do not need that consent;
+                inference, or your therapist reading session summaries — without losing access to
+                the parts of the service that do not need that consent;
               </li>
               <li>
                 <strong>Nominate</strong> someone to exercise these rights on your behalf if you die

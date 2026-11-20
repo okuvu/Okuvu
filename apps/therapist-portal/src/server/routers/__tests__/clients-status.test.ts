@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveClientStatus, chatAccessState } from '../clients';
+import { deriveClientStatus, summaryAccessState } from '../clients';
 
 /**
  * Portal P0 — the invite/relationship lifecycle the Dashboard's Last-active
@@ -80,16 +80,16 @@ describe('deriveClientStatus', () => {
  * The consent line on Page 2 renders this value, and the read gate uses the
  * same window — so the sentence and the permission cannot drift apart.
  */
-describe('chatAccessState', () => {
+describe('summaryAccessState', () => {
   const DAY = 24 * 60 * 60 * 1000;
 
   it('is not_requested when the therapist never asked', () => {
-    expect(chatAccessState(null)).toEqual({ state: 'not_requested' });
+    expect(summaryAccessState(null)).toEqual({ state: 'not_requested' });
     expect(
-      chatAccessState({
-        chat_access_requested_at: null,
-        chat_access_granted_at: null,
-        chat_access_closed_at: null,
+      summaryAccessState({
+        summary_access_requested_at: null,
+        summary_access_granted_at: null,
+        summary_access_closed_at: null,
       }),
     ).toEqual({ state: 'not_requested' });
   });
@@ -97,23 +97,23 @@ describe('chatAccessState', () => {
   it('is waiting_for_client after a request the client has not answered', () => {
     const requestedAt = new Date('2026-11-01T09:00:00Z');
     expect(
-      chatAccessState({
-        chat_access_requested_at: requestedAt,
-        chat_access_granted_at: null,
-        chat_access_closed_at: null,
+      summaryAccessState({
+        summary_access_requested_at: requestedAt,
+        summary_access_granted_at: null,
+        summary_access_closed_at: null,
       }),
     ).toEqual({ state: 'waiting_for_client', requestedAt: requestedAt.toISOString() });
   });
 
   it('is open for 30 days from the approval, not from the request', () => {
     const grantedAt = new Date('2026-11-01T09:00:00Z');
-    const state = chatAccessState(
+    const state = summaryAccessState(
       {
         // Asked two months ago, approved yesterday: the window follows the
         // approval.
-        chat_access_requested_at: new Date('2026-09-01T09:00:00Z'),
-        chat_access_granted_at: grantedAt,
-        chat_access_closed_at: null,
+        summary_access_requested_at: new Date('2026-09-01T09:00:00Z'),
+        summary_access_granted_at: grantedAt,
+        summary_access_closed_at: null,
       },
       grantedAt.getTime() + 2 * DAY,
     );
@@ -126,10 +126,10 @@ describe('chatAccessState', () => {
     const grantedAt = new Date('2026-11-01T09:00:00Z');
     const closedAt = new Date('2026-11-02T09:00:00Z');
     expect(
-      chatAccessState({
-        chat_access_requested_at: null,
-        chat_access_granted_at: grantedAt,
-        chat_access_closed_at: closedAt,
+      summaryAccessState({
+        summary_access_requested_at: null,
+        summary_access_granted_at: grantedAt,
+        summary_access_closed_at: closedAt,
       }),
     ).toEqual({
       state: 'closed',
@@ -140,11 +140,11 @@ describe('chatAccessState', () => {
 
   it('is closed once the 30 days have run out', () => {
     const grantedAt = new Date('2026-11-01T09:00:00Z');
-    const state = chatAccessState(
+    const state = summaryAccessState(
       {
-        chat_access_requested_at: null,
-        chat_access_granted_at: grantedAt,
-        chat_access_closed_at: null,
+        summary_access_requested_at: null,
+        summary_access_granted_at: grantedAt,
+        summary_access_closed_at: null,
       },
       grantedAt.getTime() + 31 * DAY,
     );

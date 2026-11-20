@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
-import type { ChatAccessState } from '@/server/routers/clients';
+import type { SummaryAccessState } from '@/server/routers/clients';
 
 interface ConsentChipProps {
   clientUserId: string;
@@ -12,7 +12,7 @@ interface ConsentChipProps {
    * clients.detail. It is the same value the read gate uses, so this chip
    * cannot claim an access that is not open.
    */
-  chatAccess: ChatAccessState;
+  summaryAccess: SummaryAccessState;
   moodShared: boolean;
 }
 
@@ -23,21 +23,22 @@ function formatDate(iso: string): string {
 }
 
 /**
- * Chat access, in plain words.
+ * Summary access, in plain words.
  *
  * The rule the therapist reads here is the rule the gate enforces: the
  * therapist asks, the CLIENT approves in the app, and a 30-day read-only
  * window runs from that approval. An unanswered request opens nothing, and a
  * revocation closes it immediately.
  *
- * (Page 2 replaces this chip with a one-line consent sentence; the component
- * survives on the Conversation page, where the request button belongs.)
+ * What it opens is session summaries only — never the conversation. There is
+ * no transcript page or route in the portal at all, so this chip is the whole
+ * of what a therapist can ask for.
  */
-export function ConsentChip({ clientUserId, clientLabel, chatAccess, moodShared }: ConsentChipProps) {
+export function ConsentChip({ clientUserId, clientLabel, summaryAccess, moodShared }: ConsentChipProps) {
   const utils = trpc.useUtils();
   const [justRequested, setJustRequested] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const requestChatAccess = trpc.clients.requestChatAccess.useMutation({
+  const requestSummaryAccess = trpc.clients.requestSummaryAccess.useMutation({
     onSuccess: () => {
       setJustRequested(true);
       setConfirming(false);
@@ -49,19 +50,19 @@ export function ConsentChip({ clientUserId, clientLabel, chatAccess, moodShared 
   });
 
   const askedRecently =
-    chatAccess.state === 'waiting_for_client' &&
-    Date.now() - new Date(chatAccess.requestedAt).getTime() < THIRTY_DAYS_MS;
+    summaryAccess.state === 'waiting_for_client' &&
+    Date.now() - new Date(summaryAccess.requestedAt).getTime() < THIRTY_DAYS_MS;
 
   const chatLabel =
-    chatAccess.state === 'open'
-      ? `open until ${formatDate(chatAccess.expiresAt)}`
-      : chatAccess.state === 'waiting_for_client' || justRequested
+    summaryAccess.state === 'open'
+      ? `open until ${formatDate(summaryAccess.expiresAt)}`
+      : summaryAccess.state === 'waiting_for_client' || justRequested
         ? 'waiting for the client'
-        : chatAccess.state === 'closed'
+        : summaryAccess.state === 'closed'
           ? 'closed'
           : 'not requested';
 
-  const canAsk = chatAccess.state === 'not_requested' || chatAccess.state === 'closed';
+  const canAsk = summaryAccess.state === 'not_requested' || summaryAccess.state === 'closed';
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg bg-oat px-3 py-2">
@@ -74,14 +75,14 @@ export function ConsentChip({ clientUserId, clientLabel, chatAccess, moodShared 
       <span className="text-gray-300">·</span>
       <span className="inline-flex items-center gap-1.5 text-xs text-gray-600">
         <span
-          className={`inline-block h-1.5 w-1.5 rounded-full ${chatAccess.state === 'open' ? 'bg-sage-deep' : 'bg-gray-300'}`}
+          className={`inline-block h-1.5 w-1.5 rounded-full ${summaryAccess.state === 'open' ? 'bg-sage-deep' : 'bg-gray-300'}`}
         />
-        chat access: {chatLabel}
+        session summaries: {chatLabel}
       </span>
       {canAsk && (
         <button
           type="button"
-          disabled={requestChatAccess.isPending || askedRecently || justRequested}
+          disabled={requestSummaryAccess.isPending || askedRecently || justRequested}
           onClick={() => setConfirming(true)}
           className="ml-auto text-xs font-medium text-royal-purple hover:underline disabled:cursor-not-allowed disabled:text-gray-500 disabled:no-underline"
         >
@@ -97,9 +98,9 @@ export function ConsentChip({ clientUserId, clientLabel, chatAccess, moodShared 
         >
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-lg">
             <p className="text-sm text-gray-800">
-              Ask {clientLabel} to share their chat? They get one quiet prompt in the app. Only
-              they can approve it, a read-only window of 30 days starts when they do, and they
-              can revoke it at any time.
+              Ask {clientLabel} to share their session summaries? They get one quiet prompt in
+              the app. Only they can approve it, a read-only window of 30 days starts when they
+              do, and they can revoke it at any time. Summaries only — never their messages.
             </p>
             <div className="mt-4 flex justify-end gap-3">
               <button
@@ -111,11 +112,11 @@ export function ConsentChip({ clientUserId, clientLabel, chatAccess, moodShared 
               </button>
               <button
                 type="button"
-                disabled={requestChatAccess.isPending}
-                onClick={() => requestChatAccess.mutate({ clientUserId })}
+                disabled={requestSummaryAccess.isPending}
+                onClick={() => requestSummaryAccess.mutate({ clientUserId })}
                 className="rounded-lg bg-violet px-3 py-1.5 text-sm font-medium text-white hover:bg-royal-purple disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {requestChatAccess.isPending ? 'Sending…' : 'Send request'}
+                {requestSummaryAccess.isPending ? 'Sending…' : 'Send request'}
               </button>
             </div>
           </div>

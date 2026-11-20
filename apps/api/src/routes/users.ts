@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
@@ -6,9 +6,10 @@ import { getTodayCard } from '../lib/today-card.js';
 import { completeHomework } from '../lib/homework.js';
 import { updateCarePlan, type CarePlanBody } from '../lib/care-plan.js';
 import { recordAgeAttestation } from '../lib/age-attestation.js';
+import { setSummaryAccess } from '../lib/summary-access.js';
 import type { UserConsent, CarePlanId, AssignmentState } from '@okuvu/shared-types';
 
-interface ChatAccessBody {
+interface SummaryAccessBody {
   therapist_id: string;
   granted: boolean;
 }
@@ -212,79 +213,58 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
     },
   });
 
-  // Therapist-portal wireframes — the first-ever CLIENT-facing write path
-  // for chat_access_granted. Previously this field was portal-attestation-
-  // only (set once at Add-Client time by the therapist/admin). This lets
-  // the client actually grant or deny a therapist's "Request chat access"
-  // themselves, closing the consent-model gap flagged earlier this session.
-  app.patch<{ Body: ChatAccessBody }>('/users/me/chat-access', {
+  // Summary access, decided by the client and nobody else.
+  //
+  // Until this change the client-facing switch (app: "Chat summaries") wrote
+  // the therapist's permission to read the raw conversation; closing that gap
+  // was the point. The column now means summaries only, and this route is the
+  // one place it is written. Registered on two paths on purpose: installed app
+  // builds PATCH /users/me/chat-access, and a server release must not break a
+  // phone that has not updated yet. The old path is a forwarding alias, not a
+  // second implementation.
+  const summaryAccessHandler = async (
+    request: FastifyRequest<{ Body: SummaryAccessBody }>,
+    reply: FastifyReply,
+  ) => {
+    const body = request.body;
+
+    if (typeof body?.therapist_id !== 'string' || typeof body?.granted !== 'boolean') {
+      return reply.status(400).send({
+        error: { code: 'INVALID_BODY', message: 'therapist_id (string) and granted (boolean) are required' },
+      });
+    }
+
+    const outcome = await setSummaryAccess(request.user.uid, body.therapist_id, body.granted);
+
+    if (outcome.status === 'no_user') {
+      return reply.status(401).send({
+        error: { code: 'UNAUTHORIZED', message: 'User not found' },
+      });
+    }
+
+    if (outcome.status === 'no_relationship') {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'No such therapist relationship' },
+      });
+    }
+
+    request.log.info(
+      { event: 'summary_access_updated', therapist_id: body.therapist_id, granted: body.granted },
+      'Client updated summary_access_granted',
+    );
+
+    reply.send({ success: true });
+  };
+
+  app.patch<{ Body: SummaryAccessBody }>('/users/me/summary-access', {
     preHandler: [verifyCognitoJWT],
-    handler: async (request, reply) => {
-      const { uid } = request.user;
-      const body = request.body;
+    handler: summaryAccessHandler,
+  });
 
-      if (typeof body?.therapist_id !== 'string' || typeof body?.granted !== 'boolean') {
-        return reply.status(400).send({
-          error: { code: 'INVALID_BODY', message: 'therapist_id (string) and granted (boolean) are required' },
-        });
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { auth_subject: uid },
-        select: { id: true },
-      });
-
-      if (!user) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'User not found' },
-        });
-      }
-
-      const assignment = await prisma.therapistClient.findUnique({
-        where: {
-          therapist_id_client_user_id: {
-            therapist_id: body.therapist_id,
-            client_user_id: user.id,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (!assignment) {
-        return reply.status(404).send({
-          error: { code: 'NOT_FOUND', message: 'No such therapist relationship' },
-        });
-      }
-
-      // Portal P0 — chat access is the client's decision, and the 30-day
-      // read window is measured from THIS approval (chat_access_granted_at),
-      // never from the therapist's ask. A request the client has not answered
-      // opens nothing. Revoking closes the window immediately
-      // (chat_access_closed_at), which the portal's read gate checks before
-      // the 30-day expiry.
-      await prisma.therapistClient.update({
-        where: { id: assignment.id },
-        data: body.granted
-          ? {
-              chat_access_granted: true,
-              chat_access_requested_at: null,
-              chat_access_granted_at: new Date(),
-              chat_access_closed_at: null,
-            }
-          : {
-              chat_access_granted: false,
-              chat_access_requested_at: null,
-              chat_access_closed_at: new Date(),
-            },
-      });
-
-      request.log.info(
-        { event: 'chat_access_updated', user_id: user.id, therapist_id: body.therapist_id, granted: body.granted },
-        'Client updated chat_access_granted',
-      );
-
-      reply.send({ success: true });
-    },
+  // Deprecated alias for app builds <= 1.0.22, which still call this path.
+  app.patch<{ Body: SummaryAccessBody }>('/users/me/chat-access', {
+    preHandler: [verifyCognitoJWT],
+    handler: summaryAccessHandler,
   });
 
   // §D user-confirmed homework completion. Product spec requires

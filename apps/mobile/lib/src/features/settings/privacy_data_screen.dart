@@ -45,7 +45,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const _ChatAccessSwitch(),
+                  const _SummaryAccessSwitch(),
                   _MoodProgressRow(
                     shared: consentState.moodInference,
                     theme: theme,
@@ -118,30 +118,30 @@ class PrivacyDataScreen extends ConsumerWidget {
 }
 
 /// App wireframes T3 — "Shared with your therapist: Chat summaries." The
-/// only client-side control for chat_access_granted that supports revoking,
-/// not just granting (the Home banner, PendingChatAccessBanner, only ever
+/// only client-side control for summary_access_granted that supports revoking,
+/// not just granting (the Home banner, PendingSummaryAccessBanner, only ever
 /// grants). Hidden entirely when the client has no assigned therapist.
-class _ChatAccessSwitch extends ConsumerStatefulWidget {
-  const _ChatAccessSwitch();
+class _SummaryAccessSwitch extends ConsumerStatefulWidget {
+  const _SummaryAccessSwitch();
 
   @override
-  ConsumerState<_ChatAccessSwitch> createState() => _ChatAccessSwitchState();
+  ConsumerState<_SummaryAccessSwitch> createState() => _SummaryAccessSwitchState();
 }
 
-class _ChatAccessSwitchState extends ConsumerState<_ChatAccessSwitch> {
+class _SummaryAccessSwitchState extends ConsumerState<_SummaryAccessSwitch> {
   bool _isUpdating = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final access = ref.watch(todayCardProvider).value?.therapistChatAccess;
+    final access = ref.watch(todayCardProvider).value?.therapistSummaryAccess;
 
     if (access == null) return const SizedBox.shrink();
 
     Future<void> respond(bool granted) async {
       setState(() => _isUpdating = true);
       final success = await ref
-          .read(chatAccessRequestProvider.notifier)
+          .read(summaryAccessRequestProvider.notifier)
           .respond(therapistId: access.therapistId, granted: granted);
       if (!mounted) return;
       setState(() => _isUpdating = false);
@@ -155,7 +155,9 @@ class _ChatAccessSwitchState extends ConsumerState<_ChatAccessSwitch> {
     return _ConsentSwitch(
       icon: LucideIcons.messagesSquare,
       title: 'Chat summaries',
-      subtitle: 'See the themes from what you discuss.',
+      // The same sentence the request banner uses, so the client reads one
+      // promise in both places: summaries are themes, never messages.
+      subtitle: 'It means the themes you two talk about — not your messages.',
       value: access.granted,
       onChanged: _isUpdating ? null : respond,
       theme: theme,

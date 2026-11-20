@@ -58,37 +58,42 @@ export function startOfIstDay(date: Date = new Date()): Date {
 }
 
 /**
- * How long a client's chat-access approval opens their transcript to the
- * therapist. Defined here, once, because two surfaces enforce it: the
- * therapist portal's conversation gate (server) and the client's own
+ * How long a client's approval opens their session SUMMARIES to the therapist.
+ * Defined here, once, because three surfaces enforce it: the portal's Session
+ * Prep, Report Card and client-profile gates (server), and the client's own
  * "Chat summaries" switch (mobile, via the today card). When they disagreed,
- * the app said "Shared" while every transcript read was refused.
+ * the app said "Shared" while every read was refused.
+ *
+ * What it opens is Worker 05's SessionSummary and nothing else. It never opened
+ * the conversation — the portal's transcript route was removed on 2026-11-19,
+ * because the client-facing switch has always promised summaries, "not your
+ * messages".
  */
-export const CHAT_ACCESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+export const SUMMARY_ACCESS_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 /**
  * The open read window, or null.
  *
  * A window exists only because the client approved it, and it runs from that
- * approval — not from the therapist's request. `chat_access_closed_at` (a
+ * approval — not from the therapist's request. `summary_access_closed_at` (a
  * revocation) ends it immediately, whatever the 30 days say. Boundary:
  * exactly 30 days has expired — the window is half-open.
  *
  * Pass the four fields explicitly rather than a Prisma row, so the api and
  * the portal can share this without sharing a database type.
  */
-export function chatAccessWindow(
+export function summaryAccessWindow(
   assignment: {
-    chat_access_granted_at: Date | null
-    chat_access_closed_at: Date | null
+    summary_access_granted_at: Date | null
+    summary_access_closed_at: Date | null
   } | null,
   now: number = Date.now(),
 ): { grantedAt: Date; expiresAt: Date } | null {
-  const grantedAt = assignment?.chat_access_granted_at
+  const grantedAt = assignment?.summary_access_granted_at
   if (!grantedAt) return null
-  if (assignment?.chat_access_closed_at) return null
-  if (now - grantedAt.getTime() >= CHAT_ACCESS_WINDOW_MS) return null
-  return { grantedAt, expiresAt: new Date(grantedAt.getTime() + CHAT_ACCESS_WINDOW_MS) }
+  if (assignment?.summary_access_closed_at) return null
+  if (now - grantedAt.getTime() >= SUMMARY_ACCESS_WINDOW_MS) return null
+  return { grantedAt, expiresAt: new Date(grantedAt.getTime() + SUMMARY_ACCESS_WINDOW_MS) }
 }
 
 /**
@@ -549,12 +554,12 @@ export interface TodayCardReminder {
   toolLabel: string | null
 }
 
-export interface PendingChatAccessRequest {
+export interface PendingSummaryAccessRequest {
   therapistId: string
   therapistName: string | null
 }
 
-export interface TherapistChatAccess {
+export interface TherapistSummaryAccess {
   therapistId: string
   therapistName: string | null
   granted: boolean
@@ -639,9 +644,17 @@ export interface TodayCard {
   /** okuvu-remaining-changes.md O6 — placeholder content, opt-in, care-plan-aware. Null when disabled or no care plan yet. */
   quote: string | null
   /** Therapist-portal wireframes — set when a therapist has requested chat access and the client hasn't granted/denied yet. Null otherwise. */
-  pendingChatAccessRequest: PendingChatAccessRequest | null
+  pendingSummaryAccessRequest: PendingSummaryAccessRequest | null
   /** App wireframes T3 — current grant state regardless of pending-request status, so Settings can show a revoke toggle. Null only if the client has no assigned therapist. */
-  therapistChatAccess: TherapistChatAccess | null
+  therapistSummaryAccess: TherapistSummaryAccess | null
+  /**
+   * @deprecated Alias of `pendingSummaryAccessRequest`, sent for app builds
+   * <= 1.0.22 which still read this key on the Home banner. Both keys carry
+   * the same value; drop the alias once the installed base has updated.
+   */
+  pendingChatAccessRequest?: PendingSummaryAccessRequest | null
+  /** @deprecated Alias of `therapistSummaryAccess`. Same reason, same value. */
+  therapistChatAccess?: TherapistSummaryAccess | null
   /** App wireframes A1 — the single soonest upcoming, non-cancelled appointment. Null if none booked. */
   nextAppointment: AppointmentView | null
   /** Decisions doc round, 15 Sep 2026 §4 — active Homework rows with a tool_id link, i.e. real playable exercises (not just free-text homework). */

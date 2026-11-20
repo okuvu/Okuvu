@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { chatAccessWindow } from '@okuvu/shared-types';
+import { summaryAccessWindow } from '@okuvu/shared-types';
 import {
   assertClientAssigned,
   assertLiveLink,
@@ -116,10 +116,10 @@ export const reportCardRouter = router({
         // client's 30-day approval window had closed, and let a flag the
         // therapist set themselves stand in for the client's consent. The
         // window is computed by the one shared predicate the app also uses.
-        select: { chat_access_granted_at: true, chat_access_closed_at: true },
+        select: { summary_access_granted_at: true, summary_access_closed_at: true },
       });
 
-      const chatGranted = chatAccessWindow(assignment) !== null;
+      const chatGranted = summaryAccessWindow(assignment) !== null;
 
       // Since the last session if there was one, else the caller's window.
       const lastSession = await db.appointment.findFirst({
@@ -268,7 +268,7 @@ export const reportCardRouter = router({
 
 
   // "Report Card": homework + mood progress, therapist-only, gated on the
-  // client's chat_access_granted consent (first real consumer of that
+  // client's summary_access_granted consent (first real consumer of that
   // field — enforced here even though no consent-capture UI exists yet to
   // set it true, so every client shows "not granted" until that lands).
   reportCard: therapistProcedure
@@ -302,10 +302,10 @@ export const reportCardRouter = router({
         // client's 30-day approval window had closed, and let a flag the
         // therapist set themselves stand in for the client's consent. The
         // window is computed by the one shared predicate the app also uses.
-        select: { chat_access_granted_at: true, chat_access_closed_at: true },
+        select: { summary_access_granted_at: true, summary_access_closed_at: true },
       });
 
-      if (chatAccessWindow(assignment) === null) {
+      if (summaryAccessWindow(assignment) === null) {
         return { granted: false as const };
       }
 

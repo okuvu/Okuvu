@@ -173,7 +173,7 @@ export default function ClientDetailPage() {
           <ConsentChip
             clientUserId={clientId}
             clientLabel={clientLabel}
-            chatAccess={data.chatAccess}
+            summaryAccess={data.summaryAccess}
             moodShared={data.moodShared}
           />
 
@@ -183,29 +183,6 @@ export default function ClientDetailPage() {
           {/* Step 7 — a note for the client's own Treasure Box. The writer that
               makes the "Your therapist sent you something" update reachable. */}
           <TreasureNoteCard clientId={clientId} clientLabel={clientLabel} />
-
-          {/* E16-S9 — entry point to the read-only conversation view. The
-              page itself re-checks the 30-day chat-access window server
-              side, so this link is a doorway, not a permission. */}
-          <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                  CONVERSATION WITH AGENT
-                </h2>
-                <p className="mt-2 text-sm text-gray-700">
-                  Read what this client said to the agent and how it replied. Read-only, and
-                  only while a chat-access request you made is inside its 30-day window.
-                </p>
-              </div>
-              <Link
-                href={`/clients/${clientId}/conversation`}
-                className="shrink-0 text-sm font-medium text-royal-purple hover:underline"
-              >
-                Open conversation &rarr;
-              </Link>
-            </div>
-          </div>
 
           {/* Client overview card */}
           <div className="rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline">
@@ -293,7 +270,14 @@ export default function ClientDetailPage() {
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-4">
               LATEST SESSION SUMMARY
             </h2>
-            {summaryStatus === 'available' && data.summary?.summary_text ? (
+            {summaryStatus === 'not_shared' ? (
+              <div>
+                <p className="text-sm text-gray-500">
+                  {clientLabel} hasn&rsquo;t shared session summaries. Only they can agree, from
+                  Privacy &amp; Data in the app.
+                </p>
+              </div>
+            ) : summaryStatus === 'available' && data.summary?.summary_text ? (
               <div>
                 <p className="text-sm text-gray-700 leading-relaxed">
                   {summaryNarrative(data.summary.summary_text)}

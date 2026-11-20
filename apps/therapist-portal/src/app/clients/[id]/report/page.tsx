@@ -118,7 +118,7 @@ export default function ClientReportPage() {
               </div>
             ) : sessionPrepQuery.data && !sessionPrepQuery.data.chatGranted ? (
               <div className="rounded-lg bg-honey-tint p-4 text-center">
-                <p className="text-sm text-honey-deep">Client hasn&rsquo;t granted chat access yet.</p>
+                <p className="text-sm text-honey-deep">Client hasn&rsquo;t shared session summaries yet.</p>
                 <p className="mt-1 text-xs text-honey-deep">
                   Chat summaries appear here once the client opts in. Anything shown above is there
                   because the client shared it.
@@ -156,8 +156,8 @@ export default function ClientReportPage() {
               REPORT CARD
             </h2>
             <p className="text-xs text-gray-500 mb-4">
-              Homework progress and mood trend, permission-gated on the client&rsquo;s chat-access
-              consent.
+              Homework progress and mood trend, permission-gated on the client&rsquo;s consent to
+              share session summaries.
             </p>
 
             {reportCardQuery.isLoading ? (
@@ -166,7 +166,7 @@ export default function ClientReportPage() {
               </div>
             ) : reportCardQuery.data && !reportCardQuery.data.granted ? (
               <div className="rounded-lg bg-honey-tint p-4 text-center">
-                <p className="text-sm text-honey-deep">Client hasn&rsquo;t granted chat access yet.</p>
+                <p className="text-sm text-honey-deep">Client hasn&rsquo;t shared session summaries yet.</p>
                 <p className="mt-1 text-xs text-honey-deep">
                   Report Card data becomes available once the client opts in.
                 </p>
@@ -175,7 +175,7 @@ export default function ClientReportPage() {
               <div className="space-y-4">
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-2">
-                    Signals (last 30 days &mdash; from the client&rsquo;s chat, not therapist-reported)
+                    Signals (last 30 days &mdash; from the client&rsquo;s sessions, not therapist-reported)
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700">

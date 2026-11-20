@@ -197,7 +197,7 @@ export const adminRouter = router({
             select: {
               activated_at: true,
               ended_at: true,
-              chat_access_granted: true,
+              summary_access_granted: true,
               // Portal P0 — the invite handover: the console shows "mark tester
               // access added" until tester_access_added_at is set, and "invited"
               // only once the email actually went out.
@@ -229,7 +229,7 @@ export const adminRouter = router({
             id: a.therapist.id,
             label: a.therapist.name ?? a.therapist.email,
             activated: a.activated_at !== null,
-            chatAccess: a.chat_access_granted,
+            summaryAccess: a.summary_access_granted,
             testerAccessAdded: a.tester_access_added_at !== null,
             inviteSent: a.invite_sent_at !== null,
           })),
@@ -252,7 +252,7 @@ export const adminRouter = router({
         created_at: true,
         activated_at: true,
         ended_at: true,
-        chat_access_granted: true,
+        summary_access_granted: true,
         therapist: { select: { id: true, name: true, email: true } },
         client: { select: { id: true, full_name: true, email: true, phone_number: true } },
       },
@@ -267,7 +267,7 @@ export const adminRouter = router({
       createdAt: row.created_at.toISOString(),
       activatedAt: row.activated_at?.toISOString() ?? null,
       endedAt: row.ended_at?.toISOString() ?? null,
-      chatAccess: row.chat_access_granted,
+      summaryAccess: row.summary_access_granted,
       state: row.ended_at
         ? ('ended' as const)
         : row.activated_at
@@ -470,18 +470,21 @@ export const adminRouter = router({
       return { id: therapist.id, email: therapist.email, name: therapist.name };
     }),
 
-  // okuvu-remaining-changes.md — Add-Client flow + consent capture. Captures
-  // chat_access_granted and an optional language-mode default at assignment
-  // time, since neither had any producer before this. `chatAccessGranted` is
-  // an admin/therapist attestation that consent was obtained (e.g. verbally
-  // or on an intake form) — there is still no client-facing UI for this, by
-  // design (see docs/okuvu-v2.0/05-therapist-portal-spec-v0.4-amendments.md).
+  // okuvu-remaining-changes.md — Add-Client flow. Captures an optional
+  // language-mode default at assignment time.
+  //
+  // It deliberately does NOT capture summary access any more. This form used to
+  // carry a "client has given permission" checkbox that wrote
+  // summary_access_granted, i.e. the therapist (or an operator) recorded the
+  // client's consent for them — and because the read gates now measure the
+  // window from summary_access_granted_at, that flag never opened anything
+  // anyway. Consent is the client's own tap in the app, via PATCH
+  // /users/me/summary-access; the portal's only move is clients.requestSummaryAccess.
   assignClient: adminMutation
     .input(
       z.object({
         therapistId: z.string().min(1),
         clientPhoneNumber: z.string().trim().regex(PHONE_REGEX, 'clientPhoneNumber must be in E.164 format (e.g. +1234567890)'),
-        chatAccessGranted: z.boolean(),
         languageMode: z.enum(['english', 'mirror']).optional(),
       }),
     )
@@ -521,8 +524,7 @@ export const adminRouter = router({
 
       // `update: {}` is deliberate: re-running this form against an
       // already-assigned client must never silently overwrite (or revoke)
-      // previously-recorded consent. Consent is only ever set on first
-      // assignment; changing it later needs its own dedicated action.
+      // anything about the existing relationship.
       await ctx.db.therapistClient.upsert({
         where: {
           therapist_id_client_user_id: {
@@ -534,7 +536,6 @@ export const adminRouter = router({
         create: {
           therapist_id: therapist.id,
           client_user_id: client.id,
-          chat_access_granted: input.chatAccessGranted,
           // Portal P0 — NOT NULL. The console has no "label" field of its own,
           // so the legal name it already collected is the therapist's own
           // record of who this is; that is exactly what client_label means.
@@ -598,7 +599,6 @@ export const adminRouter = router({
       z.object({
         therapistId: z.string().min(1),
         clientUserId: z.string().min(1),
-        chatAccessGranted: z.boolean().default(false),
         languageMode: z.enum(['english', 'mirror']).optional(),
       }),
     )
@@ -634,7 +634,8 @@ export const adminRouter = router({
           data: {
             therapist_id: therapist.id,
             client_user_id: client.id,
-            chat_access_granted: input.chatAccessGranted,
+            // No consent column: only the client writes summary access, and
+            // this account's approval timestamp is what every read gate uses.
             client_label: client.full_name ?? client.email ?? client.id,
           },
         });

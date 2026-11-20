@@ -25,11 +25,11 @@ BEGIN;
 
 -- 1. The assignment. activated_at is derived, not invented: it is the client's
 --    own first session start, which is the same signal the mobile app sets it
---    from (markClientActivatedIfNeeded). chat_access_requested_at stays NULL —
+--    from (markClientActivatedIfNeeded). summary_access_requested_at stays NULL —
 --    the therapist requests access through the real portal mutation, which is
 --    the behaviour E16-S9 is supposed to exercise.
 INSERT INTO "TherapistClient"
-  (id, therapist_id, client_user_id, created_at, chat_access_granted, activated_at, ended_at)
+  (id, therapist_id, client_user_id, created_at, summary_access_granted, activated_at, ended_at)
 SELECT
   'b16c0000-0000-4000-8000-0000000000a0',
   th.id,
