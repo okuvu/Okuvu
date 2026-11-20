@@ -24,6 +24,7 @@ import '../features/settings/privacy_screen.dart';
 import '../features/settings/account_deletion_screen.dart';
 import '../features/settings/emergency_contact_screen.dart';
 import '../features/settings/privacy_data_screen.dart';
+import '../features/settings/session_sharing_screen.dart';
 import '../features/settings/language_screen.dart';
 import '../features/journal/journal_screen.dart';
 import '../features/journal/journal_list_screen.dart';
@@ -267,6 +268,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'privacy',
             builder: (context, state) => const PrivacyDataScreen(),
+          ),
+          GoRoute(
+            path: 'session-sharing',
+            builder: (context, state) => const SessionSharingScreen(),
           ),
           GoRoute(
             path: 'my-data',

@@ -1,8 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
-  CHAT_ACCESS_WINDOW_MS as CHAT_ACCESS_WINDOW_MS_SHARED,
-  chatAccessWindow,
+  SUMMARY_ACCESS_WINDOW_MS as SUMMARY_ACCESS_WINDOW_MS_SHARED,
+  sharedSummaryWhere,
+  summaryAccessWindow,
 } from "@okuvu/shared-types";
 import { sendAdminTesterRequestEmail, sendClientInviteEmail } from "@/lib/email";
 import {
@@ -58,38 +59,21 @@ export function deriveClientStatus(row: {
 }
 
 /**
- * E16-S9 / Portal P0 — the read window for a client's raw conversation.
+ * Portal P0 — the read window for a client's session SUMMARIES.
  *
- * The window exists ONLY because the client approved it. It runs 30 days
- * from that approval (`chat_access_granted_at`), never from the therapist's
+ * The window exists ONLY because the client approved it. It runs 30 days from
+ * that approval (`summary_access_granted_at`), never from the therapist's
  * request: a request nobody answered opens nothing, and no approval means no
- * read access, ever. `chat_access_closed_at` (a revocation, or the migration
- * that closed ask-only windows) ends it immediately, whatever the 30 days say.
+ * read access, ever. `summary_access_closed_at` (a revocation, or the
+ * migration that closed ask-only windows) ends it immediately, whatever the 30
+ * days say.
  *
- * This replaced the earlier ask-only rule, which let a therapist read a
- * transcript the client had never agreed to share. That was a consent bug,
- * not a labelling question.
+ * What it opens is Worker 05's SessionSummary — narrative, themes, homework
+ * progress, open loops. Never the conversation. The transcript route this file
+ * used to carry was deleted on 2026-11-19: the client-facing switch has always
+ * said "Chat summaries … the themes you two talk about — not your messages".
  */
-export const CHAT_ACCESS_WINDOW_MS = CHAT_ACCESS_WINDOW_MS_SHARED;
-
-export const CHAT_ACCESS_UNAVAILABLE_MESSAGE =
-  'Chat access is not available for this client';
-
-/** One agent/client turn, as the portal renders it. No author identity. */
-export interface ConversationTurn {
-  id: string;
-  sessionId: string;
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt: string;
-}
-
-/** One page of a client's conversation, oldest→newest within the page. */
-export interface ConversationPage {
-  window: { grantedAt: string; expiresAt: string };
-  turns: ConversationTurn[];
-  nextCursor: string | null;
-}
+export const SUMMARY_ACCESS_WINDOW_MS = SUMMARY_ACCESS_WINDOW_MS_SHARED;
 
 /**
  * Null unless the client has approved and that approval is still open.
@@ -99,31 +83,31 @@ export interface ConversationPage {
  * app shows "Shared" only when this returns a window. Re-exported here so
  * existing callers and tests keep their import path.
  */
-export { chatAccessWindow };
+export { summaryAccessWindow };
 
 /**
- * What the therapist is told about chat access, in one value — the Overview
+ * What the therapist is told about summary access, in one value — the Overview
  * page's consent line renders exactly this, so the sentence and the gate can
  * never disagree.
  *
  *   not_requested · waiting_for_client · open (until …) · closed
  */
-export type ChatAccessState =
+export type SummaryAccessState =
   | { state: 'not_requested' }
   | { state: 'waiting_for_client'; requestedAt: string }
   | { state: 'open'; grantedAt: string; expiresAt: string }
   | { state: 'closed'; grantedAt: string | null; closedAt: string };
 
-export function chatAccessState(
+export function summaryAccessState(
   assignment: {
-    chat_access_requested_at: Date | null;
-    chat_access_granted_at: Date | null;
-    chat_access_closed_at: Date | null;
+    summary_access_requested_at: Date | null;
+    summary_access_granted_at: Date | null;
+    summary_access_closed_at: Date | null;
   } | null,
   now: number = Date.now(),
-): ChatAccessState {
+): SummaryAccessState {
   if (!assignment) return { state: 'not_requested' };
-  const window = chatAccessWindow(assignment, now);
+  const window = summaryAccessWindow(assignment, now);
   if (window) {
     return {
       state: 'open',
@@ -131,46 +115,23 @@ export function chatAccessState(
       expiresAt: window.expiresAt.toISOString(),
     };
   }
-  if (assignment.chat_access_granted_at) {
+  if (assignment.summary_access_granted_at) {
     return {
       state: 'closed',
-      grantedAt: assignment.chat_access_granted_at.toISOString(),
+      grantedAt: assignment.summary_access_granted_at.toISOString(),
       closedAt: (
-        assignment.chat_access_closed_at ??
-        new Date(assignment.chat_access_granted_at.getTime() + CHAT_ACCESS_WINDOW_MS)
+        assignment.summary_access_closed_at ??
+        new Date(assignment.summary_access_granted_at.getTime() + SUMMARY_ACCESS_WINDOW_MS)
       ).toISOString(),
     };
   }
-  if (assignment.chat_access_requested_at) {
+  if (assignment.summary_access_requested_at) {
     return {
       state: 'waiting_for_client',
-      requestedAt: assignment.chat_access_requested_at.toISOString(),
+      requestedAt: assignment.summary_access_requested_at.toISOString(),
     };
   }
   return { state: 'not_requested' };
-}
-
-/** Wire size of one page of the transcript view. */
-const CONVERSATION_PAGE_SIZE = 50;
-const CONVERSATION_MAX_PAGE_SIZE = 100;
-
-/**
- * Keyset cursor for the transcript: `<created_at ISO>|<turn id>`. Encoded
- * rather than Prisma's `cursor` so the page (a plain <Link>) can carry it
- * as a query param and so a deleted/rotated row can never shift the window
- * onto a turn the therapist already read.
- */
-function encodeConversationCursor(createdAt: Date, id: string): string {
-  return `${createdAt.toISOString()}|${id}`;
-}
-
-function decodeConversationCursor(cursor: string): { createdAt: Date; id: string } | null {
-  const separator = cursor.lastIndexOf('|');
-  if (separator <= 0) return null;
-  const createdAt = new Date(cursor.slice(0, separator));
-  const id = cursor.slice(separator + 1);
-  if (Number.isNaN(createdAt.getTime()) || id.length === 0) return null;
-  return { createdAt, id };
 }
 
 export const clientsRouter = router({
@@ -435,7 +396,7 @@ export const clientsRouter = router({
           careReviewFlagged: false,
           status: "waiting_app_access" as const,
           moodShared: false,
-          chatAccess: { state: "not_requested" as const },
+          summaryAccess: { state: "not_requested" as const },
           email: null as string | null,
           ageConfirmedByTherapistAt: null as string | null,
           ageConfirmedByClientAt: null as string | null,
@@ -450,10 +411,9 @@ export const clientsRouter = router({
       await logClinicalAccess(db, therapistId, input.clientUserId, "VIEW_CLIENT_DETAIL");
 
       // §C.3/C.5: care_plan_review_flagged is summary-derived (Worker 05
-      // judges it from the raw chat), so it's gated on chat_access_granted
-      // the same way report-card.ts's richer summary-derived data already
-      // is — unlike reasoningNote/summary above, which predate that gating
-      // and stay ungated for now (a known inconsistency, not introduced here).
+      // judges it from the raw chat), so it is gated on the client's own
+      // approval window — the same predicate report-card.ts uses, and the same
+      // one the reasoningNote and the summary text now use below.
       const assignment = await db.therapistClient.findUnique({
         where: {
           therapist_id_client_user_id: {
@@ -463,10 +423,10 @@ export const clientsRouter = router({
         },
         select: {
           client_label: true,
-          chat_access_granted: true,
-          chat_access_requested_at: true,
-          chat_access_granted_at: true,
-          chat_access_closed_at: true,
+          summary_access_granted: true,
+          summary_access_requested_at: true,
+          summary_access_granted_at: true,
+          summary_access_closed_at: true,
           age_confirmed_by_therapist_at: true,
           tester_access_added_at: true,
           invite_sent_at: true,
@@ -475,6 +435,15 @@ export const clientsRouter = router({
         },
       });
 
+      // Every summary-derived field below is gated on the SAME predicate the
+      // Report Card and Session Prep use — the client's own approval inside its
+      // 30-day window. This card used to read SessionSummary directly and show
+      // the narrative to any assigned therapist, which contradicted the
+      // client-facing promise ("they see themes, not your messages") for
+      // exactly the clients who had never consented.
+      const accessWindow = summaryAccessWindow(assignment);
+      const summaryShared = accessWindow !== null;
+
       const client = await db.user.findUnique({
         where: { id: input.clientUserId },
         include: {
@@ -482,6 +451,10 @@ export const clientsRouter = router({
           safety_state: true,
           engagement_profile: { select: { consent_1: true, consent_2: true } },
           session_summaries: {
+            // A withheld session never becomes the "latest summary" — the card
+            // shows the most recent one the client actually shared, or the
+            // not-shared state below when there is none.
+            where: sharedSummaryWhere(),
             orderBy: { last_updated_at: "desc" },
             take: 1,
             include: { session: true },
@@ -523,15 +496,17 @@ export const clientsRouter = router({
               assignment_state: client.clinical_config.assignment_state,
             }
           : null,
-        reasoningNote: client.clinical_config?.reasoning_note ?? null,
+        reasoningNote: summaryShared ? client.clinical_config?.reasoning_note ?? null : null,
         safetyState: client.safety_state?.safety_state_current ?? null,
-        summary: {
-          status: summaryStatus,
-          summary_text: latestSummary?.summary_text ?? null,
-          session_id: latestSummary?.session_id ?? null,
-        },
+        summary: summaryShared
+          ? {
+              status: summaryStatus,
+              summary_text: latestSummary?.summary_text ?? null,
+              session_id: latestSummary?.session_id ?? null,
+            }
+          : { status: "not_shared" as const, summary_text: null, session_id: null },
         careReviewFlagged: Boolean(
-          assignment?.chat_access_granted && client.clinical_config?.care_plan_review_flagged,
+          summaryShared && client.clinical_config?.care_plan_review_flagged,
         ),
         status: assignment
           ? deriveClientStatus({
@@ -543,11 +518,11 @@ export const clientsRouter = router({
             })
           : "waiting_app_access",
         // Portal P0 — the consent line, in plain words. `moodShared` is
-        // EngagementProfile.consent_2; `chatAccess` is a four-state value so
+        // EngagementProfile.consent_2; `summaryAccess` is a four-state value so
         // the sentence the therapist reads and the read gate cannot disagree
-        // (both come from chatAccessWindow/chatAccessState).
+        // (both come from summaryAccessWindow/summaryAccessState).
         moodShared: client.engagement_profile?.consent_2 ?? false,
-        chatAccess: chatAccessState(assignment),
+        summaryAccess: summaryAccessState(assignment),
         // Client Details card: the sign-in address, and the two-sided 18+
         // attestation with its own timestamp on each side.
         email: client.email,
@@ -637,9 +612,9 @@ export const clientsRouter = router({
             client_user_id: input.clientUserId,
           },
         },
-        // `ended_at` alone no longer closes the transcript: the read window is
+        // `ended_at` alone no longer closes summary reads: the read window is
         // the client's approval, so ending care has to close it explicitly.
-        data: { ended_at: new Date(), chat_access_closed_at: new Date() },
+        data: { ended_at: new Date(), summary_access_closed_at: new Date() },
       });
 
       // Decisions doc round, 15 Sep 2026 §11 — "reminders stop." No
@@ -654,12 +629,12 @@ export const clientsRouter = router({
       return { success: true };
     }),
 
-  // wireframes C-08 — "Request chat access." Only ever sets a timestamp
+  // wireframes C-08 — "Ask to read summaries." Only ever sets a timestamp
   // the client can see; the actual grant/deny is the client's own action
-  // via PATCH /users/me/chat-access (apps/api/src/routes/users.ts) — the
-  // portal can indicate and request, never write chat_access_granted
+  // via PATCH /users/me/summary-access (apps/api/src/routes/users.ts) — the
+  // portal can indicate and request, never write summary_access_granted
   // directly through this path.
-  requestChatAccess: therapistMutation
+  requestSummaryAccess: therapistMutation
     .input(z.object({ clientUserId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const db = ctx.db;
@@ -678,13 +653,13 @@ export const clientsRouter = router({
             client_user_id: input.clientUserId,
           },
         },
-        select: { chat_access_requested_at: true },
+        select: { summary_access_requested_at: true },
       });
 
       const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
       if (
-        existing?.chat_access_requested_at &&
-        Date.now() - existing.chat_access_requested_at.getTime() < THIRTY_DAYS_MS
+        existing?.summary_access_requested_at &&
+        Date.now() - existing.summary_access_requested_at.getTime() < THIRTY_DAYS_MS
       ) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -701,119 +676,10 @@ export const clientsRouter = router({
             client_user_id: input.clientUserId,
           },
         },
-        data: { chat_access_requested_at: new Date() },
+        data: { summary_access_requested_at: new Date() },
       });
 
       return { success: true };
     }),
 
-  // E16-S9 — the therapist's read-only view of one client's conversation
-  // with the agent. Read-only by construction: there is no counterpart
-  // mutation anywhere in this router, and Turn rows are only ever written
-  // by apps/api's orchestrator, so a therapist has no path to a turn that
-  // speaks as the client.
-  //
-  // Access = the existing TherapistClient row for this exact pair (via
-  // assertClientAssigned, same as every other client read here) AND a
-  // chat_access_requested_at inside the existing 30-day window — see
-  // chatAccessWindow above. Both failures throw FORBIDDEN, deliberately:
-  // a "granted: false" return would put the transcript and the refusal in
-  // the same response type, where one refactor could leak content.
-  //
-  // The read is logged as VIEW_CONVERSATION *before* any Turn row is read,
-  // through the one existing logClinicalAccess helper — worst case an
-  // abandoned page still leaves an access row (fail-closed on audit, not on
-  // availability: the helper swallows its own write failures).
-  conversation: therapistProcedure
-    .input(
-      z.object({
-        clientUserId: z.string().min(1),
-        cursor: z.string().min(1).optional(),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .max(CONVERSATION_MAX_PAGE_SIZE)
-          .default(CONVERSATION_PAGE_SIZE),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      const db = ctx.db;
-      const therapistId = ctx.therapistId;
-
-      await assertClientAssigned(db, therapistId, input.clientUserId);
-
-      const assignment = await db.therapistClient.findUnique({
-        where: {
-          therapist_id_client_user_id: {
-            therapist_id: therapistId,
-            client_user_id: input.clientUserId,
-          },
-        },
-        select: { chat_access_granted_at: true, chat_access_closed_at: true },
-      });
-
-      const window = chatAccessWindow(assignment);
-      if (!window) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: CHAT_ACCESS_UNAVAILABLE_MESSAGE,
-        });
-      }
-
-      await logClinicalAccess(db, therapistId, input.clientUserId, 'VIEW_CONVERSATION');
-
-      const after = input.cursor ? decodeConversationCursor(input.cursor) : null;
-      if (input.cursor && !after) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid page cursor' });
-      }
-
-      // Newest-first keyset scan (take limit+1 to learn "is there more"),
-      // reversed before returning so each page reads oldest→newest.
-      const rows = await db.turn.findMany({
-        where: {
-          user_id: input.clientUserId,
-          role: { in: ['user', 'assistant'] },
-          ...(after
-            ? {
-                OR: [
-                  { created_at: { lt: after.createdAt } },
-                  { created_at: after.createdAt, id: { lt: after.id } },
-                ],
-              }
-            : {}),
-        },
-        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-        take: input.limit + 1,
-        select: {
-          id: true,
-          session_id: true,
-          role: true,
-          content: true,
-          created_at: true,
-        },
-      });
-
-      const hasMore = rows.length > input.limit;
-      const page = hasMore ? rows.slice(0, input.limit) : rows;
-      const oldest = page[page.length - 1] ?? null;
-
-      return {
-        window: {
-          grantedAt: window.grantedAt.toISOString(),
-          expiresAt: window.expiresAt.toISOString(),
-        },
-        turns: page
-          .slice()
-          .reverse()
-          .map((turn) => ({
-            id: turn.id,
-            sessionId: turn.session_id,
-            role: turn.role === 'user' ? ('user' as const) : ('assistant' as const),
-            content: turn.content,
-            createdAt: turn.created_at.toISOString(),
-          })),
-        nextCursor: hasMore && oldest ? encodeConversationCursor(oldest.created_at, oldest.id) : null,
-      } satisfies ConversationPage;
-    }),
 });

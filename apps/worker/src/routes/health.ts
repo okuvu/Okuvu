@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { getPrisma } from '../lib/prisma.js';
+import { getSummaryConsumerStatus } from '../lib/summary-consumer.js';
 
 /**
  * A1 (OKUVU — Plumbing Fixes & Rationale v1.0): the summary/memory worker
@@ -14,6 +15,13 @@ import { getPrisma } from '../lib/prisma.js';
  * needs no signature header — its whole job is to answer "is the worker up" cheaply. It
  * also reports DB reachability so a caller can distinguish "worker process up
  * but database down" (also unusable for summary generation).
+ *
+ * A6 adds `summary_consumer`. That report is deliberately part of the same
+ * unauthenticated answer: the beta's original failure was a worker that was
+ * healthy, serving HTTP, and receiving nothing, so "up" without "fed" is the
+ * half-answer that let session summaries silently never exist. The counters are
+ * process-lifetime, not persisted — they answer "has this task polled since it
+ * started", which is the question a restart makes.
  */
 export async function healthRoute(app: FastifyInstance): Promise<void> {
   app.get('/health', {
@@ -27,6 +35,21 @@ export async function healthRoute(app: FastifyInstance): Promise<void> {
             status: { type: 'string' },
             db: { type: 'string' },
             timestamp: { type: 'string' },
+            summary_consumer: {
+              type: 'object',
+              properties: {
+                enabled: { type: 'boolean' },
+                running: { type: 'boolean' },
+                queue_url: { type: 'string', nullable: true },
+                receipts: { type: 'integer' },
+                processed: { type: 'integer' },
+                discarded: { type: 'integer' },
+                failed: { type: 'integer' },
+                last_poll_at: { type: 'string', nullable: true },
+                last_message_at: { type: 'string', nullable: true },
+                last_error: { type: 'string', nullable: true },
+              },
+            },
           },
         },
       },
@@ -47,6 +70,7 @@ export async function healthRoute(app: FastifyInstance): Promise<void> {
         status: 'ok',
         db,
         timestamp: new Date().toISOString(),
+        summary_consumer: getSummaryConsumerStatus(),
       });
     },
   });

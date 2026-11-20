@@ -7,7 +7,7 @@ import 'providers/today_card_provider.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/next_session_card.dart';
 import 'widgets/today_card.dart';
-import 'widgets/pending_chat_access_banner.dart';
+import 'widgets/pending_summary_access_banner.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../settings/profile_provider.dart';
 import '../notifications/notifications_provider.dart';
@@ -127,7 +127,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(height: 16),
           const NextSessionCard(),
-          const PendingChatAccessBanner(),
+          const PendingSummaryAccessBanner(),
           const SizedBox(height: 16),
           // The one thing the Today card shows (Step 5). Everything else —
           // Breathe, Journal, Mood check-in, Library, Treasure Box — lives under

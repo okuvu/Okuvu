@@ -35,7 +35,7 @@ function buildPrisma(overrides: Overrides = {}) {
   const assignment =
     'assignment' in overrides
       ? overrides.assignment
-      : { id: 'tc_1', chat_access_granted_at: null, chat_access_closed_at: null };
+      : { id: 'tc_1', summary_access_granted_at: null, summary_access_closed_at: null };
 
   return {
     therapist: { findUnique: vi.fn().mockResolvedValue(THERAPIST) },
@@ -68,7 +68,7 @@ beforeEach(() => {
 describe('Session Prep — since the last session', () => {
   it('shows shared entries and notes without chat access', async () => {
     const prisma = buildPrisma({
-      assignment: { chat_access_granted_at: null, chat_access_closed_at: null },
+      assignment: { summary_access_granted_at: null, summary_access_closed_at: null },
       journal: [{ id: 'j1', created_at: new Date('2026-11-08T09:00:00Z'), emotion: 'anxious' }],
       notes: [{ id: 'n1', title: 'A line that helped', created_at: new Date('2026-11-07T09:00:00Z') }],
     });
@@ -103,7 +103,7 @@ describe('Session Prep — since the last session', () => {
 
   it('does not query chat summaries without the client approval', async () => {
     const prisma = buildPrisma({
-      assignment: { chat_access_granted_at: null, chat_access_closed_at: null },
+      assignment: { summary_access_granted_at: null, summary_access_closed_at: null },
     });
 
     await callerFor(prisma).reportCard.sessionPrep({ clientId: CLIENT_ID });
@@ -114,7 +114,7 @@ describe('Session Prep — since the last session', () => {
 
   it('queries chat summaries inside the window and logs the read', async () => {
     const prisma = buildPrisma({
-      assignment: { chat_access_granted_at: new Date(), chat_access_closed_at: null },
+      assignment: { summary_access_granted_at: new Date(), summary_access_closed_at: null },
       summaries: [
         {
           session_id: 's1',

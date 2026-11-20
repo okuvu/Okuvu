@@ -143,7 +143,7 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     });
   });
 
-  it('includes pendingChatAccessRequest when a therapist has an unanswered request', async () => {
+  it('includes pendingSummaryAccessRequest when a therapist has an unanswered request', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
@@ -153,20 +153,20 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
     vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue({
       therapist_id: 'th_1',
-      chat_access_granted: false,
-      chat_access_requested_at: new Date('2026-09-15T00:00:00Z'),
+      summary_access_granted: false,
+      summary_access_requested_at: new Date('2026-09-15T00:00:00Z'),
       therapist: { name: 'Dr. Jane Doe' },
     } as never);
 
     const response = await app.inject({ method: 'GET', url: '/users/me/today' });
 
-    expect(response.json().pendingChatAccessRequest).toEqual({
+    expect(response.json().pendingSummaryAccessRequest).toEqual({
       therapistId: 'th_1',
       therapistName: 'Dr. Jane Doe',
     });
   });
 
-  it('returns null pendingChatAccessRequest when there is no assigned therapist', async () => {
+  it('returns null pendingSummaryAccessRequest when there is no assigned therapist', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
@@ -178,11 +178,11 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
 
     const response = await app.inject({ method: 'GET', url: '/users/me/today' });
 
-    expect(response.json().pendingChatAccessRequest).toBeNull();
-    expect(response.json().therapistChatAccess).toBeNull();
+    expect(response.json().pendingSummaryAccessRequest).toBeNull();
+    expect(response.json().therapistSummaryAccess).toBeNull();
   });
 
-  it('includes therapistChatAccess reflecting current grant state, even with no pending request', async () => {
+  it('includes therapistSummaryAccess reflecting current grant state, even with no pending request', async () => {
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: 'user-1',
@@ -192,21 +192,21 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
     vi.mocked(prisma.reminder.findMany).mockResolvedValue([]);
     vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue({
       therapist_id: 'th_1',
-      chat_access_granted: true,
-      chat_access_requested_at: null,
+      summary_access_granted: true,
+      summary_access_requested_at: null,
       // The boolean alone is not a grant any more: the app's switch and the
       // portal's read gate both key on the approval window, so a fixture with
-      // no `chat_access_granted_at` is the "therapist ticked a box, client
+      // no `summary_access_granted_at` is the "therapist ticked a box, client
       // never approved" state — see users-today-and-tool-preference.test.ts.
-      chat_access_granted_at: new Date(),
-      chat_access_closed_at: null,
+      summary_access_granted_at: new Date(),
+      summary_access_closed_at: null,
       therapist: { name: 'Dr. Jane Doe' },
     } as never);
 
     const response = await app.inject({ method: 'GET', url: '/users/me/today' });
 
-    expect(response.json().pendingChatAccessRequest).toBeNull();
-    expect(response.json().therapistChatAccess).toEqual({
+    expect(response.json().pendingSummaryAccessRequest).toBeNull();
+    expect(response.json().therapistSummaryAccess).toEqual({
       therapistId: 'th_1',
       therapistName: 'Dr. Jane Doe',
       granted: true,
@@ -270,7 +270,7 @@ describe('GET /users/me/today — quote field (okuvu-remaining-changes.md O6)', 
   });
 });
 
-describe('PATCH /users/me/chat-access (therapist-portal wireframes — client grants/denies)', () => {
+describe('PATCH /users/me/summary-access (therapist-portal wireframes — client grants/denies)', () => {
   let app: ReturnType<typeof buildApp>;
 
   beforeEach(() => {
@@ -292,21 +292,21 @@ describe('PATCH /users/me/chat-access (therapist-portal wireframes — client gr
 
     const response = await app.inject({
       method: 'PATCH',
-      url: '/users/me/chat-access',
+      url: '/users/me/summary-access',
       payload: { therapist_id: 'th_1', granted: true },
     });
 
     expect(response.statusCode).toBe(200);
     // Portal P0 — approval starts the 30-day read window, and the window is
-    // measured from THIS moment (chat_access_granted_at), not from the
+    // measured from THIS moment (summary_access_granted_at), not from the
     // therapist's request. Re-approving after a revocation reopens it.
     expect(prisma.therapistClient.update).toHaveBeenCalledWith({
       where: { id: 'tc_1' },
       data: {
-        chat_access_granted: true,
-        chat_access_requested_at: null,
-        chat_access_granted_at: expect.any(Date),
-        chat_access_closed_at: null,
+        summary_access_granted: true,
+        summary_access_requested_at: null,
+        summary_access_granted_at: expect.any(Date),
+        summary_access_closed_at: null,
       },
     });
   });
@@ -319,20 +319,20 @@ describe('PATCH /users/me/chat-access (therapist-portal wireframes — client gr
 
     const response = await app.inject({
       method: 'PATCH',
-      url: '/users/me/chat-access',
+      url: '/users/me/summary-access',
       payload: { therapist_id: 'th_1', granted: false },
     });
 
     expect(response.statusCode).toBe(200);
     // Portal P0 — revoking closes the window immediately, so the portal's
-    // read gate stops at chat_access_closed_at rather than waiting out the
+    // read gate stops at summary_access_closed_at rather than waiting out the
     // 30 days. granted stays false for the record.
     expect(prisma.therapistClient.update).toHaveBeenCalledWith({
       where: { id: 'tc_1' },
       data: {
-        chat_access_granted: false,
-        chat_access_requested_at: null,
-        chat_access_closed_at: expect.any(Date),
+        summary_access_granted: false,
+        summary_access_requested_at: null,
+        summary_access_closed_at: expect.any(Date),
       },
     });
   });
@@ -340,7 +340,7 @@ describe('PATCH /users/me/chat-access (therapist-portal wireframes — client gr
   it('rejects a missing/invalid body', async () => {
     const response = await app.inject({
       method: 'PATCH',
-      url: '/users/me/chat-access',
+      url: '/users/me/summary-access',
       payload: { therapist_id: 'th_1' },
     });
 
@@ -354,7 +354,7 @@ describe('PATCH /users/me/chat-access (therapist-portal wireframes — client gr
 
     const response = await app.inject({
       method: 'PATCH',
-      url: '/users/me/chat-access',
+      url: '/users/me/summary-access',
       payload: { therapist_id: 'th_1', granted: true },
     });
 
@@ -368,10 +368,33 @@ describe('PATCH /users/me/chat-access (therapist-portal wireframes — client gr
 
     const response = await app.inject({
       method: 'PATCH',
-      url: '/users/me/chat-access',
+      url: '/users/me/summary-access',
       payload: { therapist_id: 'th_stranger', granted: true },
     });
 
     expect(response.statusCode).toBe(404);
+  });
+
+  // Compatibility, not a second feature: app builds <= 1.0.22 PATCH the old
+  // path, and a server release must not break a phone that has not updated.
+  // Same handler, same columns — pinned here so the alias cannot rot silently.
+  it('still accepts the pre-rename path for installed app builds', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-1' } as never);
+    vi.mocked(prisma.therapistClient.findUnique).mockResolvedValue({ id: 'tc_1' } as never);
+    vi.mocked(prisma.therapistClient.update).mockResolvedValue({} as never);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/users/me/chat-access',
+      payload: { therapist_id: 'th_1', granted: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(prisma.therapistClient.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ summary_access_granted: true }),
+      }),
+    );
   });
 });

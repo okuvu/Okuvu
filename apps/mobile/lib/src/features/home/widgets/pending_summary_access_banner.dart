@@ -7,18 +7,18 @@ import '../../../core/providers.dart';
 /// Decisions doc round, 15 Sep 2026 §9 — "the ask + Grant / Not now." Shown
 /// when a therapist has requested to see summaries of the client's chats
 /// and the client hasn't answered yet. Grant/deny is the client's own
-/// action, via PATCH /users/me/chat-access (chatAccessRequestProvider) —
+/// action, via PATCH /users/me/summary-access (summaryAccessRequestProvider) —
 /// the portal can only indicate + request, never set this directly.
 /// "Not now" is silent — the therapist only ever sees "Not shared", never
 /// that a request was declined (§9 rules).
-class PendingChatAccessBanner extends ConsumerStatefulWidget {
-  const PendingChatAccessBanner({super.key});
+class PendingSummaryAccessBanner extends ConsumerStatefulWidget {
+  const PendingSummaryAccessBanner({super.key});
 
   @override
-  ConsumerState<PendingChatAccessBanner> createState() => _PendingChatAccessBannerState();
+  ConsumerState<PendingSummaryAccessBanner> createState() => _PendingSummaryAccessBannerState();
 }
 
-class _PendingChatAccessBannerState extends ConsumerState<PendingChatAccessBanner> {
+class _PendingSummaryAccessBannerState extends ConsumerState<PendingSummaryAccessBanner> {
   bool _dismissed = false;
   bool _isResponding = false;
 
@@ -26,7 +26,7 @@ class _PendingChatAccessBannerState extends ConsumerState<PendingChatAccessBanne
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final todayAsync = ref.watch(todayCardProvider);
-    final pending = todayAsync.value?.pendingChatAccessRequest;
+    final pending = todayAsync.value?.pendingSummaryAccessRequest;
     // Never surface this mid-crisis (§9 rules) — the crisis overlay already
     // takes over the whole screen when active, but this guards against any
     // stale build racing in before that intercept.
@@ -37,7 +37,7 @@ class _PendingChatAccessBannerState extends ConsumerState<PendingChatAccessBanne
     Future<void> respond(bool granted) async {
       setState(() => _isResponding = true);
       final success = await ref
-          .read(chatAccessRequestProvider.notifier)
+          .read(summaryAccessRequestProvider.notifier)
           .respond(therapistId: pending.therapistId, granted: granted);
       if (!mounted) return;
       setState(() => _isResponding = false);

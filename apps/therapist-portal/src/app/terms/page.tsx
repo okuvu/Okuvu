@@ -12,7 +12,7 @@ import type { Metadata } from 'next';
  *   - age gate (18+) ........... apps/mobile/lib/src/features/onboarding_welcome/
  *                                age_blocked_screen.dart, /privacy §13
  *   - crisis screen ............ apps/mobile/lib/src/features/crisis/crisis_overlay.dart
- *   - therapist sees summaries . /privacy §6, TherapistClient.chat_access_granted
+ *   - therapist sees summaries . /privacy §6, TherapistClient.summary_access_granted
  *   - AI provider/residency .... /privacy §4 and §8 (Bedrock, ap-south-1)
  *   - deletion ................. /delete-account, SUBJECT_TABLES in
  *                                apps/api/src/lib/account.ts
@@ -100,8 +100,9 @@ export default function TermsOfServicePage() {
               tool, and follow your therapist&apos;s advice over the app&apos;s.
             </li>
             <li>
-              Your therapist sees summaries by default. They see your raw chat only if you switch
-              that on, and you can switch it off again.
+              Your therapist can read session summaries once you switch that on, and you can
+              switch it off again at any time. They never see your raw chat — there is no setting
+              for it.
             </li>
             <li>
               You must be 18 or older. The app blocks under-18 sign-up.

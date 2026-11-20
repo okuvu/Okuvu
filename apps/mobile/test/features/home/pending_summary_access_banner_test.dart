@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:okuvu/src/core/providers.dart';
-import 'package:okuvu/src/features/home/widgets/pending_chat_access_banner.dart';
+import 'package:okuvu/src/features/home/widgets/pending_summary_access_banner.dart';
 
-Dio _mockDio({Map<String, dynamic>? pendingChatAccessRequest}) {
+Dio _mockDio({Map<String, dynamic>? pendingSummaryAccessRequest}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
   dio.interceptors.add(
     InterceptorsWrapper(
@@ -17,7 +17,7 @@ Dio _mockDio({Map<String, dynamic>? pendingChatAccessRequest}) {
             statusCode: 200,
             data: {
               'reminders': [],
-              'pendingChatAccessRequest': pendingChatAccessRequest,
+              'pendingSummaryAccessRequest': pendingSummaryAccessRequest,
             },
           ));
           return;
@@ -35,7 +35,7 @@ Widget _buildApp(Dio dio, {bool crisisActive = false}) {
       dioClientProvider.overrideWithValue(dio),
       if (crisisActive) crisisOverlayProvider.overrideWith(_AlwaysActiveCrisis.new),
     ],
-    child: const MaterialApp(home: Scaffold(body: PendingChatAccessBanner())),
+    child: const MaterialApp(home: Scaffold(body: PendingSummaryAccessBanner())),
   );
 }
 
@@ -46,14 +46,14 @@ class _AlwaysActiveCrisis extends CrisisOverlayNotifier {
 
 void main() {
   testWidgets('renders nothing when there is no pending request', (tester) async {
-    await tester.pumpWidget(_buildApp(_mockDio(pendingChatAccessRequest: null)));
+    await tester.pumpWidget(_buildApp(_mockDio(pendingSummaryAccessRequest: null)));
     await tester.pumpAndSettle();
 
     expect(find.byType(Container), findsNothing);
   });
 
   testWidgets('shows the exact decisions-doc copy and Grant/Not now buttons', (tester) async {
-    await tester.pumpWidget(_buildApp(_mockDio(pendingChatAccessRequest: {
+    await tester.pumpWidget(_buildApp(_mockDio(pendingSummaryAccessRequest: {
       'therapistId': 'th_1',
       'therapistName': 'Dr. Rao',
     })));
@@ -71,15 +71,15 @@ void main() {
   });
 
   testWidgets('"Not now" dismisses locally without calling the API', (tester) async {
-    final dio = _mockDio(pendingChatAccessRequest: {
+    final dio = _mockDio(pendingSummaryAccessRequest: {
       'therapistId': 'th_1',
       'therapistName': 'Dr. Rao',
     });
-    var chatAccessCalled = false;
+    var summaryAccessCalled = false;
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          if (options.path.endsWith('/users/me/chat-access')) chatAccessCalled = true;
+          if (options.path.endsWith('/users/me/summary-access')) summaryAccessCalled = true;
           handler.next(options);
         },
       ),
@@ -92,12 +92,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Grant'), findsNothing);
-    expect(chatAccessCalled, isFalse);
+    expect(summaryAccessCalled, isFalse);
   });
 
   testWidgets('is suppressed while the crisis overlay is active', (tester) async {
     await tester.pumpWidget(_buildApp(
-      _mockDio(pendingChatAccessRequest: {'therapistId': 'th_1', 'therapistName': 'Dr. Rao'}),
+      _mockDio(pendingSummaryAccessRequest: {'therapistId': 'th_1', 'therapistName': 'Dr. Rao'}),
       crisisActive: true,
     ));
     await tester.pumpAndSettle();

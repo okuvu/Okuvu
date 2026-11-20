@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { chatAccessWindow } from '@okuvu/shared-types';
+import { sharedSummaryWhere, summaryAccessWindow } from '@okuvu/shared-types';
 import {
   assertClientAssigned,
   assertLiveLink,
@@ -116,10 +116,10 @@ export const reportCardRouter = router({
         // client's 30-day approval window had closed, and let a flag the
         // therapist set themselves stand in for the client's consent. The
         // window is computed by the one shared predicate the app also uses.
-        select: { chat_access_granted_at: true, chat_access_closed_at: true },
+        select: { summary_access_granted_at: true, summary_access_closed_at: true },
       });
 
-      const chatGranted = chatAccessWindow(assignment) !== null;
+      const chatGranted = summaryAccessWindow(assignment) !== null;
 
       // Since the last session if there was one, else the caller's window.
       const lastSession = await db.appointment.findFirst({
@@ -142,7 +142,14 @@ export const reportCardRouter = router({
         // that never runs cannot leak.
         chatGranted
           ? db.sessionSummary.findMany({
-              where: { user_id: input.clientId, status: 'COMPLETED', created_at: { gte: since } },
+              // Per-session withholds apply even inside the relationship
+              // window: the client can keep one session out of the digest.
+              where: {
+                user_id: input.clientId,
+                status: 'COMPLETED',
+                created_at: { gte: since },
+                ...sharedSummaryWhere(),
+              },
               orderBy: { created_at: 'desc' },
               select: { session_id: true, summary_text: true, created_at: true },
             })
@@ -268,7 +275,7 @@ export const reportCardRouter = router({
 
 
   // "Report Card": homework + mood progress, therapist-only, gated on the
-  // client's chat_access_granted consent (first real consumer of that
+  // client's summary_access_granted consent (first real consumer of that
   // field — enforced here even though no consent-capture UI exists yet to
   // set it true, so every client shows "not granted" until that lands).
   reportCard: therapistProcedure
@@ -302,10 +309,10 @@ export const reportCardRouter = router({
         // client's 30-day approval window had closed, and let a flag the
         // therapist set themselves stand in for the client's consent. The
         // window is computed by the one shared predicate the app also uses.
-        select: { chat_access_granted_at: true, chat_access_closed_at: true },
+        select: { summary_access_granted_at: true, summary_access_closed_at: true },
       });
 
-      if (chatAccessWindow(assignment) === null) {
+      if (summaryAccessWindow(assignment) === null) {
         return { granted: false as const };
       }
 
@@ -315,7 +322,7 @@ export const reportCardRouter = router({
 
       const [summaries, homeworkCounts, userMemory, moodLogs, recentTurns] = await Promise.all([
         db.sessionSummary.findMany({
-          where: { user_id: input.clientId, status: 'COMPLETED' },
+          where: { user_id: input.clientId, status: 'COMPLETED', ...sharedSummaryWhere() },
           orderBy: { created_at: 'desc' },
           take: 5,
           select: { summary_text: true, created_at: true },

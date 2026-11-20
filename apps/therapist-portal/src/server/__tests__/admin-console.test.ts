@@ -148,7 +148,7 @@ describe('listClients', () => {
               {
                 activated_at: now,
                 ended_at: null,
-                chat_access_granted: true,
+                summary_access_granted: true,
                 therapist: { id: 'th_1', name: 'Dr. Therapist', email: 'therapist@okuvu.dev' },
               },
             ],
@@ -165,7 +165,7 @@ describe('listClients', () => {
               {
                 activated_at: null,
                 ended_at: null,
-                chat_access_granted: false,
+                summary_access_granted: false,
                 therapist: { id: 'th_1', name: null, email: 'therapist@okuvu.dev' },
               },
             ],
@@ -182,7 +182,7 @@ describe('listClients', () => {
               {
                 activated_at: now,
                 ended_at: now,
-                chat_access_granted: false,
+                summary_access_granted: false,
                 therapist: { id: 'th_2', name: 'Dr. Two', email: 'two@okuvu.dev' },
               },
             ],
@@ -199,7 +199,7 @@ describe('listClients', () => {
     expect(byId.c_active.therapyState).toBe('active');
     expect(byId.c_active.carePlan).toBe('CP2');
     expect(byId.c_active.therapists).toHaveLength(1);
-    expect(byId.c_active.therapists[0].chatAccess).toBe(true);
+    expect(byId.c_active.therapists[0].summaryAccess).toBe(true);
 
     // Invited: an assignment exists but the client has never activated.
     expect(byId.c_invited.therapyState).toBe('invited');
@@ -241,7 +241,7 @@ describe('listAssignments', () => {
             created_at: when,
             activated_at: when,
             ended_at: null,
-            chat_access_granted: false,
+            summary_access_granted: false,
             therapist: { id: 'th_1', name: 'Dr. Therapist', email: 'therapist@okuvu.dev' },
             client: { id: 'c1', full_name: 'Asha', email: 'asha@example.com', phone_number: '+919876543210' },
           },
@@ -250,7 +250,7 @@ describe('listAssignments', () => {
             created_at: when,
             activated_at: null,
             ended_at: null,
-            chat_access_granted: false,
+            summary_access_granted: false,
             therapist: { id: 'th_1', name: null, email: 'therapist@okuvu.dev' },
             client: { id: 'c2', full_name: null, email: null, phone_number: '+919000000001' },
           },
@@ -259,7 +259,7 @@ describe('listAssignments', () => {
             created_at: when,
             activated_at: when,
             ended_at: when,
-            chat_access_granted: true,
+            summary_access_granted: true,
             therapist: { id: 'th_2', name: 'Dr. Two', email: 'two@okuvu.dev' },
             client: { id: 'c3', full_name: 'Meera', email: 'meera@example.com', phone_number: '+919000000002' },
           },

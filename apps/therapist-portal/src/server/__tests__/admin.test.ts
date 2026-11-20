@@ -88,19 +88,17 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
       caller.admin.assignClient({
         therapistId: THERAPIST.id,
         clientPhoneNumber: CLIENT.phone_number,
-        chatAccessGranted: true,
       }),
     ).rejects.toThrow(/admin access required/i);
   });
 
-  it('creates a new assignment with chat_access_granted set from input', async () => {
+  it('creates a new assignment without ever writing the client\'s consent', async () => {
     const prisma = buildPrisma();
     const caller = callerWith(prisma);
 
     const result = await caller.admin.assignClient({
       therapistId: THERAPIST.id,
       clientPhoneNumber: CLIENT.phone_number,
-      chatAccessGranted: true,
     });
 
     expect(result).toEqual({
@@ -112,7 +110,9 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
     expect(prisma.therapistClient.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: {},
-        create: expect.objectContaining({ chat_access_granted: true }),
+        // Consent is absent by design: the client writes it in the app, the
+        // operator's form no longer offers it, and the column defaults false.
+        create: expect.objectContaining({ client_label: expect.any(String) }),
       }),
     );
   });
@@ -124,7 +124,6 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
     await caller.admin.assignClient({
       therapistId: THERAPIST.id,
       clientPhoneNumber: CLIENT.phone_number,
-      chatAccessGranted: false,
       languageMode: 'mirror',
     });
 
@@ -141,7 +140,6 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
     await caller.admin.assignClient({
       therapistId: THERAPIST.id,
       clientPhoneNumber: CLIENT.phone_number,
-      chatAccessGranted: false,
     });
 
     expect(prisma.user.update).not.toHaveBeenCalled();
@@ -154,7 +152,6 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
     const result = await caller.admin.assignClient({
       therapistId: THERAPIST.id,
       clientPhoneNumber: CLIENT.phone_number,
-      chatAccessGranted: true,
     });
 
     expect(result.wasAlreadyAssigned).toBe(true);
@@ -171,7 +168,6 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
       caller.admin.assignClient({
         therapistId: THERAPIST.id,
         clientPhoneNumber: '+910000000000',
-        chatAccessGranted: false,
       }),
     ).rejects.toThrow(/no client found/i);
     // The message names the number the operator typed and points at the one
@@ -181,7 +177,6 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
       caller.admin.assignClient({
         therapistId: THERAPIST.id,
         clientPhoneNumber: '+910000000000',
-        chatAccessGranted: false,
       }),
     ).rejects.toThrow(/\+910000000000.*Register a new client/s);
   });
@@ -194,7 +189,6 @@ describe('admin.assignClient (okuvu-remaining-changes.md — Add-Client flow + c
       caller.admin.assignClient({
         therapistId: THERAPIST.id,
         clientPhoneNumber: '9876543210',
-        chatAccessGranted: false,
       }),
     ).rejects.toThrow();
   });
@@ -478,7 +472,6 @@ describe('admin.assignClientUser (self-serve clients)', () => {
     const result = await caller.admin.assignClientUser({
       therapistId: THERAPIST.id,
       clientUserId: 'client_1',
-      chatAccessGranted: true,
     });
 
     expect(result).toEqual({
@@ -491,7 +484,6 @@ describe('admin.assignClientUser (self-serve clients)', () => {
       data: {
         therapist_id: THERAPIST.id,
         client_user_id: 'client_1',
-        chat_access_granted: true,
         client_label: 'selfserve@example.com',
       },
     });
@@ -507,11 +499,10 @@ describe('admin.assignClientUser (self-serve clients)', () => {
     const result = await caller.admin.assignClientUser({
       therapistId: THERAPIST.id,
       clientUserId: 'client_1',
-      chatAccessGranted: true,
     });
 
     expect(result.wasAlreadyAssigned).toBe(true);
-    // Consent is never silently re-granted or revoked by a repeat click.
+    // A repeat click never touches the client's consent, granted or revoked.
     expect(prisma.therapistClient.create).not.toHaveBeenCalled();
   });
 

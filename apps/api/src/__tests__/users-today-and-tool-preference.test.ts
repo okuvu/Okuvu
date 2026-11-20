@@ -159,8 +159,8 @@ describe('GET /users/me/today — assignedExercises + defaultBoxBreathingPacePre
     vi.mocked(prisma.user.findUnique).mockResolvedValue(baseUserRow() as any);
     vi.mocked(prisma.therapistClient.findFirst).mockResolvedValue({
       therapist_id: 'th_1',
-      chat_access_granted: false,
-      chat_access_requested_at: null,
+      summary_access_granted: false,
+      summary_access_requested_at: null,
       therapist: { name: 'Dr. Rao' },
     } as any);
     vi.mocked(prisma.appointment.findFirst).mockResolvedValue(null);
@@ -289,12 +289,12 @@ describe('PATCH /users/me/tool-preference', () => {
   });
 });
 
-// The client's Settings switch renders `therapistChatAccess.granted` as
+// The client's Settings switch renders `therapistSummaryAccess.granted` as
 // "Shared with your therapist". The portal refuses every transcript read
-// unless `chat_access_granted_at` is inside its 30-day window, so the flag
+// unless `summary_access_granted_at` is inside its 30-day window, so the flag
 // must carry the window's answer, not the bare boolean: reading the boolean
 // let the app claim "Shared" on a grant the therapist could never read.
-describe('GET /users/me/today — therapistChatAccess reflects the real read window', () => {
+describe('GET /users/me/today — therapistSummaryAccess reflects the real read window', () => {
   let app: ReturnType<typeof buildApp>;
 
   beforeEach(() => {
@@ -323,15 +323,15 @@ describe('GET /users/me/today — therapistChatAccess reflects the real read win
     app = buildApp();
     const response = await app.inject({ method: 'GET', url: '/users/me/today' });
     expect(response.statusCode).toBe(200);
-    return response.json().therapistChatAccess;
+    return response.json().therapistSummaryAccess;
   }
 
   it('is true while the approval window is open', async () => {
     const access = await todayWithRelationship({
-      chat_access_granted: true,
-      chat_access_requested_at: null,
-      chat_access_granted_at: new Date(Date.now() - 60_000),
-      chat_access_closed_at: null,
+      summary_access_granted: true,
+      summary_access_requested_at: null,
+      summary_access_granted_at: new Date(Date.now() - 60_000),
+      summary_access_closed_at: null,
     });
     expect(access.granted).toBe(true);
   });
@@ -341,20 +341,20 @@ describe('GET /users/me/today — therapistChatAccess reflects the real read win
     // that introduced the window explicitly does not backfill a timestamp.
     // Without this the app showed "Shared" and the therapist saw nothing.
     const access = await todayWithRelationship({
-      chat_access_granted: true,
-      chat_access_requested_at: null,
-      chat_access_granted_at: null,
-      chat_access_closed_at: null,
+      summary_access_granted: true,
+      summary_access_requested_at: null,
+      summary_access_granted_at: null,
+      summary_access_closed_at: null,
     });
     expect(access.granted).toBe(false);
   });
 
   it('is false after the client revokes', async () => {
     const access = await todayWithRelationship({
-      chat_access_granted: false,
-      chat_access_requested_at: null,
-      chat_access_granted_at: new Date(Date.now() - 60_000),
-      chat_access_closed_at: new Date(),
+      summary_access_granted: false,
+      summary_access_requested_at: null,
+      summary_access_granted_at: new Date(Date.now() - 60_000),
+      summary_access_closed_at: new Date(),
     });
     expect(access.granted).toBe(false);
   });
@@ -362,10 +362,10 @@ describe('GET /users/me/today — therapistChatAccess reflects the real read win
   it('is false once the 30-day window has expired', async () => {
     const thirtyOneDays = 31 * 24 * 60 * 60 * 1000;
     const access = await todayWithRelationship({
-      chat_access_granted: true,
-      chat_access_requested_at: null,
-      chat_access_granted_at: new Date(Date.now() - thirtyOneDays),
-      chat_access_closed_at: null,
+      summary_access_granted: true,
+      summary_access_requested_at: null,
+      summary_access_granted_at: new Date(Date.now() - thirtyOneDays),
+      summary_access_closed_at: null,
     });
     expect(access.granted).toBe(false);
   });

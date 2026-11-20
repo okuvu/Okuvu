@@ -219,9 +219,15 @@ describe('authorization: an assigned therapist can read their own client', () =>
     });
   });
 
-  it('clients.detail surfaces careReviewFlagged only when chat_access_granted is true (okuvu-remaining-changes.md §C.3/§C.5)', async () => {
+  it('clients.detail surfaces careReviewFlagged when the client is inside their summary window (okuvu-remaining-changes.md §C.3/§C.5)', async () => {
     const prisma = buildPrisma({
-      therapistClient: { id: 'tc_1', chat_access_granted: true },
+      // The client's own approval, 2 days ago: inside the 30-day window.
+      therapistClient: {
+        id: 'tc_1',
+        summary_access_granted: true,
+        summary_access_granted_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        summary_access_closed_at: null,
+      },
       user: {
         id: 'client_1',
         phone_number: '+911234567890',
@@ -241,9 +247,9 @@ describe('authorization: an assigned therapist can read their own client', () =>
     expect(result.careReviewFlagged).toBe(true);
   });
 
-  it('clients.detail hides careReviewFlagged when chat_access_granted is false, even if the flag itself is true', async () => {
+  it('clients.detail hides careReviewFlagged when summary_access_granted is false, even if the flag itself is true', async () => {
     const prisma = buildPrisma({
-      therapistClient: { id: 'tc_1', chat_access_granted: false },
+      therapistClient: { id: 'tc_1', summary_access_granted: false },
       user: {
         id: 'client_1',
         phone_number: '+911234567890',
@@ -263,9 +269,83 @@ describe('authorization: an assigned therapist can read their own client', () =>
     expect(result.careReviewFlagged).toBe(false);
   });
 
+  // The two tests below are the reason this change exists. Before them, the
+  // profile card read SessionSummary directly and showed the narrative to any
+  // assigned therapist — so a client who never consented, or whose 30 days had
+  // run out, still had their summaries on the therapist's screen.
+  it('clients.detail shows no summary at all to a therapist who set the flag themselves (no client timestamp)', async () => {
+    const prisma = buildPrisma({
+      // What the old admin.assignClient form could produce: the boolean, and no
+      // approval from the client — so no window.
+      therapistClient: { id: 'tc_1', summary_access_granted: true, summary_access_granted_at: null },
+      user: {
+        id: 'client_1',
+        phone_number: '+911234567890',
+        clinical_config: { care_plan_id: 'CP1', assignment_state: 'confirmed', reasoning_note: 'therapist-only note', care_plan_review_flagged: false },
+        safety_state: null,
+        session_summaries: [
+          {
+            status: 'COMPLETED',
+            summary_text: JSON.stringify({ narrative_summary: 'Client described a hard week at work.' }),
+            session_id: 'session-1',
+            last_updated_at: new Date(),
+            session: null,
+          },
+        ],
+      },
+    });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.detail({ clientUserId: 'client_1' });
+
+    expect(result.summary.status).toBe('not_shared');
+    expect(result.summary.summary_text).toBeNull();
+    expect(result.reasoningNote).toBeNull();
+  });
+
+  it('clients.detail shows no summary once the client\'s 30-day window has expired', async () => {
+    const prisma = buildPrisma({
+      therapistClient: {
+        id: 'tc_1',
+        summary_access_granted: true,
+        summary_access_granted_at: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+        summary_access_closed_at: null,
+      },
+      user: {
+        id: 'client_1',
+        phone_number: '+911234567890',
+        clinical_config: null,
+        safety_state: null,
+        session_summaries: [
+          {
+            status: 'COMPLETED',
+            summary_text: JSON.stringify({ narrative_summary: 'Older session.' }),
+            session_id: 'session-0',
+            last_updated_at: new Date(),
+            session: null,
+          },
+        ],
+      },
+    });
+    const caller = appRouter.createCaller({
+      session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
+      prisma,
+      headers: new Headers(),
+    });
+
+    const result = await caller.clients.detail({ clientUserId: 'client_1' });
+
+    expect(result.summary.status).toBe('not_shared');
+    expect(result.summary.summary_text).toBeNull();
+  });
+
   it('clients.detail surfaces the consent line and the two-sided age attestation', async () => {
     const prisma = buildPrisma({
-      therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_requested_at: null },
+      therapistClient: { id: 'tc_1', summary_access_granted: true, summary_access_requested_at: null },
       user: {
         id: 'client_1',
         phone_number: '+911234567890',
@@ -284,13 +364,13 @@ describe('authorization: an assigned therapist can read their own client', () =>
     const result = await caller.clients.detail({ clientUserId: 'client_1' });
 
     // Portal P0 — the old four-boolean `consent` object (safety · mood ·
-    // chatAccess) is gone. Mood sharing is a plain boolean and chat access is
+    // summaryAccess) is gone. Mood sharing is a plain boolean and chat access is
     // a four-state value that the read gate also uses, so the sentence the
     // therapist reads cannot disagree with the gate. This client has
-    // chat_access_granted = true but no approval timestamp, i.e. a grant from
+    // summary_access_granted = true but no approval timestamp, i.e. a grant from
     // before approval recorded a time: it opens nothing.
     expect(result.moodShared).toBe(false);
-    expect(result.chatAccess).toEqual({ state: 'not_requested' });
+    expect(result.summaryAccess).toEqual({ state: 'not_requested' });
     expect(result.ageConfirmedByTherapistAt).toBeNull();
     expect(result.ageConfirmedByClientAt).toBeNull();
     // The masked phone is no longer part of the client's wire shape at all.
@@ -341,21 +421,21 @@ describe('authorization: an assigned therapist can read their own client', () =>
       where: { therapist_id_client_user_id: { therapist_id: THERAPIST.id, client_user_id: 'client_1' } },
       // Portal P0 — ending care also closes the chat read window, which is now
       // the client's approval rather than the therapist's request.
-      data: { ended_at: expect.any(Date), chat_access_closed_at: expect.any(Date) },
+      data: { ended_at: expect.any(Date), summary_access_closed_at: expect.any(Date) },
     });
     expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
       data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'END_CLIENT' },
     });
   });
 
-  it('clients.requestChatAccess throws FORBIDDEN for an unassigned client', async () => {
+  it('clients.requestSummaryAccess throws FORBIDDEN for an unassigned client', async () => {
     const caller = buildCaller();
     await expect(
-      caller.clients.requestChatAccess({ clientUserId: UNASSIGNED_CLIENT_ID }),
+      caller.clients.requestSummaryAccess({ clientUserId: UNASSIGNED_CLIENT_ID }),
     ).rejects.toThrow(/not assigned/i);
   });
 
-  it('clients.requestChatAccess sets chat_access_requested_at and logs REQUEST_CHAT_ACCESS', async () => {
+  it('clients.requestSummaryAccess sets summary_access_requested_at and logs REQUEST_CHAT_ACCESS', async () => {
     const prisma = buildPrisma({ therapistClient: { id: 'tc_1' } });
     const caller = appRouter.createCaller({
       session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
@@ -363,12 +443,12 @@ describe('authorization: an assigned therapist can read their own client', () =>
       headers: new Headers(),
     });
 
-    const result = await caller.clients.requestChatAccess({ clientUserId: 'client_1' });
+    const result = await caller.clients.requestSummaryAccess({ clientUserId: 'client_1' });
 
     expect(result).toEqual({ success: true });
     expect(prisma.therapistClient.update).toHaveBeenCalledWith({
       where: { therapist_id_client_user_id: { therapist_id: THERAPIST.id, client_user_id: 'client_1' } },
-      data: { chat_access_requested_at: expect.any(Date) },
+      data: { summary_access_requested_at: expect.any(Date) },
     });
     expect(prisma.clinicalAccessLog.create).toHaveBeenCalledWith({
       data: { therapist_id: THERAPIST.id, client_user_id: 'client_1', action: 'REQUEST_CHAT_ACCESS' },
@@ -439,7 +519,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.reportCard returns granted:false without querying clinical data when consent is not granted', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: false } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', summary_access_granted: false } });
     const caller = appRouter.createCaller({
       session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
       prisma,
@@ -454,7 +534,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.sessionPrep returns no chat summaries when consent is not granted, but still shows what was shared', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: false } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', summary_access_granted: false } });
     const caller = appRouter.createCaller({
       session: { user: { id: THERAPIST.id, email: THERAPIST.email, name: THERAPIST.name } },
       prisma,
@@ -473,7 +553,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.sessionPrep fetches entries and logs access when consent is granted', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: new Date(), chat_access_closed_at: null } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', summary_access_granted: true, summary_access_granted_at: new Date(), summary_access_closed_at: null } });
     vi.mocked(prisma.sessionSummary.findMany).mockResolvedValue([
       {
         session_id: 'sess_1',
@@ -500,7 +580,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.reportCard returns aggregated data and logs access when consent is granted', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: new Date(), chat_access_closed_at: null } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', summary_access_granted: true, summary_access_granted_at: new Date(), summary_access_closed_at: null } });
     vi.mocked(prisma.homework.groupBy).mockResolvedValue([
       { status: 'active', _count: 2 },
       { status: 'completed', _count: 3 },
@@ -529,7 +609,7 @@ describe('§D reminders + report-card', () => {
   });
 
   it('reportCard.reportCard computes S-07 signal flags from recent turns (okuvu-remaining-changes.md §C.2)', async () => {
-    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: new Date(), chat_access_closed_at: null } });
+    const prisma = buildPrisma({ therapistClient: { id: 'tc_1', summary_access_granted: true, summary_access_granted_at: new Date(), summary_access_closed_at: null } });
     vi.mocked(prisma.turn.findMany).mockResolvedValue([
       { taper_state: 'tapering', closure_offered: true, frustration_event: false, therapist_referral: false, created_at: new Date('2026-09-12') },
       { taper_state: 'none', closure_offered: false, frustration_event: true, therapist_referral: true, created_at: new Date('2026-09-10') },
@@ -632,7 +712,7 @@ describe('Step 4 — the Report Card and Session Prep follow the chat-access rul
     // The therapist set the switch; the client never approved. A bare boolean
     // read here is how that becomes a read.
     const prisma = buildPrisma({
-      therapistClient: { id: 'tc_1', chat_access_granted: true, chat_access_granted_at: null, chat_access_closed_at: null },
+      therapistClient: { id: 'tc_1', summary_access_granted: true, summary_access_granted_at: null, summary_access_closed_at: null },
     });
 
     const prep = await callerFor(prisma).reportCard.sessionPrep({ clientId: 'client_1' });
@@ -649,9 +729,9 @@ describe('Step 4 — the Report Card and Session Prep follow the chat-access rul
     const prisma = buildPrisma({
       therapistClient: {
         id: 'tc_1',
-        chat_access_granted: true,
-        chat_access_granted_at: thirtyOneDaysAgo,
-        chat_access_closed_at: null,
+        summary_access_granted: true,
+        summary_access_granted_at: thirtyOneDaysAgo,
+        summary_access_closed_at: null,
       },
     });
 
@@ -666,9 +746,9 @@ describe('Step 4 — the Report Card and Session Prep follow the chat-access rul
     const prisma = buildPrisma({
       therapistClient: {
         id: 'tc_1',
-        chat_access_granted: true,
-        chat_access_granted_at: new Date(),
-        chat_access_closed_at: new Date(),
+        summary_access_granted: true,
+        summary_access_granted_at: new Date(),
+        summary_access_closed_at: new Date(),
       },
     });
 

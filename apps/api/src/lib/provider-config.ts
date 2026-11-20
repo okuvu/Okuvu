@@ -191,8 +191,15 @@ export function resolveEmbeddingDimensions(): number {
  * the env template do not have to be reconciled before the first deploy.
  */
 export function resolveSqsQueueUrl(): string | undefined {
-  const raw = process.env.SQS_QUEUE_URL ?? process.env.SQS_SUMMARY_QUEUE_URL;
-  if (raw === undefined || raw.trim() === '') return undefined;
+  // First *non-empty* of the two accepted names. An env var set to "" must fall
+  // through to the next name instead of counting as "configured but empty",
+  // which would silently stop enqueuing summary jobs. Mirrored in
+  // apps/worker/src/lib/provider-config.ts — the consumer and this producer
+  // must agree on which queue they mean.
+  const raw = [process.env.SQS_QUEUE_URL, process.env.SQS_SUMMARY_QUEUE_URL].find(
+    (value) => value !== undefined && value.trim() !== '',
+  );
+  if (raw === undefined) return undefined;
 
   const url = raw.trim();
   let parsed: URL;

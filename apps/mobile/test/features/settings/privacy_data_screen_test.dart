@@ -9,7 +9,7 @@ import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/features/settings/privacy_data_screen.dart';
 import 'package:okuvu/src/features/settings/privacy_screen.dart';
 
-Dio _createMockDio({Map<String, dynamic>? therapistChatAccess}) {
+Dio _createMockDio({Map<String, dynamic>? therapistSummaryAccess}) {
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
   dio.interceptors.add(
     InterceptorsWrapper(
@@ -21,13 +21,13 @@ Dio _createMockDio({Map<String, dynamic>? therapistChatAccess}) {
               statusCode: 200,
               data: {
                 'reminders': [],
-                'therapistChatAccess': therapistChatAccess,
+                'therapistSummaryAccess': therapistSummaryAccess,
               },
             ),
           );
           return;
         }
-        if (options.path.endsWith('/users/me/chat-access')) {
+        if (options.path.endsWith('/users/me/summary-access')) {
           handler.resolve(
             Response(requestOptions: options, statusCode: 200, data: {'success': true}),
           );
@@ -53,8 +53,8 @@ Dio _createMockDio({Map<String, dynamic>? therapistChatAccess}) {
   return dio;
 }
 
-Widget _privacyDataApp({Map<String, dynamic>? therapistChatAccess}) {
-  final dio = _createMockDio(therapistChatAccess: therapistChatAccess);
+Widget _privacyDataApp({Map<String, dynamic>? therapistSummaryAccess}) {
+  final dio = _createMockDio(therapistSummaryAccess: therapistSummaryAccess);
   return ProviderScope(
     overrides: [dioClientProvider.overrideWithValue(dio)],
     child: MaterialApp.router(
@@ -88,6 +88,11 @@ void main() {
     await tester.pumpWidget(_privacyDataApp());
     await tester.pumpAndSettle();
 
+    // The summary sharing row and its per-session link push the data rows
+    // below the fold on a 600px test viewport; scroll rather than assume.
+    await tester.scrollUntilVisible(find.text('Privacy Policy'), 120);
+    await tester.pumpAndSettle();
+
     expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.byIcon(LucideIcons.shieldAlert), findsOneWidget);
   });
@@ -97,7 +102,7 @@ void main() {
     await tester.pumpWidget(_privacyDataApp());
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Privacy Policy'));
+    await tester.scrollUntilVisible(find.text('Privacy Policy'), 120);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Privacy Policy'));
     await tester.pumpAndSettle();
@@ -105,29 +110,35 @@ void main() {
     expect(find.byType(PrivacyScreen), findsOneWidget);
   });
 
-  testWidgets('hides the Chat summaries toggle when there is no assigned therapist',
+  testWidgets('states that no therapist is linked instead of hiding the row',
       (tester) async {
-    await tester.pumpWidget(_privacyDataApp(therapistChatAccess: null));
+    await tester.pumpWidget(_privacyDataApp(therapistSummaryAccess: null));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chat summaries'), findsNothing);
+    // The row used to vanish entirely when no therapist was assigned, which
+    // read as "this app has no sharing option" — the owner reported exactly
+    // that. It is present now, disabled, and says why.
+    expect(find.text('Share session summaries'), findsOneWidget);
+    expect(find.textContaining('No therapist linked yet'), findsOneWidget);
+    final switchWidget = tester.widget<Switch>(find.byType(Switch).last);
+    expect(switchWidget.onChanged, isNull);
   });
 
-  testWidgets('shows the Chat summaries toggle reflecting the current grant state',
+  testWidgets('shows the summary sharing toggle reflecting the current grant state',
       (tester) async {
-    await tester.pumpWidget(_privacyDataApp(therapistChatAccess: {
+    await tester.pumpWidget(_privacyDataApp(therapistSummaryAccess: {
       'therapistId': 'th_1',
       'therapistName': 'Dr. Rao',
       'granted': true,
     }));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chat summaries'), findsOneWidget);
+    expect(find.text('Share session summaries'), findsOneWidget);
     final switchWidget = tester.widget<Switch>(find.byType(Switch).last);
     expect(switchWidget.value, isTrue);
   });
 
-  testWidgets('toggling off calls PATCH /users/me/chat-access with granted:false',
+  testWidgets('toggling off calls PATCH /users/me/summary-access with granted:false',
       (tester) async {
     RequestOptions? lastPatchRequest;
     Map<String, dynamic>? lastPatchData;
@@ -142,7 +153,7 @@ void main() {
               statusCode: 200,
               data: {
                 'reminders': [],
-                'therapistChatAccess': {
+                'therapistSummaryAccess': {
                   'therapistId': 'th_1',
                   'therapistName': 'Dr. Rao',
                   'granted': true,
@@ -151,7 +162,7 @@ void main() {
             ));
             return;
           }
-          if (options.path.endsWith('/users/me/chat-access')) {
+          if (options.path.endsWith('/users/me/summary-access')) {
             lastPatchRequest = options;
             lastPatchData = options.data as Map<String, dynamic>?;
             handler.resolve(
@@ -185,11 +196,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Chat summaries'));
+    await tester.ensureVisible(find.text('Share session summaries'));
     await tester.tap(find.byType(Switch).last);
     await tester.pumpAndSettle();
 
-    expect(lastPatchRequest?.path, contains('/users/me/chat-access'));
+    expect(lastPatchRequest?.path, contains('/users/me/summary-access'));
     expect(lastPatchData, {'therapist_id': 'th_1', 'granted': false});
   });
 
@@ -229,7 +240,7 @@ void main() {
             handler.resolve(Response(
               requestOptions: options,
               statusCode: 200,
-              data: {'reminders': [], 'therapistChatAccess': null},
+              data: {'reminders': [], 'therapistSummaryAccess': null},
             ));
             return;
           }

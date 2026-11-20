@@ -45,7 +45,7 @@ class PrivacyDataScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const _ChatAccessSwitch(),
+                  const _SummaryAccessRow(),
                   _MoodProgressRow(
                     shared: consentState.moodInference,
                     theme: theme,
@@ -117,31 +117,44 @@ class PrivacyDataScreen extends ConsumerWidget {
   }
 }
 
-/// App wireframes T3 — "Shared with your therapist: Chat summaries." The
-/// only client-side control for chat_access_granted that supports revoking,
-/// not just granting (the Home banner, PendingChatAccessBanner, only ever
-/// grants). Hidden entirely when the client has no assigned therapist.
-class _ChatAccessSwitch extends ConsumerStatefulWidget {
-  const _ChatAccessSwitch();
+/// Privacy & Data — the switch that decides whether a therapist may read
+/// session summaries at all, plus the way into the per-session list.
+///
+/// It used to disappear entirely when the client had no assigned therapist,
+/// which meant a client looking for "share summaries" found nothing at all —
+/// indistinguishable from the feature not existing. It is always rendered now:
+/// before a therapist is linked it states that plainly instead of hiding.
+class _SummaryAccessRow extends ConsumerStatefulWidget {
+  const _SummaryAccessRow();
 
   @override
-  ConsumerState<_ChatAccessSwitch> createState() => _ChatAccessSwitchState();
+  ConsumerState<_SummaryAccessRow> createState() => _SummaryAccessRowState();
 }
 
-class _ChatAccessSwitchState extends ConsumerState<_ChatAccessSwitch> {
+class _SummaryAccessRowState extends ConsumerState<_SummaryAccessRow> {
   bool _isUpdating = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final access = ref.watch(todayCardProvider).value?.therapistChatAccess;
+    final access = ref.watch(todayCardProvider).value?.therapistSummaryAccess;
 
-    if (access == null) return const SizedBox.shrink();
+    if (access == null) {
+      return _ConsentSwitch(
+        icon: LucideIcons.messagesSquare,
+        title: 'Share session summaries',
+        subtitle: 'No therapist linked yet. When one is, you choose here whether '
+            'they can read summaries of your sessions.',
+        value: false,
+        onChanged: null,
+        theme: theme,
+      );
+    }
 
     Future<void> respond(bool granted) async {
       setState(() => _isUpdating = true);
       final success = await ref
-          .read(chatAccessRequestProvider.notifier)
+          .read(summaryAccessRequestProvider.notifier)
           .respond(therapistId: access.therapistId, granted: granted);
       if (!mounted) return;
       setState(() => _isUpdating = false);
@@ -152,13 +165,47 @@ class _ChatAccessSwitchState extends ConsumerState<_ChatAccessSwitch> {
       }
     }
 
-    return _ConsentSwitch(
-      icon: LucideIcons.messagesSquare,
-      title: 'Chat summaries',
-      subtitle: 'See the themes from what you discuss.',
-      value: access.granted,
-      onChanged: _isUpdating ? null : respond,
-      theme: theme,
+    return Column(
+      children: [
+        _ConsentSwitch(
+          icon: LucideIcons.messagesSquare,
+          title: 'Share session summaries',
+          // The same sentence the request banner uses, so the client reads one
+          // promise in both places: summaries are themes, never messages.
+          subtitle: 'The themes you two talk about — never your messages. '
+              'You can still keep single sessions private.',
+          value: access.granted,
+          onChanged: _isUpdating ? null : respond,
+          theme: theme,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => context.go('/settings/session-sharing'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Choose session by session',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.royalPurple,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const Icon(LucideIcons.chevronRight, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

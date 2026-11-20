@@ -9,7 +9,7 @@ import {
 } from './homework.js';
 import { toView as toAppointmentView } from './appointments.js';
 import type { TodayCard, TodayNextItem } from '@okuvu/shared-types';
-import { chatAccessWindow, isAgeDeclined } from '@okuvu/shared-types';
+import { summaryAccessWindow, isAgeDeclined } from '@okuvu/shared-types';
 
 export type GetTodayCardResult =
   | { status: 'ok'; card: TodayCard }
@@ -207,27 +207,27 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
 
   // Therapist-portal wireframes — the client's current (non-ended) therapist
   // relationship, if any. Powers both the "Request chat access" Grant/Not-now
-  // banner (pendingChatAccessRequest, only when there's an unanswered
+  // banner (pendingSummaryAccessRequest, only when there's an unanswered
   // request) and the app wireframes' T3 Settings revoke toggle
-  // (therapistChatAccess, always present when assigned) — one query serving
+  // (therapistSummaryAccess, always present when assigned) — one query serving
   // both, rather than a second lookup for the latter.
   const therapistRelationship = await prisma.therapistClient.findFirst({
     where: { client_user_id: user.id, ended_at: null },
     orderBy: { created_at: 'desc' },
     select: {
       therapist_id: true,
-      chat_access_granted: true,
-      chat_access_requested_at: true,
-      chat_access_granted_at: true,
-      chat_access_closed_at: true,
+      summary_access_granted: true,
+      summary_access_requested_at: true,
+      summary_access_granted_at: true,
+      summary_access_closed_at: true,
       therapist: { select: { name: true } },
     },
   });
 
   const pendingRequest =
     therapistRelationship &&
-    !therapistRelationship.chat_access_granted &&
-    therapistRelationship.chat_access_requested_at
+    !therapistRelationship.summary_access_granted &&
+    therapistRelationship.summary_access_requested_at
       ? therapistRelationship
       : null;
 
@@ -267,20 +267,20 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
     quote: user.quote_of_day_enabled && user.clinical_config
       ? getQuoteOfDay(user.clinical_config.care_plan_id)
       : null,
-    pendingChatAccessRequest: pendingRequest
+    pendingSummaryAccessRequest: pendingRequest
       ? { therapistId: pendingRequest.therapist_id, therapistName: pendingRequest.therapist.name }
       : null,
-    therapistChatAccess: therapistRelationship
+    therapistSummaryAccess: therapistRelationship
       ? {
           therapistId: therapistRelationship.therapist_id,
           therapistName: therapistRelationship.therapist.name,
           // Not the bare boolean: the client's Settings switch renders this as
           // "Shared with your therapist", and the portal only opens the
-          // transcript while `chat_access_granted_at` is inside the 30-day
+          // transcript while `summary_access_granted_at` is inside the 30-day
           // window and nothing closed it. Reading the boolean alone let the app
           // claim "Shared" on a grant the portal refused — a client who never
           // re-approved, or a window that expired, showed as still shared.
-          granted: chatAccessWindow(therapistRelationship) !== null,
+          granted: summaryAccessWindow(therapistRelationship) !== null,
         }
       : null,
     nextAppointment: nextAppointment ? toAppointmentView(nextAppointment) : null,

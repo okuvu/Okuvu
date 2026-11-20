@@ -188,7 +188,7 @@ export const who = {
   right: [
     'Your journal, ever',
     'Your chats as they happen. They read summaries before your session.',
-    'Your raw messages, unless you switch chat access on',
+    'Your raw messages, ever',
     'Anything you write after you switch it off',
   ],
   // §7 — the AI's access, counted separately from the therapist's.

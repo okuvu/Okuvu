@@ -36,7 +36,6 @@ interface Props {
 export function AssignClientDialog({ target, therapists, onClose, onAssigned }: Props) {
   const [therapistId, setTherapistId] = useState('');
   const [languageMode, setLanguageMode] = useState('');
-  const [chatAccessGranted, setChatAccessGranted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
@@ -124,20 +123,6 @@ export function AssignClientDialog({ target, therapists, onClose, onAssigned }: 
           </select>
         </div>
 
-        <div className="mt-3 flex items-start gap-2">
-          <input
-            id="assign-user-consent"
-            type="checkbox"
-            checked={chatAccessGranted}
-            onChange={(e) => setChatAccessGranted(e.target.checked)}
-            disabled={assign.isPending}
-            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-royal-purple focus:ring-violet disabled:opacity-60"
-          />
-          <label htmlFor="assign-user-consent" className="text-xs text-ink-soft">
-            Client has given permission for their therapist to view raw chat content
-          </label>
-        </div>
-
         {error && (
           <p role="alert" aria-live="assertive" className="mt-3 rounded-lg bg-danger-tint p-3 text-sm text-danger">
             {error}
@@ -162,7 +147,6 @@ export function AssignClientDialog({ target, therapists, onClose, onAssigned }: 
               assign.mutate({
                 therapistId,
                 clientUserId: target.id,
-                chatAccessGranted,
                 languageMode: languageMode ? (languageMode as 'english' | 'mirror') : undefined,
               });
             }}
