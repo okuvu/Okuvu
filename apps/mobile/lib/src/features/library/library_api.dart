@@ -71,6 +71,41 @@ class LibraryEntry {
   final List<LibraryChild> children;
 }
 
+/// What `GET /library/:toolId` answered.
+///
+/// A refusal is an answer, not a failure. `DEMANDING_GATE` ("this one works
+/// best when things feel a bit steadier") and `FEELING_NOT_GIVEN` are the api
+/// saying no on purpose, and they travel to the screen as data instead of as a
+/// thrown exception.
+///
+/// That distinction is the whole point: a thrown refusal reaches Riverpod as a
+/// *failed* provider, Riverpod 3 retries a failed provider ten times with
+/// backoff, and a provider that is retrying still reports `isLoading` — so the
+/// refusal screen was replaced by a spinner for the best part of a minute
+/// before the client ever saw the sentence the api had already sent.
+sealed class LibraryEntryResult {
+  const LibraryEntryResult();
+}
+
+/// The worksheet is open: the body is here.
+final class LibraryEntryReady extends LibraryEntryResult {
+  const LibraryEntryReady(this.entry);
+
+  final LibraryEntry entry;
+}
+
+/// The api refused to open this one and said why in the client's own words.
+///
+/// `code` is the api's own (`DEMANDING_GATE`, `FEELING_NOT_GIVEN`,
+/// `NOT_ASSIGNED`, `NOT_FOUND`); `message` is the sentence to render, which is
+/// empty only for a refusal the api did not word.
+final class LibraryEntryRefused extends LibraryEntryResult {
+  const LibraryEntryRefused({required this.code, required this.message});
+
+  final String code;
+  final String message;
+}
+
 /// The Library, as the api serves it.
 ///
 /// The client does not filter. Every rule about what may be shown (approved
@@ -110,36 +145,68 @@ class LibraryApi {
   /// DEMANDING_GATE and the approved "try something calming first" copy. The
   /// gate lives on the server so a build that never asked the question still
   /// cannot open the worksheet.
-  Future<LibraryEntry> entry(String toolId, {int? feelingNow}) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/library/$toolId',
-      queryParameters: feelingNow == null ? null : {'feelingNow': feelingNow},
-    );
-    final body = res.data!;
-    final content = body['content'];
-    final children = body['children'];
-    final rawPersonalNote = (body['personalNote'] as String?)?.trim();
+  ///
+  /// Returns the refusal instead of throwing it — see [LibraryEntryResult].
+  /// Only a real failure (no network, a 5xx, a body that is not an error
+  /// object) is thrown, because only that is worth a retry.
+  Future<LibraryEntryResult> entry(String toolId, {int? feelingNow}) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/library/$toolId',
+        queryParameters: feelingNow == null ? null : {'feelingNow': feelingNow},
+      );
+      final body = res.data!;
+      final content = body['content'];
+      final children = body['children'];
+      final rawPersonalNote = (body['personalNote'] as String?)?.trim();
 
-    return LibraryEntry(
-      toolId: body['toolId'] as String,
-      label: body['label'] as String,
-      kind: (body['kind'] as String?) ?? 'worksheet',
-      accessMode: (body['accessMode'] as String?) ?? 'open',
-      personalNote: rawPersonalNote == null || rawPersonalNote.isEmpty
-          ? null
-          : rawPersonalNote,
-      content: content is Map<String, dynamic>
-          ? content
-          : jsonDecode(jsonEncode(content)) as Map<String, dynamic>,
-      children: children is List
-          ? children.whereType<Map<String, dynamic>>().map((child) {
-              return LibraryChild(
-                toolId: child['toolId'] as String,
-                label: child['label'] as String,
-                summary: child['summary'] as String?,
-              );
-            }).toList()
-          : const [],
+      return LibraryEntryReady(
+        LibraryEntry(
+          toolId: body['toolId'] as String,
+          label: body['label'] as String,
+          kind: (body['kind'] as String?) ?? 'worksheet',
+          accessMode: (body['accessMode'] as String?) ?? 'open',
+          personalNote: rawPersonalNote == null || rawPersonalNote.isEmpty
+              ? null
+              : rawPersonalNote,
+          content: content is Map<String, dynamic>
+              ? content
+              : jsonDecode(jsonEncode(content)) as Map<String, dynamic>,
+          children: children is List
+              ? children.whereType<Map<String, dynamic>>().map((child) {
+                  return LibraryChild(
+                    toolId: child['toolId'] as String,
+                    label: child['label'] as String,
+                    summary: child['summary'] as String?,
+                  );
+                }).toList()
+              : const [],
+        ),
+      );
+    } on DioException catch (error) {
+      final refusal = refusalFrom(error);
+      if (refusal != null) return refusal;
+      rethrow;
+    }
+  }
+
+  /// The api's answer, when a 4xx carried one.
+  ///
+  /// A status alone is not enough: the screen renders `message`, so a refusal
+  /// with no code is treated as a failure and offered a retry rather than
+  /// shown as a blank explanation.
+  static LibraryEntryRefused? refusalFrom(DioException error) {
+    final status = error.response?.statusCode ?? 0;
+    if (status != 400 && status != 403 && status != 404) return null;
+    final body = error.response?.data;
+    final errorBody = body is Map ? body['error'] : null;
+    if (errorBody is! Map) return null;
+    final code = errorBody['code'];
+    if (code is! String || code.isEmpty) return null;
+    final message = errorBody['message'];
+    return LibraryEntryRefused(
+      code: code,
+      message: message is String ? message.trim() : '',
     );
   }
 

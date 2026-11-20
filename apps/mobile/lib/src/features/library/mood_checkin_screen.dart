@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
 import '../home/widgets/mood_check_in.dart';
+import 'library_api.dart';
 import 'worksheet_screen.dart';
 
 /// Mood check-in, opened from the Library.
@@ -93,7 +94,9 @@ class _MoodCheckinScreenState extends ConsumerState<MoodCheckinScreen> {
             entryAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (_, __) => const SizedBox.shrink(),
-              data: (entry) {
+              data: (result) {
+                if (result is! LibraryEntryReady) return const SizedBox.shrink();
+                final entry = result.entry;
                 final fields = (entry.content['fields'] as List?) ?? const [];
                 final pieces = fields.whereType<Map>().toList();
                 final textPiece = pieces.firstWhere(

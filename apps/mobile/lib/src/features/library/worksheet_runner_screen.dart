@@ -174,7 +174,15 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   }
 
   Future<void> _restore() async {
-    final draft = await _drafts.load(widget.userId, widget.toolId);
+    WorksheetDraft? draft;
+    try {
+      draft = await _drafts.load(widget.userId, widget.toolId);
+    } catch (_) {
+      // A draft that cannot be read is a start-from-the-beginning, never a
+      // reason to open the worksheet and sit on a spinner: `_restoring` false
+      // is the screen, and this is the only path that sets it.
+      draft = null;
+    }
     if (!mounted) return;
     setState(() {
       if (draft != null) {

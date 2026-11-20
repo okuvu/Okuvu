@@ -41,175 +41,212 @@ class WorksheetScreen extends ConsumerWidget {
     final entryAsync = ref.watch(libraryEntryProvider(key));
     final uid = ref.watch(authStateProvider).value?.uid ?? 'anonymous';
 
-    return entryAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (error, stack) => _GateOrError(
-        error: error,
-        onRetry: () => ref.invalidate(libraryEntryProvider(key)),
-      ),
-      data: (entry) {
-        try {
-          final content = parseWorksheetContent(entry.content);
-          // The saved response id, so "Save to my Treasure Box" can point at the
-          // row it came from. Null until the answers are stored.
-          String? responseId;
-          Map<String, Object?> savedAnswers = const {};
+    void retry() => ref.invalidate(libraryEntryProvider(key));
 
-          return WorksheetRunnerScreen(
-            toolId: entry.toolId,
-            userId: uid,
-            content: content,
-            feelingBefore: feelingNow,
-            isAssigned: entry.accessMode == 'assigned',
-            personalNote: entry.personalNote,
-            onFinished: (answers, outcome) async {
-              final api = ref.read(libraryApiProvider);
-              savedAnswers = Map<String, Object?>.from(answers);
+    // The order of these checks is the fix for "it spins and spins".
+    //
+    // The api answers a demanding worksheet with 403 DEMANDING_GATE in about
+    // ten milliseconds — the refusal is a sentence for the client, not a
+    // failure. But a provider that throws is a *retried* provider in Riverpod
+    // 3 (ten attempts, 200 ms doubling, capped at 6.4 s), and a provider that
+    // is between retries still reports `isLoading`. Reading `isLoading` first
+    // therefore painted a spinner over the refusal for the better part of a
+    // minute, and the client's very reasonable report was "it is loading and
+    // loading". An error wins over a loading state here.
+    if (entryAsync.hasError) {
+      final error = entryAsync.error;
+      final refusal =
+          error is DioException ? LibraryApi.refusalFrom(error) : null;
+      return _RefusalScreen(
+        code: refusal?.code,
+        message: refusal?.message ?? '',
+        onRetry: retry,
+      );
+    }
 
-              // The api runs the same safety check chat runs, before it stores
-              // anything, and answers with whether the help card must be shown.
-              final result = await api.submit(
-                entry.toolId,
-                answers: Map<String, Object?>.from(answers),
-                feelingBefore: outcome.feelingBefore ?? feelingNow,
-                feelingAfter: outcome.feelingAfter,
-                barriers: outcome.barriers,
-                helped: outcome.helped,
-              );
-              responseId = result.id.isEmpty ? null : result.id;
+    if (!entryAsync.hasValue) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-              // Saved. Only now is the local draft safe to drop.
-              await WorksheetDraftStore().clear(uid, entry.toolId);
+    final result = entryAsync.requireValue;
+    if (result is LibraryEntryRefused) {
+      return _RefusalScreen(
+        code: result.code,
+        message: result.message,
+        onRetry: retry,
+      );
+    }
 
-              if (!context.mounted) return;
-              if (result.showHelp) {
-                // Crisis: the answers are saved, and the card comes up at once.
-                ref.read(crisisOverlayProvider.notifier).show();
-              } else if (result.helpOffer) {
-                // The check could not run. Moderate concern, never a crisis and
-                // never silence: help is offered, and nobody is alerted until a
-                // recheck finds risk.
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Help is here if you need it.'),
-                    duration: const Duration(seconds: 8),
-                    action: SnackBarAction(
-                      label: 'Get help',
-                      onPressed: () =>
-                          ref.read(crisisOverlayProvider.notifier).show(),
-                    ),
-                  ),
-                );
-              } else if (entry.accessMode == 'assigned' && responseId != null) {
-                // Owner's rule: after an assigned worksheet, ask whether to
-                // share it. Two equal buttons, neither chosen in advance, and
-                // nothing happens unless the client taps one. Not asked after a
-                // crisis or an unscreened save — help comes first.
-                final share = await showDialog<bool>(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (dialogContext) => AlertDialog(
-                    title: const Text(worksheetSharePrompt),
-                    actions: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              key: const Key('worksheet_share_keep_private'),
-                              onPressed: () => Navigator.of(dialogContext).pop(false),
-                              child: const Text('Keep private'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton(
-                              key: const Key('worksheet_share_share'),
-                              onPressed: () => Navigator.of(dialogContext).pop(true),
-                              child: const Text('Share'),
-                            ),
-                          ),
-                        ],
+    final entry = (result as LibraryEntryReady).entry;
+    try {
+      final content = parseWorksheetContent(entry.content);
+      // The saved response id, so "Save to my Treasure Box" can point at the
+      // row it came from. Null until the answers are stored.
+      String? responseId;
+      Map<String, Object?> savedAnswers = const {};
+
+      return WorksheetRunnerScreen(
+        toolId: entry.toolId,
+        userId: uid,
+        content: content,
+        feelingBefore: feelingNow,
+        isAssigned: entry.accessMode == 'assigned',
+        personalNote: entry.personalNote,
+        onFinished: (answers, outcome) async {
+          final api = ref.read(libraryApiProvider);
+          savedAnswers = Map<String, Object?>.from(answers);
+
+          // The api runs the same safety check chat runs, before it stores
+          // anything, and answers with whether the help card must be shown.
+          final result = await api.submit(
+            entry.toolId,
+            answers: Map<String, Object?>.from(answers),
+            feelingBefore: outcome.feelingBefore ?? feelingNow,
+            feelingAfter: outcome.feelingAfter,
+            barriers: outcome.barriers,
+            helped: outcome.helped,
+          );
+          responseId = result.id.isEmpty ? null : result.id;
+
+          // Saved. Only now is the local draft safe to drop.
+          await WorksheetDraftStore().clear(uid, entry.toolId);
+
+          if (!context.mounted) return;
+          if (result.showHelp) {
+            // Crisis: the answers are saved, and the card comes up at once.
+            ref.read(crisisOverlayProvider.notifier).show();
+          } else if (result.helpOffer) {
+            // The check could not run. Moderate concern, never a crisis and
+            // never silence: help is offered, and nobody is alerted until a
+            // recheck finds risk.
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Help is here if you need it.'),
+                duration: const Duration(seconds: 8),
+                action: SnackBarAction(
+                  label: 'Get help',
+                  onPressed: () =>
+                      ref.read(crisisOverlayProvider.notifier).show(),
+                ),
+              ),
+            );
+          } else if (entry.accessMode == 'assigned' && responseId != null) {
+            // Owner's rule: after an assigned worksheet, ask whether to
+            // share it. Two equal buttons, neither chosen in advance, and
+            // nothing happens unless the client taps one. Not asked after a
+            // crisis or an unscreened save — help comes first.
+            final share = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (dialogContext) => AlertDialog(
+                title: const Text(worksheetSharePrompt),
+                actions: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          key: const Key('worksheet_share_keep_private'),
+                          onPressed: () => Navigator.of(dialogContext).pop(false),
+                          child: const Text('Keep private'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          key: const Key('worksheet_share_share'),
+                          onPressed: () => Navigator.of(dialogContext).pop(true),
+                          child: const Text('Share'),
+                        ),
                       ),
                     ],
                   ),
-                );
-                if (share == true) {
-                  final ok = await ref.read(sharingProvider.notifier).setShared(
-                        kind: 'worksheet_response',
-                        id: responseId!,
-                        shared: true,
-                      );
-                  if (!ok && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Couldn't share that. Please try again."),
-                      ),
-                    );
-                  }
-                }
-              }
-            },
-            onSaveToTreasureBox: () async {
-              final kept = await ref.read(libraryApiProvider).saveToTreasureBox(
-                    title: entry.label,
-                    body: worksheetAsNoteText(content, savedAnswers),
-                    sourceRef: responseId,
+                ],
+              ),
+            );
+            if (share == true) {
+              final ok = await ref.read(sharingProvider.notifier).setShared(
+                    kind: 'worksheet_response',
+                    id: responseId!,
+                    shared: true,
                   );
-              if (kept.showHelp) {
-                ref.read(crisisOverlayProvider.notifier).show();
+              if (!ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Couldn't share that. Please try again."),
+                  ),
+                );
               }
-              return kept.ok;
-            },
-          );
-        } on WorksheetContentException catch (error) {
-          return Scaffold(
-            appBar: AppBar(
-              leading: IconButton(
-                icon: const Icon(LucideIcons.arrowLeft),
-                onPressed: () => context.pop(),
-              ),
-              title: Text(entry.label),
+            }
+          }
+        },
+        onSaveToTreasureBox: () async {
+          final kept = await ref.read(libraryApiProvider).saveToTreasureBox(
+                title: entry.label,
+                body: worksheetAsNoteText(content, savedAnswers),
+                sourceRef: responseId,
+              );
+          if (kept.showHelp) {
+            ref.read(crisisOverlayProvider.notifier).show();
+          }
+          return kept.ok;
+        },
+      );
+    } on WorksheetContentException catch (error) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft),
+            onPressed: () => context.pop(),
+          ),
+          title: Text(entry.label),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              "This one isn't ready yet. Nothing you wrote has been lost "
+              'elsewhere in the app.\n\n${error.problems.take(3).join('\n')}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.charcoalInk, height: 1.5),
             ),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  "This one isn't ready yet. Nothing you wrote has been lost "
-                  'elsewhere in the app.\n\n${error.problems.take(3).join('\n')}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.charcoalInk, height: 1.5),
-                ),
-              ),
-            ),
-          );
-        }
-      },
-    );
+          ),
+        ),
+      );
+    }
   }
 }
 
-/// The two refusals that are not errors.
+/// The api's refusal, rendered.
 ///
 /// DEMANDING_GATE shows the approved message and the grounding offer, with the
 /// worksheet body never fetched. Anything else (a hidden safety plan, an unknown
 /// id, a network failure) reads as "not ready to open yet" — a client only
-/// reaches one of those through a stale link.
-class _GateOrError extends StatelessWidget {
-  const _GateOrError({required this.error, required this.onRetry});
+/// reaches one of those through a stale link, or through the network.
+///
+/// One widget for both entry paths on purpose: a refusal the api answered and a
+/// refusal that arrived as a thrown DioException must look identical on screen,
+/// or the same refusal says two different things depending on how it arrived.
+class _RefusalScreen extends StatelessWidget {
+  const _RefusalScreen({
+    required this.code,
+    required this.message,
+    required this.onRetry,
+  });
 
-  final Object error;
+  /// The api's error code, when it gave one. Null for a failure.
+  final String? code;
+
+  /// The api's own sentence, when it gave one.
+  final String message;
+
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final response = error is DioException ? (error as DioException).response : null;
-    final data = response?.data;
-    final errorBody = data is Map ? data['error'] : null;
-    final code = errorBody is Map ? errorBody['code'] : null;
-
     if (code == 'DEMANDING_GATE') {
-      final message = (errorBody is Map ? errorBody['message'] as String? : null) ??
-          'It sounds like a lot is going on right now. This one works best when '
+      final text = message.isNotEmpty
+          ? message
+          : 'It sounds like a lot is going on right now. This one works best when '
               'things feel a bit steadier. Want to try something calming first? '
               'You can come back to it anytime.';
       return Scaffold(
@@ -229,9 +266,10 @@ class _GateOrError extends StatelessWidget {
                 const Icon(LucideIcons.heartHandshake, size: 32),
                 const SizedBox(height: 16),
                 Text(
-                  message,
+                  text,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.charcoalInk, height: 1.6),
+                  style: const TextStyle(
+                      color: AppColors.charcoalInk, height: 1.6),
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
@@ -283,9 +321,10 @@ class _GateOrError extends StatelessWidget {
 /// attempt with a different answer fetches a fresh body rather than serving the
 /// cached refusal.
 final libraryEntryProvider =
-    FutureProvider.family<LibraryEntry, String>((ref, key) {
+    FutureProvider.family<LibraryEntryResult, String>((ref, key) {
   final parts = key.split('|');
   final toolId = parts.first;
-  final feelingNow = parts.length > 1 && parts[1].isNotEmpty ? int.tryParse(parts[1]) : null;
+  final feelingNow =
+      parts.length > 1 && parts[1].isNotEmpty ? int.tryParse(parts[1]) : null;
   return ref.watch(libraryApiProvider).entry(toolId, feelingNow: feelingNow);
 });

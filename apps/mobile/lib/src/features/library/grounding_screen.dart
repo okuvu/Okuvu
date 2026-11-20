@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../theme/app_colors.dart';
 import '../chat/widgets/grounding_card.dart';
+import 'library_api.dart';
 import 'worksheet_screen.dart';
 
 /// 5-4-3-2-1 grounding, opened from the Library.
@@ -39,7 +40,12 @@ class GroundingScreen extends ConsumerWidget {
           entryAsync.when(
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
-            data: (entry) {
+            data: (result) {
+              // Grounding is an open exercise, so a refusal here means the
+              // catalogue row moved; the card above still works, so the ending
+              // simply does not claim anything.
+              if (result is! LibraryEntryReady) return const SizedBox.shrink();
+              final entry = result.entry;
               final fields = (entry.content['fields'] as List?) ?? const [];
               final slider = fields.whereType<Map>().firstWhere(
                     (f) => f['type'] == 'scale_0_10',
