@@ -1,0 +1,21 @@
+-- Per-session summary sharing.
+--
+-- The relationship switch (TherapistClient.summary_access_*) answers "may this
+-- therapist read my session summaries at all"; it cannot answer "may they read
+-- the one from 14 October". This column is the client's per-session answer,
+-- layered underneath that switch.
+--
+-- Three states, and the reason it is nullable rather than defaulted:
+--   NULL  — no per-session opinion; follow the relationship switch. This is
+--           the value of every row that already exists, so no client's current
+--           sharing changes silently because of this migration.
+--   FALSE — the client withheld this session. The therapist never reads it,
+--           even while the relationship window is open. A withhold always wins.
+--   TRUE  — the client explicitly allowed this session. It still requires an
+--           open relationship window, so a per-session allow can never outlive
+--           the relationship grant or a revocation.
+--
+-- Nothing is backfilled. Only the client writes this column; there is no
+-- therapist-side or operator-side path to it.
+
+ALTER TABLE "SessionSummary" ADD COLUMN "share_with_therapist" BOOLEAN;

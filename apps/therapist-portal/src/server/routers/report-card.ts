@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { summaryAccessWindow } from '@okuvu/shared-types';
+import { sharedSummaryWhere, summaryAccessWindow } from '@okuvu/shared-types';
 import {
   assertClientAssigned,
   assertLiveLink,
@@ -142,7 +142,14 @@ export const reportCardRouter = router({
         // that never runs cannot leak.
         chatGranted
           ? db.sessionSummary.findMany({
-              where: { user_id: input.clientId, status: 'COMPLETED', created_at: { gte: since } },
+              // Per-session withholds apply even inside the relationship
+              // window: the client can keep one session out of the digest.
+              where: {
+                user_id: input.clientId,
+                status: 'COMPLETED',
+                created_at: { gte: since },
+                ...sharedSummaryWhere(),
+              },
               orderBy: { created_at: 'desc' },
               select: { session_id: true, summary_text: true, created_at: true },
             })
@@ -315,7 +322,7 @@ export const reportCardRouter = router({
 
       const [summaries, homeworkCounts, userMemory, moodLogs, recentTurns] = await Promise.all([
         db.sessionSummary.findMany({
-          where: { user_id: input.clientId, status: 'COMPLETED' },
+          where: { user_id: input.clientId, status: 'COMPLETED', ...sharedSummaryWhere() },
           orderBy: { created_at: 'desc' },
           take: 5,
           select: { summary_text: true, created_at: true },

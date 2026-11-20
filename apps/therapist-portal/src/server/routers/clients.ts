@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   SUMMARY_ACCESS_WINDOW_MS as SUMMARY_ACCESS_WINDOW_MS_SHARED,
+  sharedSummaryWhere,
   summaryAccessWindow,
 } from "@okuvu/shared-types";
 import { sendAdminTesterRequestEmail, sendClientInviteEmail } from "@/lib/email";
@@ -450,6 +451,10 @@ export const clientsRouter = router({
           safety_state: true,
           engagement_profile: { select: { consent_1: true, consent_2: true } },
           session_summaries: {
+            // A withheld session never becomes the "latest summary" — the card
+            // shows the most recent one the client actually shared, or the
+            // not-shared state below when there is none.
+            where: sharedSummaryWhere(),
             orderBy: { last_updated_at: "desc" },
             take: 1,
             include: { session: true },

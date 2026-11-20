@@ -97,6 +97,47 @@ export function summaryAccessWindow(
 }
 
 /**
+ * May the therapist read THIS session's summary?
+ *
+ * Two independent answers, and both must say yes:
+ *
+ *  - the client's per-session answer (`SessionSummary.share_with_therapist`).
+ *    false is a withhold and always wins; null means "no per-session opinion,
+ *    follow the relationship switch"; true means "I allowed this one", which
+ *    still cannot outlive a revoked or expired relationship grant.
+ *  - the relationship switch, measured by [summaryAccessWindow].
+ *
+ * Shared here for the same reason as the window itself: the app renders the
+ * switch, the api writes it, and the portal decides what to return — three
+ * copies of this rule would eventually disagree, and the disagreement would
+ * be a leak, not a rendering bug.
+ */
+export function sessionSummaryVisible(
+  summary: { share_with_therapist: boolean | null },
+  assignment: {
+    summary_access_granted_at: Date | null
+    summary_access_closed_at: Date | null
+  } | null,
+  now: number = Date.now(),
+): boolean {
+  if (summary.share_with_therapist === false) return false
+  return summaryAccessWindow(assignment, now) !== null
+}
+
+/**
+ * The Prisma filter for "summaries this therapist may read", given an open
+ * relationship window. Spelled as an explicit OR rather than
+ * `{ not: false }`, because a nullable boolean compared with `<> false` drops
+ * the NULL rows in SQL — which would hide every summary the client never
+ * expressed an opinion about, i.e. almost all of them.
+ */
+export function sharedSummaryWhere(): {
+  OR: Array<{ share_with_therapist: null } | { share_with_therapist: true }>
+} {
+  return { OR: [{ share_with_therapist: null }, { share_with_therapist: true }] }
+}
+
+/**
  * The client's own 18+ answer, as a predicate.
  *
  * The app shows the blocking screen, the API refuses `today`/`context` and the

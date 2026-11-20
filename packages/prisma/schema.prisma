@@ -353,6 +353,15 @@ model SessionSummary {
   last_updated_at   DateTime      @updatedAt
   created_at        DateTime      @default(now())
   status            SummaryStatus @default(PENDING)
+  /// The client's per-session answer, layered under the relationship switch.
+  /// null  = follow TherapistClient.summary_access_* (the default for every
+  ///         row that existed before this column, and for every future row)
+  /// false = the client withheld THIS session's summary; the therapist never
+  ///         reads it, even while the relationship window is open
+  /// true  = the client explicitly allowed this one; still needs an open
+  ///         relationship window, so it can never outlive the relationship grant
+  /// Only the client writes this (PATCH /users/me/sessions/:id/summary-share).
+  share_with_therapist Boolean?
   session           SessionLog    @relation(fields: [session_id], references: [id])
   user              User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
 

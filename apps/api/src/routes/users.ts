@@ -6,7 +6,7 @@ import { getTodayCard } from '../lib/today-card.js';
 import { completeHomework } from '../lib/homework.js';
 import { updateCarePlan, type CarePlanBody } from '../lib/care-plan.js';
 import { recordAgeAttestation } from '../lib/age-attestation.js';
-import { setSummaryAccess } from '../lib/summary-access.js';
+import { setSummaryAccess, listSessionSharing, setSessionSummaryShare } from '../lib/summary-access.js';
 import type { UserConsent, CarePlanId, AssignmentState } from '@okuvu/shared-types';
 
 interface SummaryAccessBody {
@@ -266,6 +266,71 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
     preHandler: [verifyCognitoJWT],
     handler: summaryAccessHandler,
   });
+
+  // The client's per-session answers, layered under the switch above. The list
+  // deliberately carries no summary text: the client is not shown the
+  // therapist's reading of their own session here.
+  app.get('/users/me/sessions/sharing', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const outcome = await listSessionSharing(request.user.uid);
+
+      if (outcome.status === 'no_user') {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      reply.send(outcome);
+    },
+  });
+
+  app.patch<{ Params: { sessionId: string }; Body: { shared?: unknown } }>(
+    '/users/me/sessions/:sessionId/summary-share',
+    {
+      preHandler: [verifyCognitoJWT],
+      handler: async (request, reply) => {
+        const { shared } = request.body ?? {};
+
+        if (typeof shared !== 'boolean') {
+          return reply.status(400).send({
+            error: { code: 'INVALID_BODY', message: 'shared (boolean) is required' },
+          });
+        }
+
+        const outcome = await setSessionSummaryShare(
+          request.user.uid,
+          request.params.sessionId,
+          shared,
+        );
+
+        if (outcome.status === 'no_user') {
+          return reply.status(401).send({
+            error: { code: 'UNAUTHORIZED', message: 'User not found' },
+          });
+        }
+
+        // A session that is not the caller's answers exactly like one that does
+        // not exist — a 403 here would confirm other people's session ids.
+        if (outcome.status === 'not_found') {
+          return reply.status(404).send({
+            error: { code: 'NOT_FOUND', message: 'No summary for that session' },
+          });
+        }
+
+        request.log.info(
+          {
+            event: 'session_summary_share_updated',
+            session_id: request.params.sessionId,
+            shared,
+          },
+          'Client set per-session summary sharing',
+        );
+
+        reply.send({ success: true, shared: outcome.shared });
+      },
+    },
+  );
 
   // §D user-confirmed homework completion. Product spec requires
   // completion be BOTH user-confirmed (this route) and chat-reported

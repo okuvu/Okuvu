@@ -88,6 +88,11 @@ void main() {
     await tester.pumpWidget(_privacyDataApp());
     await tester.pumpAndSettle();
 
+    // The summary sharing row and its per-session link push the data rows
+    // below the fold on a 600px test viewport; scroll rather than assume.
+    await tester.scrollUntilVisible(find.text('Privacy Policy'), 120);
+    await tester.pumpAndSettle();
+
     expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.byIcon(LucideIcons.shieldAlert), findsOneWidget);
   });
@@ -97,7 +102,7 @@ void main() {
     await tester.pumpWidget(_privacyDataApp());
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Privacy Policy'));
+    await tester.scrollUntilVisible(find.text('Privacy Policy'), 120);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Privacy Policy'));
     await tester.pumpAndSettle();
@@ -105,15 +110,21 @@ void main() {
     expect(find.byType(PrivacyScreen), findsOneWidget);
   });
 
-  testWidgets('hides the Chat summaries toggle when there is no assigned therapist',
+  testWidgets('states that no therapist is linked instead of hiding the row',
       (tester) async {
     await tester.pumpWidget(_privacyDataApp(therapistSummaryAccess: null));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chat summaries'), findsNothing);
+    // The row used to vanish entirely when no therapist was assigned, which
+    // read as "this app has no sharing option" — the owner reported exactly
+    // that. It is present now, disabled, and says why.
+    expect(find.text('Share session summaries'), findsOneWidget);
+    expect(find.textContaining('No therapist linked yet'), findsOneWidget);
+    final switchWidget = tester.widget<Switch>(find.byType(Switch).last);
+    expect(switchWidget.onChanged, isNull);
   });
 
-  testWidgets('shows the Chat summaries toggle reflecting the current grant state',
+  testWidgets('shows the summary sharing toggle reflecting the current grant state',
       (tester) async {
     await tester.pumpWidget(_privacyDataApp(therapistSummaryAccess: {
       'therapistId': 'th_1',
@@ -122,7 +133,7 @@ void main() {
     }));
     await tester.pumpAndSettle();
 
-    expect(find.text('Chat summaries'), findsOneWidget);
+    expect(find.text('Share session summaries'), findsOneWidget);
     final switchWidget = tester.widget<Switch>(find.byType(Switch).last);
     expect(switchWidget.value, isTrue);
   });
@@ -185,7 +196,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Chat summaries'));
+    await tester.ensureVisible(find.text('Share session summaries'));
     await tester.tap(find.byType(Switch).last);
     await tester.pumpAndSettle();
 
