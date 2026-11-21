@@ -285,3 +285,37 @@ phase, so the rollout still ran and all three services report the new revisions
 (`OK api:76`, `OK worker:74`, `OK portal:76`). Rollback targets: api `:75`, worker `:73`, portal `:75`.
 The gate should either block POST_BUILD or the base image should be rebuilt without the vulnerable
 package; right now it only colours the build red.
+
+## App build 1.0.27+28 — worksheet save failure, and the spiral restored, 21 Nov 2026
+
+Two things, both client-only: nothing on the server changed, so there is no deploy attached to this
+build.
+
+**A worksheet whose save fails no longer shows "Done".** `Finish` set the closing screen before
+awaiting the write, so a thrown submit (no signal, server hiccup) left the client on the closing
+line with the answers never stored and nothing on screen saying so — a silent loss with a false
+confirmation. The save is awaited first now; a failure keeps the client on their answers, keeps the
+draft, shows why, and offers `Try again`. The button is disabled while the write is in flight, so a
+second tap cannot post twice. Three widget tests pin it (failure keeps the answers, retry finishes,
+double tap posts once).
+
+**The spiral of becoming is back on Home.** It was built on `feat/becoming-spiral` (a4106a4,
+1.0.19+20) and never merged, so every build cut from `develop` between 1.0.22 and 1.0.26 shipped
+without it. The commit is cherry-picked here; the one conflict that mattered was its
+`recordMoment()` call in the worksheet runner, which now fires only after the save has actually
+succeeded rather than before.
+
+**Also in this build, from the round before:** a refused worksheet (the demanding-worksheet 403)
+renders as an answer instead of a spinner. The endless spinner in the 20 Nov screenshots was that
+retry loop: `GET /library/ws_thinking_trap?feelingNow=7` arrived nine times in 33 seconds, each
+answered 403 in 13 ms, and the phone was on a build from before that fix (the fixed APK was uploaded
+44 minutes after those requests).
+
+Artifact: `okuvu-1-0-27-28.apk`, 63,231,559 bytes, sha256
+5bb749b89ddc698c593546bc688784662a0e379e56e40a3bedc3ad049ac9fb1f, release gate 23/23, 462 tests.
+Install pending on the owner's handset. `becoming_moments` reads back out of `libapp.so` in all
+three ABIs, which is the binary proof the spiral code is in this artifact.
+
+Note for whoever picks this up: at a feeling rating of 6 or above the approved gate still refuses a
+demanding worksheet and offers grounding instead. That is the document's rule, not a defect, and it
+is why rating 7 does not reach the thinking-trap page.
