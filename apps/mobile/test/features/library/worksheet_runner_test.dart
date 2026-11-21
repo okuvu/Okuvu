@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -504,5 +506,102 @@ void main() {
 
     expect(find.text('Things that actually happened, not guesses.'), findsOneWidget);
     expect(find.textContaining('available'), findsNothing);
+  });
+
+  // ─── A save that fails says so, and never shows the closing screen ───
+
+  /// The shortest worksheet that can reach the Finish button.
+  WorksheetContent singlePiece() => parseWorksheetContent({
+        'version': 1,
+        'fields': [
+          {'id': 'only', 'type': 'short_text', 'prompt': 'One thing?'},
+        ],
+        'closing': {
+          'text': 'Kept safe.',
+          'buttons': [
+            {'label': 'Done', 'action': 'done'},
+          ],
+        },
+      });
+
+  testWidgets('a save that fails keeps the answers on screen and says so', (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(harness(
+      content: singlePiece(),
+      onFinished: (answers, result) async {
+        calls += 1;
+        throw Exception('offline');
+      },
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+    // Finish on the last piece asks the after-rating question; walkToClosing
+    // skips that and taps Finish on the wrap-up screen.
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+    await walkToClosing(tester);
+
+    expect(calls, 1);
+    expect(find.byKey(const Key('worksheet_save_failed')), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
+
+    // The bug this guards: the closing line is a confirmation of a save that
+    // never happened. The client must still be standing on their answers.
+    expect(find.text('Kept safe.'), findsNothing);
+    expect(find.text('Almost done'), findsOneWidget);
+  });
+
+  testWidgets('tapping Try again after a failure finishes the worksheet', (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(harness(
+      content: singlePiece(),
+      onFinished: (answers, result) async {
+        calls += 1;
+        if (calls == 1) throw Exception('offline');
+      },
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+    await walkToClosing(tester);
+
+    expect(find.text('Try again'), findsOneWidget);
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2);
+    expect(find.byKey(const Key('worksheet_save_failed')), findsNothing);
+    expect(find.text('Kept safe.'), findsOneWidget);
+  });
+
+  testWidgets('a second tap while the save is in flight does not post twice', (tester) async {
+    final gate = Completer<void>();
+    var calls = 0;
+    await tester.pumpWidget(harness(
+      content: singlePiece(),
+      onFinished: (answers, result) async {
+        calls += 1;
+        await gate.future;
+      },
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('worksheet_after_skip')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('worksheet_finish')));
+    await tester.pump();
+    // In flight: the button is disabled and spinning, so a second tap lands on
+    // a dead control instead of a second write.
+    await tester.tap(find.byKey(const Key('worksheet_finish')), warnIfMissed: false);
+    await tester.pump();
+    expect(calls, 1);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Kept safe.'), findsOneWidget);
   });
 }

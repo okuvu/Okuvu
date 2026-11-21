@@ -137,6 +137,13 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   bool _restoring = true;
   bool _isListening = false;
 
+  /// The save is a network write, so it can be in flight — and it can fail.
+  /// `_submitting` keeps a second tap from posting twice, and `_saveFailed`
+  /// keeps the client on their answers instead of handing them a "Done"
+  /// screen over a save that never reached the server.
+  bool _submitting = false;
+  bool _saveFailed = false;
+
   /// One controller per text-ish piece (and per row-list cell), created on
   /// first render. Creating them inside build would reset the caret on every
   /// keystroke, which on a phone reads as the keyboard fighting you.
@@ -288,25 +295,46 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   /// The draft is deliberately NOT cleared here: the answers are only safe once
   /// the caller has stored them, and the caller clears it (see WorksheetScreen).
   Future<void> _submit() async {
+    if (_submitting) return;
     setState(() {
+      _submitting = true;
+      _saveFailed = false;
+    });
+
+    try {
+      await widget.onFinished?.call(
+        Map<String, Object?>.from(_answers),
+        WorksheetOutcome(
+          feelingBefore: _feelingBefore,
+          feelingAfter: _feelingAfter,
+          didIt: widget.isAssigned ? _didIt : null,
+          // Only an assigned worksheet asks, and only when the client said they
+          // did not get to it — a barrier paragraph attached to a finished
+          // worksheet is noise on a therapist's dashboard.
+          barriers: widget.isAssigned && _didIt == false && _barriers.trim().isNotEmpty
+              ? _barriers.trim()
+              : null,
+          helped: _helped,
+        ),
+      );
+    } catch (_) {
+      // Not stored. The answers and the draft stay exactly where they are and
+      // the client is told, because the alternative — the closing screen over a
+      // save that never happened — is a silent loss with a false confirmation.
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _saveFailed = true;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
       _finished = true;
       _stage = 'closing';
     });
-    await widget.onFinished?.call(
-      Map<String, Object?>.from(_answers),
-      WorksheetOutcome(
-        feelingBefore: _feelingBefore,
-        feelingAfter: _feelingAfter,
-        didIt: widget.isAssigned ? _didIt : null,
-        // Only an assigned worksheet asks, and only when the client said they
-        // did not get to it — a barrier paragraph attached to a finished
-        // worksheet is noise on a therapist's dashboard.
-        barriers: widget.isAssigned && _didIt == false && _barriers.trim().isNotEmpty
-            ? _barriers.trim()
-            : null,
-        helped: _helped,
-      ),
-    );
   }
 
   Future<void> _toggleListening() async {
@@ -720,10 +748,27 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                 ),
               ),
               const SizedBox(height: 28),
+              if (_saveFailed) ...[
+                Text(
+                  "Couldn't save that just now. Your answers are still here — try again when you have signal.",
+                  key: const Key('worksheet_save_failed'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    height: 1.4,
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               FilledButton(
                 key: const Key('worksheet_finish'),
-                onPressed: _submit,
-                child: const Text('Finish'),
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(_saveFailed ? 'Try again' : 'Finish'),
               ),
             ],
           ),
