@@ -36,7 +36,8 @@ export type SafetyFlagSource =
   // typed — never what they were (Step 4).
   | 'journal_entry'
   | 'worksheet_answer'
-  | 'treasure_note';
+  | 'treasure_note'
+  | 'mood_log';
 
 /** Only the two levels a therapist is alerted about. S0–S2 are not flags. */
 export type SafetyFlagLevelValue = 'S3' | 'S4';

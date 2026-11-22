@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { router, therapistProcedure, assertLiveLink, logClinicalAccess } from '../trpc';
+import { moodLabel } from '@okuvu/shared-types/mood';
 
 /**
  * What the client chose to share, item by item — plus the two things a
@@ -112,6 +113,26 @@ function rangeOf(values: number[]): { low: number; high: number } | null {
   return { low: Math.min(...values), high: Math.max(...values) };
 }
 
+/**
+ * One shared mood check-in, as the therapist reads it: the face, the words, the
+ * strength and the date. Nothing else exists on the row for them to read, and
+ * `shared_with_therapist: true` is in the query's WHERE — an unshared check-in
+ * is never in this list, not even as a count.
+ */
+export interface SharedMood {
+  id: string;
+  /** `YYYY-MM-DD`, the client's IST calendar day. */
+  date: string;
+  /** 1-5. The word under the face is `label`. */
+  value: number;
+  label: string;
+  words: string[];
+  /** The client's "Something else", when they wrote one. */
+  other: string | null;
+  /** 1-5, or null when the client left the slider alone. */
+  strength: number | null;
+}
+
 export const sharedRouter = router({
   list: therapistProcedure
     .input(z.object({ clientId: z.string().min(1) }))
@@ -123,10 +144,11 @@ export const sharedRouter = router({
         items: SharedItem[];
         patterns: ExercisePattern[];
         assignments: AssignmentStatus[];
+        moods: SharedMood[];
       }> => {
         await assertLiveLink(ctx.db, ctx.therapistId, input.clientId);
 
-        const [journal, worksheets, notes, homework] = await Promise.all([
+        const [journal, worksheets, notes, homework, moodRows] = await Promise.all([
           ctx.db.journalEntry.findMany({
             where: { user_id: input.clientId, shared_with_therapist: true },
             orderBy: { created_at: 'desc' },
@@ -175,6 +197,21 @@ export const sharedRouter = router({
                 take: 1,
                 select: { completed_at: true },
               },
+            },
+          }),
+          // Shared check-ins only. A private one is not in this result, so it
+          // cannot be counted, rendered or inferred from a gap.
+          ctx.db.moodLog.findMany({
+            where: { user_id: input.clientId, shared_with_therapist: true },
+            orderBy: { date_ist: 'desc' },
+            take: 60,
+            select: {
+              id: true,
+              date_ist: true,
+              mood_value: true,
+              feeling_words: true,
+              feeling_other: true,
+              strength_1_5: true,
             },
           }),
         ]);
@@ -279,14 +316,24 @@ export const sharedRouter = router({
         }));
 
         // One access-log row per read, naming what was read but not what it said.
+        const moods: SharedMood[] = moodRows.map((row) => ({
+          id: row.id,
+          date: row.date_ist.toISOString().split('T')[0],
+          value: row.mood_value,
+          label: moodLabel(row.mood_value) ?? '',
+          words: row.feeling_words,
+          other: row.feeling_other,
+          strength: row.strength_1_5,
+        }));
+
         await logClinicalAccess(
           ctx.db,
           ctx.therapistId,
           input.clientId,
-          `shared_items_read:${items.length}`,
+          `shared_items_read:${items.length}:moods:${moods.length}`,
         );
 
-        return { items, patterns, assignments };
+        return { items, patterns, assignments, moods };
       },
     ),
 });

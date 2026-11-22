@@ -18,77 +18,88 @@ Widget _buildTestApp({required Dio dio}) {
   );
 }
 
+Dio _dio(Future<Response<dynamic>> Function(RequestOptions options) onRequest) {
+  final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
+  dio.interceptors.add(InterceptorsWrapper(
+    onRequest: (options, handler) async {
+      final response = await onRequest(options);
+      handler.resolve(response);
+    },
+  ));
+  return dio;
+}
+
+Response<dynamic> _ok(RequestOptions options, [Map<String, dynamic>? data]) =>
+    Response(
+      requestOptions: options,
+      statusCode: 200,
+      data: data ?? {'success': true},
+    );
+
 void main() {
   AppConfig.init('dev');
 
-  testWidgets('tapping a mood posts mood_value to /progress/mood/checkin',
+  testWidgets('shows five faces with their words, and no 1-5 numbers',
+      (tester) async {
+    await tester.pumpWidget(_buildTestApp(dio: _dio((o) async => _ok(o))));
+
+    for (final label in ['Awful', 'Low', 'Okay', 'Good', 'Great']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    for (final value in [1, 2, 3, 4, 5]) {
+      expect(find.byKey(Key('mood_face_$value')), findsOneWidget);
+    }
+    // The number scale is gone, not hidden behind the labels.
+    expect(find.text('1'), findsNothing);
+    expect(find.text('5'), findsNothing);
+  });
+
+  testWidgets('tapping a face posts that face\'s value to /progress/mood/checkin',
       (tester) async {
     String? capturedPath;
     Map<String, dynamic>? capturedBody;
 
-    final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        capturedPath = options.path;
-        capturedBody = options.data as Map<String, dynamic>?;
-        handler.resolve(Response(
-          requestOptions: options,
-          statusCode: 200,
-          data: {'success': true, 'date': '2026-09-11', 'mood_value': 4},
-        ));
-      },
-    ));
+    final dio = _dio((options) async {
+      capturedPath = options.path;
+      capturedBody = options.data as Map<String, dynamic>?;
+      return _ok(options, {'success': true, 'id': 'log-1', 'date': '2026-11-22'});
+    });
 
     await tester.pumpWidget(_buildTestApp(dio: dio));
-    await tester.tap(find.text('4'));
+    await tester.tap(find.byKey(const Key('mood_face_4')));
     await tester.pumpAndSettle();
 
     expect(capturedPath, '/progress/mood/checkin');
+    // A quick tap on Home sends the face and nothing else: the day may already
+    // carry words from the full screen, and this tap must not clear them.
     expect(capturedBody, {'mood_value': 4});
   });
 
-  testWidgets('shows the selected mood label after tapping', (tester) async {
-    final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        handler.resolve(Response(
-          requestOptions: options,
-          statusCode: 200,
-          data: {'success': true},
-        ));
-      },
-    ));
+  testWidgets('shows the selected face\'s word after tapping', (tester) async {
+    await tester.pumpWidget(_buildTestApp(dio: _dio((o) async => _ok(o))));
 
-    await tester.pumpWidget(_buildTestApp(dio: dio));
-    await tester.tap(find.text('3'));
+    await tester.tap(find.byKey(const Key('mood_face_3')));
     await tester.pumpAndSettle();
 
     expect(find.text('Feeling Okay'), findsOneWidget);
   });
 
-  testWidgets('toggling the same mood off does not re-post', (tester) async {
-    var requestCount = 0;
+  testWidgets('tapping the same face off does not re-post', (tester) async {
+    var checkins = 0;
 
-    final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        requestCount++;
-        handler.resolve(Response(
-          requestOptions: options,
-          statusCode: 200,
-          data: {'success': true},
-        ));
-      },
-    ));
+    final dio = _dio((options) async {
+      if (options.path == '/progress/mood/checkin') checkins++;
+      return _ok(options);
+    });
 
     await tester.pumpWidget(_buildTestApp(dio: dio));
-    await tester.tap(find.text('2'));
+    await tester.tap(find.byKey(const Key('mood_face_2')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('2'));
+    await tester.tap(find.byKey(const Key('mood_face_2')));
     await tester.pumpAndSettle();
 
-    expect(requestCount, 1);
-    expect(find.text('Feeling Down'), findsNothing);
+    expect(checkins, 1);
+    expect(find.text('Feeling Low'), findsNothing);
   });
 
   testWidgets('shows an error snackbar when the check-in fails to save',
@@ -104,7 +115,7 @@ void main() {
     ));
 
     await tester.pumpWidget(_buildTestApp(dio: dio));
-    await tester.tap(find.text('1'));
+    await tester.tap(find.byKey(const Key('mood_face_1')));
     await tester.pumpAndSettle();
 
     expect(

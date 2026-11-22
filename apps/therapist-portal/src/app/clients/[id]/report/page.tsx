@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { trpc } from '@/trpc/client';
 import { useClientHeader } from '../_components/useClientHeader';
 import { TabStrip } from '../_components/TabStrip';
+import { MoodFace, moodFaceLabel } from '../_components/MoodFace';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -156,8 +157,9 @@ export default function ClientReportPage() {
               REPORT CARD
             </h2>
             <p className="text-xs text-gray-500 mb-4">
-              Homework progress and mood trend, permission-gated on the client&rsquo;s consent to
-              share session summaries.
+              Homework progress, permission-gated on the client&rsquo;s consent to
+              share session summaries. Mood check-ins are private by default and appear below only
+              for the days the client shared.
             </p>
 
             {reportCardQuery.isLoading ? (
@@ -223,21 +225,25 @@ export default function ClientReportPage() {
 
                 {reportCardQuery.data.moodTrend.length > 0 ? (
                   <div>
-                    <p className="text-xs font-medium text-gray-500 mb-1">Mood trend (30 days)</p>
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      Mood check-ins (30 days, shared only)
+                    </p>
                     <div className="flex flex-wrap gap-1.5">
                       {reportCardQuery.data.moodTrend.map((point) => (
                         <span
                           key={point.date}
-                          title={`${formatDate(point.date)}: ${point.moodValue}`}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded bg-sage-tint text-[10px] font-medium text-sage-deep"
+                          title={`${formatDate(point.date)}: ${moodFaceLabel(point.moodValue)}`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded bg-sage-tint"
                         >
-                          {point.moodValue}
+                          <MoodFace value={point.moodValue} size={22} />
                         </span>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500 italic">No mood check-ins in the last 30 days.</p>
+                  <p className="text-sm text-gray-500 italic">
+                    No shared mood check-ins in the last 30 days.
+                  </p>
                 )}
               </div>
             ) : null}

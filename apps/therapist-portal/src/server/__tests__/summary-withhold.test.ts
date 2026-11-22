@@ -148,3 +148,28 @@ describe('per-session summary withholds', () => {
     });
   });
 });
+
+/**
+ * The report card's mood strip is a second reader of the same private rows. It
+ * must carry each check-in's own share, not the summary consent switch: a client
+ * who granted summaries has still not shared a single day's mood.
+ */
+describe('report card — mood check-ins obey their own share', () => {
+  it('asks only for check-ins the client shared', async () => {
+    const prisma = buildPrisma();
+    await callerFor(prisma).reportCard.reportCard({ clientId: CLIENT_ID });
+
+    const args = (prisma.moodLog.findMany as any).mock.calls[0][0];
+    expect(args.where).toMatchObject({
+      user_id: CLIENT_ID,
+      shared_with_therapist: true,
+    });
+  });
+
+  it('reports no trend when the client shared nothing', async () => {
+    const prisma = buildPrisma();
+    const card = await callerFor(prisma).reportCard.reportCard({ clientId: CLIENT_ID });
+    if (!card.granted) throw new Error('expected a granted report card');
+    expect(card.moodTrend).toEqual([]);
+  });
+});

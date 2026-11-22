@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { trpc } from '@/trpc/client';
 import { useClientHeader } from '../_components/useClientHeader';
 import { TabStrip } from '../_components/TabStrip';
+import { MoodFace } from '../_components/MoodFace';
 
 type Point = { at: string; before: number | null; after: number | null };
 
@@ -70,6 +71,7 @@ export default function ClientSharedPage() {
   const items = sharedQuery.data?.items ?? [];
   const patterns = sharedQuery.data?.patterns ?? [];
   const assignments = sharedQuery.data?.assignments ?? [];
+  const moods = sharedQuery.data?.moods ?? [];
 
   return (
     <div className="p-6">
@@ -85,6 +87,51 @@ export default function ClientSharedPage() {
       </div>
 
       <TabStrip clientId={clientId} active="shared" />
+
+      {moods.length > 0 && (
+        <section className="mt-6" data-testid="shared-moods">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+            Mood check-ins
+          </h2>
+          <p className="mt-1 text-xs text-gray-500">
+            The days {label} chose to share. Check-ins are private by default, so a day they have
+            not shared is not here — not even as a count.
+          </p>
+          <ul className="mt-3 divide-y divide-hairline rounded-lg border border-hairline bg-white">
+            {moods.map((mood) => {
+              const [year, month, day] = mood.date.split('-').map(Number);
+              const dateLabel = Number.isFinite(year)
+                ? new Date(year, month - 1, day).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : mood.date;
+              const words = [...mood.words, ...(mood.other ? [mood.other] : [])];
+
+              return (
+                <li key={mood.id} className="flex items-start gap-3 px-4 py-3">
+                  <MoodFace value={mood.value} size={36} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-900">{mood.label}</p>
+                      <span className="text-xs text-gray-500">{dateLabel}</span>
+                    </div>
+                    {words.length > 0 && (
+                      <p className="mt-0.5 text-sm text-gray-700">{words.join(', ')}</p>
+                    )}
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {mood.strength !== null
+                        ? `Strength ${mood.strength} of 5`
+                        : 'No strength given'}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {patterns.length > 0 && (
         <section className="mt-6">
@@ -189,10 +236,10 @@ export default function ClientSharedPage() {
           </div>
         )}
 
-        {sharedQuery.data && items.length === 0 && (
+        {sharedQuery.data && items.length === 0 && moods.length === 0 && (
           <div className="rounded-lg border border-hairline bg-oat-elevated p-4 text-sm text-gray-600">
             Nothing is shared right now. Items appear here only when {label} turns on sharing for
-            that entry, worksheet or note.
+            that entry, worksheet, note or mood check-in.
           </div>
         )}
 

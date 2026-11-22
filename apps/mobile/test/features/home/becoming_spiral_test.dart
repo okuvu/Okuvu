@@ -198,7 +198,7 @@ void main() {
           child: const MaterialApp(home: Scaffold(body: MoodCheckIn())),
         ),
       );
-      await tester.tap(find.text('4'));
+      await tester.tap(find.byKey(const Key('mood_face_4')));
       await tester.pumpAndSettle();
 
       expect(container.read(becomingJourneyProvider).moments, 1);

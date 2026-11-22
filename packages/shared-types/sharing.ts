@@ -36,11 +36,15 @@ export const UPDATES_SHARED_LINE =
 /**
  * What can be shared.
  *
- * The three surfaces that store client-authored free text. A safety plan is
- * not here: it is co-written in session and visible to the linked therapist by
+ * The surfaces that store what a client chose or wrote. A safety plan is not
+ * here: it is co-written in session and visible to the linked therapist by
  * construction, so a share switch on it would be a second, contradictory rule.
+ *
+ * `mood_log` is a daily check-in: the face, the feeling words, the strength and
+ * the date. Private by default like the other three, with one switch per
+ * check-in (owner's instruction, 22 Nov 2026).
  */
-export const SHAREABLE_KINDS = ['journal_entry', 'worksheet_response', 'treasure_note'] as const
+export const SHAREABLE_KINDS = ['journal_entry', 'worksheet_response', 'treasure_note', 'mood_log'] as const
 export type ShareableKind = (typeof SHAREABLE_KINDS)[number]
 
 export function isShareableKind(value: unknown): value is ShareableKind {

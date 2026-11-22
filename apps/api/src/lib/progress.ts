@@ -1,22 +1,33 @@
 import { prisma } from './prisma.js';
 import { getISTDateString, istDateToUtcMidnight } from '@okuvu/shared-types';
+import { moodLabel } from '@okuvu/shared-types/mood';
 
 export type LogFn = (obj: Record<string, unknown>, msg: string) => void;
 
 export type MoodCheckinResult =
-  | { status: 'ok'; dateIst: string }
+  | { status: 'ok'; dateIst: string; id: string; userId: string }
   | { status: 'user_not_found' };
+
+export interface MoodCheckinExtras {
+  /** The two screens the approved document adds after the check-in. */
+  trigger?: string | null;
+  intensity?: number | null;
+  /**
+   * The check-in's own optional answers. `undefined` means "not mentioned", so a
+   * re-tap that only moves the face leaves the words alone; an empty array means
+   * "the client cleared them", which is a real answer and is written.
+   */
+  feelingWords?: string[];
+  feelingOther?: string | null;
+  /** 1-5, or null when the client left the slider alone. */
+  strength?: number | null;
+}
 
 export async function recordMoodCheckin(
   authSubject: string,
   moodValue: number,
   log?: { info: LogFn },
-  /**
-   * The two screens the approved document adds after the check-in. Both are
-   * optional: a client who only taps an emoji still gets a saved check-in, which
-   * is how the app worked before this step.
-   */
-  extra?: { trigger?: string | null; intensity?: number | null },
+  extra?: MoodCheckinExtras,
 ): Promise<MoodCheckinResult> {
   const user = await prisma.user.findUnique({
     where: { auth_subject: authSubject },
@@ -37,7 +48,7 @@ export async function recordMoodCheckin(
   // same convention getMoodHistory reads back with.
   const dateIstValue = istDateToUtcMidnight(dateIst);
 
-  await prisma.moodLog.upsert({
+  const row = await prisma.moodLog.upsert({
     where: {
       user_id_date_ist: {
         user_id: user.id,
@@ -51,34 +62,68 @@ export async function recordMoodCheckin(
       source: 'user_input',
       trigger_text: extra?.trigger ?? null,
       intensity_0_10: extra?.intensity ?? null,
+      feeling_words: extra?.feelingWords ?? [],
+      feeling_other: extra?.feelingOther ?? null,
+      strength_1_5: extra?.strength ?? null,
     },
     update: {
       mood_value: moodValue,
       source: 'user_input',
       ...(extra?.trigger !== undefined ? { trigger_text: extra.trigger } : {}),
       ...(extra?.intensity !== undefined ? { intensity_0_10: extra.intensity } : {}),
+      ...(extra?.feelingWords !== undefined ? { feeling_words: extra.feelingWords } : {}),
+      ...(extra?.feelingOther !== undefined ? { feeling_other: extra.feelingOther } : {}),
+      ...(extra?.strength !== undefined ? { strength_1_5: extra.strength } : {}),
     },
+    select: { id: true },
   });
 
   if (log) {
     log.info(
-      { event: 'mood_checkin', user_id: user.id, date: dateIst, mood_value: moodValue },
+      {
+        event: 'mood_checkin',
+        user_id: user.id,
+        date: dateIst,
+        mood_value: moodValue,
+        word_count: extra?.feelingWords?.length ?? 0,
+        has_other: Boolean(extra?.feelingOther),
+        strength: extra?.strength ?? null,
+      },
       'Mood check-in recorded',
     );
   }
 
-  return { status: 'ok', dateIst };
+  return { status: 'ok', dateIst, id: row.id, userId: user.id };
 }
 
 export interface MoodHistoryEntry {
   date: string;
   mood_value: number;
+  id: string;
+  /** The word under the face, resolved here so no surface composes one. */
+  moodLabel: string | null;
+  feeling_words: string[];
+  feeling_other: string | null;
+  strength_1_5: number | null;
+  shared: boolean;
+  shareLabel: string;
 }
 
 export type MoodHistoryResult =
   | { status: 'ok'; entries: MoodHistoryEntry[] }
   | { status: 'user_not_found' };
 
+/**
+ * The client's own check-ins.
+ *
+ * Unshared rows are included: this is the client reading their own entries, and
+ * the share switch on each row needs to know which ones are private. The
+ * therapist's read is a different query (the portal's `shared.list`) that puts
+ * `shared_with_therapist: true` in its WHERE.
+ *
+ * Oldest first, because the Progress screen's 14-day chart reads it that way;
+ * the check-in list reverses it for display.
+ */
 export async function getMoodHistory(
   authSubject: string,
   days: number,
@@ -102,8 +147,13 @@ export async function getMoodHistory(
     },
     orderBy: { date_ist: 'asc' },
     select: {
+      id: true,
       date_ist: true,
       mood_value: true,
+      feeling_words: true,
+      feeling_other: true,
+      strength_1_5: true,
+      shared_with_therapist: true,
     },
   });
 
@@ -112,6 +162,13 @@ export async function getMoodHistory(
     entries: entries.map((e) => ({
       date: e.date_ist.toISOString().split('T')[0],
       mood_value: e.mood_value,
+      id: e.id,
+      moodLabel: moodLabel(e.mood_value),
+      feeling_words: e.feeling_words,
+      feeling_other: e.feeling_other,
+      strength_1_5: e.strength_1_5,
+      shared: e.shared_with_therapist,
+      shareLabel: e.shared_with_therapist ? 'Shared with my therapist' : 'Private',
     })),
   };
 }

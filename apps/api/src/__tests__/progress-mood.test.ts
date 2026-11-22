@@ -67,8 +67,8 @@ describe('GET /progress/mood', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.entries).toHaveLength(14);
-      expect(body.entries[0]).toEqual({ date: '2026-06-24', mood_value: 4 });
-      expect(body.entries[13]).toEqual({ date: '2026-07-07', mood_value: 4 });
+      expect(body.entries[0]).toMatchObject({ date: '2026-06-24', mood_value: 4 });
+      expect(body.entries[13]).toMatchObject({ date: '2026-07-07', mood_value: 4 });
     });
 
     it('returns entries sorted ascending by date', async () => {
@@ -104,7 +104,7 @@ describe('GET /progress/mood', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.entries).toHaveLength(3);
-      expect(body.entries).toEqual([
+      expect(body.entries).toMatchObject([
         { date: '2026-06-25', mood_value: 3 },
         { date: '2026-07-01', mood_value: 5 },
         { date: '2026-07-07', mood_value: 4 },

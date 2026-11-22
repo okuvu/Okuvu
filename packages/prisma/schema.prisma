@@ -815,6 +815,19 @@ model MoodLog {
   /// is the one the demanding-worksheet gate reads.
   trigger_text    String?
   intensity_0_10  Int?
+  /// The mood check-in's own optional steps (22 Nov 2026): up to three feeling
+  /// chips from the fixed vocabulary, the "Something else" text, and the
+  /// strength slider, which is 1-5 — the same three-way split as the daily
+  /// value, never the 0-10 intensity above.
+  feeling_words   String[] @default([])
+  feeling_other   String?
+  strength_1_5    Int?
+  /// Private by default, shared one check-in at a time. One triple, no
+  /// therapist column: the boolean is the visibility, so an unshare is a
+  /// single UPDATE and there is no copy to hunt down.
+  shared_with_therapist Boolean   @default(false)
+  shared_at             DateTime?
+  unshared_at           DateTime?
   date_ist   DateTime @db.Date
   source     String   @default("user_input")
   created_at DateTime @default(now())
@@ -823,6 +836,8 @@ model MoodLog {
 
   @@unique([user_id, date_ist])
   @@index([user_id, date_ist(sort: Desc)])
+  /// The therapist's read path: shared check-ins for one client, newest first.
+  @@index([user_id, shared_with_therapist, date_ist(sort: Desc)])
 }
 
 model GovernanceLog {

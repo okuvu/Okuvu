@@ -38,7 +38,7 @@ import '../features/library/worksheet_screen.dart';
 import '../features/library/safety_plan_screen.dart';
 import '../features/library/treasure_box_screen.dart';
 import '../features/library/grounding_screen.dart';
-import '../features/library/mood_checkin_screen.dart';
+import '../features/mood/mood_checkin_screen.dart';
 import '../features/my_space/toolkit_screen.dart';
 import '../features/my_space/past_me_screen.dart';
 import '../features/settings/my_data_screen.dart';

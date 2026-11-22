@@ -66,7 +66,7 @@ export async function sharingRoute(app: FastifyInstance): Promise<void> {
         return reply.status(400).send({
           error: {
             code: 'INVALID_KIND',
-            message: 'kind must be one of journal_entry, worksheet_response, treasure_note',
+            message: 'kind must be one of journal_entry, worksheet_response, treasure_note, mood_log',
           },
         });
       }
@@ -146,6 +146,24 @@ export async function sharingRoute(app: FastifyInstance): Promise<void> {
           });
           if (!row) throw new NotFound();
           const updated = await prisma.worksheetResponse.update({
+            where: { id },
+            data,
+            select: { shared_with_therapist: true, shared_at: true, unshared_at: true },
+          });
+          await recordShareEvent();
+          return reply.send(stateFor(kind, id, updated));
+        }
+
+        // A mood check-in is shared one day at a time. Same triple, same
+        // revoke: the portal's read puts `shared_with_therapist: true` in its
+        // WHERE, so stopping a share removes the check-in from the next read.
+        if (kind === 'mood_log') {
+          const row = await prisma.moodLog.findFirst({
+            where: { id, user_id: user.id },
+            select: { id: true },
+          });
+          if (!row) throw new NotFound();
+          const updated = await prisma.moodLog.update({
             where: { id },
             data,
             select: { shared_with_therapist: true, shared_at: true, unshared_at: true },

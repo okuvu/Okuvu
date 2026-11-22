@@ -23,31 +23,6 @@ final moodProgressProvider =
       .toList();
 });
 
-/// Posts today's mood to `POST /progress/mood/checkin` (upserted by IST
-/// day, so re-tapping a different number just overwrites today's value).
-/// On success, invalidates [moodProgressProvider] so the Progress screen's
-/// 14-day chart picks up the new entry without a manual refresh.
-class MoodCheckinNotifier extends Notifier<void> {
-  @override
-  void build() {}
-
-  Future<bool> checkIn(int moodValue) async {
-    final dio = ref.read(dioClientProvider);
-
-    try {
-      await dio.post(
-        '/progress/mood/checkin',
-        data: {'mood_value': moodValue},
-      );
-      ref.invalidate(moodProgressProvider);
-      ref.read(becomingJourneyProvider.notifier).recordMoment();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-}
-
-final moodCheckinProvider = NotifierProvider<MoodCheckinNotifier, void>(
-  MoodCheckinNotifier.new,
-);
+// The check-in itself moved with the screen: `moodCheckinProvider` and
+// `MoodCheckinNotifier` now live in `features/mood/providers/mood_provider.dart`,
+// which also invalidates this provider after a save.

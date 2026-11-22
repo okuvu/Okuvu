@@ -11,6 +11,7 @@ interface Overrides {
   worksheets?: unknown[];
   notes?: unknown[];
   homework?: unknown[];
+  moods?: unknown[];
 }
 
 function buildPrisma(overrides: Overrides = {}) {
@@ -30,6 +31,9 @@ function buildPrisma(overrides: Overrides = {}) {
     },
     homework: {
       findMany: vi.fn().mockResolvedValue(overrides.homework ?? []),
+    },
+    moodLog: {
+      findMany: vi.fn().mockResolvedValue(overrides.moods ?? []),
     },
     clinicalAccessLog: { create: vi.fn().mockResolvedValue({}) },
   } as unknown as PrismaClient;
@@ -234,5 +238,65 @@ describe('shared router — patterns and assignment status', () => {
     expect(select).not.toContain('answers');
     expect(select).not.toContain('barriers');
     expect(select).not.toContain('feeling_');
+  });
+});
+
+/**
+ * Mood check-ins are private by default and shared one day at a time. The two
+ * properties that make that true: `shared_with_therapist: true` is in the query,
+ * and the row is rendered with the face, words, strength and date only.
+ */
+describe('shared router — mood check-ins', () => {
+  beforeEach(() => {
+    delete process.env.LOCAL_DEV_BYPASS_AUTH;
+  });
+
+  it('asks only for check-ins the client shared', async () => {
+    const prisma = buildPrisma();
+    await callerFor(prisma).shared.list({ clientId: CLIENT_ID });
+
+    const args = (prisma.moodLog.findMany as any).mock.calls[0][0];
+    expect(args.where).toMatchObject({
+      user_id: CLIENT_ID,
+      shared_with_therapist: true,
+    });
+    // Nor does the select reach for the old free-text screens: the therapist
+    // reads the check-in's own answers and nothing else.
+    const select = JSON.stringify(args.select);
+    expect(select).not.toContain('trigger_text');
+  });
+
+  it('renders the face label, the words, the strength and the date', async () => {
+    const prisma = buildPrisma({
+      moods: [
+        {
+          id: 'mood_1',
+          date_ist: new Date('2026-11-20T00:00:00.000Z'),
+          mood_value: 2,
+          feeling_words: ['tired', 'numb'],
+          feeling_other: 'worn thin',
+          strength_1_5: 4,
+        },
+      ],
+    });
+
+    const view = await callerFor(prisma).shared.list({ clientId: CLIENT_ID });
+    expect(view.moods).toEqual([
+      {
+        id: 'mood_1',
+        date: '2026-11-20',
+        value: 2,
+        label: 'Low',
+        words: ['tired', 'numb'],
+        other: 'worn thin',
+        strength: 4,
+      },
+    ]);
+  });
+
+  it('returns an empty list — not a count — when nothing is shared', async () => {
+    const prisma = buildPrisma();
+    const view = await callerFor(prisma).shared.list({ clientId: CLIENT_ID });
+    expect(view.moods).toEqual([]);
   });
 });

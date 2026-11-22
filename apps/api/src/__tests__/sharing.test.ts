@@ -9,6 +9,7 @@ vi.mock('../lib/prisma.js', () => ({
     journalEntry: { findFirst: vi.fn(), update: vi.fn() },
     worksheetResponse: { findFirst: vi.fn(), update: vi.fn() },
     treasureNote: { findFirst: vi.fn(), update: vi.fn() },
+    moodLog: { findFirst: vi.fn(), update: vi.fn() },
   },
 }));
 
@@ -55,6 +56,8 @@ describe('POST /sharing', () => {
     vi.mocked(prisma.worksheetResponse.update).mockResolvedValue(sharedRow(true) as any);
     vi.mocked(prisma.treasureNote.findFirst).mockResolvedValue({ id: 't1' } as any);
     vi.mocked(prisma.treasureNote.update).mockResolvedValue(sharedRow(true) as any);
+    vi.mocked(prisma.moodLog.findFirst).mockResolvedValue({ id: 'm1' } as any);
+    vi.mocked(prisma.moodLog.update).mockResolvedValue(sharedRow(true) as any);
     app = buildApp();
   });
 
@@ -221,5 +224,86 @@ describe('POST /sharing', () => {
     // share lands and the failure is logged.
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ shared: true });
+  });
+});
+
+/**
+ * A mood check-in is shared one day at a time, with its own switch.
+ *
+ * Two properties matter more than the 200: the route only touches a row that
+ * belongs to the caller, and stopping the share sets the boolean false in the
+ * same statement the portal's read filters on — which is what makes a private
+ * day disappear from the therapist's list immediately.
+ */
+describe('POST /sharing — a mood check-in', () => {
+  let app: ReturnType<typeof buildApp>;
+
+  beforeEach(async () => {
+    process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
+    const prisma = await importMocks();
+    vi.clearAllMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+    vi.mocked(prisma.moodLog.findFirst).mockResolvedValue({ id: 'm1' } as any);
+    vi.mocked(prisma.moodLog.update).mockResolvedValue(sharedRow(true) as any);
+    app = buildApp();
+  });
+
+  afterEach(async () => {
+    if (app) await app.close();
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it('shares one check-in and answers with the approved label', async () => {
+    const prisma = await importMocks();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sharing',
+      payload: { kind: 'mood_log', id: 'm1', shared: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      kind: 'mood_log',
+      id: 'm1',
+      shared: true,
+      label: 'Shared with my therapist',
+    });
+    expect(vi.mocked(prisma.moodLog.findFirst)).toHaveBeenCalledWith({
+      where: { id: 'm1', user_id: MOCK_USER_ID },
+      select: { id: true },
+    });
+  });
+
+  it('turns sharing off by setting the boolean false in the same update', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.moodLog.update).mockResolvedValue(sharedRow(false) as any);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sharing',
+      payload: { kind: 'mood_log', id: 'm1', shared: false },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const arg = vi.mocked(prisma.moodLog.update).mock.calls[0][0] as any;
+    expect(arg.data).toMatchObject({ shared_with_therapist: false });
+    expect(arg.data.unshared_at).toBeInstanceOf(Date);
+    // shared_at is kept, never nulled: the grant history is the point.
+    expect(arg.data.shared_at).toBeUndefined();
+  });
+
+  it('answers 404 for a check-in that is not the caller’s', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.moodLog.findFirst).mockResolvedValue(null as any);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sharing',
+      payload: { kind: 'mood_log', id: 'not-mine', shared: true },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(prisma.moodLog.update).not.toHaveBeenCalled();
   });
 });

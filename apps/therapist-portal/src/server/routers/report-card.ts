@@ -337,7 +337,14 @@ export const reportCardRouter = router({
           select: { homework_track: true },
         }),
         db.moodLog.findMany({
-          where: { user_id: input.clientId, date_ist: { gte: thirtyDaysAgo } },
+          // Shared check-ins only. The client's mood is private by default and
+          // each day's entry has its own switch, so a trend built from every row
+          // would show a therapist days the client never handed over.
+          where: {
+            user_id: input.clientId,
+            shared_with_therapist: true,
+            date_ist: { gte: thirtyDaysAgo },
+          },
           orderBy: { date_ist: 'asc' },
           select: { date_ist: true, mood_value: true },
         }),

@@ -4,31 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../progress/providers/progress_provider.dart';
+import '../../../core/providers.dart';
 import '../../../theme/app_colors.dart';
+import '../../mood/mood_vocabulary.dart';
+import '../../mood/providers/mood_provider.dart';
+import '../../mood/widgets/mood_face.dart';
 
-const Map<int, Color> kMoodColors = {
-  1: AppColors.honeyDeep,
-  2: AppColors.honey,
-  3: AppColors.inkSoft,
-  4: AppColors.sageDeep,
-  5: AppColors.violet,
-};
-
-const Map<int, String> kMoodLabels = {
-  1: 'Struggling',
-  2: 'Down',
-  3: 'Okay',
-  4: 'Good',
-  5: 'Great',
-};
-
+/// The Home card's quick check-in.
+///
+/// Five faces instead of 1-5 numbers, drawn in the app (`MoodFaceRow`) with the
+/// word under each. One tap saves that day's face; the words and the strength
+/// slider live on the full screen at `/library/mood`.
+///
+/// A quick tap deliberately does NOT send the words: the day's entry may already
+/// carry some from the full screen, and re-tapping a face here must not clear
+/// them.
 class MoodCheckIn extends ConsumerStatefulWidget {
   const MoodCheckIn({super.key, this.onMoodSelected});
 
   /// Called after a check-in is saved. The Library uses it to continue into the
-  /// two screens the approved document adds after the check-in; Home passes
-  /// nothing and behaves exactly as before.
+  /// rest of the check-in; Home passes nothing and behaves exactly as before.
   final void Function(int mood)? onMoodSelected;
 
   @override
@@ -65,16 +60,19 @@ class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
       });
     }
 
-    ref.read(moodCheckinProvider.notifier).checkIn(mood).then((success) {
-      if (success && mounted) {
+    ref.read(moodCheckinProvider.notifier).save(mood: mood).then((outcome) {
+      if (outcome.ok && mounted) {
         widget.onMoodSelected?.call(mood);
       }
-      if (!success && mounted) {
+      if (!outcome.ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Couldn't save your check-in. Please try again."),
           ),
         );
+      }
+      if (outcome.showHelp && mounted) {
+        ref.read(crisisOverlayProvider.notifier).show();
       }
     });
   }
@@ -89,6 +87,7 @@ class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final face = moodFaceFor(_selectedMood);
 
     return Container(
       width: double.infinity,
@@ -104,47 +103,13 @@ class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
             style: theme.textTheme.titleMedium,
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(5, (index) {
-              final mood = index + 1;
-              final color = kMoodColors[mood]!;
-              final isSelected = _selectedMood == mood;
-
-              return GestureDetector(
-                onTap: () => _selectMood(mood),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: isSelected ? 56 : 48,
-                  height: isSelected ? 56 : 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected ? color : null,
-                    border: Border.all(
-                      color: isSelected ? color : color.withAlpha(128),
-                      width: 2,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$mood',
-                      style: TextStyle(
-                        fontSize: isSelected ? 20 : 16,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? Colors.white : color,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-          if (_selectedMood != null) ...[
-            const SizedBox(height: 16),
+          MoodFaceRow(selected: _selectedMood, onSelected: _selectMood, faceSize: 44),
+          if (face != null) ...[
+            const SizedBox(height: 14),
             Text(
-              'Feeling ${kMoodLabels[_selectedMood]!}',
+              'Feeling ${face.label}',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: kMoodColors[_selectedMood],
+                color: face.stroke,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -178,6 +143,12 @@ class _MoodCheckInState extends ConsumerState<MoodCheckIn> {
                 ),
               ),
             ],
+            const SizedBox(height: 6),
+            TextButton(
+              key: const Key('mood_add_words'),
+              onPressed: () => context.push('/library/mood'),
+              child: const Text('Add words or strength'),
+            ),
           ],
         ],
       ),
