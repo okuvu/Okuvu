@@ -197,11 +197,5 @@ export async function GET() {
   );
 }
 
-// Re-exported so the [id] route can share the auth helper without duplication.
-export function assertRunBatchAuth(req: NextRequest): boolean {
-  const token = process.env.RUN_BATCH_TOKEN || process.env.AUDIT_BYPASS_TOKEN;
-  return Boolean(token) && req.headers.get('x-run-batch-token') === token;
-}
-
 // Keep the RLS import referenced for environment-scoped future reads.
 void withEnvironment;
