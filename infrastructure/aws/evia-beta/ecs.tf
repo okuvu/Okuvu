@@ -79,6 +79,18 @@ locals {
     { name = "BEDROCK_MODEL_ID", value = var.bedrock_model_id },
     { name = "BEDROCK_EMBEDDING_MODEL_ID", value = var.bedrock_embedding_model_id },
 
+    # A2 conversational style, per clinical direction (Shubhangi Goswami,
+    # 23 Nov 2026). Both are read in apps/api/src/agents/a2/prompts.ts and are
+    # "on" only for the exact string "on" — unset, "1" and "true" all leave the
+    # previous behaviour in place. Rollback is flipping either to "off" and
+    # forcing a new deployment; no image change is needed.
+    #   CARE_PLAN_STYLE — §12: the client's plan (CP1/CP2/CP3) selects which
+    #     emphasis block reaches the model. Off = care plan is a label only.
+    #   TALK_OR_DO      — §7.1 rule 1: ask whether the client would rather talk
+    #     it through or try something. Off = offer exactly one step.
+    { name = "OKUVU_A2_CARE_PLAN_STYLE", value = "on" },
+    { name = "OKUVU_A2_TALK_OR_DO", value = "on" },
+
     # Identity: the client pool the API verifies tokens against. The issuer is
     # derived from region + pool id by the verifier, so it is not injected.
     { name = "COGNITO_REGION", value = var.aws_region },
