@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import RunStatusBadge from '@/app/components/RunStatusBadge';
 import TraceViewer from '@/app/components/TraceViewer';
+import DownloadXlsxButton from '@/app/components/DownloadXlsxButton';
+import { cell, downloadSheets } from '@/lib/xlsx-export';
 import { useEnvironment } from '@/lib/environment-context';
 import {
   injectModelFailure,
@@ -72,6 +74,80 @@ export default function FaultConsole() {
     } finally {
       setVerifyPending(false);
     }
+  };
+
+  /**
+   * The fault run as a workbook: what was injected, what came back, and every
+   * signal in order. A fault test is only defensible if the configuration that
+   * produced it travels with the result, so `Fault` is its own sheet.
+   */
+  const handleExportRun = () => {
+    if (!runResult) return;
+    const result = runResult.result ?? {};
+    const signals = Array.isArray(result.signals) ? (result.signals as unknown[]) : [];
+
+    downloadSheets(`fault-injection-${runResult.runId}.xlsx`, [
+      {
+        name: 'Fault',
+        rows: [
+          { parameter: 'Run id', value: runResult.runId },
+          { parameter: 'Mode', value: mode },
+          { parameter: 'Boundary', value: mode === 'model' ? boundary : '(signal drop)' },
+          { parameter: 'Fault type', value: mode === 'model' ? faultType : '(A2 signal nulled)' },
+          { parameter: 'Message', value: message },
+          { parameter: 'Environment', value: environment },
+        ],
+      },
+      {
+        name: 'Result',
+        rows: [
+          {
+            reply: cell(result.message ?? ''),
+            resultType: cell(result.type ?? ''),
+            safetyState: cell(result.safetyState ?? ''),
+            routerDecision: cell(result.routerDecision ?? ''),
+            governanceState: cell(result.governanceState ?? ''),
+            fallbackUsed: result.fallbackUsed === true,
+          },
+        ],
+      },
+      {
+        name: 'Signals',
+        rows: signals.map((signal, index) => {
+          const record = (signal ?? {}) as Record<string, unknown>;
+          return {
+            order: index + 1,
+            boundary: cell(record.boundary),
+            agent: cell(record.agent),
+            timestamp: cell(record.timestamp),
+            payload: cell(record.payload),
+          };
+        }),
+      },
+    ]);
+  };
+
+  const handleExportVerification = () => {
+    if (!verifyResult) return;
+    downloadSheets(`fault-failsafe-verification-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`, [
+      {
+        name: 'Assertions',
+        rows: [
+          { assertion: 'A1 failure → S2 fallback used', verdict: verifyResult.assertion1 },
+          { assertion: 'A2 failure → A2_DEGRADED_RESPONSE returned', verdict: verifyResult.assertion2 },
+          { assertion: 'A9-post failure at S2 → GovernanceLog BLOCKED', verdict: verifyResult.assertion3 },
+        ],
+      },
+      {
+        name: 'Details',
+        rows: Array.isArray(verifyResult.details)
+          ? (verifyResult.details as unknown[]).map((detail, index) => ({
+              index: index + 1,
+              detail: cell(detail),
+            }))
+          : [{ detail: cell(verifyResult.details) }],
+      },
+    ]);
   };
 
   return (
@@ -181,6 +257,9 @@ export default function FaultConsole() {
             ) : (
               <RunStatusBadge status={runResult.result?.type === 'error' ? 'error' : 'warning'} />
             )}
+            <span className="ml-auto">
+              <DownloadXlsxButton onClick={handleExportRun} label="Download .xlsx" />
+            </span>
           </div>
           <TraceViewer data={runResult.result} title="Pipeline result" defaultExpanded />
         </div>
@@ -197,6 +276,9 @@ export default function FaultConsole() {
           <h2 className="text-[var(--text-title-sm)] font-[var(--text-title-sm--font-weight)] text-[var(--color-on-surface)]">
             Fail-safe assertions
           </h2>
+          <div className="flex justify-end">
+            <DownloadXlsxButton onClick={handleExportVerification} label="Download .xlsx" />
+          </div>
           <div className="grid grid-cols-1 gap-[var(--spacing-sm)] sm:grid-cols-3">
             {(
               [

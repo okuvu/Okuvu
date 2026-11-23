@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import { trpc } from '@/trpc/client';
 import TraceViewer from '@/app/components/TraceViewer';
+import DownloadXlsxButton from '@/app/components/DownloadXlsxButton';
+import { cell, downloadSheets } from '@/lib/xlsx-export';
 import AgentPicker, { type PickableAgentId } from './AgentPicker';
 import AgentForm from './AgentForm';
 
@@ -28,6 +30,35 @@ export default function AgentRunner() {
       Object.entries(formValues).filter(([, v]) => v !== undefined),
     );
     invokeMutation.mutate({ agentId, input: cleanedInput });
+  };
+
+  /**
+   * One agent, one workbook: the input that was sent, the output that came
+   * back, and the routing metadata. Kept as two sheets rather than one wide
+   * row because the input is free-form per agent and flattening it into
+   * columns would produce a different header for every agent.
+   */
+  const handleExportXlsx = () => {
+    const data = invokeMutation.data;
+    if (!data) return;
+    downloadSheets(`agent-${agentId}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`, [
+      {
+        name: 'Run',
+        rows: [
+          { parameter: 'Agent', value: agentId },
+          { parameter: 'Latency (ms)', value: Math.round(data.latencyMs) },
+          { parameter: 'Mock mode', value: data.mockMode === true },
+        ],
+      },
+      {
+        name: 'Input',
+        rows: Object.entries(formValues).map(([field, value]) => ({
+          field,
+          value: cell(value),
+        })),
+      },
+      { name: 'Output', rows: [{ output: cell(data.output) }] },
+    ]);
   };
 
   return (
@@ -81,6 +112,7 @@ export default function AgentRunner() {
             Latency: {invokeMutation.data.latencyMs.toFixed(1)}ms · Mock mode:{' '}
             {invokeMutation.data.mockMode ? 'yes' : 'no'}
           </p>
+          <DownloadXlsxButton onClick={handleExportXlsx} label="Download .xlsx" />
           <TraceViewer
             data={invokeMutation.data.output}
             title={`${agentId} output`}

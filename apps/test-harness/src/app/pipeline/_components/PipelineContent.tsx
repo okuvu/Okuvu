@@ -5,6 +5,8 @@ import type { TestAgentId } from '@okuvu/shared-types';
 import { trpc } from '@/trpc/client';
 import { useEnvironment } from '@/lib/environment-context';
 import RunStatusBadge from '@/app/components/RunStatusBadge';
+import DownloadXlsxButton from '@/app/components/DownloadXlsxButton';
+import { cell, downloadSheets } from '@/lib/xlsx-export';
 import type { TestRunStatus } from '@okuvu/shared-types';
 import { computeActivation, tryDisable } from '@/lib/dependency-graph';
 import type { AgentTraceEntry } from '@/lib/pipeline-runner';
@@ -95,6 +97,55 @@ export default function PipelineContent() {
     );
   };
 
+  const handleExportXlsx = () => {
+    const data = runMutation.data;
+    if (!data) return;
+    const result = (data.result ?? {}) as unknown as Record<string, unknown>;
+
+    const signals = trace.flatMap((entry) =>
+      (entry.signals ?? []).map((signal) => {
+        const record = signal as unknown as Record<string, unknown>;
+        return {
+          agentId: entry.agentId,
+          boundary: cell(record.boundary),
+          agent: cell(record.agent),
+          timestamp: cell(record.timestamp),
+          payload: cell(record.payload),
+        };
+      }),
+    );
+
+    downloadSheets(`pipeline-run-${data.runId}.xlsx`, [
+      {
+        name: 'Run',
+        rows: [
+          { parameter: 'Run id', value: data.runId },
+          { parameter: 'Environment', value: environment },
+          { parameter: 'Message', value: message },
+          { parameter: 'Mock mode', value: mockEnabled },
+          { parameter: 'Mock target agent', value: mockEnabled ? mockTargetAgent : '' },
+          { parameter: 'Enabled agents', value: active.join(', ') },
+          { parameter: 'Reply', value: cell(result.message ?? '') },
+          { parameter: 'Result type', value: cell(result.type ?? '') },
+          { parameter: 'Safety state', value: cell(result.safetyState ?? '') },
+        ],
+      },
+      {
+        name: 'Agents',
+        rows: trace.map((entry, index) => ({
+          order: index + 1,
+          agentId: entry.agentId,
+          latencyMs: Math.round(entry.latencyMs),
+          modelVersion: entry.modelVersion ?? '',
+          promptVersion: entry.promptVersion ?? '',
+          canned: entry.canned === true,
+          output: cell(entry.output),
+        })),
+      },
+      { name: 'Signals', rows: signals },
+    ]);
+  };
+
   const trace = (runMutation.data?.trace ?? []) as AgentTraceEntry[];
   const runStatus: TestRunStatus | null = runMutation.isPending
     ? 'running'
@@ -178,6 +229,9 @@ export default function PipelineContent() {
             <span className="text-[var(--text-label-sm)] text-[var(--color-on-surface-variant)]">
               Run {runMutation.data.runId}
             </span>
+          ) : null}
+          {runMutation.data ? (
+            <DownloadXlsxButton onClick={handleExportXlsx} label="Download .xlsx" />
           ) : null}
         </div>
       </div>

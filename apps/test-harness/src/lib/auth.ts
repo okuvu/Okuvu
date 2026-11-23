@@ -2,7 +2,9 @@ import NextAuth, { type NextAuthOptions, type Session } from 'next-auth';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import CognitoProvider from 'next-auth/providers/cognito';
+import CredentialsProvider from 'next-auth/providers/credentials';
 import type { HarnessRole, TestEnvironment } from '@okuvu/shared-types';
+import { findOperator, verifyOperator } from './operator-access';
 
 /**
  * Cognito therapist pool used for harness operator sign-in.
@@ -42,6 +44,34 @@ export function resolveCognitoConfig(env: NodeJS.ProcessEnv = process.env): Cogn
 
 function buildProviders(): NextAuthOptions['providers'] {
   const providers: NextAuthOptions['providers'] = [];
+
+  /**
+   * Password sign-in for the testing page (TH-S39). A fixed two-email
+   * allow-list behind one shared password — see lib/operator-access.ts for why
+   * this exists next to Cognito rather than instead of it. Always registered:
+   * the allowlist is the gate, and a missing TESTING_PAGE_PASSWORD falls back
+   * to the documented page password rather than silently locking the page.
+   */
+  providers.push(
+    CredentialsProvider({
+      id: 'credentials',
+      name: 'Testing page password',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        const account = verifyOperator(credentials?.email, credentials?.password);
+        if (!account) {
+          console.warn(`[AUTH] Rejected password sign-in for ${credentials?.email ?? '(no email)'}`);
+          return null;
+        }
+        console.log(`[AUTH] Password sign-in: ${account.email}`);
+        return { id: account.email, email: account.email, name: account.name };
+      },
+    }),
+  );
+
   const cognito = resolveCognitoConfig();
 
   if (cognito) {
@@ -85,7 +115,20 @@ export const authConfig: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, account, profile }) {
+    async jwt({ token, user, account, profile }) {
+      // Password sign-in (testing page): the allow-list already decided who
+      // this is, so stamp the role and environment scope from it directly.
+      // There is no DB lookup — the account is in code, not in a table.
+      if (account?.provider === 'credentials' && user?.email) {
+        const operator = findOperator(user.email);
+        if (operator) {
+          token.role = operator.role;
+          token.environments = operator.environments;
+          token.email = operator.email;
+          token.name = operator.name;
+        }
+      }
+
       if (account && profile?.email) {
         try {
           const { prisma } = await import('@/lib/prisma');

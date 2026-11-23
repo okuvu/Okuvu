@@ -2,6 +2,7 @@ import type { TestAgentId } from '@okuvu/shared-types';
 import { buildMockSessionContext, type MockSessionContext } from './mock-context';
 import { getEnv } from './env';
 import { withCannedMode } from './canned-mode';
+import { workerAuthHeaders } from './worker-auth';
 
 // ─── Direct import of apps/api agent functions ─────────────────────────────
 //
@@ -84,7 +85,12 @@ async function invokeWorkerSummaryTask(
   try {
     const res = await fetch(`${workerUrl.replace(/\/$/, '')}/tasks/summary`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        // The worker rejects unsigned jobs with 401 — the harness calls HTTP
+        // directly (apps/api uses SQS and never hits this path), so it signs.
+        ...workerAuthHeaders(process.env.WORKER_INTERNAL_AUTH_SECRET),
+      },
       body: JSON.stringify({ session_id: sessionId, user_id: userId }),
     });
 

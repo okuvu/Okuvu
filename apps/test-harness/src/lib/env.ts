@@ -20,6 +20,10 @@ const envSchema = z.object({
   // from local/test environments are expected to fail — handled gracefully in
   // agent-adapter.ts.
   WORKER_URL: z.string().url().optional(),
+  // TH-S09 — shared secret the harness signs its direct worker call with. The
+  // worker verifies `Bearer v1.<ts>.<hmac>` and 401s anything unsigned, so a
+  // campaign cannot close a session without it (see lib/worker-auth.ts).
+  WORKER_INTERNAL_AUTH_SECRET: z.string().optional(),
   // TH-S17 — optional live Bedrock pricing endpoint. When unset,
   // pricing-live.ts's fetchLivePricing() always returns null and callers
   // fall back to the static table in lib/pricing.ts (TH-S15).
