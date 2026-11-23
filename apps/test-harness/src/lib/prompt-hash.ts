@@ -56,19 +56,50 @@ export interface PromptManifestEntry {
  * variant prompt (a2-onboarding-v1.0.txt) was retired alongside the
  * onboarding-scoring machinery it served — see
  * okuvu-remaining-changes.md §B.1):
- *   - a2-okuvu-v2.1.txt       -> 'A2'   (A2's main OKUVU conversation prompt;
- *      v2.0 → v2.1 added §3.1 continuity / no-re-onboarding — see
- *      OKUVU — Plumbing Fixes & Rationale v1.0, fix A2)
+ *   - a2-okuvu-v<current>.txt -> 'A2'   (A2's main OKUVU conversation prompt;
+ *      resolved from apps/api/src/prompts/index.ts, not written here)
  *   - memory-extraction-v2.0.txt -> 'A15' (memory extraction agent, worker-side)
  */
+
+/**
+ * Resolve A2's prompt file from the api's own constants.
+ *
+ * The filename used to be hardcoded here as `a2-okuvu-v2.1.txt`, which drifted
+ * to six versions behind the pipeline: a TestRun then recorded a `promptHash`
+ * of a prompt no model had been sent, so the provenance stamp proved nothing.
+ * `apps/api/src/prompts/index.ts` is the single source of truth (the same file
+ * `scripts/generate-prompt-shim.mjs` builds the harness copy from). If its
+ * shape changes, fail loudly rather than hash a guess.
+ */
+export function resolveA2PromptEntry(root: string): PromptManifestEntry {
+  const indexPath = path.join(root, 'apps', 'api', 'src', 'prompts', 'index.ts');
+  let indexSrc: string;
+  try {
+    indexSrc = readFileSync(indexPath, 'utf-8');
+  } catch {
+    throw new Error(`prompt-hash: cannot read ${indexPath} — the A2 prompt manifest cannot be built.`);
+  }
+
+  const version = indexSrc.match(/A2_PROMPT_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1];
+  const file = indexSrc.match(/join\(__dirname,\s*['"]([^'"]+\.txt)['"]\)/)?.[1];
+  if (!version || !file) {
+    throw new Error(
+      'prompt-hash: apps/api/src/prompts/index.ts no longer exposes A2_PROMPT_VERSION and a prompt .txt path.',
+    );
+  }
+
+  const fileVersion = file.match(/a2-okuvu-(v[\d.]+)\.txt/)?.[1];
+  if (fileVersion && fileVersion !== version) {
+    throw new Error(`prompt-hash: A2_PROMPT_VERSION=${version} but the prompt file is ${file}.`);
+  }
+
+  return { agentId: 'A2', version, path: path.join(root, 'apps', 'api', 'src', 'prompts', file) };
+}
+
 export function getPromptManifest(): PromptManifestEntry[] {
   const root = getMonorepoRoot();
   return [
-    {
-      agentId: 'A2',
-      version: 'v2.1',
-      path: path.join(root, 'apps', 'api', 'src', 'prompts', 'a2-okuvu-v2.1.txt'),
-    },
+    resolveA2PromptEntry(root),
     {
       agentId: 'A15',
       version: 'v2.0',
