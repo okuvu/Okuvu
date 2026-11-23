@@ -608,6 +608,11 @@ model ClientGoal {
   text           String
   /// 'active' | 'achieved' | 'dropped'
   status         String    @default("active")
+  /// The therapist's own order for the goals, 0 first. The lowest-position
+  /// active goal is the one the pair is working on now; the rest wait their
+  /// turn. Ties fall back to `created_at`, which is also what every row
+  /// written before this column existed carries (default 0).
+  position       Int       @default(0)
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
   client         User      @relation("ClientToGoal", fields: [client_user_id], references: [id], onDelete: Cascade)

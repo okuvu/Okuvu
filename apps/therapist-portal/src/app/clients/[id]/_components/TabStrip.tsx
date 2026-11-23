@@ -18,6 +18,7 @@ const TABS = [
   { key: 'profile', label: 'Profile', href: (id: string) => `/clients/${id}` },
   { key: 'report', label: 'Session Prep & Report Card', href: (id: string) => `/clients/${id}/report` },
   { key: 'program', label: 'Care Plan', href: (id: string) => `/clients/${id}/program` },
+  { key: 'goals', label: 'Goals', href: (id: string) => `/clients/${id}/goals` },
   { key: 'tools', label: 'Tools', href: (id: string) => `/clients/${id}/tools` },
   { key: 'safety-plan', label: 'Safety plan', href: (id: string) => `/clients/${id}/safety-plan` },
   { key: 'shared', label: 'Shared with me', href: (id: string) => `/clients/${id}/shared` },

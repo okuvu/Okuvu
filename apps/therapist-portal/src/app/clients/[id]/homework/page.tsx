@@ -694,7 +694,7 @@ export default function ClientHomeworkPage() {
                       className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
                     >
                       <option value="">No goal</option>
-                      {(goalsQuery.data ?? [])
+                      {(goalsQuery.data?.goals ?? [])
                         .filter((goal) => goal.status === 'active')
                         .map((goal) => (
                           <option key={goal.id} value={goal.id}>
@@ -704,10 +704,10 @@ export default function ClientHomeworkPage() {
                     </select>
                     <span className="mt-1 block text-[11px] text-gray-500">
                       Goals you keep with the team live on{' '}
-                      <Link href={`/clients/${clientId}/notes`} className="text-royal-purple hover:underline">
-                        Clinical notes
+                      <Link href={`/clients/${clientId}/goals`} className="text-royal-purple hover:underline">
+                        Goals
                       </Link>
-                      .
+                      . The top one is the current focus.
                     </span>
                   </label>
 

@@ -65,6 +65,7 @@ function buildPrisma(
     clientGoal: {
       findFirst: vi.fn().mockResolvedValue(overrides.goal ?? null),
       findMany: vi.fn().mockResolvedValue([]),
+      aggregate: vi.fn().mockResolvedValue({ _max: { position: null } }),
       create: vi.fn().mockResolvedValue({ id: 'goal_1', text: 'a goal', status: 'active' }),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },

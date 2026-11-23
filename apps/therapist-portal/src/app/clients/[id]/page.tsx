@@ -7,6 +7,7 @@ import { SAFETY_LABELS, type AssignmentState, type SafetyState } from '@okuvu/sh
 import { TabStrip } from './_components/TabStrip';
 import { ConsentChip } from './_components/ConsentChip';
 import { AppointmentsCard } from './_components/AppointmentsCard';
+import { GoalsCard } from './_components/GoalsCard';
 import { TreasureNoteCard } from './_components/TreasureNoteCard';
 
 const CARE_PLAN_NAMES: Record<string, string> = {
@@ -243,6 +244,9 @@ export default function ClientDetailPage() {
               <p className="text-sm text-gray-500">No care plan assigned yet.</p>
             )}
           </div>
+
+          {/* Goals — the working queue, one at a time */}
+          <GoalsCard clientId={clientId} />
 
           {/* Reasoning note card */}
           <details className="group rounded-xl bg-oat-elevated p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline border-l-4 border-l-violet">
