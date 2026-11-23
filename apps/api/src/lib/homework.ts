@@ -11,9 +11,23 @@ export interface ActiveHomework {
 // apps/worker/src/lib/summary.ts — see the cross-reference comment there.
 // If what counts as "active" ever changes, that worker copy needs the same
 // change made by hand.
-export async function getActiveHomework(clientUserId: string): Promise<ActiveHomework | null> {
+//
+// "Active" excludes an assignment already done today (IST). A one-off closes
+// outright, but a repeating one stays `active` so it returns on its next due
+// day — and the today card's single `homework` field was reading straight
+// `status = 'active'`, so a client who did this morning's exercise kept being
+// shown it all day (clinical authority, 23 Nov 2026). The Today card's `next`
+// field already excluded it; this makes the plain field agree.
+export async function getActiveHomework(
+  clientUserId: string,
+  now: Date = new Date(),
+): Promise<ActiveHomework | null> {
   const row = await prisma.homework.findFirst({
-    where: { client_user_id: clientUserId, status: 'active' },
+    where: {
+      client_user_id: clientUserId,
+      status: 'active',
+      OR: [{ last_completed_at: null }, { last_completed_at: { lt: startOfIstDay(now) } }],
+    },
     orderBy: { assigned_at: 'desc' },
     select: { id: true, description: true },
   });
@@ -172,7 +186,7 @@ export function buildCompletionWrite(
 export async function completeHomework(
   clientUserId: string,
   homeworkId: string,
-  source: 'client' | 'worksheet' = 'client',
+  source: 'client' | 'worksheet' | 'exercise' = 'client',
 ): Promise<CompleteHomeworkResult> {
   const homework = await prisma.homework.findUnique({
     where: { id: homeworkId },
@@ -224,5 +238,64 @@ export async function completeHomework(
     homeworkStatus: updated.status,
     repeats: write.repeats,
     nextDueAt: write.next ? write.next.toISOString() : null,
+  };
+}
+
+export type CompletePracticeResult =
+  | { outcome: 'completed'; homeworkId: string; repeats: boolean; nextDueAt: string | null }
+  | { outcome: 'already_done_today'; homeworkId: string }
+  | { outcome: 'not_assigned' };
+
+/**
+ * Records a completion for the assignment of one exercise, after the app's
+ * player has actually run it to its end.
+ *
+ * The client's "Mark done" button is gone (clinical authority, 23 Nov 2026):
+ * a one-tap claim cannot be told apart from a lie, so the only thing that
+ * closes an exercise assignment is the exercise finishing in the player — the
+ * same shape a worksheet already had. The server keys on the tool, not the
+ * homework id, because the client can reach an exercise from the Breathe tab
+ * or from a chat tool card where no homework id is in hand.
+ *
+ * What this can and cannot prove: it proves the app reported a finished
+ * session, which a client can still imitate by calling the endpoint directly.
+ * It cannot prove the body did the breathing. That is a limit of running on
+ * the client's own device, and it is why the honest wording in the portal
+ * report card stays "reported", not "verified".
+ */
+export async function completePracticeForTool(
+  clientUserId: string,
+  toolId: string,
+  now: Date = new Date(),
+): Promise<CompletePracticeResult> {
+  const assignment = await prisma.homework.findFirst({
+    where: { client_user_id: clientUserId, tool_id: toolId, status: 'active' },
+    orderBy: [{ due_at: 'asc' }, { assigned_at: 'asc' }],
+    select: { id: true, frequency: true, last_completed_at: true },
+  });
+
+  if (!assignment) {
+    return { outcome: 'not_assigned' };
+  }
+
+  // A repeating assignment stays active after today's completion, and the
+  // player can be run again; a second row would count the same day twice.
+  if (
+    assignment.last_completed_at !== null &&
+    assignment.last_completed_at.getTime() >= startOfIstDay(now).getTime()
+  ) {
+    return { outcome: 'already_done_today', homeworkId: assignment.id };
+  }
+
+  const result = await completeHomework(clientUserId, assignment.id, 'exercise');
+  if (result.status === 'not_found') {
+    return { outcome: 'not_assigned' };
+  }
+
+  return {
+    outcome: 'completed',
+    homeworkId: assignment.id,
+    repeats: result.repeats,
+    nextDueAt: result.nextDueAt,
   };
 }

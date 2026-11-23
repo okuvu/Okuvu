@@ -268,32 +268,35 @@ void main() {
       expect(find.text('Nothing here yet'), findsOneWidget);
     });
 
-    testWidgets('Mark done posts the completion with an explicit body', (tester) async {
-      // Regression: the POST went out with `Content-Type: application/json` and
-      // no body, which Fastify rejects with 400 before the handler runs — the
-      // client saw "Couldn't save that" and the assignment never completed. The
-      // body must be present, not null.
+    testWidgets('offers no way to claim an assignment done', (tester) async {
+      // The clinical authority removed client-declared completion (23 Nov
+      // 2026): a tap cannot be told apart from a claim the work was not done.
+      // An exercise closes when its player finishes, a worksheet when it is
+      // saved, and typed homework when the therapist closes it from the portal
+      // — so this screen must offer no completion button at all, and rendering
+      // it must not dispatch a completion write.
       final postedPaths = <String>[];
-      final postedBodies = <Object?>[];
       final dio = _inboxDio(
         listResponse: {
           'homework': [
-            homeworkJson(id: 'hw-1', description: 'Practice box breathing'),
+            homeworkJson(id: 'hw-1', description: 'Practice box breathing', toolLabel: 'Box Breathing'),
+            homeworkJson(id: 'hw-2', description: 'Write a letter you will not send'),
           ],
           'reminders': [],
         },
         postedPaths: postedPaths,
-        postedBodies: postedBodies,
       );
 
       await tester.pumpWidget(_app(dio, const HomeworkScreen(), path: '/homework'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Mark done'));
-      await tester.pumpAndSettle();
-
-      expect(postedPaths, contains('/users/me/homework/hw-1/complete'));
-      expect(postedBodies.single, isA<Map<String, dynamic>>());
+      expect(find.text('Mark done'), findsNothing);
+      expect(find.text('Done'), findsNothing);
+      expect(postedPaths, isEmpty);
+      // Both assignments are still visible — removing the button did not
+      // remove the work the therapist set.
+      expect(find.text('Practice box breathing'), findsOneWidget);
+      expect(find.text('Write a letter you will not send'), findsOneWidget);
     });
 
     testWidgets('tapping the technique chip opens that exercise', (tester) async {

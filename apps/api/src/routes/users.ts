@@ -3,7 +3,6 @@ import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
 import { getTodayCard } from '../lib/today-card.js';
-import { completeHomework } from '../lib/homework.js';
 import { updateCarePlan, type CarePlanBody } from '../lib/care-plan.js';
 import { recordAgeAttestation } from '../lib/age-attestation.js';
 import { setSummaryAccess, listSessionSharing, setSessionSummaryShare } from '../lib/summary-access.js';
@@ -332,46 +331,20 @@ export async function userRoute(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // §D user-confirmed homework completion. Product spec requires
-  // completion be BOTH user-confirmed (this route) and chat-reported
-  // (Worker 05's homework_progress) — therapist-side markCompleted
-  // (therapist-portal homework.ts) remains the separate therapist path.
-  app.post<{ Params: { id: string } }>('/users/me/homework/:id/complete', {
-    preHandler: [verifyCognitoJWT],
-    handler: async (request, reply) => {
-      const { uid } = request.user;
-      const { id } = request.params;
-
-      const user = await prisma.user.findUnique({
-        where: { auth_subject: uid },
-        select: { id: true },
-      });
-
-      if (!user) {
-        return reply.status(401).send({
-          error: { code: 'UNAUTHORIZED', message: 'User not found' },
-        });
-      }
-
-      const result = await completeHomework(user.id, id);
-
-      if (result.status === 'not_found') {
-        return reply.status(404).send({
-          error: { code: 'NOT_FOUND', message: 'Homework not found' },
-        });
-      }
-
-      // A repeating assignment stays active: `nextDueAt` says when it comes
-      // back, so the app can tell the client "done for today" instead of
-      // claiming the exercise is finished for good (owner's Step 6 rule).
-      reply.send({
-        success: true,
-        status: result.homeworkStatus,
-        repeats: result.repeats,
-        nextDueAt: result.nextDueAt,
-      });
-    },
-  });
+  // Client-side homework completion has no route here any more.
+  //
+  // `POST /users/me/homework/:id/complete` let the app close any assignment on
+  // the client's tap, which cannot be told apart from a claim the client did
+  // not do — the clinical authority removed it (23 Nov 2026). What closes an
+  // assignment now:
+  //   • an exercise — its player reaching the end, via
+  //     `POST /users/me/homework/practice-complete` (routes/homework.ts);
+  //   • a worksheet — the worksheet being saved (routes/worksheets.ts);
+  //   • homework the therapist typed in their own words — the therapist, from
+  //     the portal's homework page (`homework.markCompleted`), because the app
+  //     has no way to observe that kind of work.
+  // Old installed builds still calling the removed route get a 404 and show
+  // their retry message; that is the intended failure, not a regression.
 
   app.patch<{ Params: { id: string }; Body: CarePlanBody }>('/users/:id/care-plan', {
     preHandler: [verifyCognitoJWT],

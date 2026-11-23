@@ -7,7 +7,6 @@ import '../../theme/app_colors.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../home/breathing_content.dart';
 import '../home/breathing_screen.dart';
-import '../home/providers/today_card_provider.dart';
 import 'homework_provider.dart';
 
 /// "12 Nov" — when the therapist set this, not a relative word (a stored
@@ -152,13 +151,13 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _HomeworkCard extends ConsumerWidget {
+class _HomeworkCard extends StatelessWidget {
   const _HomeworkCard({required this.item});
 
   final HomeworkListItem item;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final done = item.looksDone;
     // Struck through only when the assignment is closed for good. A repeating
@@ -189,35 +188,11 @@ class _HomeworkCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              if (!done)
-                TextButton(
-                  onPressed: () async {
-                    final ok = await ref
-                        .read(homeworkCompleteProvider.notifier)
-                        .markComplete(item.id);
-                    if (ok) {
-                      // The list and Home's Today card both read this row.
-                      ref.invalidate(homeworkListProvider);
-                      if (item.repeats && context.mounted) {
-                        // A repeating assignment is not finished for good; say
-                        // so rather than leaving the client to wonder why it
-                        // never moves to "Done".
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Done for today. It'll come back on its next day."),
-                          ),
-                        );
-                      }
-                    } else if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Couldn't save that. Please try again."),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Mark done'),
-                ),
+              // No "Mark done" here any more (clinical authority, 23 Nov 2026).
+              // A tap could not be told apart from a claim the work was not
+              // done. An exercise assignment closes when its player finishes —
+              // the chip below opens that player — a worksheet when it is
+              // saved, and typed homework when the therapist closes it.
             ],
           ),
           const SizedBox(height: 4),

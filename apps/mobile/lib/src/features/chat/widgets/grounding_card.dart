@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
+import '../../home/providers/today_card_provider.dart';
 import '../models/grounding_result.dart';
 
 class GroundingCard extends ConsumerStatefulWidget {
@@ -52,11 +53,22 @@ class _GroundingCardState extends ConsumerState<GroundingCard> {
         } else {
           _completed = true;
           _sendResult();
+          _reportPractice();
         }
       } else {
         _textFocusNode.requestFocus();
       }
     });
+  }
+
+  /// The five senses were walked to the end, so the exercise was done — the
+  /// only thing that closes an assigned grounding exercise now that the client
+  /// has no "Mark done" button (clinical authority, 23 Nov 2026). `_skip` is
+  /// deliberately not treated as practice.
+  void _reportPractice() {
+    ref
+        .read(practiceCompleteProvider.notifier)
+        .recordPractice('grounding_5431');
   }
 
   void _skip() {

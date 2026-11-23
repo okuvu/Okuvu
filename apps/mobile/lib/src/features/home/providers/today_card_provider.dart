@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers.dart';
 import '../../appointments/appointments_provider.dart';
+import '../../homework/homework_provider.dart';
 
 class TodayCardReminder {
   final String id;
@@ -243,33 +244,42 @@ final todayCardProvider = FutureProvider.autoDispose<TodayCardData>((ref) async 
   return TodayCardData.fromJson(response.data as Map<String, dynamic>);
 });
 
-/// Posts POST /users/me/homework/:id/complete — the user-confirmed half of
-/// "completion is user-confirmed + chat-reported" (the chat-reported half
-/// is Worker 05's homework_progress, surfaced to therapists via the portal
-/// Report Card).
-class HomeworkCompleteNotifier extends Notifier<void> {
+/// Posts POST /users/me/homework/practice-complete — the exercise player ran to
+/// its end, so the assignment of that technique is done.
+///
+/// There is deliberately no "mark this done" call any more. A tap cannot be
+/// told apart from a claim the client did not do, so the only thing the app
+/// reports is a finished session: the guided breathing card reaching its last
+/// round, or the grounding card being walked to its final sense. Typed homework
+/// has no in-app proof and is closed by the therapist from the portal.
+class PracticeCompleteNotifier extends Notifier<void> {
   @override
   void build() {}
 
-  Future<bool> markComplete(String homeworkId) async {
-    final dio = ref.read(dioClientProvider);
+  /// Returns true when the server recorded a completion (or the assignment was
+  /// already done today, which is not an error the client should see).
+  Future<bool> recordPractice(String toolId) async {
     try {
-      // An explicit empty body, not `null`: dio otherwise posts with
-      // `Content-Type: application/json` and no content, which Fastify rejects
-      // with 400 "Body cannot be empty" before the route runs. The server now
-      // tolerates it too (apps/api/src/app.ts), but sending `{}` means an older
-      // or differently-configured api still answers rather than 400-ing.
-      await dio.post('/users/me/homework/$homeworkId/complete', data: const <String, dynamic>{});
+      final dio = ref.read(dioClientProvider);
+      final response = await dio.post(
+        '/users/me/homework/practice-complete',
+        data: {'toolId': toolId},
+      );
+      final body = response.data as Map<String, dynamic>?;
+      // Both lists read the same rows, and so does Home's Today card: a card
+      // left un-invalidated keeps showing the exercise the client just
+      // finished, which was the reported bug.
       ref.invalidate(todayCardProvider);
-      return true;
+      ref.invalidate(homeworkListProvider);
+      return body?['reason'] != 'not_assigned';
     } catch (_) {
       return false;
     }
   }
 }
 
-final homeworkCompleteProvider = NotifierProvider<HomeworkCompleteNotifier, void>(
-  HomeworkCompleteNotifier.new,
+final practiceCompleteProvider = NotifierProvider<PracticeCompleteNotifier, void>(
+  PracticeCompleteNotifier.new,
 );
 
 /// PATCH /users/me/tool-preference — decisions doc round, 15 Sep 2026

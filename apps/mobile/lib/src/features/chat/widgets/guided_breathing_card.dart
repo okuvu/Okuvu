@@ -11,6 +11,7 @@ import '../models/tool_card_config.dart';
 import '../models/breathing_session.dart';
 import '../../../theme/app_colors.dart';
 import '../../home/breathing_content.dart';
+import '../../home/providers/today_card_provider.dart';
 import 'breathing_visuals.dart';
 
 /// One breathing exercise, played as three rounds and paused between them.
@@ -71,6 +72,10 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
   late BreathSession _session;
 
   BreathFeeling? _feeling;
+
+  /// True once this card has told the server its sitting finished. A restart
+  /// inside the same card must not send a second report.
+  bool _reported = false;
 
   /// Bumped whenever a running loop must abandon ship (stop, restart, a new
   /// exercise, dispose). Every await inside the loop re-checks it: a `mounted`
@@ -224,6 +229,33 @@ class _GuidedBreathingCardState extends ConsumerState<GuidedBreathingCard>
           _phaseLabel = 'Ready';
         });
       }
+    }
+
+    // The sitting reached its last planned round, so the exercise was actually
+    // done. That — and only that — is what closes a therapist-assigned
+    // exercise now: there is no "Mark done" button (clinical authority,
+    // 23 Nov 2026). Reported from the card rather than the screen so a session
+    // started from chat or the Breathe tab counts the same way.
+    if (_isCurrent(runId) && _session.stage == BreathSessionStage.finished) {
+      _reportPractice();
+    }
+  }
+
+  /// Once per card state: a restarted sitting does not report twice, because
+  /// the server already refuses a second completion in the same IST day.
+  void _reportPractice() {
+    if (_reported) return;
+    _reported = true;
+    // A completion report is a side effect of the player finishing, never a
+    // condition of it: an api outage, a missing config or a provider error must
+    // leave the client's finished screen exactly as it is.
+    try {
+      unawaited(
+        ref.read(practiceCompleteProvider.notifier).recordPractice(widget.config.type.jsonValue),
+      );
+    } catch (_) {
+      // Nothing to tell the client here. The therapist's report card simply
+      // does not get this one.
     }
   }
 

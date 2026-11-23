@@ -238,8 +238,16 @@ describe('GET /users/me/context', () => {
       const prisma = await importMocks();
       await app.inject({ method: 'GET', url: '/users/me/context' });
 
+      // Deliberate change (23 Nov 2026, clinical authority): "active" now also
+      // excludes an assignment already done today (IST), so the companion is
+      // not told to follow up on work the client finished this morning. The
+      // reading of `status` is unchanged; the OR is the new half.
       expect(prisma.homework.findFirst).toHaveBeenCalledWith({
-        where: { client_user_id: 'user-1', status: 'active' },
+        where: {
+          client_user_id: 'user-1',
+          status: 'active',
+          OR: [{ last_completed_at: null }, { last_completed_at: { lt: expect.any(Date) } }],
+        },
         orderBy: { assigned_at: 'desc' },
         select: { id: true, description: true },
       });

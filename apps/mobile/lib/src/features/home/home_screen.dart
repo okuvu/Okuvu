@@ -8,6 +8,7 @@ import 'widgets/becoming_spiral.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/next_session_card.dart';
 import 'widgets/today_card.dart';
+import '../goals/widgets/goals_card.dart';
 import 'widgets/pending_summary_access_banner.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../settings/profile_provider.dart';
@@ -134,6 +135,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Breathe, Journal, Mood check-in, Library, Treasure Box — lives under
           // the Toolkit tab so this screen stays simple.
           const TodayCard(),
+          // The goal the pair is on now, so the client can see what they are
+          // working towards between sessions. Renders nothing when there are
+          // no goals.
+          const GoalsCard(),
           const SizedBox(height: 16),
           Center(
             child: TextButton(

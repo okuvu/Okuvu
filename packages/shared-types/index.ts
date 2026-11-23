@@ -775,6 +775,48 @@ export interface HomeworkListResponse {
   reminders: HomeworkReminderView[]
 }
 
+/**
+ * POST /users/me/homework/practice-complete — the app reports that an
+ * exercise player ran to its end.
+ *
+ * `completed: false` is an ordinary answer, not an error: a client practising
+ * a technique that was never assigned has nothing to complete, and a second
+ * run on the same IST day must not count twice.
+ */
+export interface HomeworkPracticeCompleteResponse {
+  completed: boolean
+  /** 'not_assigned' | 'already_done_today' | null when completed. */
+  reason: 'not_assigned' | 'already_done_today' | null
+  homeworkId: string | null
+  repeats: boolean
+  /** ISO timestamp of the next showing for a repeating assignment. */
+  nextDueAt: string | null
+}
+
+// ─── Client goals (GET /users/me/goals) ────────────────────────────────
+
+/**
+ * One working goal, as the client sees it.
+ *
+ * The text is the therapist's own wording — the portal's guide asks for a
+ * goal written in words they would read aloud to the client. `dropped` goals
+ * are never sent: a goal the therapist took off the plan is a clinical
+ * decision, not a message to the client.
+ */
+export interface ClientGoalItem {
+  id: string
+  text: string
+  status: 'active' | 'achieved'
+  /** True for the one goal the pair is working on now. */
+  isFocus: boolean
+}
+
+export interface GoalsListResponse {
+  goals: ClientGoalItem[]
+  /** How many goals are still being worked on, including the focus goal. */
+  activeCount: number
+}
+
 // ─── Therapist Portal (T-01 Dashboard) ─────────────────────────
 
 export type ClientCarePlan = {

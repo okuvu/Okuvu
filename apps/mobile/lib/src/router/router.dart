@@ -32,6 +32,7 @@ import '../features/appointments/appointments_screen.dart';
 import '../features/appointments/appointment_detail_screen.dart';
 import '../features/notifications/notifications_inbox_screen.dart';
 import '../features/homework/homework_screen.dart';
+import '../features/goals/goals_screen.dart';
 import '../features/home/breathing_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/worksheet_screen.dart';
@@ -210,6 +211,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/homework',
         builder: (context, state) => const HomeworkScreen(),
+      ),
+      // The client's goals: the one being worked on now first, then the rest
+      // in the therapist's order. Read-only — the therapist marks a goal
+      // achieved when the client gets there.
+      GoRoute(
+        path: '/goals',
+        builder: (context, state) => const GoalsScreen(),
       ),
       // The Library: one list of approved exercises and worksheets. Every card
       // opens a screen that already existed or a worksheet body from the

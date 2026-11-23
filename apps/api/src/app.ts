@@ -63,12 +63,13 @@ export function buildApp() {
   app.setErrorHandler(errorHandler);
 
   // A body-less command POST that still declares `Content-Type:
-  // application/json` is legitimate — the Flutter client sends exactly that for
-  // `POST /users/me/homework/:id/complete`, and Fastify's default JSON parser
-  // rejects it with "Body cannot be empty when content-type is set to
-  // 'application/json'" (400) before the route handler ever runs. Read an empty
-  // body as `{}` and let each route's own schema reject calls that genuinely
-  // needed fields.
+  // application/json` is legitimate — the Flutter client sent exactly that for
+  // the old `POST /users/me/homework/:id/complete`, and Fastify's default JSON
+  // parser rejects it with "Body cannot be empty when content-type is set to
+  // 'application/json'" (400) before the route handler ever runs. Kept after
+  // that route's removal because the shape is general and installed builds
+  // still send it. Read an empty body as `{}` and let each route's own checks
+  // reject calls that genuinely needed fields.
   app.addContentTypeParser<string>(
     'application/json',
     { parseAs: 'string' },

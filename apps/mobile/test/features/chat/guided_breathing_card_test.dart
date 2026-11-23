@@ -1,6 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:okuvu/src/core/providers.dart';
 
 import 'package:okuvu/src/features/chat/models/breathing_presets.dart';
 import 'package:okuvu/src/features/chat/models/tool_card_config.dart';
@@ -255,5 +258,78 @@ void main() {
     expect(find.text('Start'), findsOneWidget);
     expect(find.text('Physiological Sigh'), findsOneWidget);
     expect(find.text('5 breaths, then a pause'), findsOneWidget);
+  });
+
+  /// Records only the practice-complete writes; the card's voice-preference
+  /// read also hits the client, and that is not what these two tests are about.
+  Dio recordingDio(List<String> paths, List<Object?> bodies) {
+    final dio = Dio(BaseOptions(baseUrl: 'http://localhost'));
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (options.path == '/users/me/homework/practice-complete') {
+          paths.add(options.path);
+          bodies.add(options.data);
+        }
+        handler.resolve(Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: {'completed': true, 'reason': null},
+        ));
+      },
+    ));
+    return dio;
+  }
+
+  Widget wired(Dio dio, ToolCardConfig config) => ProviderScope(
+        overrides: [dioClientProvider.overrideWithValue(dio)],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: GuidedBreathingCard(
+                config: config,
+                tick: const Duration(milliseconds: 1),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  // The clinical authority removed "Mark done" (23 Nov 2026): the only thing
+  // that closes an assigned exercise is the player reaching its end. These pin
+  // the reporting contract — tool id, to the practice-complete route, once —
+  // and that stopping early is not practice.
+
+  testWidgets('stopping a sitting early reports no completion', (tester) async {
+    final paths = <String>[];
+    final bodies = <Object?>[];
+
+    await tester.pumpWidget(wired(recordingDio(paths, bodies), configFor(ToolCardType.boxBreathing)));
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.tap(find.byKey(const Key('breathing_stop_button')));
+    await tester.pumpAndSettle();
+
+    expect(paths, isEmpty);
+  });
+
+  testWidgets('finishing all three rounds reports the exercise once, by tool id', (tester) async {
+    final paths = <String>[];
+    final bodies = <Object?>[];
+
+    await tester.pumpWidget(wired(recordingDio(paths, bodies), configFor(ToolCardType.boxBreathing)));
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+    await pumpUntil(tester, find.text(breathPauseQuestion));
+    await tester.tap(find.byKey(const Key('breathing_continue_button')));
+    await tester.pump();
+    await pumpUntil(tester, find.text(breathPauseQuestion));
+    await tester.tap(find.byKey(const Key('breathing_continue_button')));
+    await tester.pump();
+    await pumpUntil(tester, find.text(breathFinishedHeadline(30)));
+    await tester.pumpAndSettle();
+
+    expect(paths, ['/users/me/homework/practice-complete']);
+    expect(bodies.single, {'toolId': 'box_breathing'});
   });
 }

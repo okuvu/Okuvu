@@ -1,10 +1,15 @@
 import { FastifyInstance } from 'fastify';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
-import { isRepeatingFrequency, startOfIstDay } from '../lib/homework.js';
-import type { HomeworkListItem, HomeworkListResponse } from '@okuvu/shared-types';
+import { completePracticeForTool, isRepeatingFrequency, startOfIstDay } from '../lib/homework.js';
+import type {
+  HomeworkListItem,
+  HomeworkListResponse,
+  HomeworkPracticeCompleteResponse,
+} from '@okuvu/shared-types';
 
 const LIST_LIMIT = 50;
+const TOOL_ID_PATTERN = /^[a-z0-9_]{1,64}$/;
 
 /**
  * GET /users/me/homework — every assignment, plus the client's active reminders.
@@ -15,9 +20,11 @@ const LIST_LIMIT = 50;
  * app never shows. This route is the list the inbox links into, and it is the
  * reason an assignment notification can safely point somewhere.
  *
- * Read-only, own rows only. Completion still goes through
- * `POST /users/me/homework/:id/complete` so the existing accounting (user-
- * confirmed completion feeding the therapist's report card) stays in one place.
+ * Read-only, own rows only. There is no route that records a completion from a
+ * tap: an exercise assignment closes when its player reaches the end
+ * (`POST /users/me/homework/practice-complete`), a worksheet assignment closes
+ * when the worksheet is saved, and typed homework has no in-app proof at all so
+ * the therapist closes it from the portal.
  */
 export async function homeworkRoute(app: FastifyInstance): Promise<void> {
   app.get('/users/me/homework', {
@@ -96,6 +103,73 @@ export async function homeworkRoute(app: FastifyInstance): Promise<void> {
       };
 
       return reply.send(response);
+    },
+  });
+
+  /**
+   * POST /users/me/homework/practice-complete — the app's player finished an
+   * exercise, so the matching assignment is done.
+   *
+   * Deliberately not `/:id/complete`: there is no longer a route a client can
+   * call for an arbitrary assignment, which is the whole point of removing the
+   * Mark done button. This one only ever closes an assignment the caller is
+   * actually holding for that exercise, and only once per IST day.
+   *
+   * A tool that is not assigned answers 200 with `completed: false` rather than
+   * 404: a client practising box breathing from the chat or the Breathe tab has
+   * nothing to complete, and that is an ordinary thing to do, not an error the
+   * app should surface.
+   */
+  app.post('/users/me/homework/practice-complete', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const body = (request.body ?? {}) as { toolId?: unknown };
+
+      if (typeof body.toolId !== 'string' || !TOOL_ID_PATTERN.test(body.toolId)) {
+        return reply.status(400).send({
+          error: { code: 'INVALID_TOOL_ID', message: 'toolId must be a tool id, e.g. box_breathing' },
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { auth_subject: uid },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      const result = await completePracticeForTool(user.id, body.toolId);
+
+      const payload: HomeworkPracticeCompleteResponse =
+        result.outcome === 'completed'
+          ? {
+              completed: true,
+              reason: null,
+              homeworkId: result.homeworkId,
+              repeats: result.repeats,
+              nextDueAt: result.nextDueAt,
+            }
+          : {
+              completed: false,
+              reason: result.outcome,
+              homeworkId: result.outcome === 'already_done_today' ? result.homeworkId : null,
+              repeats: false,
+              nextDueAt: null,
+            };
+
+      if (result.outcome === 'completed') {
+        request.log.info(
+          { event: 'homework_practice_completed', homework_id: result.homeworkId, tool_id: body.toolId },
+          'Client finished an assigned exercise',
+        );
+      }
+
+      return reply.send(payload);
     },
   });
 }
