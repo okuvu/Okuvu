@@ -12,10 +12,13 @@ export interface A2Input {
   userId: string;
   message: string;
   /**
-   * Vestigial: A2's prompt is driven by `carePlanFocus`, not by the plan id, so
-   * this is carried for tracing only. Null when the client has no assignment
-   * yet (self-serve signup) — do NOT default it to CP1, which would put a plan
-   * the therapist never chose into the record.
+   * Selects the §12 care-plan emphasis block (v2.5) when
+   * `OKUVU_A2_CARE_PLAN_STYLE` is `on` — default off, so on the shipped
+   * default this is still tracing-only and A2 is driven by `carePlanFocus`.
+   * Null when the client has no assignment yet (self-serve signup) — do NOT
+   * default it to CP1: that would both put a plan the therapist never chose
+   * into the record and hand the model an emphasis nobody assigned. No plan
+   * means §7.1 alone.
    */
   carePlan: CarePlan | null;
   safetyState: 'S0' | 'S1' | 'S2';
@@ -35,6 +38,8 @@ export interface A2Input {
    */
   therapistName?: string | null;
   carePlanFocus?: string | null;
+  /** Overrides OKUVU_A2_CARE_PLAN_STYLE for this turn — harness A/Bs and tests. */
+  carePlanStyle?: boolean;
   homework?: string | null;
   toolkit?: string[];
   languageMode?: LanguageMode;

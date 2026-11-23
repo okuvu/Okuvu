@@ -1,7 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleTurn, parseA2Response } from '../agents/a2/agent.js';
 import type { A2Input, S07Signal } from '../agents/a2/types.js';
-import { A2_PROMPT_VERSION } from '../prompts/index.js';
+import { A2_PROMPT, A2_PROMPT_VERSION } from '../prompts/index.js';
+import {
+  applyCarePlanEmphasis,
+  carePlanStyleEnabled,
+  CARE_PLAN_BLOCK_PROBES,
+} from '../agents/a2/prompts.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
@@ -724,5 +729,168 @@ describe('A2 dialogue lane and bounded history (16 Nov 2026)', () => {
     const contents = mockGenerateContent.mock.calls[0][0].contents as Array<{ parts: Array<{ text: string }> }>;
     expect(contents).toHaveLength(21);
     expect(contents[0]!.parts[0]!.text).toBe('ordinary week chat 1');
+  });
+});
+
+describe('care-plan emphasis — §12 (v2.5)', () => {
+  const probes = Object.values(CARE_PLAN_BLOCK_PROBES);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+  });
+
+  async function promptFor(overrides: Partial<A2Input>): Promise<string> {
+    await handleTurn(makeInput(overrides));
+    return mockGenerateContent.mock.calls[0][0].systemInstruction as string;
+  }
+
+  it('puts exactly one block in front of the model, and it is the client\'s plan', async () => {
+    const plans = [['CP1', CARE_PLAN_BLOCK_PROBES.CP1], ['CP2', CARE_PLAN_BLOCK_PROBES.CP2], ['CP3', CARE_PLAN_BLOCK_PROBES.CP3]] as const;
+
+    for (const [plan, probe] of plans) {
+      vi.clearAllMocks();
+      const prompt = await promptFor({ carePlan: plan, carePlanStyle: true });
+
+      expect(prompt).toContain(probe);
+      for (const other of probes.filter((p) => p !== probe)) {
+        expect(prompt).not.toContain(other);
+      }
+      // Markers are scaffolding for the builder, never for the model.
+      expect(prompt).not.toContain('[[CP');
+    }
+  });
+
+  it('carries no emphasis at all for a client with no plan, and says so in the section', async () => {
+    const prompt = await promptFor({ carePlan: null, carePlanStyle: true });
+
+    for (const probe of probes) expect(prompt).not.toContain(probe);
+    expect(prompt).toContain('If no block is present, no plan is assigned: use §7.1 alone.');
+  });
+
+  it('never defaults an unassigned client to CP1', async () => {
+    const prompt = await promptFor({ carePlan: null, carePlanStyle: true });
+
+    expect(prompt).not.toContain(CARE_PLAN_BLOCK_PROBES.CP1);
+    expect(prompt).not.toContain('**CP1');
+  });
+
+  it('keeps the care-plan focus phrase alongside the block — phrase and emphasis are different things', async () => {
+    const prompt = await promptFor({
+      carePlan: 'CP1',
+      carePlanStyle: true,
+      carePlanFocus: 'worry loops before exams',
+    });
+
+    expect(prompt).toContain('worry loops before exams');
+    expect(prompt).toContain(CARE_PLAN_BLOCK_PROBES.CP1);
+  });
+
+  describe('the switch', () => {
+    let saved: string | undefined;
+
+    beforeEach(() => {
+      saved = process.env.OKUVU_A2_CARE_PLAN_STYLE;
+    });
+
+    afterEach(() => {
+      if (saved === undefined) delete process.env.OKUVU_A2_CARE_PLAN_STYLE;
+      else process.env.OKUVU_A2_CARE_PLAN_STYLE = saved;
+    });
+
+    it('is off when the variable is unset — an image roll must not turn clinical copy on', async () => {
+      delete process.env.OKUVU_A2_CARE_PLAN_STYLE;
+
+      const prompt = await promptFor({ carePlan: 'CP1' });
+
+      for (const probe of probes) expect(prompt).not.toContain(probe);
+    });
+
+    it('is off for anything other than the literal "on"', async () => {
+      for (const value of ['off', 'true', '1', 'ON', 'yes', '']) {
+        process.env.OKUVU_A2_CARE_PLAN_STYLE = value;
+        expect(carePlanStyleEnabled()).toBe(false);
+      }
+    });
+
+    it('OKUVU_A2_CARE_PLAN_STYLE=off strips the block even for a CP1 client', async () => {
+      process.env.OKUVU_A2_CARE_PLAN_STYLE = 'off';
+
+      const prompt = await promptFor({ carePlan: 'CP1' });
+
+      for (const probe of probes) expect(prompt).not.toContain(probe);
+    });
+
+    it('OKUVU_A2_CARE_PLAN_STYLE=on reaches the builder from the environment', async () => {
+      process.env.OKUVU_A2_CARE_PLAN_STYLE = 'on';
+
+      const prompt = await promptFor({ carePlan: 'CP3' });
+
+      expect(prompt).toContain(CARE_PLAN_BLOCK_PROBES.CP3);
+      expect(prompt).not.toContain(CARE_PLAN_BLOCK_PROBES.CP1);
+    });
+  });
+
+  it('logs one line per turn naming the plan and the block count', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    await handleTurn(makeInput({ carePlan: 'CP2', carePlanStyle: true }));
+
+    const line = info.mock.calls.find((c) => c[1] === 'A2 care-plan emphasis');
+    expect(line).toBeDefined();
+    expect(line![0]).toMatchObject({
+      carePlanStyle: true,
+      carePlan: 'CP2',
+      blocksKept: 1,
+      blocksStripped: 2,
+      outcome: 'blocks',
+    });
+    info.mockRestore();
+  });
+
+  describe('the shipped prompt', () => {
+    it('is v2.5 and keeps all three blocks, delimited and balanced', () => {
+      expect(A2_PROMPT_VERSION).toBe('v2.5');
+
+      for (const plan of ['CP1', 'CP2', 'CP3'] as const) {
+        expect(A2_PROMPT.split(`[[${plan}]]`).length - 1).toBe(1);
+        expect(A2_PROMPT.split(`[[/${plan}]]`).length - 1).toBe(1);
+        expect(A2_PROMPT).toContain(CARE_PLAN_BLOCK_PROBES[plan]);
+      }
+    });
+
+    it('puts §12 before the FINAL REMINDER and states its precedence over §6, §7.1 and §5.1', () => {
+      const section = A2_PROMPT.indexOf('# 12. CARE-PLAN EMPHASIS');
+      const final = A2_PROMPT.indexOf('# FINAL REMINDER');
+
+      expect(section).toBeGreaterThan(-1);
+      expect(final).toBeGreaterThan(section);
+      expect(A2_PROMPT.slice(section, final)).toContain('never\noverrides §6, §7.1 or §5.1');
+    });
+  });
+
+  describe('malformed marker structure fails closed', () => {
+    it('drops the whole section rather than sending three competing emphases', () => {
+      const broken = A2_PROMPT.replace('[[/CP2]]\n', '');
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = applyCarePlanEmphasis(broken, 'CP2');
+
+      expect(result.outcome).toBe('section');
+      expect(result.kept).toBeNull();
+      expect(result.prompt).not.toContain('# 12. CARE-PLAN EMPHASIS');
+      expect(result.prompt).not.toContain(CARE_PLAN_BLOCK_PROBES.CP1);
+      // The rest of the prompt is untouched — the reviewer still runs last.
+      expect(result.prompt).toContain('# FINAL REMINDER');
+      error.mockRestore();
+    });
+
+    it('treats a prompt with no §12 at all as carrying no emphasis', () => {
+      const result = applyCarePlanEmphasis('# 1. A prompt from before v2.5\n', 'CP1');
+
+      expect(result.outcome).toBe('absent');
+      expect(result.stripped).toBe(0);
+      expect(result.prompt).toBe('# 1. A prompt from before v2.5\n');
+    });
   });
 });

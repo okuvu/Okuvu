@@ -30,8 +30,8 @@
  *        `crisis`     → `CRISIS_RESPONSE`            (deterministic)
  *        `grounding`  → `A8_S3_GROUNDING_RESPONSE`   (deterministic)
  *        `a2`         → a live Converse call with `buildConversationalPrompt()`
- *                       over `src/prompts/a2-okuvu-v2.1.txt`, classified state
- *                       in the prompt, then `parseA2Response()` so only the
+ *                       over the prompt file A2_PROMPT_VERSION names, classified
+ *                       state in the prompt, then `parseA2Response()` so only the
  *                       user-facing text is scored;
  *   4. rubric matching against that text, with rubric groups filtered by the
  *      path that served them (`applies_to` in `eval/gold-set.json`). A group
@@ -61,7 +61,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -103,7 +103,11 @@ function repoRoot(): string {
   }
 }
 const REPO_ROOT = repoRoot();
-const PROMPT_FILE = join(API_ROOT, 'src/prompts/a2-okuvu-v2.1.txt');
+// Derived from A2_PROMPT_VERSION, not hard-coded: this line said v2.1 while the
+// runner was two versions ahead, so the gate scored one file's bytes and
+// recorded another file's name in its evidence. The version constant is the
+// only source of truth for which prompt is live.
+const PROMPT_FILE = join(API_ROOT, `src/prompts/a2-okuvu-${A2_PROMPT_VERSION}.txt`);
 
 // Production inference defaults — must stay identical to lib/bedrock.ts
 // (DEFAULT_MAX_OUTPUT_TOKENS = 2048, `temperature ?? 0.7`). A2 passes no
@@ -704,7 +708,7 @@ async function main(): Promise<void> {
     prompt: {
       agent: 'A2',
       version: A2_PROMPT_VERSION,
-      file: 'apps/api/src/prompts/a2-okuvu-v2.1.txt',
+      file: relative(REPO_ROOT, PROMPT_FILE),
       sha256: promptHash,
       built_by: 'buildConversationalPrompt() from src/agents/a2/prompts.ts',
     },

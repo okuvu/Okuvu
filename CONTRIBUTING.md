@@ -44,6 +44,7 @@ Open `.env` and fill in at minimum:
 - `BEDROCK_MODEL_ID_DIALOGUE` — model for the A2 dialogue lane only; default `zai.glm-4.7-flash`. Set it to `qwen.qwen3-32b-v1:0` to undo the split without a code change
 - `OKUVU_BEDROCK_FLEX` — `false` takes the dialogue/background lanes off Bedrock's flex tier. Safety and review calls are never flex regardless of this value
 - `OKUVU_A2_HISTORY_COMPRESSION` — `off` disables A2 history compaction. On by default; only ever runs on an `S0` session with no crisis language in the history
+- `OKUVU_A2_CARE_PLAN_STYLE` — `on` enables prompt §12: the client's care plan (CP1/CP2/CP3) selects an emphasis block. **Off unless the value is literally `on`.** Ships off until the gold-set run and clinical sign-off are recorded (`docs/plans/2026-11-22-care-plan-style-blocks.md`)
 - `COGNITO_THERAPIST_POOL_ID` / `COGNITO_THERAPIST_CLIENT_ID` / `COGNITO_THERAPIST_CLIENT_SECRET` — therapist pool app client (get from Senior Engineer)
 - Set `LOCAL_DEV_BYPASS_AUTH="true"` for local development so you don't need real Cognito tokens
 - AWS access for Bedrock/SQS: use your own profile (`aws configure` or `aws sso login`) — never a committed key file

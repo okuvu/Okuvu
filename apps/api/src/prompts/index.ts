@@ -51,10 +51,30 @@ const __dirname = dirname(__filename);
  *      split and sharpened, with three exchanges written out in §7.2, so a
  *      breathing exercise stops being the answer to all three.
  * No threshold, gold-set scenario, judge prompt or instrument file moved.
+ *
+ * v2.4 → v2.5 (docs/plans/2026-11-22-care-plan-style-blocks.md, PR 1): §12 is
+ * new — the care plan stops being a label plus one phrase and starts choosing
+ * an emphasis. All three blocks live in this file so the hash and clinical
+ * review cover them; buildConversationalPrompt() strips the two that do not
+ * match the client's plan, so exactly one reaches the model. Precedence is
+ * stated in the section itself: §6, §7.1 and §5.1 win on any disagreement, and
+ * a client with no plan gets no block (§7.1 alone, never a default CP1).
+ * Ships behind OKUVU_A2_CARE_PLAN_STYLE=on (default off) — new clinical prompt
+ * text waits for a gold-set score and sign-off, not an image roll.
+ * Measured cost (cl100k_base over the built prompt, not the file):
+ *   v2.4 billed today                     12,606
+ *   + cross-reference in §7 Pacing           39
+ *   + §12 header + fallback + markers       140
+ *   + the one block that plan carries    118-127
+ *   → per turn when on               12,903-12,912 (+2.4%)
+ * File growth (all three blocks, one billed): 568. Recoverable: the two
+ * plan-flavoured pacing bullets in §7.1 (~14 tokens) say per-plan what the
+ * blocks now say, so they can retire once every plan has a block and the
+ * switch is on by default.
  */
-export const A2_PROMPT_VERSION = 'v2.4';
+export const A2_PROMPT_VERSION = 'v2.5';
 
 export const A2_PROMPT = readFileSync(
-  join(__dirname, 'a2-okuvu-v2.4.txt'),
+  join(__dirname, 'a2-okuvu-v2.5.txt'),
   'utf-8',
 );
