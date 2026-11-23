@@ -30,6 +30,7 @@ vi.mock('../lib/worker-health', () => ({
 }));
 
 const mockUserUpsert = vi.hoisted(() => vi.fn());
+const mockUserFindUnique = vi.hoisted(() => vi.fn(async () => ({ id: 'db-user-id' })));
 const mockSessionLogCreate = vi.hoisted(() => vi.fn());
 const mockTestRunCreate = vi.hoisted(() => vi.fn());
 const mockSessionSummaryFindFirst = vi.hoisted(() => vi.fn());
@@ -37,7 +38,7 @@ const mockModelConfigPinFindFirst = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => {
   const mockPrisma: any = {
-    user: { upsert: mockUserUpsert },
+    user: { upsert: mockUserUpsert, findUnique: mockUserFindUnique },
     sessionLog: { create: mockSessionLogCreate },
     testRun: { create: mockTestRunCreate },
     sessionSummary: { findFirst: mockSessionSummaryFindFirst },
@@ -277,7 +278,13 @@ describe('conversationRouter.simulateSessionClose', () => {
 
     expect(mockCloseSession).toHaveBeenCalledWith('session-1', 'test-user-pipeline-1', 'USER_REQUESTED');
     expect(mockInvokeAgent).toHaveBeenCalledTimes(1);
-    expect(mockInvokeAgent).toHaveBeenCalledWith('A13', { sessionId: 'session-1', userId: 'test-user-pipeline-1' });
+    // The worker call carries User.id, not the auth subject: SessionSummary and
+    // UserMemory are keyed on User.id, and passing the subject 500s the close.
+    expect(mockInvokeAgent).toHaveBeenCalledWith('A13', { sessionId: 'session-1', userId: 'db-user-id' });
+    expect(mockUserFindUnique).toHaveBeenCalledWith({
+      where: { auth_subject: 'test-user-pipeline-1' },
+      select: { id: true },
+    });
     expect(mockSessionSummaryFindFirst).toHaveBeenCalledWith({ where: { session_id: 'session-1' } });
 
     expect(result.closeResult.alreadyClosed).toBe(false);

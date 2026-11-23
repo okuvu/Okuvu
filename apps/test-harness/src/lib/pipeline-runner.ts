@@ -2,6 +2,7 @@ import type { PipelineSignal } from '@okuvu/shared-types';
 import { prisma } from './prisma';
 import { TEST_USER_PREFIX } from './mock-context';
 import { invokeAgent } from './agent-adapter';
+import { resolveDbUserId } from './worker-user-id';
 
 // ─── Direct import of apps/api's real orchestrator ──────────────────────────
 //
@@ -223,7 +224,7 @@ export async function runFullPipeline(params: {
     const start = performance.now();
     const workerResult = await invokeAgent(
       'A13',
-      { sessionId: params.sessionId, userId: params.uid },
+      { sessionId: params.sessionId, userId: await resolveDbUserId(params.uid) },
       {},
     );
     const latencyMs = performance.now() - start;

@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { withEnvironment } from '@/lib/prisma-rls';
 import { assertRunnerRails, turnsForSession } from '@/lib/conversation-runner';
+import { PIPELINE_TURN_USD, SIMULATOR_TURN_USD } from '@/lib/campaign-plan';
 import { resolveSimulatorModel } from '@/lib/user-simulator';
 
 const DEFAULT_COST_CEILING_USD = 25;
@@ -107,11 +108,10 @@ export async function POST(req: NextRequest) {
     0,
   );
 
-  // Rough cost estimate: turns × (simulator call + 5-agent pipeline turn) at
-  // order-of-magnitude rates, rounded UP (the ceiling is a hard stop, so
-  // under-estimating is the dangerous direction).
-  const perTurnCostUsd = 0.01;
-  const estimatedCostUsd = Math.ceil(plannedTurns * perTurnCostUsd * 100) / 100;
+  // Cost estimate: token arithmetic from campaign-plan.ts (qwen3-32b rates for
+  // the A1→A9→A2 turn, gemini-flash rates for the simulated user). This used
+  // to be a flat $0.01/turn placeholder, which over-estimated by ~3.5x.
+  const estimatedCostUsd = Number((plannedTurns * (PIPELINE_TURN_USD + SIMULATOR_TURN_USD)).toFixed(4));
   const costCeilingUsd = body.costCeilingUsd ?? DEFAULT_COST_CEILING_USD;
 
   if (body.dryRun) {
@@ -195,12 +195,6 @@ export async function GET() {
     { error: 'Use /api/run-batch/{id} for status (GET) — see the run-batch spec (TH-S35).' },
     { status: 405 },
   );
-}
-
-// Re-exported so the [id] route can share the auth helper without duplication.
-export function assertRunBatchAuth(req: NextRequest): boolean {
-  const token = process.env.RUN_BATCH_TOKEN || process.env.AUDIT_BYPASS_TOKEN;
-  return Boolean(token) && req.headers.get('x-run-batch-token') === token;
 }
 
 // Keep the RLS import referenced for environment-scoped future reads.

@@ -24,6 +24,16 @@ export interface SessionCloseOutcome {
   error: string | null;
 }
 
+/**
+ * The worker writes `SessionSummary.user_id` and reads `UserMemory.user_id` —
+ * both are `User.id`, not the auth subject the runner carries as `uid`.
+ * apps/api's own `closeSession` resolves the same way before enqueuing; the
+ * harness calls the worker directly, so it has to resolve too. Passing the auth
+ * subject here is what made every deployed session close 500 on the
+ * `SessionSummary_user_id_fkey` constraint.
+ */
+import { resolveDbUserId } from './worker-user-id';
+
 export async function closeSessionDirect(sessionId: string, uid: string): Promise<SessionCloseOutcome> {
   const { closeSession } = await import('@okuvu/api/src/lib/session-close');
 
@@ -34,7 +44,7 @@ export async function closeSessionDirect(sessionId: string, uid: string): Promis
     error = err instanceof Error ? err.message : String(err);
   }
 
-  const worker = await invokeAgent('A13', { sessionId, userId: uid });
+  const worker = await invokeAgent('A13', { sessionId, userId: await resolveDbUserId(uid) });
   const output = worker.output as { processed?: boolean; error?: string } | null;
   const workerOk = Boolean(output) && !output?.error && output?.processed !== false;
   if (!workerOk && !error) {

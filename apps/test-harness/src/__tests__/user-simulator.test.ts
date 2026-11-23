@@ -3,6 +3,7 @@ import {
   cleanSimulatorMessage,
   cannedSimulatorTurn,
   resolveSimulatorModel,
+  simulatorIsCanned,
   type SimulatorTurnInput,
 } from '../lib/user-simulator';
 
@@ -110,6 +111,45 @@ describe('TH-S33 user-simulator', () => {
         else delete process.env.TEST_HARNESS_SIMULATOR_MODEL;
         if (prevA2 !== undefined) process.env.OPENROUTER_MODEL = prevA2;
       }
+    });
+  });
+
+  /**
+   * The failure this guards against actually happened: with LLM_PROVIDER
+   * unset and no OPENROUTER_API_KEY, every simulated turn silently came from
+   * `cannedSimulatorTurn`, so a 20-turn "conversation" was the same line
+   * repeated and the transcript read like evidence. The Bedrock path exists so
+   * a real model is available without the API key, and `simulatorIsCanned`
+   * exists so a canned simulator blocks a staging run instead of shipping.
+   */
+  describe('simulator provider and canned gate', () => {
+    it('uses Gemma 3 12B on the Bedrock path, never A2', () => {
+      const env = { LLM_PROVIDER: 'bedrock', BEDROCK_MODEL_ID: 'qwen.qwen3-32b-v1:0' };
+      expect(resolveSimulatorModel(env)).toBe('google.gemma-3-12b-it');
+      expect(resolveSimulatorModel(env)).not.toBe(env.BEDROCK_MODEL_ID);
+    });
+
+    it('still refuses self-play when the simulator is pinned to the A2 model', () => {
+      expect(() =>
+        resolveSimulatorModel({
+          LLM_PROVIDER: 'bedrock',
+          BEDROCK_MODEL_ID: 'google.gemma-3-12b-it',
+          TEST_HARNESS_SIMULATOR_MODEL: 'google.gemma-3-12b-it',
+        }),
+      ).toThrow(/no self-play/);
+    });
+
+    it('honours a pinned simulator model over either default', () => {
+      expect(
+        resolveSimulatorModel({ LLM_PROVIDER: 'bedrock', TEST_HARNESS_SIMULATOR_MODEL: 'mistral.mistral-large-3-675b-instruct' }),
+      ).toBe('mistral.mistral-large-3-675b-instruct');
+    });
+
+    it('is not canned on bedrock, and is canned on openrouter without a key', () => {
+      expect(simulatorIsCanned({ LLM_PROVIDER: 'bedrock' })).toBe(false);
+      expect(simulatorIsCanned({})).toBe(true);
+      expect(simulatorIsCanned({ OPENROUTER_API_KEY: 'sk-or-test' })).toBe(false);
+      expect(simulatorIsCanned({ LLM_PROVIDER: 'bedrock', USE_CANNED_LLM_RESPONSE: 'true' })).toBe(true);
     });
   });
 });
