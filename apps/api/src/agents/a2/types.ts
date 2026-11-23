@@ -40,6 +40,8 @@ export interface A2Input {
   carePlanFocus?: string | null;
   /** Overrides OKUVU_A2_CARE_PLAN_STYLE for this turn — harness A/Bs and tests. */
   carePlanStyle?: boolean;
+  /** Overrides OKUVU_A2_TALK_OR_DO for this turn — harness A/Bs and tests. */
+  talkOrDo?: boolean;
   homework?: string | null;
   toolkit?: string[];
   languageMode?: LanguageMode;

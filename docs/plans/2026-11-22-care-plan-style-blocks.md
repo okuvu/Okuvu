@@ -335,6 +335,28 @@ naming the plan and block count for a real turn.
   paste a paragraph, the right answer is a structured focus list, not a longer
   string; flag before the UI ships.
 
+### Answers received (23 Nov 2026, Dr Shubhangi Goswami)
+
+- **O-1 — closed as (a), for now.** "let us keep it this way as of now and will
+  check the output in beta testing." Emphasis stays advisory: A9-post gets no
+  plan-fit criterion, and no gate run is spent on one. The beta read is the
+  evidence for whether it is needed, and a criterion added later needs its own
+  run and sign-off as §9 already says.
+- **O-2 — closed by changing the base rule instead of the block.** "the change
+  the general rule. the general rule should be to ask whether the client wants
+  to talk or do something." §7.1 rule 1 is therefore no longer "always a step":
+  it asks, the client chooses, and talking is a move with no technique attached.
+  The CP2 block's "more space, less ask" now has a home in the base rule rather
+  than fighting it. Built as prompt v2.6, both arms in one file, behind
+  `OKUVU_A2_TALK_OR_DO` (default off).
+  Consequence worth naming: §12's CP2 block loses to §7.1 on conflict, so CP2
+  turns become "one short choice, then no pressure" rather than "no ask at all",
+  and CP1's "end on a step more often than on an open question" is likewise
+  softened to "end on the choice more often than on open-ended reflection". If
+  she wants CP1's step-first preference preserved inside the choice arm, the
+  CP1 block needs a sentence saying so — not a code change.
+  Record: `evidence/E17-S14-prompt-v26.md`.
+
 ## 10. Sequence
 
 1. Prompt v2.5 + builder + switch + tests (D5: default off). → PR 1

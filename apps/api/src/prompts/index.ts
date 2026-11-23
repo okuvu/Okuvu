@@ -71,10 +71,48 @@ const __dirname = dirname(__filename);
  * plan-flavoured pacing bullets in §7.1 (~14 tokens) say per-plan what the
  * blocks now say, so they can retire once every plan has a block and the
  * switch is on by default.
+ *
+ * v2.5 → v2.6 (clinical direction, Shubhangi Goswami, 23 Nov 2026): §7.1 rule
+ * 1 was "offer exactly one step". It is now, in the arm the switch selects,
+ * "ask first whether they would rather talk it through or try something" — the
+ * client chooses, and talking is a legitimate move with no technique attached.
+ * §7.1 exists because the v2 gate measured replies that validated and then
+ * offered nothing; that failure is unchanged, because the question IS the move
+ * in this arm. Six carve-outs keep it from swallowing work the prompt already
+ * does well: high intensity and acute panic stay body-first (no preference
+ * question in that moment), the rows that name their own move (acute grief,
+ * caregiver burnout, the checking loop, self-criticism, "is this normal")
+ * still supply it without a choice in front of them, and §5.1's refusal plus
+ * named route is still the whole reply on its four topics.
+ *
+ * Both arms live in this file behind [[RULE1_STEP]] / [[RULE1_CHOICE]], so the
+ * hash and clinical review cover what may ship and the gate can score both
+ * arms from one artefact. buildConversationalPrompt() keeps exactly one and the
+ * markers never reach the model. Drift falls back to the STEP arm — the arm in
+ * production — which is the opposite direction from §12's "drop the section":
+ * §12 can be dropped and the prompt is still coherent, but rules 2-5 assume
+ * rule 1 decided the move.
+ *
+ * Ships behind OKUVU_A2_TALK_OR_DO=on (default off) like every other new
+ * clinical prompt: sign-off is on record, the gold-set score is not yet run.
+ * Measured cost (cl100k_base over the built prompt, not the file):
+ *   v2.5 per plan (step arm, today)         12,903-12,912
+ *   step arm, unchanged behaviour           12,954-12,963  (+51: header
+ *     correction to the real model id, the two-line version note, and the
+ *     arm-neutral wording of the §7.1 summary)
+ *   choice arm                              13,332-13,341  (+378 vs the step
+ *     arm, +2.9%, once the switch is on; +429 vs v2.5)
+ * File growth (both arms, one billed): 1,977 bytes.
+ * Also corrected in this version: the header named v2.4 and
+ * Llama-3.1-8B-Instruct (OpenRouter), a copy-forward from the version written
+ * before the Bedrock cutover — v2.6 names v2.6 and qwen.qwen3-32b-v1:0, and a
+ * guard in a2.test.ts now fails if the header and A2_PROMPT_VERSION disagree or
+ * name any vendor but Bedrock. v2.5's header stays wrong: superseded files are
+ * frozen because their sha256 appears in the evidence records.
  */
-export const A2_PROMPT_VERSION = 'v2.5';
+export const A2_PROMPT_VERSION = 'v2.6';
 
 export const A2_PROMPT = readFileSync(
-  join(__dirname, 'a2-okuvu-v2.5.txt'),
+  join(__dirname, 'a2-okuvu-v2.6.txt'),
   'utf-8',
 );

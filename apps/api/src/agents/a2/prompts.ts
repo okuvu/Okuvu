@@ -22,6 +22,29 @@ const SECTION_HEADER = '# 12. CARE-PLAN EMPHASIS';
 const SECTION_END_HEADER = '# FINAL REMINDER';
 const RULE = '═══════════════════════════════════════════════════════════════════';
 
+/**
+ * `OKUVU_A2_TALK_OR_DO` — which §7.1 rule 1 the prompt carries.
+ *
+ * OFF is the arm in production today: one concrete step offered to an engaged
+ * user. ON is the clinical authority's change of 23 Nov 2026 — ask first
+ * whether the client wants to talk it through or try something, and let them
+ * choose — landed behind a switch because it is new clinical prompt text and
+ * the gold-set score has not been run on it yet (AGENT-CODE-STANDARD: land the
+ * code and the switch, never the default). Only the literal `on` flips it.
+ */
+export function talkOrDoEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OKUVU_A2_TALK_OR_DO === 'on';
+}
+
+type Rule1Arm = 'step' | 'choice';
+
+const RULE1_ARMS: Rule1Arm[] = ['step', 'choice'];
+const RULE1_OPEN_RE = /^\[\[RULE1_(STEP|CHOICE)\]\]$/;
+const RULE1_CLOSE_RE = /^\[\[\/(RULE1_(?:STEP|CHOICE))\]\]$/;
+const RULE1_CHOICE_OPEN = '[[RULE1_CHOICE]]';
+const RULE1_CHOICE_CLOSE = '[[/RULE1_CHOICE]]';
+
+
 interface EmphasisResult {
   prompt: string;
   /** The block left in the prompt, or null when none was. */
@@ -121,10 +144,117 @@ export function applyCarePlanEmphasis(
   return { prompt: out.join('\n'), kept, stripped, outcome: 'blocks' };
 }
 
+interface Rule1Result {
+  prompt: string;
+  /** The arm left in the prompt ('step' is the fallback, never null). */
+  kept: Rule1Arm;
+  /** How many arms were removed — 0 or 1. Logged, and asserted in tests. */
+  stripped: number;
+  /** 'blocks' (one arm kept), 'step' (drift: fell back to the shipped arm), 'absent'. */
+  outcome: 'blocks' | 'step' | 'absent';
+}
+
+/** Remove the choice arm and any residual markers — the shipped behaviour. */
+function forceStepArm(prompt: string): Omit<Rule1Result, 'outcome'> {
+  const lines = prompt.split('\n');
+  const out: string[] = [];
+  let insideChoice = false;
+  for (const line of lines) {
+    const t = line.trim();
+    if (t === RULE1_CHOICE_OPEN) {
+      insideChoice = true;
+      continue;
+    }
+    if (t === RULE1_CHOICE_CLOSE) {
+      insideChoice = false;
+      continue;
+    }
+    if (insideChoice) continue;
+    if (RULE1_OPEN_RE.test(t) || RULE1_CLOSE_RE.test(t)) continue;
+    out.push(line);
+  }
+  return { prompt: out.join('\n'), kept: 'step', stripped: 1 };
+}
+
+/**
+ * §7.1 rule 1 ships in two arms in one file, the same way §12 does: a step
+ * offered (the behaviour in production) and a choice asked (talk it through, or
+ * try something). Exactly one reaches the model, and the markers never do.
+ *
+ * Drift falls back to the step arm rather than to the choice arm: the step arm
+ * is what has been reviewed and shipped, so a broken marker costs the new
+ * behaviour rather than exposing an unreviewed one. That is the opposite
+ * direction from §12's "drop the section", because a missing rule 1 is not a
+ * safe state — rule 2 onward assume it decided the move.
+ */
+export function applyConversationDefault(prompt: string, keep: Rule1Arm): Rule1Result {
+  const lines = prompt.split('\n');
+  const out: string[] = [];
+  let current: Rule1Arm | null = null;
+  let armsSeen = 0;
+  let kept: Rule1Arm | null = null;
+  let malformed = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const open = RULE1_OPEN_RE.exec(trimmed);
+    const close = RULE1_CLOSE_RE.exec(trimmed);
+
+    if (open) {
+      if (current !== null) malformed = true; // nested / missing close
+      current = open[1].toLowerCase() as Rule1Arm;
+      armsSeen += 1;
+      if (current === keep) kept = current;
+      continue;
+    }
+
+    if (close) {
+      if (current === null || `RULE1_${current.toUpperCase()}` !== close[1]) malformed = true;
+      current = null;
+      continue;
+    }
+
+    if (current !== null && current !== keep) continue;
+    out.push(line);
+  }
+
+  if (current !== null) malformed = true; // file ended inside an arm
+  if (armsSeen === 0) return { prompt, kept: 'step', stripped: 0, outcome: 'absent' };
+  if (armsSeen !== RULE1_ARMS.length) malformed = true;
+
+  if (malformed) {
+    console.error(
+      { armsSeen, arm: keep },
+      'A2 rule 1: arm marker structure is malformed — falling back to the step-first arm',
+    );
+    return { ...forceStepArm(prompt), outcome: 'step' };
+  }
+
+  return {
+    prompt: out.join('\n'),
+    kept: kept ?? 'step',
+    stripped: RULE1_ARMS.length - (kept === null ? 0 : 1),
+    outcome: 'blocks',
+  };
+}
+
 export const CARE_PLAN_BLOCK_PROBES: Record<CarePlan, string> = {
   CP1: 'a written worry window, a postponement',
   CP2: 'those demand energy they do not have',
   CP3: 'what can be dropped, deferred, handed over',
+};
+
+/**
+ * The sentence that identifies each rule-1 arm once the markers are gone.
+ * Both arms quote the same "one step, not three" phrase, so the probe has to be
+ * the branch line itself: the step arm opens on "exactly one concrete" and the
+ * choice arm opens on "ask one short question".
+ */
+export const RULE1_STEP_PROBE = 'clear** → exactly one concrete,';
+export const RULE1_CHOICE_PROBE = 'clear** → ask one short question';
+export const RULE1_ARM_PROBES: Record<Rule1Arm, string> = {
+  step: RULE1_STEP_PROBE,
+  choice: RULE1_CHOICE_PROBE,
 };
 
 export function buildConversationalPrompt(params: {
@@ -139,6 +269,8 @@ export function buildConversationalPrompt(params: {
   carePlan?: CarePlan | null;
   /** Overrides OKUVU_A2_CARE_PLAN_STYLE — tests and the harness A/B. */
   carePlanStyle?: boolean;
+  /** Overrides OKUVU_A2_TALK_OR_DO — tests and the harness A/B. */
+  talkOrDo?: boolean;
   homework?: string | null;
   toolkit?: string[];
   languageMode?: 'english' | 'mirror';
@@ -166,12 +298,23 @@ export function buildConversationalPrompt(params: {
       ? carePlan
       : null;
 
-  const emphasis = applyCarePlanEmphasis(A2_PROMPT, selected);
+  const talkOrDo = params.talkOrDo ?? talkOrDoEnabled();
+  const rule1 = applyConversationDefault(A2_PROMPT, talkOrDo ? 'choice' : 'step');
+  const emphasis = applyCarePlanEmphasis(rule1.prompt, selected);
 
   // One line per turn: a production log answers "which emphasis did this turn
-  // carry" without re-reading the request. No client identifier, no message.
+  // carry, and which rule 1" without re-reading the request. No client
+  // identifier, no message.
   console.info(
-    { carePlanStyle, carePlan: carePlan ?? null, blocksKept: emphasis.kept === null ? 0 : 1, blocksStripped: emphasis.stripped, outcome: emphasis.outcome },
+    {
+      carePlanStyle,
+      carePlan: carePlan ?? null,
+      blocksKept: emphasis.kept === null ? 0 : 1,
+      blocksStripped: emphasis.stripped,
+      outcome: emphasis.outcome,
+      rule1: rule1.kept,
+      rule1Outcome: rule1.outcome,
+    },
     'A2 care-plan emphasis',
   );
 

@@ -59,7 +59,7 @@ export interface PromptManifestEntry {
  * truth; the fallback only fires when the file is unreadable, and an
  * unreadable source file is already a broken deployment.
  */
-const A2_VERSION_FALLBACK = 'v2.5';
+const A2_VERSION_FALLBACK = 'v2.6';
 
 function readA2PromptVersion(root: string): string {
   try {

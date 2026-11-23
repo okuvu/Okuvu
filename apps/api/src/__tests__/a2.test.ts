@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { handleTurn, parseA2Response } from '../agents/a2/agent.js';
 import type { A2Input, S07Signal } from '../agents/a2/types.js';
 import { A2_PROMPT, A2_PROMPT_VERSION } from '../prompts/index.js';
 import {
   applyCarePlanEmphasis,
+  applyConversationDefault,
   carePlanStyleEnabled,
+  talkOrDoEnabled,
   CARE_PLAN_BLOCK_PROBES,
+  RULE1_ARM_PROBES,
+  RULE1_CHOICE_PROBE,
+  RULE1_STEP_PROBE,
 } from '../agents/a2/prompts.js';
+import { DEFAULT_BEDROCK_MODEL_ID } from '../lib/provider-config.js';
 
 const mockGenerateContent = vi.hoisted(() => vi.fn());
 
@@ -849,8 +858,8 @@ describe('care-plan emphasis — §12 (v2.5)', () => {
   });
 
   describe('the shipped prompt', () => {
-    it('is v2.5 and keeps all three blocks, delimited and balanced', () => {
-      expect(A2_PROMPT_VERSION).toBe('v2.5');
+    it('is v2.6 and keeps all three blocks, delimited and balanced', () => {
+      expect(A2_PROMPT_VERSION).toBe('v2.6');
 
       for (const plan of ['CP1', 'CP2', 'CP3'] as const) {
         expect(A2_PROMPT.split(`[[${plan}]]`).length - 1).toBe(1);
@@ -892,5 +901,179 @@ describe('care-plan emphasis — §12 (v2.5)', () => {
       expect(result.stripped).toBe(0);
       expect(result.prompt).toBe('# 1. A prompt from before v2.5\n');
     });
+  });
+});
+
+describe('§7.1 rule 1 — a step offered or a choice asked (v2.6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGenerateContent.mockResolvedValue({ text: 'I hear you.', fallbackUsed: false });
+  });
+
+  async function promptFor(overrides: Partial<A2Input>): Promise<string> {
+    await handleTurn(makeInput(overrides));
+    return mockGenerateContent.mock.calls[0][0].systemInstruction as string;
+  }
+
+  describe('the switch', () => {
+    let saved: string | undefined;
+
+    beforeEach(() => {
+      saved = process.env.OKUVU_A2_TALK_OR_DO;
+    });
+
+    afterEach(() => {
+      if (saved === undefined) delete process.env.OKUVU_A2_TALK_OR_DO;
+      else process.env.OKUVU_A2_TALK_OR_DO = saved;
+    });
+
+    it('is off when the variable is unset — an image roll must not change how the companion opens', () => {
+      delete process.env.OKUVU_A2_TALK_OR_DO;
+
+      expect(talkOrDoEnabled()).toBe(false);
+    });
+
+    it('is off for anything other than the literal "on"', () => {
+      for (const value of ['off', 'true', '1', 'ON', 'yes', '', 'On ']) {
+        process.env.OKUVU_A2_TALK_OR_DO = value;
+        expect(talkOrDoEnabled()).toBe(false);
+      }
+    });
+
+    it('off ships the step-first arm: one step, no preference question', async () => {
+      delete process.env.OKUVU_A2_TALK_OR_DO;
+
+      const prompt = await promptFor({ carePlan: 'CP1' });
+
+      expect(prompt).toContain(RULE1_STEP_PROBE);
+      expect(prompt).not.toContain(RULE1_CHOICE_PROBE);
+      expect(prompt).not.toContain('talk it through');
+    });
+
+    it('on ships the choice arm: talk it through, or try something', async () => {
+      process.env.OKUVU_A2_TALK_OR_DO = 'on';
+
+      const prompt = await promptFor({ carePlan: 'CP1' });
+
+      expect(prompt).toContain(RULE1_CHOICE_PROBE);
+      expect(prompt).not.toContain(RULE1_STEP_PROBE);
+      expect(prompt).toContain('**talk it through**');
+    });
+
+    it('the per-turn override wins over the environment, for the harness A/B', async () => {
+      process.env.OKUVU_A2_TALK_OR_DO = 'on';
+
+      const offArm = await promptFor({ carePlan: 'CP2', talkOrDo: false });
+      expect(offArm).toContain(RULE1_STEP_PROBE);
+      expect(offArm).not.toContain(RULE1_CHOICE_PROBE);
+    });
+  });
+
+  it('never lets an arm marker reach the model, in either arm', async () => {
+    for (const talkOrDo of [false, true]) {
+      vi.clearAllMocks();
+      const prompt = await promptFor({ carePlan: 'CP2', talkOrDo });
+
+      expect(prompt).not.toContain('[[RULE1');
+    }
+  });
+
+  it('keeps the carve-outs that stop the question swallowing work the prompt already does', async () => {
+    const prompt = await promptFor({ carePlan: 'CP2', talkOrDo: true });
+    const choiceAt = prompt.indexOf(RULE1_CHOICE_PROBE);
+    const rule2At = prompt.indexOf('2. **The user is ambiguous or resistant**');
+
+    expect(choiceAt).toBeGreaterThan(-1);
+    const arm = prompt.slice(choiceAt, rule2At);
+
+    // Body-first states: no preference question in the middle of a panic.
+    expect(arm).toContain('acute panic: the body comes first');
+    // The rows that already name their move still name it, without a choice.
+    expect(arm).toContain('caregiver burnout, the checking loop, self-criticism');
+    // §5.1 keeps ownership of its four topics.
+    expect(arm).toContain('§5.1 still wins');
+    expect(arm).toContain('A talk-or-do question is not a route');
+    // The client is never asked the same question twice.
+    expect(arm).toContain('Do not put the same question to them twice');
+  });
+
+  it('logs the arm it used, so a production log answers it after the fact', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    await handleTurn(makeInput({ carePlan: 'CP1', talkOrDo: true }));
+
+    const line = info.mock.calls.find((c) => c[1] === 'A2 care-plan emphasis');
+    expect(line).toBeDefined();
+    expect(line![0]).toMatchObject({ rule1: 'choice', rule1Outcome: 'blocks' });
+    info.mockRestore();
+  });
+
+  describe('the shipped prompt', () => {
+    it('carries both arms, each delimited exactly once — one artefact the gate can score both ways', () => {
+      for (const tag of ['RULE1_STEP', 'RULE1_CHOICE']) {
+        expect(A2_PROMPT.split(`[[${tag}]]`).length - 1).toBe(1);
+        expect(A2_PROMPT.split(`[[/${tag}]]`).length - 1).toBe(1);
+      }
+      expect(A2_PROMPT).toContain(RULE1_STEP_PROBE);
+      expect(A2_PROMPT).toContain(RULE1_CHOICE_PROBE);
+    });
+
+    it('keeps both arms inside §7.1, ahead of rule 2', () => {
+      const section = A2_PROMPT.indexOf('## 7.1 One next move');
+      const rule2 = A2_PROMPT.indexOf('2. **The user is ambiguous or resistant**');
+      const choice = A2_PROMPT.indexOf('[[RULE1_CHOICE]]');
+      const tableAt = A2_PROMPT.indexOf('Match the presentation, not the label');
+
+      expect(section).toBeGreaterThan(-1);
+      expect(choice).toBeGreaterThan(section);
+      expect(rule2).toBeGreaterThan(choice);
+      expect(tableAt).toBeGreaterThan(rule2);
+    });
+  });
+
+  describe('malformed arm structure fails to the arm in production', () => {
+    it('falls back to step-first rather than exposing an unreviewed arm', () => {
+      const broken = A2_PROMPT.replace('[[/RULE1_STEP]]\n', '');
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = applyConversationDefault(broken, 'choice');
+
+      expect(result.outcome).toBe('step');
+      expect(result.kept).toBe('step');
+      expect(result.prompt).toContain(RULE1_STEP_PROBE);
+      expect(result.prompt).not.toContain(RULE1_CHOICE_PROBE);
+      expect(result.prompt).not.toContain('[[RULE1');
+      // The rest of §7.1 survives — rules 2-5 need rule 1 to have decided.
+      expect(result.prompt).toContain('2. **The user is ambiguous or resistant**');
+      error.mockRestore();
+    });
+
+    it('treats a prompt with no arms at all as the step arm, untouched', () => {
+      const result = applyConversationDefault('# 1. A prompt from before v2.6\n', 'choice');
+
+      expect(result.outcome).toBe('absent');
+      expect(result.kept).toBe('step');
+      expect(result.stripped).toBe(0);
+      expect(result.prompt).toBe('# 1. A prompt from before v2.6\n');
+    });
+  });
+});
+
+describe('prompt header (v2.6 correction)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+
+  it('names the live version — v2.5 shipped a header reading v2.4', () => {
+    expect(A2_PROMPT).toContain(`Version: ${A2_PROMPT_VERSION} |`);
+    expect(A2_PROMPT).toContain(`A2 Support Companion · ${A2_PROMPT_VERSION}`);
+  });
+
+  it('names the model this deployment actually calls, and no other vendor', () => {
+    expect(A2_PROMPT).toContain(`Model: ${DEFAULT_BEDROCK_MODEL_ID}`);
+    expect(A2_PROMPT).not.toContain('OpenRouter');
+    expect(A2_PROMPT).not.toContain('Llama-3.1');
+  });
+
+  it('resolves to a prompt file that exists on disk', () => {
+    expect(existsSync(join(here, '..', 'prompts', `a2-okuvu-${A2_PROMPT_VERSION}.txt`))).toBe(true);
   });
 });
