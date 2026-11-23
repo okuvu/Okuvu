@@ -143,3 +143,50 @@ is ever billed.
 5. **Two live defects from the v2.5 sample set are still unfixed** and could mask copy quality
    in that read: a reasoning-tag run reaching user-facing text (`</think>` before the signal
    fence), and one turn that emitted prose with no S-07 block.
+
+---
+
+## GO-LIVE — 23 Nov 2026, on her instruction
+
+Clinical direction, Shubhangi Goswami, in this session: "push the changes and make it live."
+That is direction given in writing, not a signed form, and the gold-set score in Open/1 is still
+not run. The record says both plainly rather than describing this as a gated release.
+
+**What is live.** `origin/develop` = `6c11078` (= production's `/health` commit). Two code commits
+plus one infra commit, carried onto the live sha `e388100` by cherry-pick — clean, no conflicts,
+no migrations in the diff (`No pending migrations to apply` in the build).
+
+| surface | revision | image |
+|---|---|---|
+| api | `evia-beta-api:96` | `6c1107840f3e` |
+| worker | `evia-beta-worker:90` | `6c1107840f3e` |
+| portal | `evia-beta-portal:93` | `6c1107840f3e` |
+
+**Both switches are `on`** (`evia-beta-api:96`, `OKUVU_A2_CARE_PLAN_STYLE` + `OKUVU_A2_TALK_OR_DO`),
+so the deployed image builds the v2.6 copy with one §12 block and the choice arm of §7.1 rule 1.
+The build's own revision (`:95`) inherited rev 94's environment, which carried neither flag —
+the code was live for ~3 minutes with the switches off before `:96` was registered and rolled. Two
+restarts of api, one deliberate: it separates "did the code roll" from "did the behaviour change".
+
+**Rollback** — no build needed, about a minute, and it is the operator's lever:
+set either flag to `off` on the task definition and force a new deployment. Per-flag, so the two
+changes come out independently. Prompt text itself rolls back only by image (rev `:94` / `e388100`).
+
+**Verified**
+- build `8f602368` `SUCCEEDED`; 6/6 release gates recorded; `OK api:95 / worker:90 / portal:93`;
+  `DEPLOY_DECISION=deploy` (12 files outside the skip list).
+- `:95` + `:96` both `COMPLETED`, api running 1/1; boot log clean (`Starting server`,
+  `Server listening`, no crash-loop), served traffic is `/health` only.
+- task 6874d59d → td `:96` → image digest `e53f11f8…` → `/health` reports `6c1107840f3e`.
+
+**Not verified — say so in the beta read**
+1. **No chat turn has run through `:96`.** The mechanism is live and unexercised; the per-turn
+   `carePlanStyle/carePlan/blocksKept` log line will be the first real evidence, and it needs one
+   message from the app. A green rollout proves the image, not the lane.
+2. **The gold-set score is still not run**, so nothing has measured this copy against the
+   instrument. Beta output is the first read, per her instruction.
+3. **`evia-beta-harness` is still on image `4ab7071e804f`** (an older commit). Copy reviewed on
+   testing.okuvu.in is not the live copy until that service is rebuilt; the live copy is what the
+   app talks to.
+4. Open/5 — the reasoning-tag leak and the missing-S-07 turn — are still unfixed and will show up
+   in a beta read as copy noise. They predate this change and are not caused by it.
