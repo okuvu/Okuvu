@@ -254,6 +254,11 @@ const counters = {
   judge_call_failures: 0,
   judge_parse_failures: 0,
   judge_parse_recovered_overall_only: 0,
+  // A judge reply that parses but carries fewer per-requirement rows than the
+  // rubric asked about. Found during the 24 Nov run: one rep came back
+  // {"verdict":"satisfied","requirements":[]}, which scored 2 requirements as a
+  // free pass. Never a pass now.
+  judge_requirement_count_mismatch: 0,
   probe_calls: 0,
   probe_failures_expected: 0,
   retries: 0,
@@ -812,6 +817,7 @@ async function runGate(): Promise<void> {
     } else if (turn.served_text.trim().length === 0) {
       judgeOut = { ok: false, verdict: null, reason: '', requirements: [], raw: '', error: 'nothing was served', parse_mode: 'none' };
     } else {
+      const expectedRequirements = requirementsFor(task.scenario, turn.path).length;
       const judgeStarted = Date.now();
       counters.judge_calls += 1;
       const judgeCall = await converse(
@@ -830,6 +836,21 @@ async function runGate(): Promise<void> {
         judgeOut = parseJudgeOutput(judgeCall.text);
         if (!judgeOut.ok) counters.judge_parse_failures += 1;
         else if (judgeOut.parse_mode === 'overall_only') counters.judge_parse_recovered_overall_only += 1;
+        else if (judgeOut.requirements.length !== expectedRequirements) {
+          // A verdict is not a judgement. If the instrument was asked about two
+          // requirements and came back with none, the turn was not scored, and
+          // counting it as a pass is how a gate stops gating.
+          counters.judge_requirement_count_mismatch += 1;
+          judgeOut = {
+            ok: false,
+            verdict: null,
+            reason: '',
+            requirements: judgeOut.requirements,
+            raw: judgeCall.text,
+            error: `judge returned ${judgeOut.requirements.length} of ${expectedRequirements} requirements`,
+            parse_mode: judgeOut.parse_mode,
+          };
+        }
       }
     }
 
@@ -912,7 +933,8 @@ async function runGate(): Promise<void> {
     counters.a2_failures === 0 &&
     counters.a1_fallbacks === 0 &&
     counters.judge_call_failures === 0 &&
-    counters.judge_parse_failures === 0;
+    counters.judge_parse_failures === 0 &&
+    counters.judge_requirement_count_mismatch === 0;
 
   const legacyAgreements = results.flatMap((r) =>
     r.reps.map((rep) => ({
@@ -939,6 +961,9 @@ async function runGate(): Promise<void> {
           counters.a1_fallbacks > 0 ? `${counters.a1_fallbacks} of ${counters.a1_classifications} A1 classification(s) fell back` : null,
           counters.judge_call_failures > 0 ? `${counters.judge_call_failures} judge call(s) failed` : null,
           counters.judge_parse_failures > 0 ? `${counters.judge_parse_failures} judge output(s) were unparseable` : null,
+          counters.judge_requirement_count_mismatch > 0
+            ? `${counters.judge_requirement_count_mismatch} judge output(s) carried fewer requirements than the rubric asked about and were NOT counted as passes`
+            : null,
         ]
           .filter(Boolean)
           .join('; '),
