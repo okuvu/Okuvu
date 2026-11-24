@@ -35,7 +35,18 @@ const ACCESS_LABELS: Record<string, string> = {
   open: 'Anyone can open',
   assigned: 'After assignment',
   in_session: 'In session',
+  therapist_only: "Therapist only — never in the client's Library",
 };
+
+/** The owner's care-plan labels, in her order (24 Nov 2026). */
+const CARE_PLAN_LABELS: Record<string, string> = {
+  anxiety_worry: 'Anxiety & Worry',
+  low_mood: 'Low Mood',
+  stress_burnout: 'Stress & Burnout',
+  all: 'All',
+};
+
+const CARE_PLAN_ORDER = ['anxiety_worry', 'low_mood', 'stress_burnout', 'all'] as const;
 
 const MINUTE_BUCKETS = [
   { key: 'any', label: 'Any length' },
@@ -48,6 +59,7 @@ export default function WorksheetsPage() {
   const { data, isLoading, error } = trpc.worksheets.list.useQuery();
 
   const [section, setSection] = useState('');
+  const [carePlan, setCarePlan] = useState('');
   const [modality, setModality] = useState('');
   const [access, setAccess] = useState('');
   const [load, setLoad] = useState('');
@@ -69,6 +81,7 @@ export default function WorksheetsPage() {
     const term = search.trim().toLowerCase();
     return rows.filter((row) => {
       if (section && row.section !== section) return false;
+      if (carePlan && !row.carePlans.includes(carePlan)) return false;
       if (modality && row.modality !== modality) return false;
       if (access && row.accessMode !== access) return false;
       if (load && row.loadLevel !== load) return false;
@@ -148,6 +161,23 @@ export default function WorksheetsPage() {
                 {modalities.map((key) => (
                   <option key={key} value={key}>
                     {key}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-[11px] font-medium text-gray-500">
+              Care plan
+              <select
+                aria-label="Filter by care plan"
+                value={carePlan}
+                onChange={(e) => setCarePlan(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-900"
+              >
+                <option value="">Any plan</option>
+                {CARE_PLAN_ORDER.map((key) => (
+                  <option key={key} value={key}>
+                    {CARE_PLAN_LABELS[key]}
                   </option>
                 ))}
               </select>
@@ -274,7 +304,20 @@ export default function WorksheetsPage() {
                               {row.loadLevel && <span>{row.loadLevel}</span>}
                               {row.estMinutes != null && <span>{row.estMinutes} min</span>}
                               {row.hasHinglish && <span>Hinglish</span>}
+                              {row.sensitiveCheck && <span>Deeper safety screen</span>}
                             </p>
+                            {row.carePlans.length > 0 && (
+                              <p className="mt-1 flex flex-wrap gap-1">
+                                {CARE_PLAN_ORDER.filter((key) => row.carePlans.includes(key)).map((key) => (
+                                  <span
+                                    key={key}
+                                    className="rounded-full bg-lavender-tint px-2 py-0.5 text-[10px] font-semibold text-royal-purple"
+                                  >
+                                    {CARE_PLAN_LABELS[key]}
+                                  </span>
+                                ))}
+                              </p>
+                            )}
                             {row.therapistNote && (
                               <p className="mt-2 rounded-lg bg-oat px-3 py-2 text-[11px] text-gray-600">
                                 <span className="font-semibold uppercase tracking-wide text-[10px] text-gray-500">

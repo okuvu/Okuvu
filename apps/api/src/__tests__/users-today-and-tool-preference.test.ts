@@ -25,7 +25,9 @@ vi.mock('../lib/prisma.js', () => ({
     // Step 5 — the Today card's single item. No assignments and no light
     // catalogue row means the card renders nothing, which is the case these
     // tests are about.
-    toolRegistryEntry: { findFirst: vi.fn().mockResolvedValue(null) },
+    // The suggestion reads a short candidate list so the client's care plan can
+    // put their own plan first (24 Nov 2026), then picks one deterministically.
+    toolRegistryEntry: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
     userToolPreference: {
       findMany: vi.fn(),
       upsert: vi.fn(),
@@ -404,8 +406,11 @@ describe('GET /users/me/today — the one item the Today card shows', () => {
     vi.mocked(prisma.homework.findMany).mockResolvedValue(overrides.assignments as any);
     vi.mocked(prisma.homework.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.userToolPreference.findMany).mockResolvedValue([]);
-    vi.mocked(prisma.toolRegistryEntry.findFirst).mockResolvedValue(
-      (overrides.suggestion ?? null) as any,
+    // The route now reads candidates with findMany and picks the first that fits
+    // the client's plan (falling back to the first row), so the suggestion is
+    // served as a one-row list.
+    vi.mocked(prisma.toolRegistryEntry.findMany).mockResolvedValue(
+      overrides.suggestion ? ([{ care_plans: ['all'], ...overrides.suggestion }] as any) : ([] as any),
     );
     app = buildApp();
 

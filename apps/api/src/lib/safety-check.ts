@@ -30,6 +30,7 @@ import {
   hasCrisisLanguage,
   hasThirdPartyCrisisLanguage,
 } from '../agents/a1/crisis-keywords.js';
+import { worstExtraRisk } from './worksheet-risk.js';
 
 /**
  * How long a non-chat write waits for the classifier before it is treated as
@@ -125,7 +126,15 @@ async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
  */
 export async function checkClientText(
   text: string,
-  options: { timeoutMs?: number } = {},
+  options: {
+    timeoutMs?: number;
+    /**
+     * Run the deeper risk screen as well (owner's rule, 24 Nov 2026). Set from
+     * the worksheet row's `sensitive_check`, never from the surface: the journal
+     * and the Treasure Box keep exactly the check they have today.
+     */
+    sensitiveCheck?: boolean;
+  } = {},
 ): Promise<TextSafetyResult> {
   const trimmed = typeof text === 'string' ? text.trim() : '';
 
@@ -139,6 +148,19 @@ export async function checkClientText(
   //    level, never lower it, and it is the same list chat uses.
   if (hasCrisisLanguage(trimmed)) {
     return result('S4', 'crisis_keyword_floor');
+  }
+
+  // 1a. The deeper screen, on the worksheets the owner named. Still a floor: no
+  //     model, no deadline. Self-harm and "sleep and not wake up" are S4; the
+  //     eating, body, sleep and harm-to-someone signals are S3 — both are
+  //     flagged, so the client sees the help card with the helplines and their
+  //     own safety plan and the therapist gets the content-free alert, exactly as
+  //     the journal does. Only S4 swaps the card for the crisis one.
+  if (options.sensitiveCheck) {
+    const extra = worstExtraRisk(trimmed);
+    if (extra) {
+      return result(extra.level, `sensitive_worksheet_floor:${extra.concern}`);
+    }
   }
 
   // 1b. Third-party risk — "asking for a friend", "my flatmate wants to die".

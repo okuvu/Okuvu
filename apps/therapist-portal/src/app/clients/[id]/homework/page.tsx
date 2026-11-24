@@ -25,7 +25,18 @@ const ACCESS_LABELS: Record<string, string> = {
   open: 'Anyone can open',
   assigned: 'After assignment',
   in_session: 'In session',
+  therapist_only: 'Therapist only',
 };
+
+/** The owner's care-plan labels (24 Nov 2026), in her order. */
+const CARE_PLAN_LABELS: Record<string, string> = {
+  anxiety_worry: 'Anxiety & Worry',
+  low_mood: 'Low Mood',
+  stress_burnout: 'Stress & Burnout',
+  all: 'All',
+};
+
+const CARE_PLAN_ORDER = ['anxiety_worry', 'low_mood', 'stress_burnout', 'all'] as const;
 
 type Frequency = 'once' | 'once_daily' | 'twice_daily' | 'thrice_daily' | 'as_needed';
 
@@ -151,7 +162,13 @@ export default function ClientHomeworkPage() {
   // the server would refuse.
   const libraryQuery = trpc.worksheets.list.useQuery();
   const approved = useMemo(
-    () => (libraryQuery.data ?? []).filter((row) => row.status === 'approved'),
+    () =>
+      (libraryQuery.data ?? []).filter(
+        // Owner's rule (24 Nov 2026): only an approved worksheet can be assigned,
+        // and a therapist-only one (the exposure ladder) is never the client's to
+        // open, so it is never offered here either.
+        (row) => row.status === 'approved' && row.accessMode !== 'therapist_only',
+      ),
     [libraryQuery.data],
   );
 
@@ -603,6 +620,13 @@ export default function ClientHomeworkPage() {
                           )}
                           <span className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-gray-500">
                             {row.section && <span>{SECTION_LABELS[row.section] ?? row.section}</span>}
+                            {row.carePlans.length > 0 && (
+                              <span>
+                                {CARE_PLAN_ORDER.filter((key) => row.carePlans.includes(key))
+                                  .map((key) => CARE_PLAN_LABELS[key])
+                                  .join(' · ')}
+                              </span>
+                            )}
                             {row.modality && <span>{row.modality}</span>}
                             <span>{ACCESS_LABELS[row.accessMode] ?? row.accessMode}</span>
                             {row.loadLevel && <span>{row.loadLevel}</span>}

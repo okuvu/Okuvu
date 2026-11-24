@@ -87,12 +87,18 @@ describe('catalogue content', () => {
   });
 
   it('keeps every placeholder hidden, empty and unapproved', () => {
-    expect(PLACEHOLDER_CATALOGUE).toHaveLength(15);
+    // Fifteen from the first catalogue pass, plus three the owner's 24 Nov 2026
+    // rules named so their ids and their deeper screen exist before the wording
+    // does: Comparison check, Meet the inner critic, Exposure ladder.
+    expect(PLACEHOLDER_CATALOGUE).toHaveLength(18);
     for (const entry of PLACEHOLDER_CATALOGUE) {
       expect(entry.status).toBe('placeholder');
       expect(entry.content_en).toBeNull();
       expect(entry.content_hi).toBeNull();
       expect(entry.summary.length).toBeGreaterThan(0);
+      // A placeholder has no wording, so it has no care plan and no deeper screen
+      // yet. Both are set with the body, when the worksheet is written.
+      expect(entry.care_plans).toEqual([]);
     }
   });
 

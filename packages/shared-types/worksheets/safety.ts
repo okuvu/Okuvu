@@ -28,6 +28,8 @@ const safetyPlan: CatalogueEntry = {
   sort_order: 10,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['all'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:

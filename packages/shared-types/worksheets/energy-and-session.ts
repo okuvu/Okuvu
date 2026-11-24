@@ -23,6 +23,8 @@ const energyAudit: CatalogueEntry = {
   sort_order: 10,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['stress_burnout'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:
@@ -125,6 +127,8 @@ const bringToSession: CatalogueEntry = {
   sort_order: 10,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['all'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:
@@ -217,6 +221,8 @@ const postSession: CatalogueEntry = {
   sort_order: 20,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['all'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:

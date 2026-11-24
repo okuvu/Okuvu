@@ -19,6 +19,8 @@ const kindFriend: CatalogueEntry = {
   sort_order: 10,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['low_mood'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:
@@ -121,6 +123,8 @@ const threeGoodThings: CatalogueEntry = {
   sort_order: 20,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['low_mood'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:

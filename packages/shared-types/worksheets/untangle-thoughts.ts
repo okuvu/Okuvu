@@ -24,6 +24,8 @@ const thoughtRecord: CatalogueEntry = {
   sort_order: 10,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['anxiety_worry', 'low_mood'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:
@@ -208,6 +210,8 @@ const thinkingTrap: CatalogueEntry = {
   sort_order: 20,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['anxiety_worry'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:
@@ -372,6 +376,8 @@ const worryTree: CatalogueEntry = {
   sort_order: 30,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['anxiety_worry'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:

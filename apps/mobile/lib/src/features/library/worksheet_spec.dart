@@ -80,6 +80,12 @@ class WorksheetField {
     this.addLabel,
     this.withDate = true,
     this.withTime = false,
+    this.seconds,
+    this.minSeconds,
+    this.startLabel,
+    this.doneLabel,
+    this.regions = const [],
+    this.strengthPrompt,
   });
 
   final String id;
@@ -119,7 +125,29 @@ class WorksheetField {
   final bool withDate;
   final bool withTime;
 
+  // countdown timer
+  /// Total length in seconds. Required by the validator for this piece.
+  final int? seconds;
+
+  /// When set, stopping before this many seconds leaves the piece unanswered.
+  final int? minSeconds;
+
+  /// Button labels, from the approved copy. The app never invents one.
+  final String? startLabel;
+  final String? doneLabel;
+
+  // body outline
+  /// The parts to offer. Words are clinical copy; the app draws the outline.
+  final List<WorksheetFeeling> regions;
+
+  /// Question above the per-part sliders, when the approved copy gives one.
+  final String? strengthPrompt;
+
   bool get takesAnAnswer => type != 'instruction';
+
+  bool get isTimer => type == 'countdown_timer';
+
+  bool get isBodyOutline => type == 'body_outline';
   bool get isScale => type == 'scale_0_10' || type == 'scale_0_100';
   int get scaleMax => type == 'scale_0_10' ? 10 : 100;
 }
@@ -374,6 +402,64 @@ WorksheetContent parseWorksheetContent(Object? raw) {
       }
     }
 
+    if (type == 'countdown_timer') {
+      final seconds = rawField['seconds'];
+      if (seconds is! int || seconds < 5 || seconds > 3600) {
+        problems.add('$at.seconds: must be a whole number between 5 and 3600');
+      }
+      final minSeconds = rawField['minSeconds'];
+      if (minSeconds != null) {
+        if (minSeconds is! int || minSeconds < 0) {
+          problems.add('$at.minSeconds: must be a whole number >= 0');
+        } else if (seconds is int && minSeconds > seconds) {
+          problems.add('$at.minSeconds: must not be longer than seconds');
+        }
+      }
+    }
+
+    final regions = <WorksheetFeeling>[];
+    final rawRegions = rawField['regions'];
+    if (rawRegions is List) {
+      final regionIds = <String>{};
+      for (var ri = 0; ri < rawRegions.length; ri++) {
+        final r = rawRegions[ri];
+        if (r is! Map) {
+          problems.add('$at.regions[$ri]: must be an object');
+          continue;
+        }
+        final rid = r['id'];
+        final label = r['label'];
+        final parent = r['parent'];
+        if (rid is! String || rid.isEmpty) {
+          problems.add('$at.regions[$ri].id: required');
+          continue;
+        }
+        if (!regionIds.add(rid)) problems.add('$at.regions[$ri].id: duplicate id');
+        if (label is! String || label.isEmpty) {
+          problems.add('$at.regions[$ri].label: required');
+        }
+        if (parent != null && parent is! String) {
+          problems.add('$at.regions[$ri].parent: must be a non-empty string');
+        }
+        regions.add(
+          WorksheetFeeling(
+            id: rid,
+            label: label is String ? label : rid,
+            parent: parent is String ? parent : null,
+          ),
+        );
+      }
+      for (final region in regions) {
+        if (region.parent == null) continue;
+        if (!regionIds.contains(region.parent)) {
+          problems.add('$at.regions: a parent part must be one of the listed parts');
+        }
+      }
+    }
+    if (type == 'body_outline' && regions.isEmpty) {
+      problems.add('$at.regions: at least one part is required');
+    }
+
     final withDate = rawField['withDate'];
     final withTime = rawField['withTime'];
     if (type == 'datetime') {
@@ -406,6 +492,13 @@ WorksheetContent parseWorksheetContent(Object? raw) {
         addLabel: rawField['addLabel'] is String ? rawField['addLabel'] as String : null,
         withDate: withDate == null ? true : withDate == true,
         withTime: withTime == true,
+        seconds: rawField['seconds'] is int ? rawField['seconds'] as int : null,
+        minSeconds: rawField['minSeconds'] is int ? rawField['minSeconds'] as int : null,
+        startLabel: rawField['startLabel'] is String ? rawField['startLabel'] as String : null,
+        doneLabel: rawField['doneLabel'] is String ? rawField['doneLabel'] as String : null,
+        regions: regions,
+        strengthPrompt:
+            rawField['strengthPrompt'] is String ? rawField['strengthPrompt'] as String : null,
       ),
     );
   }
@@ -457,6 +550,8 @@ const _knownTypes = {
   'choice',
   'row_list',
   'datetime',
+  'countdown_timer',
+  'body_outline',
   'closing_reflection',
 };
 
@@ -629,6 +724,40 @@ List<String> worksheetAnswerProblems(WorksheetContent content, WorksheetAnswers 
         }
         if (parts.length > 1 && !RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(parts[1])) {
           problems.add('${field.id}: time must be HH:mm');
+        }
+      case 'countdown_timer':
+        // Seconds the timer ran. One duration, never a total.
+        final limit = field.seconds ?? 0;
+        if (answer is! int || answer < 0) {
+          problems.add('${field.id}: must be a whole number of seconds');
+          break;
+        }
+        if (answer > limit) problems.add('${field.id}: longer than the timer');
+      case 'body_outline':
+        if (answer is! Map || answer['picked'] is! List) {
+          problems.add('${field.id}: must be a list of tapped parts');
+          break;
+        }
+        final picked = (answer['picked'] as List).whereType<String>().toList(growable: false);
+        final known = field.regions.map((r) => r.id).toSet();
+        for (final part in picked) {
+          if (!known.contains(part)) {
+            problems.add('${field.id}: not one of its parts');
+          }
+        }
+        final max = field.maxSelections ?? 3;
+        if (picked.length > max) problems.add('${field.id}: at most $max parts');
+        final strength = answer['strength'];
+        if (strength is Map) {
+          for (final entry in strength.entries) {
+            if (!picked.contains(entry.key)) {
+              problems.add('${field.id}: strength given for an untapped part');
+            }
+            final value = entry.value;
+            if (value is! int || value < 0 || value > 10) {
+              problems.add('${field.id}: strength must be a whole number between 0 and 10');
+            }
+          }
         }
     }
   }

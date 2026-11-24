@@ -47,7 +47,7 @@ export const WORKSHEET_SECTIONS = [
 export type WorksheetSection = (typeof WORKSHEET_SECTIONS)[number];
 
 /** Who may open the worksheet. Mirrors ToolRegistryEntry.access_mode. */
-export const WORKSHEET_ACCESS_MODES = ['open', 'assigned', 'in_session'] as const;
+export const WORKSHEET_ACCESS_MODES = ['open', 'assigned', 'in_session', 'therapist_only'] as const;
 export type WorksheetAccessMode = (typeof WORKSHEET_ACCESS_MODES)[number];
 
 /** 'light' | 'demanding'. Mirrors ToolRegistryEntry.load_level. */
@@ -70,6 +70,8 @@ export const WORKSHEET_FIELD_TYPES = [
   'choice',
   'row_list',
   'datetime',
+  'countdown_timer',
+  'body_outline',
   'closing_reflection',
 ] as const;
 
@@ -221,6 +223,60 @@ export interface DateTimeField extends WorksheetFieldBase {
   withTime?: boolean;
 }
 
+/**
+ * A countdown the client starts and watches run down — the piece a breathing or
+ * grounding step needs when the approved wording says "for two minutes".
+ *
+ * Deliberately not a score and not a measure of effort: the answer is the number
+ * of seconds the timer actually ran, which is what the client saw on the clock.
+ * Nothing sums it, averages it, or turns it into a level.
+ *
+ * All the wording is content: the piece supplies `startLabel` / `doneLabel` from
+ * the approved copy, and the client-facing prompt says what to do while it runs.
+ */
+export interface CountdownTimerField extends WorksheetFieldBase {
+  type: 'countdown_timer';
+  /** Total length in seconds. Whole seconds, 5 to 3600. */
+  seconds: number;
+  /** Label on the button that starts it. Approved copy, never invented here. */
+  startLabel?: string;
+  /** Label once it has finished. */
+  doneLabel?: string;
+  /**
+   * When set, stopping the timer before this many seconds leaves the piece
+   * unanswered. Absent means the client may stop at any point and that is a
+   * complete answer.
+   */
+  minSeconds?: number;
+}
+
+/** One tappable part of a body outline. `parent` groups a part under a region. */
+export interface WorksheetBodyRegion {
+  id: string;
+  label: string;
+  parent?: string;
+}
+
+/**
+ * A body outline the client taps. The piece carries the parts to offer, because
+ * the words are clinical copy; the app draws the outline and reports which parts
+ * were tapped and, when `withStrength` is on, how strong it feels there (0-10,
+ * the same scale as every other rating inside a worksheet).
+ *
+ * Answer shape is the feelings picker's: `{ picked, strength? }`. Never a total,
+ * never a count shown back as a result.
+ */
+export interface BodyOutlineField extends WorksheetFieldBase {
+  type: 'body_outline';
+  regions: WorksheetBodyRegion[];
+  /** Defaults to 3, matching the feelings pickers. */
+  maxSelections?: number;
+  /** When true the client also rates each tapped part on 0-10. */
+  withStrength?: boolean;
+  /** Question above the per-part sliders, when the approved copy gives one. */
+  strengthPrompt?: string;
+}
+
 export interface ClosingReflectionField extends WorksheetFieldBase {
   type: 'closing_reflection';
 }
@@ -237,6 +293,8 @@ export type WorksheetField =
   | ChoiceField
   | RowListField
   | DateTimeField
+  | CountdownTimerField
+  | BodyOutlineField
   | ClosingReflectionField;
 
 export interface WorksheetClosingButton {
@@ -287,6 +345,8 @@ export const WORKSHEET_LIMITS = {
   rows: 25,
   options: 24,
   feelings: 60,
+  regions: 40,
+  timerSeconds: 3600,
 } as const;
 
 const FIELD_ID_RE = /^[a-z][a-z0-9_]{0,47}$/;
@@ -316,6 +376,8 @@ const TYPE_KEYS: Record<WorksheetFieldType, string[]> = {
   choice: ['options'],
   row_list: ['columns', 'minRows', 'maxRows', 'addLabel'],
   datetime: ['withDate', 'withTime'],
+  countdown_timer: ['seconds', 'startLabel', 'doneLabel', 'minSeconds'],
+  body_outline: ['regions', 'maxSelections', 'withStrength', 'strengthPrompt'],
   closing_reflection: [],
 };
 
@@ -619,6 +681,98 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
       const withTime = raw.withTime === true;
       if (!withDate && !withTime) {
         errors.push(`${at}: a date picker needs at least a date or a time`);
+      }
+    }
+
+    if (fieldType === 'countdown_timer') {
+      const seconds = asInt(raw.seconds);
+      if (seconds === null || seconds < 5 || seconds > WORKSHEET_LIMITS.timerSeconds) {
+        errors.push(`${at}.seconds: must be a whole number between 5 and ${WORKSHEET_LIMITS.timerSeconds}`);
+      }
+      if (raw.minSeconds !== undefined) {
+        const min = asInt(raw.minSeconds);
+        if (min === null || min < 0) {
+          errors.push(`${at}.minSeconds: must be a whole number >= 0`);
+        } else if (seconds !== null && min > seconds) {
+          errors.push(`${at}.minSeconds: must not be longer than seconds`);
+        }
+      }
+      for (const key of ['startLabel', 'doneLabel'] as const) {
+        const value = raw[key];
+        if (value === undefined) continue;
+        if (!isNonEmptyString(value)) errors.push(`${at}.${key}: must be a non-empty string`);
+        else if ((value as string).length > WORKSHEET_LIMITS.label) {
+          errors.push(`${at}.${key}: over ${WORKSHEET_LIMITS.label} characters`);
+        }
+      }
+    }
+
+    if (fieldType === 'body_outline') {
+      const regions = raw.regions;
+      if (!Array.isArray(regions) || regions.length === 0) {
+        errors.push(`${at}.regions: at least one part is required`);
+      } else if (regions.length > WORKSHEET_LIMITS.regions) {
+        errors.push(`${at}.regions: at most ${WORKSHEET_LIMITS.regions} parts`);
+      } else {
+        const ids = new Set<string>();
+        regions.forEach((r, ri) => {
+          if (!isPlainObject(r)) {
+            errors.push(`${at}.regions[${ri}]: must be an object`);
+            return;
+          }
+          if (!isNonEmptyString(r.id)) errors.push(`${at}.regions[${ri}].id: required`);
+          else if (ids.has(r.id as string)) {
+            errors.push(`${at}.regions[${ri}].id: duplicate "${r.id}"`);
+          } else ids.add(r.id as string);
+
+          if (!isNonEmptyString(r.label)) errors.push(`${at}.regions[${ri}].label: required`);
+          else if ((r.label as string).length > WORKSHEET_LIMITS.label) {
+            errors.push(`${at}.regions[${ri}].label: over ${WORKSHEET_LIMITS.label} characters`);
+          }
+
+          for (const key of Object.keys(r)) {
+            if (!['id', 'label', 'parent'].includes(key)) {
+              errors.push(`${at}.regions[${ri}]: unknown key "${key}"`);
+            }
+          }
+        });
+        // Parents must exist, and only one level of nesting — the same rule the
+        // feelings picker uses, so the two pickers cannot drift apart.
+        regions.forEach((r, ri) => {
+          if (!isPlainObject(r) || r.parent === undefined) return;
+          if (!isNonEmptyString(r.parent)) {
+            errors.push(`${at}.regions[${ri}].parent: must be a non-empty string`);
+            return;
+          }
+          if (r.parent === r.id) {
+            errors.push(`${at}.regions[${ri}].parent: a part cannot be its own parent`);
+          } else if (!ids.has(r.parent as string)) {
+            errors.push(`${at}.regions[${ri}].parent: unknown part "${r.parent}"`);
+          } else {
+            const parent = regions.find((p) => isPlainObject(p) && p.id === r.parent);
+            if (isPlainObject(parent) && parent.parent !== undefined) {
+              errors.push(`${at}.regions[${ri}].parent: parts nest only one level deep`);
+            }
+          }
+        });
+      }
+
+      const maxSel = raw.maxSelections === undefined ? 3 : asInt(raw.maxSelections);
+      if (maxSel === null || maxSel < 1 || maxSel > WORKSHEET_LIMITS.regions) {
+        errors.push(`${at}.maxSelections: must be a whole number between 1 and ${WORKSHEET_LIMITS.regions}`);
+      }
+      if (raw.withStrength !== undefined && typeof raw.withStrength !== 'boolean') {
+        errors.push(`${at}.withStrength: must be true or false`);
+      }
+      if (raw.strengthPrompt !== undefined) {
+        if (!isNonEmptyString(raw.strengthPrompt)) {
+          errors.push(`${at}.strengthPrompt: must be a non-empty string`);
+        } else if ((raw.strengthPrompt as string).length > WORKSHEET_LIMITS.prompt) {
+          errors.push(`${at}.strengthPrompt: over ${WORKSHEET_LIMITS.prompt} characters`);
+        }
+        if (raw.withStrength !== true) {
+          errors.push(`${at}.strengthPrompt: needs withStrength`);
+        }
       }
     }
 
@@ -994,6 +1148,50 @@ export function validateWorksheetAnswers(
         }
         break;
       }
+      case 'countdown_timer': {
+        // Seconds the timer actually ran. A single duration, never a total of
+        // anything, and never compared against a threshold.
+        if (typeof answer !== 'number' || !Number.isInteger(answer) || answer < 0) {
+          errors.push(`${field.id}: must be a whole number of seconds`);
+          break;
+        }
+        if (answer > field.seconds) {
+          errors.push(`${field.id}: longer than the timer`);
+        }
+        break;
+      }
+      case 'body_outline': {
+        if (
+          typeof answer !== 'object' ||
+          Array.isArray(answer) ||
+          !('picked' in answer) ||
+          !Array.isArray((answer as { picked?: unknown }).picked)
+        ) {
+          errors.push(`${field.id}: must be a list of tapped parts`);
+          break;
+        }
+        const picked = (answer as { picked: unknown[] }).picked;
+        const ids = field.regions.map((r) => r.id);
+        for (const p of picked) {
+          if (typeof p !== 'string' || !ids.includes(p)) {
+            errors.push(`${field.id}: "${String(p)}" is not one of its parts`);
+          }
+        }
+        const max = field.maxSelections ?? 3;
+        if (picked.length > max) errors.push(`${field.id}: at most ${max} parts`);
+        const strength = (answer as { strength?: Record<string, unknown> }).strength;
+        if (strength) {
+          for (const [key, value] of Object.entries(strength)) {
+            if (!picked.includes(key)) {
+              errors.push(`${field.id}: strength given for untapped part "${key}"`);
+            }
+            if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 10) {
+              errors.push(`${field.id}.strength.${key}: must be a whole number between 0 and 10`);
+            }
+          }
+        }
+        break;
+      }
       default: {
         const exhaustive: never = field;
         void exhaustive;
@@ -1039,6 +1237,117 @@ export function missingRequiredFields(
     (f) =>
       f.required === true && f.type !== 'instruction' && !isAnswerPresent(answers[f.id]),
   );
+}
+
+// ─── Content rules that are not about shape ───────────────────────────────
+
+/**
+ * Things a worksheet may never ask a client for (owner's rule, 24 Nov 2026).
+ *
+ * These are not style preferences: a worksheet that asks for a weight, a
+ * measurement, a calorie count, an amount of food or a medicine turns a therapy
+ * exercise into a record that can be read as a target, and for the worksheets
+ * about eating and the body it is exactly what the clinical owner ruled out. The
+ * check runs over every client-facing string in the body, so it cannot be
+ * slipped past by putting the question in a helper line or an option label.
+ *
+ * Therapist-only strings are not scanned: `therapistPrompt` and the row's
+ * `therapist_note` are never shown to a client.
+ */
+const FORBIDDEN_REQUEST_PATTERNS: Array<{ what: string; re: RegExp }> = [
+  { what: 'weight', re: /\bweight\b|\bweigh(?:ed|ing)? yourself\b|\bkg\b|\bkilos?\b|\bkilograms?\b|\bpounds\b|\blbs\b|\bbmi\b|\bbody mass\b/i },
+  { what: 'body measurements', re: /\bbody measurements?\b|\bmeasurements? of (?:your|the) body\b|\bwaist(?:line)?\b|\bhips? measurements?\b|\bchest measurements?\b|\btape measure\b/i },
+  { what: 'calories', re: /\bcalories?\b|\bkcal\b|\bcarbs?\b|\bmacros?\b/i },
+  { what: 'food amounts', re: /\bhow much (?:did|do) you eat\b|\bhow many (?:meals|calories|servings|portions)\b|\bgrams?\b|\bportions?\b|\bservings?\b|\bcount(?:ing)? (?:your )?(?:meals|calories)\b/i },
+  { what: 'medicines', re: /\bmedicines?\b|\bmedications?\b|\btablets?\b|\bpills?\b|\bdoses?\b|\bdosage\b|\bprescriptions?\b|\bmg\b/i },
+];
+
+/**
+ * Ways a worksheet may never talk about its own output (owner's rule, 24 Nov
+ * 2026): no worksheet adds answers into a total, a level or a label, and a
+ * slider shows only the number the client chose.
+ *
+ * There is no aggregate piece type and no summing code anywhere, so the only way
+ * this rule breaks is copy that promises one — a client reads "your score" on a
+ * screen that has no score, and the wording alone turns their answers into a
+ * verdict on them.
+ */
+const FORBIDDEN_SCORE_PATTERNS: Array<{ what: string; re: RegExp }> = [
+  { what: 'a score', re: /\b(?:total|overall|final) score\b|\byour score (?:is|was|of)\b|\bscore out of\b|\bscore of \d+\b/i },
+  { what: 'a level', re: /\byour (?:anxiety|depress\w*|stress|burnout|mood) (?:score|level|rating)\b|\blevel \d+ of \d+\b/i },
+  { what: 'a total', re: /\badd (?:it|them|these|everything) up\b|\bsum (?:it|them|these) up\b|\bwhat (?:is|was) your total\b/i },
+];
+
+interface LooseField {
+  [key: string]: unknown;
+}
+
+const asObjects = (value: unknown): LooseField[] =>
+  Array.isArray(value)
+    ? value.filter((v): v is LooseField => typeof v === 'object' && v !== null)
+    : [];
+
+/** Every client-facing string in a body, in reading order. */
+export function clientFacingStrings(content: WorksheetContent): string[] {
+  const out: string[] = [];
+  const push = (value: unknown): void => {
+    if (typeof value === 'string' && value.trim().length > 0) out.push(value);
+  };
+
+  push(content.intro);
+  push(content.closing?.text);
+  for (const button of content.closing?.buttons ?? []) push(button.label);
+
+  for (const field of content.fields as unknown as LooseField[]) {
+    push(field.prompt);
+    push(field.helper);
+    push(field.example);
+    push(field.startLabel);
+    push(field.doneLabel);
+    push(field.strengthPrompt);
+    push(field.addLabel);
+    push(field.minLabel);
+    push(field.maxLabel);
+    for (const option of asObjects(field.options)) {
+      push(option.label);
+      push(option.description);
+    }
+    for (const feeling of asObjects(field.feelings)) push(feeling.label);
+    for (const region of asObjects(field.regions)) push(region.label);
+    for (const column of asObjects(field.columns)) push(column.label);
+  }
+
+  return out;
+}
+
+/**
+ * Problems with what a body ASKS FOR. Empty means it may be stored.
+ *
+ * Separate from the shape validator because these are content rules an approved
+ * document can break by accident, and a report should name the sentence and the
+ * rule rather than say "invalid worksheet".
+ */
+export function worksheetRequestProblems(content: unknown): string[] {
+  const checked = validateWorksheetContent(content);
+  if (!checked.ok) return []; // shape problems are reported by the caller
+  const problems: string[] = [];
+
+  for (const text of clientFacingStrings(checked.content)) {
+    for (const rule of FORBIDDEN_REQUEST_PATTERNS) {
+      if (rule.re.test(text)) {
+        problems.push(`asks for ${rule.what}: "${text.slice(0, 80)}"`);
+        break;
+      }
+    }
+    for (const rule of FORBIDDEN_SCORE_PATTERNS) {
+      if (rule.re.test(text)) {
+        problems.push(`talks about ${rule.what}: "${text.slice(0, 80)}"`);
+        break;
+      }
+    }
+  }
+
+  return problems;
 }
 
 // ─── Catalogue rows ───────────────────────────────────────────────────────
@@ -1123,6 +1432,13 @@ export function worksheetRowProblems(row: WorksheetRegistryRow): string[] {
     for (const error of english.errors) problems.push(`content_en.${error}`);
     // Comparing a Hinglish body against a broken English one only adds noise.
     return problems;
+  }
+
+  // What the body ASKS FOR, not how it is shaped: a worksheet may not solicit a
+  // weight, a measurement, calories, an amount of food or a medicine, and may not
+  // promise a score, a level or a total (owner's rules, 24 Nov 2026).
+  for (const problem of worksheetRequestProblems(row.content_en)) {
+    problems.push(`content_en.${problem}`);
   }
 
   if (row.content_hi !== null && row.content_hi !== undefined) {

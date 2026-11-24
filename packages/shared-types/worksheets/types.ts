@@ -36,8 +36,90 @@ export const ENGLISH_APPROVAL = {
  * `placeholder` rows are a name and a one-line purpose for worksheets that do
  * not exist yet. They are hidden from clients AND from therapists, so they are
  * excluded from every list query by `isListable`.
+ *
+ * `draft` is the state of a real, written worksheet whose wording has not been
+ * approved. It has a body and can be previewed, and it is switched off for
+ * clients: no card, no assignment, no direct open (owner's rule, 24 Nov 2026).
+ * EVERY new worksheet starts here. `approved` is only reachable by the owner
+ * saying the wording is approved.
  */
-export type CatalogueStatus = 'approved' | 'placeholder';
+export type CatalogueStatus = 'draft' | 'approved' | 'placeholder';
+
+// ─── Care plans ───────────────────────────────────────────────────────────
+
+/**
+ * The three plans a worksheet can belong to, plus the label that means "useful
+ * whoever the client is" (owner's rule, 24 Nov 2026).
+ *
+ * These keys are internal. The client app is never sent a care plan — not the
+ * CP1/CP2/CP3 id and not a plan name — because the plan is clinical framing the
+ * client did not choose to see. What the client experiences is ORDER: the
+ * worksheets for their plan come first in the Library and are what Home
+ * suggests. That is computed on the server, from these labels.
+ */
+export const CARE_PLAN_SCOPES = ['anxiety_worry', 'low_mood', 'stress_burnout'] as const;
+export type CarePlanScope = (typeof CARE_PLAN_SCOPES)[number];
+
+export type CarePlanLabel = CarePlanScope | 'all';
+
+/** The owner's own words for each label. Therapist-facing only. */
+export const CARE_PLAN_LABELS: Record<CarePlanLabel, string> = {
+  anxiety_worry: 'Anxiety & Worry',
+  low_mood: 'Low Mood',
+  stress_burnout: 'Stress & Burnout',
+  all: 'All',
+};
+
+/** Every label a row may carry, in the owner's order. */
+export const CARE_PLAN_LABEL_ORDER: CarePlanLabel[] = [...CARE_PLAN_SCOPES, 'all'];
+
+/** The internal CP1/CP2/CP3 enum, mapped. Never serialized to a client. */
+export const CARE_PLAN_SCOPE_BY_ID: Record<string, CarePlanScope> = {
+  CP1: 'anxiety_worry',
+  CP2: 'low_mood',
+  CP3: 'stress_burnout',
+};
+
+/** The scope for a client's plan id, or null when they have no plan yet. */
+export function scopeForCarePlan(planId: string | null | undefined): CarePlanScope | null {
+  if (!planId) return null;
+  return CARE_PLAN_SCOPE_BY_ID[planId] ?? null;
+}
+
+/**
+ * Does this row apply to that plan? `all` applies to everybody, and a client
+ * with no plan yet matches everything (so nothing is reordered for them).
+ */
+export function appliesToScope(
+  labels: readonly CarePlanLabel[] | null | undefined,
+  scope: CarePlanScope | null,
+): boolean {
+  if (!scope) return true;
+  if (!labels || labels.length === 0) return true;
+  return labels.includes('all') || labels.includes(scope);
+}
+
+/**
+ * Put the client's own plan first, keep everything else, and keep the order
+ * inside each group exactly as it was given (a stable partition).
+ *
+ * This is the whole of "the client's assigned plan decides which worksheets show
+ * first on Home" — the Library itself stays complete and browsable, and no card
+ * is hidden from it.
+ */
+export function orderForCarePlan<T>(
+  rows: readonly T[],
+  scope: CarePlanScope | null,
+  labelsOf: (row: T) => readonly CarePlanLabel[] | null | undefined,
+): T[] {
+  if (!scope) return [...rows];
+  const first: T[] = [];
+  const rest: T[] = [];
+  for (const row of rows) {
+    (appliesToScope(labelsOf(row), scope) ? first : rest).push(row);
+  }
+  return [...first, ...rest];
+}
 
 export interface CatalogueEntry {
   tool_id: string;
@@ -74,6 +156,23 @@ export interface CatalogueEntry {
    * opens an existing screen instead of the worksheet runner.
    */
   opens: 'worksheet' | 'mood_checkin' | 'grounding' | 'breathing';
+  /**
+   * Which care plan(s) this belongs to. Drives the order a client sees, never a
+   * badge: the client is not shown a plan name. `['all']` means every plan.
+   */
+  care_plans: CarePlanLabel[];
+  /**
+   * True when this worksheet must run the extra risk screen as well as the shared
+   * safety check: skipping meals, restricting food, making yourself sick,
+   * exercising to punish yourself, hating your body, days without sleep, wanting
+   * not to wake up, wanting to hurt someone, self-harm.
+   *
+   * It is a property of the row rather than a list of ids in code, so a worksheet
+   * cannot be given the deeper screen by being renamed, and one that needs it
+   * cannot lose it by an id change. Set at the same time as the wording, by the
+   * person writing the worksheet, and never inferred from the title.
+   */
+  sensitive_check: boolean;
 }
 
 /** The four techniques the Breathing card opens. Guided breathing is retired. */

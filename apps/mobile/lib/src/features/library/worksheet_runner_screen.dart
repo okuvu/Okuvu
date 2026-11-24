@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -1000,6 +1002,12 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       case 'row_list':
         return _rowList(field, answer, theme);
 
+      case 'countdown_timer':
+        return _countdownTimer(field, answer, theme);
+
+      case 'body_outline':
+        return _bodyOutline(field, answer, theme);
+
       case 'datetime':
         final raw = answer is String ? answer : '';
         final date = raw.contains('T') ? raw.split('T').first : raw;
@@ -1053,6 +1061,142 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   String _todayIso() {
     final now = DateTime.now();
     return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  /// The countdown piece (owner's rule 7, 24 Nov 2026).
+  ///
+  /// It stores the number of seconds the timer actually ran — the number the
+  /// client watched — and nothing else: no score, no pass or fail, and stopping
+  /// early is a complete answer unless the piece sets `minSeconds`.
+  Widget _countdownTimer(WorksheetField field, Object? answer, ThemeData theme) {
+    final total = field.seconds ?? 60;
+    final min = field.minSeconds ?? 0;
+    return _CountdownTimerPiece(
+      key: ValueKey('timer_${field.id}'),
+      totalSeconds: total,
+      saved: answer is int ? answer : null,
+      startLabel: field.startLabel,
+      doneLabel: field.doneLabel,
+      onRan: (seconds) {
+        if (seconds < min) return;
+        _setAnswer(field.id, seconds);
+      },
+      theme: theme,
+    );
+  }
+
+  /// The body-outline piece (owner's rule 7, 24 Nov 2026).
+  ///
+  /// The words are the worksheet's (`field.regions`); the drawing is the app's.
+  /// A part with no known place on the outline is still tappable — it is shown as
+  /// a chip under the drawing — because a part the client cannot reach is a part
+  /// they cannot answer with.
+  Widget _bodyOutline(WorksheetField field, Object? answer, ThemeData theme) {
+    final picked = answer is Map && answer['picked'] is List
+        ? (answer['picked'] as List).whereType<String>().toList(growable: false)
+        : <String>[];
+    final strength = answer is Map && answer['strength'] is Map
+        ? Map<String, int>.from(
+            (answer['strength'] as Map).map((k, v) => MapEntry(k.toString(), v is int ? v : 5)),
+          )
+        : <String, int>{};
+    final max = field.maxSelections ?? 3;
+
+    void toggle(String id) {
+      final next = [...picked];
+      if (next.contains(id)) {
+        next.remove(id);
+        strength.remove(id);
+      } else {
+        if (next.length >= max) return;
+        next.add(id);
+      }
+      _setAnswer(field.id, next.isEmpty ? null : {'picked': next, 'strength': strength});
+    }
+
+    final onBody = field.regions.where((r) => _bodySpotFor(r.id) != null).toList(growable: false);
+    final offBody = field.regions.where((r) => _bodySpotFor(r.id) == null).toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (onBody.isNotEmpty)
+          AspectRatio(
+            aspectRatio: 0.62,
+            child: LayoutBuilder(builder: (context, constraints) {
+              final w = constraints.maxWidth;
+              final h = constraints.maxHeight;
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _BodySilhouettePainter(
+                        line: theme.colorScheme.outlineVariant,
+                        fill: theme.colorScheme.surface,
+                      ),
+                    ),
+                  ),
+                  for (final region in onBody)
+                    Builder(builder: (context) {
+                      final spot = _bodySpotFor(region.id)!;
+                      return Positioned(
+                        left: (spot.$1 * w) - 34,
+                        top: (spot.$2 * h) - 14,
+                        child: SizedBox(
+                          width: 68,
+                          child: _BodySpot(
+                            label: region.label,
+                            selected: picked.contains(region.id),
+                            onTap: () => toggle(region.id),
+                          ),
+                        ),
+                      );
+                    }),
+                ],
+              );
+            }),
+          ),
+        if (offBody.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final region in offBody)
+                FilterChip(
+                  label: Text(region.label),
+                  selected: picked.contains(region.id),
+                  onSelected: (_) => toggle(region.id),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 8),
+        Text('$max at most', style: theme.textTheme.bodySmall),
+        if (field.withStrength && picked.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          if (field.strengthPrompt != null)
+            Text(field.strengthPrompt!, style: theme.textTheme.bodySmall),
+          for (final id in picked) ...[
+            Text(
+              field.regions.firstWhere((r) => r.id == id).label,
+              style: theme.textTheme.bodySmall,
+            ),
+            Slider(
+              value: (strength[id] ?? 5).toDouble(),
+              min: 0,
+              max: 10,
+              divisions: 10,
+              label: '${strength[id] ?? 5}',
+              onChanged: (v) {
+                strength[id] = v.round();
+                _setAnswer(field.id, {'picked': picked, 'strength': strength});
+              },
+            ),
+          ],
+        ],
+      ],
+    );
   }
 
   Widget _textField(
@@ -1227,6 +1371,233 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
             label: Text(field.addLabel ?? 'Add a row'),
             onPressed: () => update([...rows, <String, Object?>{}]),
           ),
+      ],
+    );
+  }
+}
+
+
+// ─── The two pieces built for the 24 Nov 2026 worksheet rules ─────────────
+
+/// Where a part sits on the drawn outline, as a fraction of the box.
+///
+/// Only ids the drawing has a place for are listed. A worksheet's own part names
+/// are not constrained by this map: anything not here is still offered, as a chip
+/// under the drawing, so a copy change can never make a part unreachable.
+(double, double)? _bodySpotFor(String id) {
+  const spots = <String, (double, double)>{
+    'head': (0.50, 0.09),
+    'face': (0.50, 0.08),
+    'jaw': (0.50, 0.13),
+    'neck': (0.50, 0.18),
+    'throat': (0.50, 0.19),
+    'shoulders': (0.50, 0.24),
+    'chest': (0.50, 0.31),
+    'heart': (0.44, 0.31),
+    'stomach': (0.50, 0.41),
+    'belly': (0.50, 0.43),
+    'back': (0.50, 0.36),
+    'hips': (0.50, 0.50),
+    'arms': (0.26, 0.32),
+    'hands': (0.16, 0.47),
+    'legs': (0.50, 0.68),
+    'thighs': (0.43, 0.62),
+    'knees': (0.44, 0.74),
+    'feet': (0.44, 0.93),
+  };
+  return spots[id];
+}
+
+/// One tappable part on the drawing.
+class _BodySpot extends StatelessWidget {
+  const _BodySpot({required this.label, required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? theme.colorScheme.primary.withValues(alpha: 0.16) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall,
+        ),
+      ),
+    );
+  }
+}
+
+/// A plain outline of a person. Drawn, not an image asset: it has to scale to any
+/// phone and it carries no wording, so there is nothing to translate.
+class _BodySilhouettePainter extends CustomPainter {
+  _BodySilhouettePainter({required this.line, required this.fill});
+
+  final Color line;
+  final Color fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final stroke = Paint()
+      ..color = line
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final body = Paint()..color = fill;
+
+    Offset at(double x, double y) => Offset(x * w, y * h);
+
+    final head = Rect.fromCircle(center: at(0.50, 0.09), radius: w * 0.11);
+    canvas.drawOval(head, body);
+    canvas.drawOval(head, stroke);
+
+    final torso = Path()
+      ..moveTo(0.50 * w, 0.19 * h)
+      ..lineTo(0.34 * w, 0.23 * h)
+      ..quadraticBezierTo(0.29 * w, 0.34 * h, 0.33 * w, 0.44 * h)
+      ..lineTo(0.38 * w, 0.52 * h)
+      ..lineTo(0.62 * w, 0.52 * h)
+      ..lineTo(0.67 * w, 0.44 * h)
+      ..quadraticBezierTo(0.71 * w, 0.34 * h, 0.66 * w, 0.23 * h)
+      ..close();
+    canvas.drawPath(torso, body);
+    canvas.drawPath(torso, stroke);
+
+    for (final side in [0.34, 0.66]) {
+      final drift = side < 0.5 ? -0.10 : 0.10;
+      final arm = Path()
+        ..moveTo(side * w, 0.24 * h)
+        ..quadraticBezierTo((side + drift) * w, 0.36 * h, (side + drift * 0.8) * w, 0.49 * h);
+      canvas.drawPath(arm, stroke);
+    }
+
+    for (final side in [0.43, 0.57]) {
+      final drift = side < 0.5 ? -0.02 : 0.02;
+      final leg = Path()
+        ..moveTo(side * w, 0.52 * h)
+        ..lineTo((side + drift) * w, 0.72 * h)
+        ..lineTo((side + drift / 2) * w, 0.92 * h);
+      canvas.drawPath(leg, stroke);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BodySilhouettePainter old) => old.line != line || old.fill != fill;
+}
+
+/// A countdown the client starts.
+///
+/// Its own widget so the tick has somewhere to live that is not the whole
+/// worksheet's state: a rebuild of this piece must not re-run the parent's
+/// required-piece gate. It reports the seconds that actually elapsed, once, when
+/// it stops or finishes.
+class _CountdownTimerPiece extends StatefulWidget {
+  const _CountdownTimerPiece({
+    super.key,
+    required this.totalSeconds,
+    required this.onRan,
+    required this.theme,
+    this.saved,
+    this.startLabel,
+    this.doneLabel,
+  });
+
+  final int totalSeconds;
+  final int? saved;
+  final String? startLabel;
+  final String? doneLabel;
+  final ValueChanged<int> onRan;
+  final ThemeData theme;
+
+  @override
+  State<_CountdownTimerPiece> createState() => _CountdownTimerPieceState();
+}
+
+class _CountdownTimerPieceState extends State<_CountdownTimerPiece> {
+  Timer? _tick;
+  int _remaining = 0;
+  bool _running = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = widget.totalSeconds;
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  void _start() {
+    _tick?.cancel();
+    setState(() {
+      _running = true;
+      _remaining = widget.totalSeconds;
+    });
+    _tick = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_remaining <= 1) {
+        timer.cancel();
+        setState(() {
+          _remaining = 0;
+          _running = false;
+        });
+        widget.onRan(widget.totalSeconds);
+        return;
+      }
+      setState(() => _remaining -= 1);
+    });
+  }
+
+  void _stop() {
+    _tick?.cancel();
+    final ran = widget.totalSeconds - _remaining;
+    setState(() => _running = false);
+    if (ran > 0) widget.onRan(ran);
+  }
+
+  String _format(int seconds) {
+    final m = (seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final done = widget.saved != null && _remaining == 0 && !_running;
+    final label = done ? (widget.doneLabel ?? 'Done') : (widget.startLabel ?? 'Start');
+
+    return Column(
+      children: [
+        Text(_format(_remaining), style: theme.textTheme.headlineMedium),
+        const SizedBox(height: 8),
+        FilledButton(
+          onPressed: _running ? _stop : _start,
+          child: Text(_running ? 'Stop' : label),
+        ),
       ],
     );
   }

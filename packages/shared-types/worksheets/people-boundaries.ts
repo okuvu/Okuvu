@@ -19,6 +19,8 @@ const hardConversation: CatalogueEntry = {
   sort_order: 10,
   status: 'approved',
   opens: 'worksheet',
+  care_plans: ['stress_burnout'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     intro:

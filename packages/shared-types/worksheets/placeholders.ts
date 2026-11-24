@@ -18,6 +18,11 @@ function placeholder(
   purpose: string,
   section: CatalogueEntry['section'],
   sort_order: number,
+  extra: {
+    carePlans?: CatalogueEntry['care_plans'];
+    sensitiveCheck?: boolean;
+    accessMode?: CatalogueEntry['access_mode'];
+  } = {},
 ): CatalogueEntry {
   return {
     tool_id,
@@ -28,7 +33,7 @@ function placeholder(
     section,
     therapy_modality: null,
     therapist_note: null,
-    access_mode: 'assigned',
+    access_mode: extra.accessMode ?? 'assigned',
     load_level: null,
     est_minutes: null,
     sort_order,
@@ -36,6 +41,10 @@ function placeholder(
     content_en: null,
     content_hi: null,
     opens: 'worksheet',
+    // Not decided yet: a placeholder has no wording, so it has no plan and no
+    // extra screen. Both are set with the body when the worksheet is written.
+    care_plans: extra.carePlans ?? [],
+    sensitive_check: extra.sensitiveCheck ?? false,
   };
 }
 
@@ -88,6 +97,7 @@ export const placeholderEntries: CatalogueEntry[] = [
     'Write what was never said to someone, without sending it.',
     'people_boundaries',
     960,
+    { sensitiveCheck: true },
   ),
   placeholder(
     'ws_naming_the_problem',
@@ -123,6 +133,7 @@ export const placeholderEntries: CatalogueEntry[] = [
     'Record sleep and wake times and how the day felt, to spot a pattern.',
     'energy_life',
     1010,
+    { sensitiveCheck: true },
   ),
   placeholder(
     'ws_scrolling_log',
@@ -130,6 +141,7 @@ export const placeholderEntries: CatalogueEntry[] = [
     'Note when and why scrolling happens, and how it felt afterwards.',
     'energy_life',
     1020,
+    { sensitiveCheck: true },
   ),
   placeholder(
     'ws_family_expectations',
@@ -137,6 +149,33 @@ export const placeholderEntries: CatalogueEntry[] = [
     'Map what family expects, what the client wants, and where the two overlap.',
     'people_boundaries',
     1030,
+  ),
+  placeholder(
+    'ws_comparison_check',
+    'Comparison check',
+    'Notice where comparing yourself with other people lands, and what it costs.',
+    'untangle_thoughts',
+    1050,
+    { sensitiveCheck: true },
+  ),
+  placeholder(
+    'ws_inner_critic',
+    'Meet the inner critic',
+    'Describe the critical voice as something separate, and notice what it says.',
+    'be_kinder',
+    1060,
+    { sensitiveCheck: true },
+  ),
+  placeholder(
+    'ws_exposure_ladder',
+    'Exposure ladder',
+    'Therapist-only: order avoided situations from easiest to hardest, and plan the steps.',
+    'do_what_matters',
+    1070,
+    // Owner's rule, 24 Nov 2026: the exposure ladder is the therapist's tool. It
+    // never appears in the client Library and the chat never offers it, so its
+    // access mode is the one the client routes refuse outright.
+    { accessMode: 'therapist_only' },
   ),
   placeholder(
     'ws_pros_cons_change',

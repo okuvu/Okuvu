@@ -14,6 +14,9 @@ vi.mock('../lib/prisma.js', () => ({
     // Step 4 — the safety plan instance table and the client's current state.
     safetyPlan: { findUnique: vi.fn() },
     safetyState: { findUnique: vi.fn() },
+    // The client's care plan, read for the ORDER of the Library only (24 Nov
+    // 2026). Nothing from it reaches the response.
+    clinicalConfig: { findUnique: vi.fn() },
   },
 }));
 
@@ -33,6 +36,8 @@ function rowFor(toolId: string, overrides: Record<string, unknown> = {}) {
     load_level: entry.load_level,
     est_minutes: entry.est_minutes,
     library_group: entry.library_group ?? null,
+    care_plans: entry.care_plans,
+    sensitive_check: entry.sensitive_check,
     content_en: entry.content_en,
     content_hi: entry.content_hi,
     therapy_modality: entry.therapy_modality,
@@ -54,6 +59,7 @@ describe('GET /library', () => {
     process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+    vi.mocked(prisma.clinicalConfig.findUnique).mockResolvedValue(null as any);
     vi.mocked(prisma.toolRegistryEntry.findMany).mockResolvedValue([
       rowFor('ws_three_good_things'),
       rowFor('ws_thought_record'),
@@ -78,6 +84,8 @@ describe('GET /library', () => {
       status: 'approved',
       kind: { in: ['worksheet', 'exercise', 'group'] },
       library_group: null,
+      // A therapist-only worksheet (the exposure ladder) is never a card.
+      access_mode: { not: 'therapist_only' },
     });
   });
 
@@ -112,6 +120,7 @@ describe('GET /library/:toolId', () => {
     process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+    vi.mocked(prisma.clinicalConfig.findUnique).mockResolvedValue(null as any);
     vi.mocked(prisma.homework.findMany).mockResolvedValue([] as any);
     vi.mocked(prisma.homework.findFirst).mockResolvedValue(null as any);
     vi.mocked(prisma.worksheetResponse.findFirst).mockResolvedValue(null as any);
@@ -373,6 +382,7 @@ describe('GET /library — the safety plan card is hidden until a plan exists', 
     process.env = { ...ORIGINAL_ENV, LOCAL_DEV_BYPASS_AUTH: 'true' };
     const prisma = await importMocks();
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: MOCK_USER_ID } as any);
+    vi.mocked(prisma.clinicalConfig.findUnique).mockResolvedValue(null as any);
     vi.mocked(prisma.toolRegistryEntry.findMany).mockResolvedValue([
       rowFor('ws_three_good_things'),
       rowFor('ws_safety_plan'),

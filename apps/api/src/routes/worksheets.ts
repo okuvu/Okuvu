@@ -98,6 +98,7 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
           section: true,
           est_minutes: true,
           library_group: true,
+          sensitive_check: true,
         },
       });
 
@@ -108,6 +109,13 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
         return reply.status(400).send({
           error: { code: 'NOT_A_WORKSHEET', message: 'That Library card is not a worksheet.' },
         });
+      }
+      if (row.access_mode === 'therapist_only') {
+        // Owner's rule (24 Nov 2026): a therapist-only worksheet — the exposure
+        // ladder — is never the client's to fill in, and it does not exist as far
+        // as the client app is concerned. Same answer as an unknown id, so a
+        // guessed URL cannot discover it.
+        return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });
       }
       if (row.access_mode === 'in_session') {
         // The safety plan is written with the therapist in the portal. A client
@@ -214,6 +222,9 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
       const barriers = typeof body.barriers === 'string' ? body.barriers.trim() : '';
       const safety = await checkClientText(
         [answersToText(body.answers), barriers].filter((part) => part.length > 0).join('\n'),
+        // The deeper screen for the five worksheets the owner named, read from the
+        // row rather than from a list of ids in code (owner's rule, 24 Nov 2026).
+        { sensitiveCheck: row.sensitive_check === true },
       );
 
       const created = await prisma.worksheetResponse.create({

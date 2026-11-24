@@ -44,7 +44,7 @@ async function loadAssignableTool(
 ): Promise<{ label: string }> {
   const tool = await db.toolRegistryEntry.findUnique({
     where: { tool_id: toolId },
-    select: { tool_id: true, label: true, status: true, kind: true },
+    select: { tool_id: true, label: true, status: true, kind: true, access_mode: true },
   });
 
   const catalogueEntry = entryById(toolId);
@@ -61,6 +61,16 @@ async function loadAssignableTool(
     throw new TRPCError({
       code: 'NOT_FOUND',
       message: 'That exercise is not approved, so it cannot be assigned.',
+    });
+  }
+
+  // A therapist-only worksheet (the exposure ladder) is the therapist's own
+  // material: it is never put on a client's screen, so it is never assignable
+  // (owner's rule, 24 Nov 2026).
+  if (tool.access_mode === 'therapist_only') {
+    throw new TRPCError({
+      code: 'NOT_FOUND',
+      message: 'That worksheet is for the therapist alone, so it cannot be assigned.',
     });
   }
 

@@ -348,6 +348,45 @@ function FieldView({ field, answers, onChange }: FieldProps) {
 
       {field.type === 'row_list' && <RowList field={field} value={value} onChange={(v) => onChange(field.id, v)} />}
 
+      {field.type === 'countdown_timer' && (
+        <div className="space-y-2">
+          <p className="font-mono text-lg text-gray-900">
+            {Math.floor(field.seconds / 60)}:{(field.seconds % 60).toString().padStart(2, '0')}
+          </p>
+          <p className="text-xs text-gray-500">
+            A countdown the client starts. The preview does not run it; the app stores
+            the seconds it actually ran.
+          </p>
+        </div>
+      )}
+
+      {field.type === 'body_outline' && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {field.regions.map((region) => (
+              <span
+                key={region.id}
+                className={`rounded-full border px-2.5 py-1 text-xs ${
+                  typeof value === 'object' &&
+                  value !== null &&
+                  'picked' in value &&
+                  Array.isArray(value.picked) &&
+                  value.picked.includes(region.id)
+                    ? 'border-royal-purple bg-lavender-tint text-royal-purple'
+                    : 'border-gray-300 text-gray-600'
+                }`}
+              >
+                {region.label}
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">
+            A body outline the client taps. The preview lists the parts; the app draws the
+            figure the taps land on.
+          </p>
+        </div>
+      )}
+
       {field.type === 'datetime' && (
         <div className="flex flex-wrap gap-2">
           {(field.withDate ?? true) && (

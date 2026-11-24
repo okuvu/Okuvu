@@ -1142,11 +1142,25 @@ model ToolRegistryEntry {
   /// `breathing`. NULL means the row is its own card.
   library_group String?
   /// Who can open it: 'open' (anyone), 'assigned' (only after the therapist
-  /// assigns it), 'in_session' (filled in together during a session).
+  /// assigns it), 'in_session' (filled in together during a session), and
+  /// 'therapist_only' (the therapist works with it; it never appears in the
+  /// client Library and the chat never offers it — the exposure ladder).
   access_mode   String     @default("open")
   /// 'light' | 'demanding'. Drives the high-load gate (intensity above 5/10).
   load_level    String?
   est_minutes   Int?
+  /// Which care plan(s) this belongs to: 'anxiety_worry' | 'low_mood' |
+  /// 'stress_burnout' | 'all'. Drives the ORDER a client sees (their plan's
+  /// worksheets first in the Library and suggested on Home); it is never sent to
+  /// a client as a label, because the plan is clinical framing they did not ask
+  /// to see. Empty means not decided yet (placeholders).
+  care_plans    String[]   @default([])
+  /// True when this row runs the deeper risk screen as well as the shared safety
+  /// check (eating and the body, days without sleep, wanting not to wake up,
+  /// wanting to hurt someone, self-harm). A property of the row rather than a
+  /// list of ids in code. Default false: an insert that says nothing gets the
+  /// ordinary screen, never a silent claim to the deeper one.
+  sensitive_check Boolean  @default(false)
   /// Approved worksheet body, structured. Shape is owned by
   /// packages/shared-types (added in the copy step); stored as JSON so the
   /// approved wording is data, not code.

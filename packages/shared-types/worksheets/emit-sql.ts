@@ -67,6 +67,20 @@ export function buildMigrationSql(): string {
     '-- off the one Breathing card; a row with NULL here is its own card.',
     'ALTER TABLE "ToolRegistryEntry" ADD COLUMN "library_group" TEXT;',
     '',
+    '-- Which care plan(s) a row belongs to: anxiety_worry, low_mood,',
+    '-- stress_burnout, or `all`. Drives the ORDER a client sees; never sent to',
+    '-- the client as a label. Empty means not decided (placeholders).',
+    'ALTER TABLE "ToolRegistryEntry" ADD COLUMN "care_plans" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];',
+    'ALTER TABLE "ToolRegistryEntry" DROP CONSTRAINT IF EXISTS "ToolRegistryEntry_care_plans_check";',
+    'ALTER TABLE "ToolRegistryEntry" ADD CONSTRAINT "ToolRegistryEntry_care_plans_check"',
+    "    CHECK (\"care_plans\" <@ ARRAY['anxiety_worry', 'low_mood', 'stress_burnout', 'all']::TEXT[]);",
+    '',
+    '-- True when this row also runs the deeper risk screen (eating and body,',
+    '-- sleep, self-harm, harm to someone else). A property of the row, not a list',
+    '-- of ids in code. Defaults false so an insert that says nothing gets the',
+    '-- ordinary screen rather than silently claiming the deeper one.',
+    'ALTER TABLE "ToolRegistryEntry" ADD COLUMN "sensitive_check" BOOLEAN NOT NULL DEFAULT false;',
+    '',
   );
 
   const columns = [
@@ -91,6 +105,8 @@ export function buildMigrationSql(): string {
     'approved_at',
     'sort_order',
     'library_group',
+    'care_plans',
+    'sensitive_check',
     'updated_at',
   ];
 
@@ -126,6 +142,8 @@ export function buildMigrationSql(): string {
       entry.status === 'approved' ? `'2026-11-09'::timestamp` : 'NULL',
       String(entry.sort_order),
       q(entry.library_group ?? null),
+      `ARRAY[${entry.care_plans.map((label) => q(label)).join(', ')}]::TEXT[]`,
+      entry.sensitive_check ? 'true' : 'false',
       // Prisma sets @updatedAt on the client, so the column has no default.
       'CURRENT_TIMESTAMP',
     ];
@@ -152,6 +170,8 @@ export function buildMigrationSql(): string {
     '    "approved_at" = EXCLUDED."approved_at",',
     '    "sort_order" = EXCLUDED."sort_order",',
     '    "library_group" = EXCLUDED."library_group",',
+    '    "care_plans" = EXCLUDED."care_plans",',
+    '    "sensitive_check" = EXCLUDED."sensitive_check",',
     '    "updated_at" = CURRENT_TIMESTAMP;',
     '',
     '-- Grounding already carries its approved description in `text`; summarising',

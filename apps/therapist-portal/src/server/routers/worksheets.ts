@@ -40,6 +40,8 @@ export const worksheetsRouter = router({
         load_level: true,
         est_minutes: true,
         status: true,
+        care_plans: true,
+        sensitive_check: true,
         approved_at: true,
         content_en: true,
         content_hi: true,
@@ -60,6 +62,13 @@ export const worksheetsRouter = router({
         loadLevel: row.load_level,
         estMinutes: row.est_minutes,
         status: row.status,
+        // The owner's care-plan labels (24 Nov 2026). Therapist-facing: these
+        // decide the order a client sees, and a therapist choosing what to assign
+        // needs to see which plan a worksheet belongs to. Never sent to the app.
+        carePlans: row.care_plans,
+        // True when this worksheet also runs the deeper risk screen. Shown so a
+        // therapist knows a disclosure here reaches them as an alert.
+        sensitiveCheck: row.sensitive_check,
         hasHinglish: row.content_hi !== null && row.content_hi !== undefined,
         problemCount: problems.length,
       };
@@ -83,6 +92,8 @@ export const worksheetsRouter = router({
           access_mode: true,
           load_level: true,
           est_minutes: true,
+          care_plans: true,
+          sensitive_check: true,
           content_en: true,
           content_hi: true,
         },
@@ -134,6 +145,13 @@ export const worksheetsRouter = router({
         loadLevel: row.load_level,
         estMinutes: row.est_minutes,
         status: row.status,
+        // The owner's care-plan labels (24 Nov 2026). Therapist-facing: these
+        // decide the order a client sees, and a therapist choosing what to assign
+        // needs to see which plan a worksheet belongs to. Never sent to the app.
+        carePlans: row.care_plans,
+        // True when this worksheet also runs the deeper risk screen. Shown so a
+        // therapist knows a disclosure here reaches them as an alert.
+        sensitiveCheck: row.sensitive_check,
         content,
         hingeContent,
         problems,

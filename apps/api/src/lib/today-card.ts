@@ -10,6 +10,7 @@ import {
 import { toView as toAppointmentView } from './appointments.js';
 import type { TodayCard, TodayNextItem } from '@okuvu/shared-types';
 import { summaryAccessWindow, isAgeDeclined } from '@okuvu/shared-types';
+import { appliesToScope, scopeForCarePlan, type CarePlanLabel } from '@okuvu/shared-types/worksheets/types';
 
 export type GetTodayCardResult =
   | { status: 'ok'; card: TodayCard }
@@ -35,9 +36,9 @@ export type GetTodayCardResult =
  * changes every time the card refreshes reads as a notification the client has
  * to keep up with.
  */
-async function resolveNextItem(userId: string): Promise<TodayNextItem | null> {
+async function resolveNextItem(userId: string, planId: string | null): Promise<TodayNextItem | null> {
   try {
-    return await chooseNextItem(userId);
+    return await chooseNextItem(userId, planId);
   } catch (err) {
     // The card is one line on the home screen; a catalogue read that fails must
     // not take the greeting, the appointment and the rest of the payload down
@@ -49,7 +50,7 @@ async function resolveNextItem(userId: string): Promise<TodayNextItem | null> {
   }
 }
 
-async function chooseNextItem(userId: string): Promise<TodayNextItem | null> {
+async function chooseNextItem(userId: string, planId: string | null): Promise<TodayNextItem | null> {
   const now = new Date();
   const assigned = await prisma.homework.findMany({
     where: {
@@ -106,28 +107,40 @@ async function chooseNextItem(userId: string): Promise<TodayNextItem | null> {
 
   // An exercise first (the thing "a light exercise" means to the client), then a
   // light self-serve worksheet if the catalogue has no exercise row left.
+  //
+  // Within that, the client's own care plan comes first (owner's rule, 24 Nov
+  // 2026): "the client's assigned plan decides which worksheets show first on
+  // Home". Still deterministic — the first row by the approved order that belongs
+  // to their plan, and the first row of any plan when none of them does — because
+  // a suggestion that changes on every refresh reads as a notification the client
+  // has to keep up with.
+  const scope = scopeForCarePlan(planId);
+
+  const suggestFirst = async (
+    where: { kind: string; library_group?: null },
+  ): Promise<{ tool_id: string; label: string; est_minutes: number | null; load_level: string | null } | null> => {
+    const candidates = await prisma.toolRegistryEntry.findMany({
+      where: {
+        status: 'approved',
+        access_mode: 'open',
+        load_level: 'light',
+        ...where,
+      },
+      orderBy: [{ sort_order: 'asc' }, { tool_id: 'asc' }],
+      take: 20,
+      select: { tool_id: true, label: true, est_minutes: true, load_level: true, care_plans: true },
+    });
+    if (candidates.length === 0) return null;
+    return (
+      candidates.find((row) =>
+        appliesToScope(row.care_plans as CarePlanLabel[], scope),
+      ) ?? candidates[0]
+    );
+  };
+
   const suggestion =
-    (await prisma.toolRegistryEntry.findFirst({
-      where: {
-        status: 'approved',
-        kind: 'exercise',
-        access_mode: 'open',
-        load_level: 'light',
-        library_group: null,
-      },
-      orderBy: [{ sort_order: 'asc' }, { tool_id: 'asc' }],
-      select: { tool_id: true, label: true, est_minutes: true, load_level: true },
-    })) ??
-    (await prisma.toolRegistryEntry.findFirst({
-      where: {
-        status: 'approved',
-        kind: 'worksheet',
-        access_mode: 'open',
-        load_level: 'light',
-      },
-      orderBy: [{ sort_order: 'asc' }, { tool_id: 'asc' }],
-      select: { tool_id: true, label: true, est_minutes: true, load_level: true },
-    }));
+    (await suggestFirst({ kind: 'exercise', library_group: null })) ??
+    (await suggestFirst({ kind: 'worksheet' }));
 
   if (!suggestion) return null;
 
@@ -252,7 +265,7 @@ export async function getTodayCard(authSubject: string): Promise<GetTodayCardRes
     include: { therapist: { select: { name: true } } },
   });
 
-  const next = await resolveNextItem(user.id);
+  const next = await resolveNextItem(user.id, user.clinical_config?.care_plan_id ?? null);
 
   const card: TodayCard = {
     homeworkId: activeHomework?.id ?? null,

@@ -27,6 +27,8 @@ const grounding: CatalogueEntry = {
   sort_order: 10,
   status: 'approved',
   opens: 'grounding',
+  care_plans: ['all'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     fields: [
@@ -79,6 +81,8 @@ const breathing: CatalogueEntry = {
   sort_order: 20,
   status: 'approved',
   opens: 'breathing',
+  care_plans: ['all'],
+  sensitive_check: false,
   content_en: {
     version: 1,
     fields: [

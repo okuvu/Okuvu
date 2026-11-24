@@ -7,6 +7,7 @@ import {
   SAFETY_PLAN_TOOL_ID,
   demandingGateBlocks,
 } from '@okuvu/shared-types/safety';
+import { orderForCarePlan, scopeForCarePlan, type CarePlanLabel } from '@okuvu/shared-types/worksheets/types';
 import { verifyCognitoJWT } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { toClientWorksheetView, type WorksheetRegistryRow } from '../lib/worksheet-content.js';
@@ -65,7 +66,41 @@ const CARD_FIELDS = {
   load_level: true,
   est_minutes: true,
   library_group: true,
+  care_plans: true,
 } as const;
+
+/**
+ * The client's plan decides which worksheets come first, inside each section.
+ *
+ * A stable partition per section, not a global sort: the Library is nine sections
+ * in the approved order and the app renders them in that order, so a global sort
+ * would be undone on the way to the screen. Within a section, the client's own
+ * plan comes first and everything else keeps its approved order behind it.
+ *
+ * Nothing is removed: "the full library stays open to browse" (owner's rule,
+ * 24 Nov 2026).
+ */
+function orderWithinSections<T extends { section: string | null; care_plans: string[] }>(
+  rows: T[],
+  scope: ReturnType<typeof scopeForCarePlan>,
+): T[] {
+  if (!scope) return rows;
+  const out: T[] = [];
+  let group: T[] = [];
+
+  const flush = (): void => {
+    if (group.length === 0) return;
+    out.push(...orderForCarePlan(group, scope, (row) => row.care_plans as CarePlanLabel[]));
+    group = [];
+  };
+
+  for (const row of rows) {
+    if (group.length > 0 && group[0].section !== row.section) flush();
+    group.push(row);
+  }
+  flush();
+  return out;
+}
 
 export async function libraryRoute(app: FastifyInstance): Promise<void> {
   app.get('/library', {
@@ -84,12 +119,17 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const [rows, assignments] = await Promise.all([
+      const [rows, assignments, config] = await Promise.all([
         prisma.toolRegistryEntry.findMany({
           where: {
             status: 'approved',
             kind: { in: ['worksheet', 'exercise', 'group'] },
             library_group: null,
+            // A therapist-only worksheet (the exposure ladder) is not part of the
+            // client's Library at all — not a card, not a greyed-out card, no
+            // direct open. Filtered in the query, so no response mapper can leak
+            // it (owner's rule, 24 Nov 2026).
+            access_mode: { not: 'therapist_only' },
           },
           orderBy: [{ section: 'asc' }, { sort_order: 'asc' }],
           select: CARD_FIELDS,
@@ -98,9 +138,16 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
           where: { client_user_id: user.id, status: 'active', tool_id: { not: null } },
           select: { tool_id: true },
         }),
+        // The client's care plan, read for ORDER only. Nothing from this row is
+        // serialized: the app is never told a plan id or a plan name.
+        prisma.clinicalConfig.findUnique({
+          where: { user_id: user.id },
+          select: { care_plan_id: true },
+        }),
       ]);
 
       const assigned = new Set(assignments.map((row) => row.tool_id));
+      const scope = scopeForCarePlan(config?.care_plan_id ?? null);
 
       // ─── Step 4 — the safety plan is HIDDEN, not greyed out ────────────
       //
@@ -118,8 +165,10 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
           })) !== null
         : false;
 
-      const cards: Card[] = rows
-        .filter((row) => row.access_mode !== 'in_session' || hasPlan)
+      const cards: Card[] = orderWithinSections(
+        rows.filter((row) => row.access_mode !== 'in_session' || hasPlan),
+        scope,
+      )
         .map((row) => ({
           toolId: row.tool_id,
           label: row.label,
@@ -167,8 +216,9 @@ export async function libraryRoute(app: FastifyInstance): Promise<void> {
 
       // A row that is not approved does not exist as far as a client is
       // concerned: draft, retired and placeholder all answer the same way, so
-      // the response cannot be used to discover what is coming.
-      if (!row || row.status !== 'approved') {
+      // the response cannot be used to discover what is coming. A therapist-only
+      // row answers the same way for the same reason (owner's rule, 24 Nov 2026).
+      if (!row || row.status !== 'approved' || row.access_mode === 'therapist_only') {
         return reply.status(404).send({
           error: { code: 'NOT_FOUND', message: 'Not found' },
         });
