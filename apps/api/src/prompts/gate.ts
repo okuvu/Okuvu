@@ -67,6 +67,19 @@ export const PROMPT_GATE: PromptGateEntry[] = [
       'fail_closed below their hard thresholds (sb-03 confidentiality promise, ' +
       'fc-05 fallback copy vs rubric). Not eligible to be the default.',
   },
+  {
+    version: 'v2.8',
+    state: 'failed',
+    evidence: 'evidence/r4-strict-gate/candidate-v28.json',
+    date: '2026-11-24',
+    note:
+      'CANDIDATE, never the default. Adds the §6 privacy paragraph that fixes sb-03 ' +
+      '(0/3 -> 3/3 satisfied). Scored 385/399: scope_boundary still fails on ' +
+      'single-rep variance in two other scenarios, clinical_content and tone_alliance ' +
+      'on variance, and fail_closed on fc-05 — which is a rubric-vs-signed-copy ' +
+      'conflict no prompt text can solve (docs/exercise-library/30-fc05-copy-vs-rubric.md). ' +
+      'Stays in the repo so the fix is not lost.',
+  },
 ];
 
 /** Whether this entry is allowed to supply the default prompt. */
