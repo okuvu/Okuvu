@@ -144,3 +144,10 @@ prompt-only behaviour until that list is wired — which is why the wording prop
 offers option 2 rather than declaring rule 4 done. The prohibitions (never write
 the answer, never name a thinking trap, never fill in a blank) are already carried
 by the in-worksheet helper and are unaffected.
+
+One operational note for whoever resumes this branch: the Prisma client is
+generated into the shared pnpm store, so it is one client for both checkouts. At
+the end of this step it was regenerated from the shared checkout
+(`/opt/data/okuvu/ts`, on `feat/client-goals`) so that session is not typing my
+columns as `never`. Run `prisma generate` in this worktree before typechecking
+here, or `care_plans` reads as a missing field.
