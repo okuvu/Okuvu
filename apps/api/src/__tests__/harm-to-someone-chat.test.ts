@@ -77,8 +77,32 @@ describe('case 3 — a frightening unwanted thought reaches the gentler screen',
     // The intent screen's alert ends with "call 112". Reusing it here was the
     // first gold-set run's one failure on this screen (3/3 reps, both cases).
     expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert).not.toContain('112');
-    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert).toContain('told this is urgent');
     expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.plan_label).toBe('My plan for hard moments');
+  });
+
+  it('raises a normal therapist alert, not an urgent one', () => {
+    // Owner's decision, 24 Nov 2026 round five: a frightening thought with no
+    // intent still reaches the therapist, but as something to talk about
+    // together. The word "urgent" is the intent screen's, and stays there.
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert).not.toContain('urgent');
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert).toContain('has been let know');
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert).toContain('talk about it together');
+    // The intent screen keeps its urgent wording.
+    expect(HARM_TO_SOMEONE_SCREEN.alert).toContain('has been told this is urgent');
+  });
+
+  it('keeps the 112 row, tappable, with no instruction to use it', () => {
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.emergency.number).toBe('112');
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.emergency.display).toBe('112');
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.paragraphs.join(' ')).not.toContain('call 112');
+  });
+
+  it('carries the approved second paragraph', () => {
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.paragraphs.join(' ')).toContain(
+      'having one does not make you a bad person. Many people have thoughts like this and never ' +
+        'act on them.',
+    );
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.paragraphs.join(' ')).not.toContain('danger to anyone');
   });
 
   it('does not promise how fast a therapist replies', () => {

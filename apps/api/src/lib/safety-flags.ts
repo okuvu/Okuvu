@@ -93,6 +93,12 @@ export interface RecordedSafetyFlag {
   occurred_at: Date;
   /** Carried so the alert that fires straight after the insert is marked too. */
   urgent: boolean;
+  /**
+   * Which surface the words came from, so the therapist's email can say "a chat
+   * message" or "a worksheet answer" instead of guessing. Optional: a
+   * hand-rolled test double has no source column.
+   */
+  source?: SafetyFlagSource;
 }
 
 /** Backoff between write attempts. Attempt 1 is inline; these follow it. */
@@ -145,7 +151,7 @@ async function insertFlag(
         subject_id: params.subjectId ?? null,
         urgent: params.urgent ?? false,
       },
-      select: { id: true, user_id: true, level: true, occurred_at: true, urgent: true },
+      select: { id: true, user_id: true, level: true, occurred_at: true, urgent: true, source: true },
     });
     return row as RecordedSafetyFlag;
   } catch (err) {
@@ -219,6 +225,31 @@ export async function recordSafetyFlag(
 }
 
 /**
+ * The surface phrase for the therapist's alert email: where the words were
+ * typed, never what they were.
+ */
+export function surfacePhraseFor(source: SafetyFlagSource | undefined): string | undefined {
+  switch (source) {
+    case 'journal_entry':
+      return 'a journal entry';
+    case 'worksheet_answer':
+      return 'a worksheet answer';
+    case 'treasure_note':
+      return 'a Treasure Box note';
+    case 'mood_log':
+      return 'a mood check-in';
+    case 's3_grounding':
+    case 'crisis_card':
+    case 'third_party_crisis':
+    case 'medical_emergency':
+    case 'harm_to_someone':
+      return 'a chat message';
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Email each therapist assigned to this client. The body carries the client's
  * label, the level, the time and a link — and nothing else. No message text,
  * no summary, no reasoning note: an inbox is less protected than the portal,
@@ -235,6 +266,8 @@ export async function notifyTherapistsOfSafetyFlag(flag: {
   occurred_at: Date;
   /** Absent on a hand-rolled test double; treated as not urgent. */
   urgent?: boolean;
+  /** Absent on a hand-rolled test double; the email then says "in OKUVU". */
+  source?: SafetyFlagSource;
 }): Promise<void> {
   try {
     const assignments = await prisma.therapistClient.findMany({
@@ -267,6 +300,7 @@ export async function notifyTherapistsOfSafetyFlag(flag: {
           occurredAt: flag.occurred_at,
           link,
           urgent: flag.urgent === true,
+          surface: surfacePhraseFor(flag.source),
         });
       } catch (err) {
         console.error('[safety-flag] ALERT EMAIL NOT SENT', {

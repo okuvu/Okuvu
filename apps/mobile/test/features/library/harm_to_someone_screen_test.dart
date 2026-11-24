@@ -164,4 +164,44 @@ void main() {
       expect(container.read(harmToSomeoneOverlayProvider), isNull);
     });
   });
+
+  group('the gentler screen for a frightening thought', () {
+    Future<void> pumpOnPhone(WidgetTester tester, Widget child) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(child);
+      await tester.pumpAndSettle();
+    }
+
+    Map<String, dynamic> thoughtsBody() => {
+          ..._body(),
+          'kind': 'harm_to_someone_thoughts',
+          'paragraphs': [
+            'Thank you for telling me. Saying that out loud is not easy.',
+            'A frightening thought is not the same as wanting to act on it. '
+                'having one does not make you a bad person. Many people have '
+                'thoughts like this and never act on them.',
+          ],
+          'alert': 'Your therapist has been let know, so you can talk about it '
+              'together. They may not be able to reply straight away.',
+        };
+
+    testWidgets('shows the normal alert, not the urgent one', (tester) async {
+      final screen = HarmToSomeoneScreen.fromJson(thoughtsBody())!;
+      await pumpOnPhone(tester, _app(screen));
+
+      expect(find.textContaining('has been let know'), findsOneWidget);
+      expect(find.textContaining('talk about it together'), findsOneWidget);
+      expect(find.textContaining('urgent'), findsNothing);
+    });
+
+    testWidgets('keeps 112 on screen without telling anyone to use it', (tester) async {
+      final screen = HarmToSomeoneScreen.fromJson(thoughtsBody())!;
+      await pumpOnPhone(tester, _app(screen));
+
+      expect(find.text('112'), findsOneWidget);
+      expect(find.textContaining('call 112'), findsNothing);
+    });
+  });
 }

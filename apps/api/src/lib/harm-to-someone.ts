@@ -146,15 +146,18 @@ export const HARM_TO_SOMEONE_SCREEN: HarmToSomeoneScreen = {
 // someone frightened of their own thoughts reads as an accusation. The 112 row
 // stays as a tappable resource; the body carries no instruction to use it.
 //
-// PROPOSED COPY — awaiting the owner's approval. Nothing about this paragraph
-// set has been read by him yet; the routing and the alert do not depend on the
-// wording being final, but the wording does not ship until he says so.
+// APPROVED COPY — the owner approved this wording on 24 Nov 2026 (round five),
+// with two changes to the draft: the second paragraph's "bad person or a danger
+// to anyone" became "bad person. Many people have thoughts like this and never
+// act on them", and the alert dropped from urgent to a normal therapist alert
+// ("has been let know, so you can talk about it together"). The 112 row is
+// unchanged and stays tappable, with no instruction to use it.
 const THOUGHTS_OPENING = 'Thank you for telling me. Saying that out loud is not easy.';
 
 const THOUGHTS_SECOND =
   'A frightening thought is not the same as wanting to act on it. Thoughts like this can arrive ' +
-  'uninvited and feel appalling, and having one does not make you a bad person or a danger to ' +
-  'anyone.';
+  'uninvited and feel appalling, and having one does not make you a bad person. Many people ' +
+  'have thoughts like this and never act on them.';
 
 const THOUGHTS_THIRD =
   'It helps to say it to someone real — your therapist, or someone you trust. If these thoughts ' +
@@ -162,7 +165,10 @@ const THOUGHTS_THIRD =
   'someone who can help.';
 
 /**
- * The alert line for this screen only.
+ * The alert line for this screen only, and a normal alert rather than an
+ * urgent one (owner's decision, 24 Nov 2026 round five): a frightening thought
+ * with no intent is something to talk about together, not something to page
+ * anyone about. It still reaches the therapist; it does not lead with "urgent".
  *
  * The intent screen's alert ends "…so if you need help right now, call 112."
  * Carried onto a disclosure that describes no intent, that sentence is the
@@ -172,7 +178,8 @@ const THOUGHTS_THIRD =
  * without being urged.
  */
 const THOUGHTS_ALERT =
-  'Your therapist has been told this is urgent. They may not be able to reply straight away.';
+  'Your therapist has been let know, so you can talk about it together. They may not be able to ' +
+  'reply straight away.';
 
 export const HARM_TO_SOMEONE_THOUGHTS_SCREEN: HarmToSomeoneScreen = {
   kind: 'harm_to_someone_thoughts',

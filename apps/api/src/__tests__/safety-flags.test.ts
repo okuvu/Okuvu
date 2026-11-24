@@ -80,7 +80,7 @@ describe('recordSafetyFlag', () => {
         subject_id: null,
         urgent: false,
       },
-      select: { id: true, user_id: true, level: true, occurred_at: true, urgent: true },
+      select: { id: true, user_id: true, level: true, occurred_at: true, urgent: true, source: true },
     });
   });
 
@@ -187,7 +187,7 @@ describe('notifyTherapistsOfSafetyFlag', () => {
     // what the client wrote.
     const payload = emailMock.sendSafetyAlertEmail.mock.calls[0][0];
     expect(Object.keys(payload).sort()).toEqual(
-      ['clientLabel', 'level', 'link', 'occurredAt', 'therapistName', 'to', 'urgent'].sort(),
+      ['clientLabel', 'level', 'link', 'occurredAt', 'surface', 'therapistName', 'to', 'urgent'].sort(),
     );
     expect(payload.urgent).toBe(false);
   });

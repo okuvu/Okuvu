@@ -604,16 +604,19 @@ export async function processTurn(
     });
     recordTiming(timing, 'harm_to_someone_persistence', persistStart, now());
 
-    // The therapist alert, marked urgent. It points at the assistant turn; the
-    // portal resolves the user's own words from the same turn number so the
-    // therapist can judge the disclosure himself (owner's instruction).
+    // The therapist alert. Urgent for a disclosure of intent; a normal alert for
+    // a frightening thought with no intent, which the owner ruled is something to
+    // talk about together rather than to page anyone about (24 Nov 2026).
+    // It points at the assistant turn; the portal resolves the user's own words
+    // from the same turn number so the therapist can judge the disclosure
+    // himself, on the urgent screen only.
     await flagSafetyEvent({
       userId: user.id,
       level: harmLevel,
       source: 'harm_to_someone',
       sessionId,
       turnId: harmAssistantTurn?.id ?? null,
-      urgent: true,
+      urgent: !thoughts,
     });
 
     await recordAuditEvent({

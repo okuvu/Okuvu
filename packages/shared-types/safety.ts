@@ -111,7 +111,7 @@ export const GROUNDING_TOOL_ID = 'grounding_5431'
  * test that pins it to the approved document.
  */
 export const PRIVACY_LINE =
-  "Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support, without sharing what you wrote."
+  "Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support. It does not share what you wrote, unless you have chosen to let your therapist read your chats, with one exception: if you write that you want to hurt someone else, your therapist is told it is urgent and can read that answer, so they can judge how serious it is."
 
 /**
  * When the safety check cannot run.

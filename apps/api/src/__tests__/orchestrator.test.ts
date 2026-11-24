@@ -45,9 +45,11 @@ vi.mock('../lib/prisma.js', async () => {
   const { makeAuditEventDelegate } = await import('./helpers/in-memory-audit-event.js');
   return {
     prisma: {
-      sessionLog: { findUnique: vi.fn(), update: vi.fn() },
+      sessionLog: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
       turn: { create: vi.fn() },
       safetyState: { upsert: vi.fn() },
+      safetyFlag: { create: vi.fn() },
+      therapistClient: { findMany: vi.fn(() => Promise.resolve([])) },
       clinicalConfig: { update: vi.fn(), upsert: vi.fn() },
       governanceLog: { create: vi.fn() },
       user: { findUnique: vi.fn() },
@@ -1651,5 +1653,75 @@ describe('processTurn — per-turn crisis keyword floor (E17-S10)', () => {
       expect(result.safety).toEqual({ code: 'CRISIS_FLOOR', reason: 'llm_throttled', crisis_floor: true });
     }
     expect(handleTurn).not.toHaveBeenCalled();
+  });
+});
+
+describe('harm to someone — the alert level follows the screen', () => {
+  const s3 = {
+    safetyState: 'S3' as const,
+    fallbackUsed: false,
+    crisis_language_detected: false,
+    basis: 'literal' as const,
+    signal_strength: 'medium' as const,
+    notes: null,
+  };
+  const activeGovernance = {
+    governanceState: 'Active' as const,
+    fallbackUsed: false,
+    reasonCode: null,
+    confidence: 'medium' as const,
+    notes: null,
+  };
+
+  beforeEach(() => {
+    vi.mocked(classifySafety).mockResolvedValue(s3);
+    vi.mocked(classifyGovernance).mockResolvedValue(activeGovernance);
+    vi.mocked(prisma.safetyFlag.create).mockResolvedValue({
+      id: 'flag-1',
+      user_id: UID,
+      level: 'S3',
+      occurred_at: new Date('2026-11-24T07:00:00Z'),
+      urgent: true,
+      source: 'harm_to_someone',
+    } as never);
+    vi.mocked(prisma.sessionLog.updateMany).mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('marks a disclosure of intent urgent', async () => {
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'harm-to-someone', mode: 'normal' });
+
+    await processTurn(UID, SESSION_ID, 'I want to hurt my brother');
+
+    const arg = vi.mocked(prisma.safetyFlag.create).mock.calls[0][0] as any;
+    expect(arg.data.urgent).toBe(true);
+    expect(arg.data.source).toBe('harm_to_someone');
+  });
+
+  it('does not mark a frightening thought urgent — it is a normal alert', async () => {
+    // Owner's decision, 24 Nov 2026 round five. The screen still records a flag
+    // and still emails the therapist; it just is not the paged one.
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'harm-to-someone-thoughts', mode: 'normal' });
+
+    const result = await processTurn(
+      UID,
+      SESSION_ID,
+      'I keep having thoughts of stabbing my baby and it terrifies me.',
+    );
+
+    const arg = vi.mocked(prisma.safetyFlag.create).mock.calls[0][0] as any;
+    expect(arg.data.urgent).toBe(false);
+    expect(arg.data.level).toBe('S3');
+    if (result.type === 'agent_turn') {
+      expect(result.screen?.kind).toBe('harm_to_someone_thoughts');
+      expect(result.screen?.alert).toContain('has been let know');
+    }
+  });
+
+  it('gives the crisis card when self-harm and harm to another arrive together', async () => {
+    vi.mocked(routeTurn).mockReturnValue({ agent: 'crisis', mode: 'normal' });
+
+    const result = await processTurn(UID, SESSION_ID, 'I want to kill myself and hit my brother');
+
+    expect(result.type).toBe('crisis');
   });
 });

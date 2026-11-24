@@ -167,6 +167,14 @@ export interface SendSafetyAlertEmailParams {
    * — the words are read in the portal, which is the protected surface.
    */
   urgent?: boolean;
+  /**
+   * Which surface the flag came from, as a phrase that reads inside a sentence:
+   * "a chat message", "a worksheet answer", "a journal entry", "a mood
+   * check-in". The urgent line used to say "a worksheet answer" for every flag,
+   * which became untrue the moment the harm-to-someone screen fired in chat.
+   * Absent means the sentence does not name a surface at all.
+   */
+  surface?: string;
 }
 
 /** A date and time a therapist in India reads without translating. */
@@ -212,7 +220,7 @@ export async function sendSafetyAlertEmail(
   const when = formatAlertTimestamp(params.occurredAt);
   const urgent = params.urgent === true;
   const urgentLine = urgent
-    ? '<p><strong>This one is marked urgent.</strong> It was flagged on a worksheet answer, ' +
+    ? `<p><strong>This one is marked urgent.</strong> It was flagged in ${params.surface ?? 'OKUVU'}, ` +
       'and the client&rsquo;s own words are on their Safety card in the portal.</p>'
     : '';
   const htmlContent = `
