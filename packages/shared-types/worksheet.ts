@@ -97,11 +97,21 @@ export interface WorksheetFeeling {
   parent?: string;
 }
 
-/** A column in an add-your-own-rows list, e.g. "What" + "When". */
+/**
+ * A column in an add-your-own-rows list, e.g. "What" + "When".
+ *
+ * `choice` exists for the worksheets that sort a list into named buckets — the
+ * priority sorter's four boxes are one choice per row, not four separate lists,
+ * so the client keeps one list and labels each line. Its options are approved
+ * copy like every other option in the body, and the stored answer is the option
+ * value (a string), never a number or a rank.
+ */
 export interface WorksheetRowColumn {
   id: string;
   label: string;
-  type: 'text' | 'scale_0_10' | 'datetime';
+  type: 'text' | 'scale_0_10' | 'datetime' | 'choice';
+  /** Required on a `choice` column; refused on every other type. */
+  options?: WorksheetOption[];
 }
 
 export interface WorksheetBranch {
@@ -311,6 +321,16 @@ export interface WorksheetContent {
   closing?: {
     text?: string;
     buttons?: WorksheetClosingButton[];
+    /**
+     * "Keep it or delete it" for a worksheet whose whole point is writing
+     * something the client may not want kept — the unsent letter.
+     *
+     * When the client's answer to `field` is one of `in`, the just-saved entry
+     * is removed straight away with the same delete the client's own Past me
+     * uses. It is content, not app code: a worksheet that does not declare it
+     * behaves exactly as before, and no field id is hard-coded in a screen.
+     */
+    discardWhen?: { field: string; in: string[] };
   };
 }
 
@@ -646,13 +666,54 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
           else colIds.add(c.id as string);
 
           if (!isNonEmptyString(c.label)) errors.push(`${at}.columns[${ci}].label: required`);
-          if (!['text', 'scale_0_10', 'datetime'].includes(String(c.type))) {
-            errors.push(`${at}.columns[${ci}].type: must be text, scale_0_10 or datetime`);
+          if (!['text', 'scale_0_10', 'datetime', 'choice'].includes(String(c.type))) {
+            errors.push(
+              `${at}.columns[${ci}].type: must be text, scale_0_10, datetime or choice`,
+            );
           }
           for (const key of Object.keys(c)) {
-            if (!['id', 'label', 'type'].includes(key)) {
+            if (!['id', 'label', 'type', 'options'].includes(key)) {
               errors.push(`${at}.columns[${ci}]: unknown key "${key}"`);
             }
+          }
+
+          if (c.type === 'choice') {
+            const options = c.options;
+            if (!Array.isArray(options) || options.length < 2) {
+              errors.push(`${at}.columns[${ci}].options: at least two options are required`);
+              return;
+            }
+            if (options.length > WORKSHEET_LIMITS.options) {
+              errors.push(`${at}.columns[${ci}].options: at most ${WORKSHEET_LIMITS.options}`);
+            }
+            const values = new Set<string>();
+            options.forEach((opt, oi) => {
+              if (!isPlainObject(opt)) {
+                errors.push(`${at}.columns[${ci}].options[${oi}]: must be an object`);
+                return;
+              }
+              if (!isNonEmptyString(opt.value)) {
+                errors.push(`${at}.columns[${ci}].options[${oi}].value: required`);
+              } else if (values.has(opt.value as string)) {
+                errors.push(`${at}.columns[${ci}].options[${oi}].value: duplicate "${opt.value}"`);
+              } else {
+                values.add(opt.value as string);
+              }
+              if (!isNonEmptyString(opt.label)) {
+                errors.push(`${at}.columns[${ci}].options[${oi}].label: required`);
+              } else if ((opt.label as string).length > WORKSHEET_LIMITS.label) {
+                errors.push(
+                  `${at}.columns[${ci}].options[${oi}].label: over ${WORKSHEET_LIMITS.label} characters`,
+                );
+              }
+              for (const key of Object.keys(opt)) {
+                if (!['value', 'label', 'description'].includes(key)) {
+                  errors.push(`${at}.columns[${ci}].options[${oi}]: unknown key "${key}"`);
+                }
+              }
+            });
+          } else if (c.options !== undefined) {
+            errors.push(`${at}.columns[${ci}].options: only a choice column takes options`);
           }
         });
       }
@@ -839,10 +900,48 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
       errors.push('content.closing: must be an object');
     } else {
       for (const key of Object.keys(value.closing)) {
-        if (!['text', 'buttons'].includes(key)) errors.push(`content.closing: unknown key "${key}"`);
+        if (!['text', 'buttons', 'discardWhen'].includes(key)) {
+          errors.push(`content.closing: unknown key "${key}"`);
+        }
       }
       if (value.closing.text !== undefined && !isNonEmptyString(value.closing.text)) {
         errors.push('content.closing.text: must be a non-empty string when present');
+      }
+      if (value.closing.discardWhen !== undefined) {
+        const discard = value.closing.discardWhen;
+        if (!isPlainObject(discard)) {
+          errors.push('content.closing.discardWhen: must be an object');
+        } else {
+          for (const key of Object.keys(discard)) {
+            if (!['field', 'in'].includes(key)) {
+              errors.push(`content.closing.discardWhen: unknown key "${key}"`);
+            }
+          }
+          if (!isNonEmptyString(discard.field)) {
+            errors.push('content.closing.discardWhen.field: required');
+          } else {
+            const allowedValues = choices.get(discard.field as string);
+            if (!allowedValues) {
+              errors.push(
+                `content.closing.discardWhen.field: "${discard.field}" is not an earlier choice`,
+              );
+            } else if (!Array.isArray(discard.in) || discard.in.length === 0) {
+              errors.push('content.closing.discardWhen.in: at least one option value is required');
+            } else {
+              discard.in.forEach((v, vi) => {
+                if (!isNonEmptyString(v)) {
+                  errors.push(
+                    `content.closing.discardWhen.in[${vi}]: must be a non-empty option value`,
+                  );
+                } else if (!allowedValues.has(v as string)) {
+                  errors.push(
+                    `content.closing.discardWhen.in[${vi}]: "${v}" is not one of its options`,
+                  );
+                }
+              });
+            }
+          }
+        }
       }
       if (value.closing.buttons !== undefined) {
         const buttons = value.closing.buttons;
@@ -928,6 +1027,25 @@ export function validateWorksheetTranslation(
       const hiIds = (hiFeelings ?? []).map((f) => f.id);
       if (enIds.join('|') !== hiIds.join('|')) {
         errors.push(`${at}: feeling ids differ from English`);
+      }
+    }
+
+    const enColumns = 'columns' in en ? en.columns : undefined;
+    const hiColumns = 'columns' in hi ? (hi as { columns?: WorksheetRowColumn[] }).columns : undefined;
+    if (enColumns || hiColumns) {
+      const enShape = (enColumns ?? []).map((c) => `${c.id}:${c.type}`).join('|');
+      const hiShape = (hiColumns ?? []).map((c) => `${c.id}:${c.type}`).join('|');
+      if (enShape !== hiShape) {
+        errors.push(`${at}: row columns differ from English`);
+      } else {
+        (enColumns ?? []).forEach((enCol, ci) => {
+          const hiCol = (hiColumns ?? [])[ci];
+          const enValues = (enCol.options ?? []).map((o) => o.value).join('|');
+          const hiValues = (hiCol?.options ?? []).map((o) => o.value).join('|');
+          if (enValues !== hiValues) {
+            errors.push(`${at}: column "${enCol.id}" option values differ from English`);
+          }
+        });
       }
     }
 
@@ -1130,6 +1248,14 @@ export function validateWorksheetAnswers(
             if (col.type === 'datetime' && typeof v !== 'string') {
               errors.push(`${field.id}[${ri}].${col.id}: must be a date or date-time string`);
             }
+            if (col.type === 'choice') {
+              const values = (col.options ?? []).map((o) => o.value);
+              if (typeof v !== 'string') {
+                errors.push(`${field.id}[${ri}].${col.id}: must be one option value`);
+              } else if (!values.includes(v)) {
+                errors.push(`${field.id}[${ri}].${col.id}: "${v}" is not one of its options`);
+              }
+            }
           }
         });
         break;
@@ -1314,7 +1440,15 @@ export function clientFacingStrings(content: WorksheetContent): string[] {
     }
     for (const feeling of asObjects(field.feelings)) push(feeling.label);
     for (const region of asObjects(field.regions)) push(region.label);
-    for (const column of asObjects(field.columns)) push(column.label);
+    for (const column of asObjects(field.columns)) {
+      push(column.label);
+      // A choice column carries option labels too; they are client-facing copy
+      // and get the same forbidden-ask and score guard as every other label.
+      for (const option of asObjects(column.options)) {
+        push(option.label);
+        push(option.description);
+      }
+    }
   }
 
   return out;

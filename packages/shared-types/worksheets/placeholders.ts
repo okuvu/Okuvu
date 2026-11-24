@@ -85,21 +85,6 @@ export const placeholderEntries: CatalogueEntry[] = [
     940,
   ),
   placeholder(
-    'ws_boundary_planner',
-    'Boundary planner',
-    'Work out what a boundary is, what to say, and what to do if it is pushed.',
-    'people_boundaries',
-    950,
-  ),
-  placeholder(
-    'ws_unsent_letter',
-    'Unsent letter',
-    'Write what was never said to someone, without sending it.',
-    'people_boundaries',
-    960,
-    { sensitiveCheck: true },
-  ),
-  placeholder(
     'ws_naming_the_problem',
     'Naming the problem',
     'Separate the problem from the person, so the problem can be talked about.',
@@ -136,14 +121,6 @@ export const placeholderEntries: CatalogueEntry[] = [
     { sensitiveCheck: true },
   ),
   placeholder(
-    'ws_scrolling_log',
-    'Scrolling log',
-    'Note when and why scrolling happens, and how it felt afterwards.',
-    'energy_life',
-    1020,
-    { sensitiveCheck: true },
-  ),
-  placeholder(
     'ws_family_expectations',
     'Family expectations map',
     'Map what family expects, what the client wants, and where the two overlap.',
@@ -176,12 +153,5 @@ export const placeholderEntries: CatalogueEntry[] = [
     // never appears in the client Library and the chat never offers it, so its
     // access mode is the one the client routes refuse outright.
     { accessMode: 'therapist_only' },
-  ),
-  placeholder(
-    'ws_pros_cons_change',
-    'Pros and cons of change',
-    'Lay out the costs and benefits of changing, and of staying the same.',
-    'do_what_matters',
-    1040,
   ),
 ];

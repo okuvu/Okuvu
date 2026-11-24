@@ -285,4 +285,105 @@ void main() {
       expect(WorksheetDraft.fromJson({'answers': 'nope'}), isNull);
     });
   });
+
+  group('the Stress & Burnout additions', () {
+    test('parses a choice column and its option values', () {
+      final content = parseWorksheetContent({
+        'version': 1,
+        'fields': [
+          {
+            'id': 'tasks',
+            'type': 'row_list',
+            'prompt': 'Add what you are carrying.',
+            'columns': [
+              {'id': 'what', 'label': 'What', 'type': 'text'},
+              {
+                'id': 'box',
+                'label': 'Which box',
+                'type': 'choice',
+                'options': [
+                  {'value': 'urgent_important', 'label': 'Urgent and important'},
+                  {'value': 'neither', 'label': 'Neither'},
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      final columns = content.fields.single.columns;
+      expect(columns.last.type, 'choice');
+      expect(columns.last.options.map((o) => o.value), ['urgent_important', 'neither']);
+      expect(
+        worksheetAnswerProblems(content, {
+          'tasks': [
+            {'what': 'A', 'box': 'neither'},
+          ],
+        }),
+        isEmpty,
+      );
+      expect(
+        worksheetAnswerProblems(content, {
+          'tasks': [
+            {'what': 'A', 'box': 'not-a-box'},
+          ],
+        }),
+        isNotEmpty,
+      );
+    });
+
+    test('refuses a choice column that arrives with no options', () {
+      expect(
+        () => parseWorksheetContent({
+          'version': 1,
+          'fields': [
+            {
+              'id': 'tasks',
+              'type': 'row_list',
+              'prompt': 'Add what you are carrying.',
+              'columns': [
+                {'id': 'box', 'label': 'Which box', 'type': 'choice'},
+              ],
+            },
+          ],
+        }),
+        throwsA(isA<WorksheetContentException>()),
+      );
+    });
+
+    test('reads the keep-or-delete rule, and treats a broken one as none', () {
+      final content = parseWorksheetContent({
+        'version': 1,
+        'fields': [
+          {'id': 'letter', 'type': 'long_text', 'prompt': 'Write it.'},
+          {
+            'id': 'keep',
+            'type': 'choice',
+            'prompt': 'What now?',
+            'options': [
+              {'value': 'keep', 'label': 'Keep it privately'},
+              {'value': 'delete', 'label': 'Delete it'},
+            ],
+          },
+        ],
+        'closing': {
+          'text': 'Done.',
+          'discardWhen': {'field': 'keep', 'in': ['delete']},
+        },
+      });
+      expect(content.closing?.discardWhen?.field, 'keep');
+      expect(content.closing?.discardWhen?.values, ['delete']);
+
+      final broken = parseWorksheetContent({
+        'version': 1,
+        'fields': [
+          {'id': 'letter', 'type': 'long_text', 'prompt': 'Write it.'},
+        ],
+        'closing': {
+          'text': 'Done.',
+          'discardWhen': {'field': '', 'in': []},
+        },
+      });
+      expect(broken.closing?.discardWhen, isNull);
+    });
+  });
 }

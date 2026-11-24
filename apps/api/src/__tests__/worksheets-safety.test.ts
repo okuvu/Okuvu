@@ -45,6 +45,8 @@ function rowFor(toolId: string, overrides: Record<string, unknown> = {}) {
     content_hi: entry.content_hi,
     therapy_modality: entry.therapy_modality,
     therapist_note: entry.therapist_note,
+    care_plans: entry.care_plans,
+    sensitive_check: entry.sensitive_check,
     ...overrides,
   };
 }
@@ -233,5 +235,51 @@ describe('POST /worksheets/:toolId — Step 4', () => {
 
     expect(res.statusCode).toBe(400);
     expect((res.json() as any).error.code).toBe('UNKNOWN_ANSWER_FIELD');
+  });
+
+  it('answers 404 for a draft worksheet, and stores nothing', async () => {
+    // Owner's rule 2 (24 Nov 2026): a new worksheet starts switched off. The
+    // answer is the same as an unknown id, so a guessed URL cannot discover one.
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_basics_check', { status: 'draft' }) as any,
+    );
+    app = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/worksheets/ws_basics_check',
+      payload: { answers: { tank: 7 } },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect((res.json() as any).error.code).toBe('NOT_FOUND');
+    expect(vi.mocked(prisma.worksheetResponse.create)).not.toHaveBeenCalled();
+  });
+
+  it('runs the deeper screen on a draft body only once it is approved', async () => {
+    // The row's `sensitive_check` is what turns the extra screen on, not its id.
+    // The doomscroll log carries it; the route reads the column.
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_scrolling_log', { status: 'approved' }) as any,
+    );
+    mockClassifySafety.mockResolvedValue({
+      safetyState: 'S1',
+      fallbackUsed: false,
+      crisis_language_detected: false,
+      basis: 'literal',
+      rationale: 'no risk',
+    });
+    app = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/worksheets/ws_scrolling_log',
+      payload: { answers: { pulled_in: "I've been skipping meals all week" } },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect((res.json() as any).safety.showHelp).toBe(true);
   });
 });

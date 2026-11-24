@@ -136,8 +136,15 @@ describe('rule 2 — a new worksheet starts switched off', () => {
       status: 'draft',
     };
     expect(LISTABLE_CATALOGUE.includes(draft)).toBe(false);
-    // `isListable` is the one filter every list uses.
-    expect(CATALOGUE.filter((r) => r.status === 'draft')).toHaveLength(0);
+    // `isListable` is the one filter every list uses. The ten Stress & Burnout
+    // worksheets of 24 Nov 2026 sit in the catalogue as drafts, and none of them
+    // is in the list a client or the chat can see.
+    const drafts = CATALOGUE.filter((r) => r.status === 'draft');
+    expect(drafts).toHaveLength(10);
+    for (const row of drafts) {
+      expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain(row.tool_id);
+      expect(row.content_en).not.toBeNull();
+    }
   });
 
   it('refuses to serve a draft body to a client', () => {
@@ -180,7 +187,9 @@ describe('rule 3 — the deeper screen belongs to the five named worksheets', ()
   });
 
   it('never asks for weight, measurements, calories, food amounts or medicines', () => {
-    for (const row of LISTABLE_CATALOGUE) {
+    // Drafts are checked too: they are written and previewable, and the rule is
+    // about the words the client will eventually read.
+    for (const row of [...LISTABLE_CATALOGUE, ...CATALOGUE.filter((r) => r.status === 'draft')]) {
       expect({ toolId: row.tool_id, problems: worksheetRequestProblems(row.content_en) }).toEqual({
         toolId: row.tool_id,
         problems: [],

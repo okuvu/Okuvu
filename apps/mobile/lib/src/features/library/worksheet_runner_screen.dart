@@ -1333,6 +1333,25 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                         update(next);
                       },
                     )
+                  else if (column.type == 'choice')
+                    // One label per row, nothing ranked: the stored value is the
+                    // option the client tapped, and only that.
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in column.options)
+                          ChoiceChip(
+                            label: Text(option.label),
+                            selected: rows[i][column.id] == option.value,
+                            onSelected: (_) {
+                              final next = rows.map((r) => Map<String, Object?>.from(r)).toList();
+                              next[i][column.id] = option.value;
+                              update(next);
+                            },
+                          ),
+                      ],
+                    )
                   else
                     TextField(
                       controller: _controllerFor(

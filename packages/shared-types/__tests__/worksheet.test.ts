@@ -248,7 +248,9 @@ describe('validateWorksheetContent', () => {
     });
     const result = validateWorksheetContent(badType);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.join(' ')).toMatch(/must be text, scale_0_10 or datetime/);
+    if (!result.ok) {
+      expect(result.errors.join(' ')).toMatch(/must be text, scale_0_10, datetime or choice/);
+    }
   });
 
   it('rejects a date picker with neither date nor time', () => {
@@ -549,5 +551,103 @@ describe('worksheetProgress', () => {
     expect(
       worksheetProgress(content.content, { facts: 'x', can_act: 'yes', first_step: 'Ask' }),
     ).toEqual({ answered: 3, total: 3 });
+  });
+});
+
+/**
+ * The row-list choice column and the closing `discardWhen`, added for the
+ * Stress & Burnout batch: one list with a label per line (priority sorter), and
+ * a worksheet that can remove its own saved entry on request (unsent letter).
+ */
+describe('a choice column in an add-your-own-rows list', () => {
+  const listed = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    version: 1,
+    fields: [
+      {
+        id: 'tasks',
+        type: 'row_list',
+        prompt: 'Add what you are carrying.',
+        columns: [
+          { id: 'what', label: 'What', type: 'text' },
+          {
+            id: 'box',
+            label: 'Which box',
+            type: 'choice',
+            options: [
+              { value: 'now', label: 'Urgent and important' },
+              { value: 'later', label: 'Important, not urgent' },
+            ],
+          },
+        ],
+        ...over,
+      },
+    ],
+  });
+
+  it('validates and takes one option value per row', () => {
+    const result = validateWorksheetContent(listed());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(validateWorksheetAnswers(result.content, { tasks: [{ what: 'A', box: 'now' }] })).toEqual([]);
+    expect(validateWorksheetAnswers(result.content, { tasks: [{ what: 'A', box: 'nope' }] })).toHaveLength(1);
+    expect(validateWorksheetAnswers(result.content, { tasks: [{ what: 'A', box: 3 }] })).toHaveLength(1);
+  });
+
+  it('refuses a choice column with no options, and options on any other type', () => {
+    const noOptions = listed();
+    ((noOptions.fields as any[])[0].columns[1] as Record<string, unknown>).options = undefined;
+    expect(validateWorksheetContent(noOptions).ok).toBe(false);
+
+    const textWithOptions = listed();
+    (textWithOptions.fields as any[])[0].columns[0].options = [
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ];
+    expect(validateWorksheetContent(textWithOptions).ok).toBe(false);
+  });
+
+  it('keeps duplicate option values out of a column', () => {
+    const dup = listed();
+    (dup.fields as any[])[0].columns[1].options = [
+      { value: 'same', label: 'One' },
+      { value: 'same', label: 'Two' },
+    ];
+    expect(validateWorksheetContent(dup).ok).toBe(false);
+  });
+});
+
+describe('closing.discardWhen', () => {
+  const letter = (closing: Record<string, unknown>): Record<string, unknown> => ({
+    version: 1,
+    fields: [
+      { id: 'letter', type: 'long_text', prompt: 'Write it.' },
+      {
+        id: 'keep',
+        type: 'choice',
+        prompt: 'What now?',
+        options: [
+          { value: 'keep', label: 'Keep it' },
+          { value: 'delete', label: 'Delete it' },
+        ],
+      },
+    ],
+    closing: { text: 'Done.', ...closing },
+  });
+
+  it('accepts a field and values that exist', () => {
+    const result = validateWorksheetContent(letter({ discardWhen: { field: 'keep', in: ['delete'] } }));
+    expect(result.ok).toBe(true);
+  });
+
+  it('refuses a field that is not earlier, or a value that is not an option', () => {
+    expect(validateWorksheetContent(letter({ discardWhen: { field: 'letter', in: ['delete'] } })).ok).toBe(false);
+    expect(validateWorksheetContent(letter({ discardWhen: { field: 'keep', in: ['burn'] } })).ok).toBe(false);
+    expect(validateWorksheetContent(letter({ discardWhen: { field: 'keep', in: [] } })).ok).toBe(false);
+  });
+
+  it('refuses an unknown key inside it', () => {
+    expect(
+      validateWorksheetContent(letter({ discardWhen: { field: 'keep', in: ['delete'], unless: 'x' } })).ok,
+    ).toBe(false);
   });
 });

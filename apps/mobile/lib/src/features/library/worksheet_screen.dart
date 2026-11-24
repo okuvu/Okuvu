@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
 import 'library_api.dart';
 import '../sharing/sharing.dart';
+import '../my_space/my_space_providers.dart';
 import 'worksheet_draft_store.dart';
 import 'worksheet_runner_screen.dart';
 import 'worksheet_spec.dart';
@@ -108,10 +109,40 @@ class WorksheetScreen extends ConsumerWidget {
           );
           responseId = result.id.isEmpty ? null : result.id;
 
+          // "Keep it privately / Delete it": the worksheet body declares which
+          // answer means discard (closing.discardWhen), so no screen hard-codes a
+          // field id. Deleting uses the same endpoint as the client's own Past me,
+          // and only the content-free safety flag stays behind.
+          final discard = content.closing?.discardWhen;
+          final discardAnswer = discard == null ? null : answers[discard.field];
+          final discardIt =
+              discard != null && discardAnswer is String && discard.values.contains(discardAnswer);
+          var discardFailed = false;
+          if (discardIt && responseId != null) {
+            final deleted = await ref.read(myDataProvider.notifier).deleteItem(
+                  kind: 'worksheet_response',
+                  id: responseId!,
+                );
+            if (deleted) {
+              responseId = null;
+            } else {
+              discardFailed = true;
+            }
+          }
+
           // Saved. Only now is the local draft safe to drop.
           await WorksheetDraftStore().clear(uid, entry.toolId);
 
           if (!context.mounted) return;
+          if (discardFailed) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  "Couldn't delete that just now. You can delete it from Past me.",
+                ),
+              ),
+            );
+          }
           if (result.showHelp) {
             // Crisis: the answers are saved, and the card comes up at once.
             ref.read(crisisOverlayProvider.notifier).show();
@@ -130,7 +161,7 @@ class WorksheetScreen extends ConsumerWidget {
                 ),
               ),
             );
-          } else if (entry.accessMode == 'assigned' && responseId != null) {
+          } else if (entry.accessMode == 'assigned' && responseId != null && !discardIt) {
             // Owner's rule: after an assigned worksheet, ask whether to
             // share it. Two equal buttons, neither chosen in advance, and
             // nothing happens unless the client taps one. Not asked after a

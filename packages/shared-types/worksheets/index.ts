@@ -17,6 +17,7 @@ import { noticeAndNameEntries } from '@okuvu/shared-types/worksheets/notice-and-
 import { peopleBoundariesEntries } from '@okuvu/shared-types/worksheets/people-boundaries';
 import { placeholderEntries } from '@okuvu/shared-types/worksheets/placeholders';
 import { safetyEntries } from '@okuvu/shared-types/worksheets/safety';
+import { stressAndBurnoutEntries } from '@okuvu/shared-types/worksheets/stress-and-burnout';
 import { untangleThoughtsEntries } from '@okuvu/shared-types/worksheets/untangle-thoughts';
 import { ENGLISH_APPROVAL, isListable, type CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
@@ -35,6 +36,10 @@ export const CATALOGUE: CatalogueEntry[] = [
   ...beforeAfterEntries,
   ...safetyEntries,
   ...placeholderEntries,
+  // Appended, not inserted: the generated seed migration numbers its row ids by
+  // array position, so an entry added in the middle would renumber rows that
+  // already exist. Library order comes from `sort_order`, never from this index.
+  ...stressAndBurnoutEntries,
 ];
 
 /** What a client or therapist may see: approved rows only, in order. */

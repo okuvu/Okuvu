@@ -17,6 +17,7 @@ import {
   stripTherapistCopy,
   toClientWorksheetView,
   validateWorksheetTranslation,
+  worksheetRowProblems,
   type WorksheetContent,
 } from '../worksheet';
 
@@ -87,10 +88,10 @@ describe('catalogue content', () => {
   });
 
   it('keeps every placeholder hidden, empty and unapproved', () => {
-    // Fifteen from the first catalogue pass, plus three the owner's 24 Nov 2026
-    // rules named so their ids and their deeper screen exist before the wording
-    // does: Comparison check, Meet the inner critic, Exposure ladder.
-    expect(PLACEHOLDER_CATALOGUE).toHaveLength(18);
+    // Fourteen left: the 24 Nov 2026 batch filled four placeholders in — Boundary
+    // planner, Unsent letter, Scrolling log (now Doomscroll log) and Pros and cons
+    // of change (now Weighing it up) — and kept their ids.
+    expect(PLACEHOLDER_CATALOGUE).toHaveLength(14);
     for (const entry of PLACEHOLDER_CATALOGUE) {
       expect(entry.status).toBe('placeholder');
       expect(entry.content_en).toBeNull();
@@ -170,6 +171,114 @@ describe('catalogue content', () => {
       if (!entry.content_en || !entry.therapist_note) continue;
       const view = toClientWorksheetView(toRegistryRow(entry));
       expect(JSON.stringify(view)).not.toContain(entry.therapist_note.slice(0, 40));
+    }
+  });
+});
+
+/**
+ * The Stress & Burnout batch of 24 November 2026.
+ *
+ * These are DRAFTS: written, validated and previewable, and switched off for
+ * clients. The checks below are the rules that can be broken by content alone,
+ * so they run on the catalogue rather than on the database.
+ */
+describe('the Stress & Burnout drafts', () => {
+  const drafts = CATALOGUE.filter((entry) => entry.status === 'draft');
+
+  it('is the ten the owner briefed, in the owner\'s order', () => {
+    expect(drafts.map((entry) => entry.label)).toEqual([
+      "What's on my plate",
+      'Basics check',
+      'Rest break',
+      'Boundary planner',
+      'Priority sorter',
+      'Doomscroll log',
+      'Weekly load check',
+      'Unsent letter',
+      'Weighing it up',
+      'Caring load check',
+    ]);
+  });
+
+  it('passes the same checks a save runs', () => {
+    for (const entry of drafts) {
+      expect({ tool: entry.tool_id, problems: worksheetRowProblems(toRegistryRow(entry)) }).toEqual({
+        tool: entry.tool_id,
+        problems: [],
+      });
+    }
+  });
+
+  it('carries the Stress & Burnout label and nothing else', () => {
+    for (const entry of drafts) {
+      expect({ tool: entry.tool_id, care_plans: entry.care_plans }).toEqual({
+        tool: entry.tool_id,
+        care_plans: ['stress_burnout'],
+      });
+    }
+  });
+
+  it('opens only the way the brief says: S for anyone, A through the therapist', () => {
+    const brief: Record<string, 'open' | 'assigned'> = {
+      ws_whats_on_my_plate: 'open',
+      ws_basics_check: 'open',
+      ws_rest_break: 'open',
+      ws_boundary_planner: 'assigned',
+      ws_priority_sorter: 'assigned',
+      ws_scrolling_log: 'open',
+      ws_weekly_load_check: 'assigned',
+      ws_unsent_letter: 'assigned',
+      ws_pros_cons_change: 'assigned',
+      ws_caring_load_check: 'assigned',
+    };
+    for (const entry of drafts) {
+      expect({ tool: entry.tool_id, access: entry.access_mode }).toEqual({
+        tool: entry.tool_id,
+        access: brief[entry.tool_id],
+      });
+    }
+  });
+
+  it('gives the deeper screen to the doomscroll log and the unsent letter only', () => {
+    expect(drafts.filter((entry) => entry.sensitive_check).map((entry) => entry.tool_id).sort()).toEqual([
+      'ws_scrolling_log',
+      'ws_unsent_letter',
+    ]);
+  });
+
+  it('keeps the high-load letter demanding, and everything else light', () => {
+    // The only `demanding` draft, because the owner said "High load" for it.
+    expect(drafts.filter((entry) => entry.load_level === 'demanding').map((entry) => entry.tool_id)).toEqual([
+      'ws_unsent_letter',
+    ]);
+  });
+
+  it('ships no Hinglish until the English is approved', () => {
+    for (const entry of drafts) {
+      expect({ tool: entry.tool_id, hi: entry.content_hi, labelHi: entry.label_hi }).toEqual({
+        tool: entry.tool_id,
+        hi: null,
+        labelHi: null,
+      });
+    }
+  });
+
+  it('reads back the keep-or-delete choice only where it exists', () => {
+    const withDiscard = drafts.filter((entry) => entry.content_en?.closing?.discardWhen);
+    expect(withDiscard.map((entry) => entry.tool_id)).toEqual(['ws_unsent_letter']);
+    const discard = withDiscard[0].content_en!.closing!.discardWhen!;
+    expect(discard).toEqual({ field: 'keep', in: ['delete'] });
+    const choice = withDiscard[0].content_en!.fields.find((field) => field.id === discard.field);
+    expect(choice && 'options' in choice ? choice.options.map((o) => o.value) : []).toEqual([
+      'keep',
+      'delete',
+    ]);
+  });
+
+  it('uses one slider and no totals anywhere', () => {
+    for (const entry of drafts) {
+      const text = JSON.stringify(entry.content_en).toLowerCase();
+      expect(text).not.toMatch(/total|overall|your score|stress level|burnout level/);
     }
   });
 });

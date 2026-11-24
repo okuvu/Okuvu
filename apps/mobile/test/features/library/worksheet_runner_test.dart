@@ -604,4 +604,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Kept safe.'), findsOneWidget);
   });
+
+  testWidgets('a choice column labels one row and stores only the option tapped', (tester) async {
+    final listed = {
+      'version': 1,
+      'fields': [
+        {
+          'id': 'tasks',
+          'type': 'row_list',
+          'prompt': 'Add the things you are carrying.',
+          'columns': [
+            {'id': 'what', 'label': 'What', 'type': 'text'},
+            {
+              'id': 'box',
+              'label': 'Which box',
+              'type': 'choice',
+              'options': [
+                {'value': 'urgent_important', 'label': 'Urgent and important'},
+                {'value': 'neither', 'label': 'Neither'},
+              ],
+            },
+          ],
+        },
+      ],
+      'closing': {
+        'text': 'Done.',
+        'buttons': [
+          {'label': 'Done', 'action': 'done'},
+        ],
+      },
+    };
+    final content = parseWorksheetContent(listed);
+    WorksheetAnswers? sent;
+    await tester.pumpWidget(harness(
+      content: content,
+      onFinished: (answers, result) async => sent = answers,
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+
+    // The list starts empty: the client adds a row, then fills and labels it.
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Add a row'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Finish the report');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Neither'));
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+    await walkToClosing(tester);
+
+    expect(sent, isNotNull);
+    final rows = sent!['tasks'];
+    expect(rows, isA<List<dynamic>>());
+    expect((rows as List).single, {'what': 'Finish the report', 'box': 'neither'});
+  });
 }

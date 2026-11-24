@@ -8,18 +8,178 @@
  * migration still matches it — drift fails the build instead of shipping a
  * portal that previews something the database does not contain.
  *
- * Run (writes the file): WRITE_WORKSHEET_SQL=1 npx vitest run __tests__/migration.test.ts
+ * Two files, because one of them is already applied:
+ *
+ *  - the original seed (`20261109130000_seed_library_worksheets`) carries the
+ *    approved rows and the placeholders. Drafts are filtered OUT of it, so
+ *    adding a draft never rewrites a migration production may already have run;
+ *  - a drafts seed per batch (`20261124140000_seed_stress_burnout_drafts`)
+ *    inserts the `status: 'draft'` rows. They are in the database so a therapist
+ *    can preview them, and invisible to every client query because it filters on
+ *    `status = 'approved'`.
+ *
+ * Run (writes both files): WRITE_WORKSHEET_SQL=1 npx vitest run __tests__/migration.test.ts
  */
 import { CATALOGUE, LISTABLE_CATALOGUE } from '@okuvu/shared-types/worksheets';
 import { BREATHING_CHILD_TOOL_IDS } from '@okuvu/shared-types/worksheets/types';
+import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
 const MIGRATION_DIR = '20261109130000_seed_library_worksheets';
+
+/** The first batch of drafts: the Stress & Burnout worksheets of 24 Nov 2026. */
+const DRAFTS_MIGRATION_DIR = '20261124140000_seed_stress_burnout_drafts';
 
 /** Deterministic ids so re-running against an upgrade database is idempotent. */
 function rowId(index: number): string {
   const n = (index + 1).toString(16).padStart(12, '0');
   return `c1b2a3d4-0000-4e00-9000-${n}`;
 }
+
+/**
+ * The row order the applied seed was generated in, frozen.
+ *
+ * Row ids are derived from this index. Recomputing them from the current
+ * CATALOGUE would renumber every row after the first placeholder that later
+ * became a real worksheet, which rewrites a migration production may already
+ * have run — exactly what this split exists to avoid. New rows get ids from
+ * `DRAFT_ID_BASE` instead, so this list never needs to grow.
+ */
+const LEGACY_SEED_ORDER = [
+  'mood_checkin',
+  'ws_name_the_feeling',
+  'grounding_5431',
+  'breathing',
+  'ws_thought_record',
+  'ws_thinking_trap',
+  'ws_worry_tree',
+  'ws_small_things',
+  'ws_values_compass',
+  'ws_hard_conversation',
+  'ws_kind_friend_letter',
+  'ws_three_good_things',
+  'ws_energy_audit',
+  'ws_bring_to_session',
+  'ws_post_session',
+  'ws_safety_plan',
+  'ws_body_map',
+  'ws_unhooking',
+  'ws_fear_ladder',
+  'ws_tiny_steps',
+  'ws_problem_solving',
+  'ws_boundary_planner',
+  'ws_unsent_letter',
+  'ws_naming_the_problem',
+  'ws_miracle_question',
+  'ws_strengths',
+  'ws_exam_career_pressure',
+  'ws_sleep_diary',
+  'ws_scrolling_log',
+  'ws_family_expectations',
+  'ws_comparison_check',
+  'ws_inner_critic',
+  'ws_exposure_ladder',
+  'ws_pros_cons_change',
+] as const;
+
+/** First id index for rows that were never in the applied seed. */
+const DRAFT_ID_BASE = 1000;
+
+/**
+ * The ten Stress & Burnout rows of 24 Nov 2026, in the owner's order.
+ *
+ * Membership is a list rather than "whatever is `draft` today", so approving one
+ * later changes only its status cell in the drafts migration and cannot pull the
+ * row back into the applied seed. A later batch gets its own list and its own
+ * migration.
+ */
+export const DRAFT_BATCH_IDS = [
+  'ws_whats_on_my_plate',
+  'ws_basics_check',
+  'ws_rest_break',
+  'ws_boundary_planner',
+  'ws_priority_sorter',
+  'ws_scrolling_log',
+  'ws_weekly_load_check',
+  'ws_unsent_letter',
+  'ws_pros_cons_change',
+  'ws_caring_load_check',
+] as const;
+
+/**
+ * The four placeholder rows from the applied seed that this batch turns into real
+ * worksheets: Boundary planner (950), Unsent letter (960), Scrolling log (1020)
+ * and Pros and cons of change (1040).
+ *
+ * They are frozen here with the copy the applied migration wrote. The seed file
+ * has to stay byte-identical — production may already have run it — so the seed
+ * still creates the placeholder, and the drafts migration upgrades that row in
+ * place through ON CONFLICT. Nothing reads these objects at runtime; they exist
+ * only so a historical migration can be regenerated.
+ */
+function frozenPlaceholder(
+  tool_id: string,
+  label: string,
+  purpose: string,
+  section: CatalogueEntry['section'],
+  sort_order: number,
+  sensitiveCheck: boolean,
+): CatalogueEntry {
+  return {
+    tool_id,
+    label,
+    label_hi: null,
+    summary: purpose,
+    summary_hi: null,
+    section,
+    therapy_modality: null,
+    therapist_note: null,
+    access_mode: 'assigned',
+    load_level: null,
+    est_minutes: null,
+    sort_order,
+    status: 'placeholder',
+    content_en: null,
+    content_hi: null,
+    opens: 'worksheet',
+    care_plans: [],
+    sensitive_check: sensitiveCheck,
+  };
+}
+
+const FROZEN_DRAFT_PLACEHOLDERS: Record<string, CatalogueEntry> = {
+  ws_boundary_planner: frozenPlaceholder(
+    'ws_boundary_planner',
+    'Boundary planner',
+    'Work out what a boundary is, what to say, and what to do if it is pushed.',
+    'people_boundaries',
+    950,
+    false,
+  ),
+  ws_unsent_letter: frozenPlaceholder(
+    'ws_unsent_letter',
+    'Unsent letter',
+    'Write what was never said to someone, without sending it.',
+    'people_boundaries',
+    960,
+    true,
+  ),
+  ws_scrolling_log: frozenPlaceholder(
+    'ws_scrolling_log',
+    'Scrolling log',
+    'Note when and why scrolling happens, and how it felt afterwards.',
+    'energy_life',
+    1020,
+    true,
+  ),
+  ws_pros_cons_change: frozenPlaceholder(
+    'ws_pros_cons_change',
+    'Pros and cons of change',
+    'Lay out the costs and benefits of changing, and of staying the same.',
+    'do_what_matters',
+    1040,
+    false,
+  ),
+};
 
 function q(value: string | null): string {
   if (value === null) return 'NULL';
@@ -35,7 +195,106 @@ function tagFor(toolId: string): string {
   return `ws_${toolId.replace(/[^a-z0-9_]/g, '_')}`;
 }
 
+const COLUMNS = [
+  'id',
+  'tool_id',
+  'label',
+  'label_hi',
+  'text',
+  'chat_guidable',
+  'kind',
+  'summary',
+  'summary_hi',
+  'section',
+  'therapy_modality',
+  'therapist_note',
+  'access_mode',
+  'load_level',
+  'est_minutes',
+  'content_en',
+  'content_hi',
+  'status',
+  'approved_at',
+  'sort_order',
+  'library_group',
+  'care_plans',
+  'sensitive_check',
+  'updated_at',
+];
+
+type IndexedEntry = { entry: CatalogueEntry; index: number };
+
+function buildInsert(rows: IndexedEntry[]): string[] {
+  const lines: string[] = [];
+  lines.push(`INSERT INTO "ToolRegistryEntry" (${COLUMNS.map((c) => `"${c}"`).join(', ')}) VALUES`);
+
+  const values = rows.map(({ entry, index }) => {
+    const cells = [
+      q(rowId(index)),
+      q(entry.tool_id),
+      q(entry.label),
+      q(entry.label_hi),
+      q(entry.summary),
+      'false',
+      q(
+        entry.opens === 'breathing'
+          ? 'group'
+          : entry.opens === 'grounding'
+            ? 'exercise'
+            : 'worksheet',
+      ),
+      q(entry.summary),
+      q(entry.summary_hi),
+      q(entry.section),
+      q(entry.therapy_modality),
+      q(entry.therapist_note),
+      q(entry.access_mode),
+      q(entry.load_level),
+      entry.est_minutes === null ? 'NULL' : String(entry.est_minutes),
+      jsonb(entry.content_en, tagFor(entry.tool_id)),
+      jsonb(entry.content_hi, tagFor(entry.tool_id)),
+      q(entry.status),
+      entry.status === 'approved' ? `'2026-11-09'::timestamp` : 'NULL',
+      String(entry.sort_order),
+      q(entry.library_group ?? null),
+      `ARRAY[${entry.care_plans.map((label) => q(label)).join(', ')}]::TEXT[]`,
+      entry.sensitive_check ? 'true' : 'false',
+      // Prisma sets @updatedAt on the client, so the column has no default.
+      'CURRENT_TIMESTAMP',
+    ];
+    return `    (${cells.join(', ')})`;
+  });
+
+  lines.push(values.join(',\n'));
+  lines.push(
+    'ON CONFLICT ("tool_id") DO UPDATE SET',
+    '    "label" = EXCLUDED."label",',
+    '    "label_hi" = EXCLUDED."label_hi",',
+    '    "kind" = EXCLUDED."kind",',
+    '    "summary" = EXCLUDED."summary",',
+    '    "summary_hi" = EXCLUDED."summary_hi",',
+    '    "section" = EXCLUDED."section",',
+    '    "therapy_modality" = EXCLUDED."therapy_modality",',
+    '    "therapist_note" = EXCLUDED."therapist_note",',
+    '    "access_mode" = EXCLUDED."access_mode",',
+    '    "load_level" = EXCLUDED."load_level",',
+    '    "est_minutes" = EXCLUDED."est_minutes",',
+    '    "content_en" = EXCLUDED."content_en",',
+    '    "content_hi" = EXCLUDED."content_hi",',
+    '    "status" = EXCLUDED."status",',
+    '    "approved_at" = EXCLUDED."approved_at",',
+    '    "sort_order" = EXCLUDED."sort_order",',
+    '    "library_group" = EXCLUDED."library_group",',
+    '    "care_plans" = EXCLUDED."care_plans",',
+    '    "sensitive_check" = EXCLUDED."sensitive_check",',
+    '    "updated_at" = CURRENT_TIMESTAMP;',
+    '',
+  );
+  return lines;
+}
+
 export const MIGRATION_PATH = `packages/prisma/migrations/${MIGRATION_DIR}/migration.sql`;
+export const DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${DRAFTS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
   const lines: string[] = [];
@@ -83,97 +342,18 @@ export function buildMigrationSql(): string {
     '',
   );
 
-  const columns = [
-    'id',
-    'tool_id',
-    'label',
-    'label_hi',
-    'text',
-    'chat_guidable',
-    'kind',
-    'summary',
-    'summary_hi',
-    'section',
-    'therapy_modality',
-    'therapist_note',
-    'access_mode',
-    'load_level',
-    'est_minutes',
-    'content_en',
-    'content_hi',
-    'status',
-    'approved_at',
-    'sort_order',
-    'library_group',
-    'care_plans',
-    'sensitive_check',
-    'updated_at',
-  ];
-
-  lines.push(`INSERT INTO "ToolRegistryEntry" (${columns.map((c) => `"${c}"`).join(', ')}) VALUES`);
-
-  const rows = CATALOGUE.map((entry, index) => {
-    const text = entry.summary;
-    const values = [
-      q(rowId(index)),
-      q(entry.tool_id),
-      q(entry.label),
-      q(entry.label_hi),
-      q(text),
-      'false',
-      q(
-        entry.opens === 'breathing'
-          ? 'group'
-          : entry.opens === 'grounding'
-            ? 'exercise'
-            : 'worksheet',
-      ),
-      q(entry.summary),
-      q(entry.summary_hi),
-      q(entry.section),
-      q(entry.therapy_modality),
-      q(entry.therapist_note),
-      q(entry.access_mode),
-      q(entry.load_level),
-      entry.est_minutes === null ? 'NULL' : String(entry.est_minutes),
-      jsonb(entry.content_en, tagFor(entry.tool_id)),
-      jsonb(entry.content_hi, tagFor(entry.tool_id)),
-      q(entry.status),
-      entry.status === 'approved' ? `'2026-11-09'::timestamp` : 'NULL',
-      String(entry.sort_order),
-      q(entry.library_group ?? null),
-      `ARRAY[${entry.care_plans.map((label) => q(label)).join(', ')}]::TEXT[]`,
-      entry.sensitive_check ? 'true' : 'false',
-      // Prisma sets @updatedAt on the client, so the column has no default.
-      'CURRENT_TIMESTAMP',
-    ];
-    return `    (${values.join(', ')})`;
-  });
-
-  lines.push(rows.join(',\n'));
   lines.push(
-    'ON CONFLICT ("tool_id") DO UPDATE SET',
-    '    "label" = EXCLUDED."label",',
-    '    "label_hi" = EXCLUDED."label_hi",',
-    '    "kind" = EXCLUDED."kind",',
-    '    "summary" = EXCLUDED."summary",',
-    '    "summary_hi" = EXCLUDED."summary_hi",',
-    '    "section" = EXCLUDED."section",',
-    '    "therapy_modality" = EXCLUDED."therapy_modality",',
-    '    "therapist_note" = EXCLUDED."therapist_note",',
-    '    "access_mode" = EXCLUDED."access_mode",',
-    '    "load_level" = EXCLUDED."load_level",',
-    '    "est_minutes" = EXCLUDED."est_minutes",',
-    '    "content_en" = EXCLUDED."content_en",',
-    '    "content_hi" = EXCLUDED."content_hi",',
-    '    "status" = EXCLUDED."status",',
-    '    "approved_at" = EXCLUDED."approved_at",',
-    '    "sort_order" = EXCLUDED."sort_order",',
-    '    "library_group" = EXCLUDED."library_group",',
-    '    "care_plans" = EXCLUDED."care_plans",',
-    '    "sensitive_check" = EXCLUDED."sensitive_check",',
-    '    "updated_at" = CURRENT_TIMESTAMP;',
-    '',
+    ...buildInsert(
+      LEGACY_SEED_ORDER.map((id, index) => {
+        const current = CATALOGUE.find((row) => row.tool_id === id);
+        const entry = FROZEN_DRAFT_PLACEHOLDERS[id] ?? current;
+        if (!entry) throw new Error(`seed row "${id}" is not in the catalogue`);
+        return { entry, index };
+      }),
+    ),
+  );
+
+  lines.push(
     '-- Grounding already carries its approved description in `text`; summarising',
     '-- from the column keeps the two from drifting apart.',
     `UPDATE "ToolRegistryEntry" SET "summary" = "text" WHERE "tool_id" = 'grounding_5431';`,
@@ -208,7 +388,45 @@ export function buildMigrationSql(): string {
   return lines.join('\n');
 }
 
+/**
+ * The draft rows, in their own migration. `status = 'draft'` is written
+ * explicitly for every row: nothing here relies on a column default to stay
+ * switched off, and the ON CONFLICT branch cannot promote an existing row.
+ */
+export function buildDraftsSql(): string {
+  const lines: string[] = [
+    '-- Stress & Burnout worksheets, 24 November 2026: the ten the owner briefed.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- Every row is `draft`: a therapist can preview it, and no client can open,',
+    '-- list or be assigned one until the owner approves its wording. Four rows',
+    '-- reuse a placeholder id the applied seed already created (Boundary planner,',
+    '-- Unsent letter, Scrolling log, Pros and cons of change) and are upgraded in',
+    '-- place by the ON CONFLICT branch; the other six are new.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      DRAFT_BATCH_IDS.map((id, i) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`draft batch row "${id}" is not in the catalogue`);
+        return { entry, index: DRAFT_ID_BASE + i };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
 /** Rows the client-facing Library may list. Mirrors `LISTABLE_CATALOGUE`. */
 export function listableToolIds(): string[] {
   return LISTABLE_CATALOGUE.map((entry) => entry.tool_id);
+}
+
+/** Draft rows, by id. Used by the tests and the review document. */
+export function draftEntries(): CatalogueEntry[] {
+  return CATALOGUE.filter((entry) => entry.status === 'draft');
 }

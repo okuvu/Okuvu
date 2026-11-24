@@ -619,6 +619,26 @@ function RowCell({
     );
   }
 
+  if (column.type === 'choice') {
+    return (
+      <label className="flex min-w-[140px] flex-1 flex-col gap-1 text-[11px] text-gray-500">
+        {column.label}
+        <select
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => onChange(event.target.value)}
+          className="rounded-lg border border-hairline bg-white px-2 py-1 text-sm"
+        >
+          <option value="">—</option>
+          {(column.options ?? []).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
   return (
     <label className="flex min-w-[140px] flex-1 flex-col gap-1 text-[11px] text-gray-500">
       {column.label}

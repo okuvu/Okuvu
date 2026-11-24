@@ -34,13 +34,21 @@ class WorksheetFeeling {
 
 /// A column of an add-your-own-rows list.
 class WorksheetRowColumn {
-  const WorksheetRowColumn({required this.id, required this.label, required this.type});
+  const WorksheetRowColumn({
+    required this.id,
+    required this.label,
+    required this.type,
+    this.options = const [],
+  });
 
   final String id;
   final String label;
 
-  /// 'text' | 'scale_0_10' | 'datetime'
+  /// 'text' | 'scale_0_10' | 'datetime' | 'choice'
   final String type;
+
+  /// The values a `choice` column offers; empty for every other type.
+  final List<WorksheetOption> options;
 }
 
 /// A forward-only branch: show this piece only when an earlier choice or
@@ -154,10 +162,22 @@ class WorksheetField {
 
 /// The closing line and buttons under the last piece.
 class WorksheetClosing {
-  const WorksheetClosing({this.text, this.buttons = const []});
+  const WorksheetClosing({this.text, this.buttons = const [], this.discardWhen});
 
   final String? text;
   final List<WorksheetClosingButton> buttons;
+
+  /// The worksheet's own "delete it" rule, when it has one. The content decides
+  /// which answer means discard, so no screen knows a field id.
+  final WorksheetDiscardRule? discardWhen;
+}
+
+/// "Answer this with one of these values, and the saved entry is deleted."
+class WorksheetDiscardRule {
+  const WorksheetDiscardRule({required this.field, required this.values});
+
+  final String field;
+  final List<String> values;
 }
 
 /// A button that ends the worksheet. `action` is one of 'done' | 'treasure_box'.
@@ -359,11 +379,36 @@ WorksheetContent parseWorksheetContent(Object? raw) {
           continue;
         }
         if (label is! String || label.isEmpty) problems.add('$at.columns[$ci].label: required');
-        if (ctype is! String || !['text', 'scale_0_10', 'datetime'].contains(ctype)) {
-          problems.add('$at.columns[$ci].type: must be text, scale_0_10 or datetime');
+        if (ctype is! String || !['text', 'scale_0_10', 'datetime', 'choice'].contains(ctype)) {
+          problems.add('$at.columns[$ci].type: must be text, scale_0_10, datetime or choice');
           continue;
         }
-        columns.add(WorksheetRowColumn(id: cid, label: label is String ? label : cid, type: ctype));
+        final columnOptions = <WorksheetOption>[];
+        if (ctype == 'choice') {
+          final rawOptions = c['options'];
+          if (rawOptions is! List || rawOptions.length < 2) {
+            problems.add('$at.columns[$ci].options: at least two options are required');
+            continue;
+          }
+          for (final rawOption in rawOptions) {
+            if (rawOption is! Map) continue;
+            final value = rawOption['value'];
+            final optionLabel = rawOption['label'];
+            if (value is! String || value.isEmpty || optionLabel is! String) {
+              problems.add('$at.columns[$ci].options: value and label are required');
+              continue;
+            }
+            columnOptions.add(WorksheetOption(value: value, label: optionLabel));
+          }
+        }
+        columns.add(
+          WorksheetRowColumn(
+            id: cid,
+            label: label is String ? label : cid,
+            type: ctype,
+            options: columnOptions,
+          ),
+        );
       }
     }
     if (type == 'row_list' && columns.isEmpty) {
@@ -524,9 +569,22 @@ WorksheetContent parseWorksheetContent(Object? raw) {
         buttons.add(WorksheetClosingButton(label: label, action: action));
       }
     }
+    WorksheetDiscardRule? discardWhen;
+    final rawDiscard = rawClosing['discardWhen'];
+    if (rawDiscard is Map) {
+      final field = rawDiscard['field'];
+      final values = rawDiscard['in'];
+      if (field is String && field.isNotEmpty && values is List && values.isNotEmpty) {
+        final parsed = values.whereType<String>().toList();
+        if (parsed.isNotEmpty) {
+          discardWhen = WorksheetDiscardRule(field: field, values: parsed);
+        }
+      }
+    }
     closing = WorksheetClosing(
       text: rawClosing['text'] is String ? rawClosing['text'] as String : null,
       buttons: buttons,
+      discardWhen: discardWhen,
     );
   }
 
@@ -710,6 +768,12 @@ List<String> worksheetAnswerProblems(WorksheetContent content, WorksheetAnswers 
             }
             if (column.type == 'scale_0_10' && (value is! int || value < 0 || value > 10)) {
               problems.add('${field.id}.${column.id}: must be a whole number between 0 and 10');
+            }
+            if (column.type == 'choice') {
+              final values = column.options.map((o) => o.value).toList();
+              if (value is! String || !values.contains(value)) {
+                problems.add('${field.id}.${column.id}: must be one of its options');
+              }
             }
           }
         }
