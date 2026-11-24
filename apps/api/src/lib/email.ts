@@ -161,6 +161,12 @@ export interface SendSafetyAlertEmailParams {
   level: 'S3' | 'S4';
   occurredAt: Date;
   link: string;
+  /**
+   * The alert is urgent (owner's approval, 24 Nov 2026). It leads the subject
+   * line and adds one line to the body. The email still carries no message text
+   * — the words are read in the portal, which is the protected surface.
+   */
+  urgent?: boolean;
 }
 
 /** A date and time a therapist in India reads without translating. */
@@ -204,9 +210,15 @@ export async function sendSafetyAlertEmail(
 
   const greeting = params.therapistName ? `Hi ${params.therapistName},` : 'Hi,';
   const when = formatAlertTimestamp(params.occurredAt);
+  const urgent = params.urgent === true;
+  const urgentLine = urgent
+    ? '<p><strong>This one is marked urgent.</strong> It was flagged on a worksheet answer, ' +
+      'and the client&rsquo;s own words are on their Safety card in the portal.</p>'
+    : '';
   const htmlContent = `
     <p>${greeting}</p>
     <p><strong>${params.clientLabel}</strong> had an <strong>${params.level}</strong> safety event on ${when}.</p>
+    ${urgentLine}
     <p><a href="${params.link}">Review the flag in the portal</a></p>
     <p>Okuvu is not monitored 24/7. Alerts come to you; they do not go to emergency services.</p>
   `;
@@ -221,7 +233,9 @@ export async function sendSafetyAlertEmail(
     body: JSON.stringify({
       sender: { email: fromEmail, name: fromName },
       to: [{ email: params.to, name: params.therapistName ?? undefined }],
-      subject: `${params.level} safety event — ${params.clientLabel}, ${when}`,
+      subject: urgent
+        ? `URGENT ${params.level} safety event — ${params.clientLabel}, ${when}`
+        : `${params.level} safety event — ${params.clientLabel}, ${when}`,
       htmlContent,
     }),
   });

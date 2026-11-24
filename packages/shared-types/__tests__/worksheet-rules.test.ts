@@ -56,7 +56,7 @@ describe('rule 1 — care plan labels', () => {
     ['ws_bring_to_session', ['all']],
     ['ws_post_session', ['all']],
     ['ws_safety_plan', ['all']],
-    // The eight the owner approved on 24 Nov 2026, all Stress & Burnout.
+    // The ten the owner approved on 24 Nov 2026, all Stress & Burnout.
     ['ws_whats_on_my_plate', ['stress_burnout']],
     ['ws_basics_check', ['stress_burnout']],
     ['ws_rest_break', ['stress_burnout']],
@@ -64,6 +64,8 @@ describe('rule 1 — care plan labels', () => {
     ['ws_priority_sorter', ['stress_burnout']],
     ['ws_scrolling_log', ['stress_burnout']],
     ['ws_weekly_load_check', ['stress_burnout']],
+    ['ws_unsent_letter', ['stress_burnout']],
+    ['ws_pros_cons_change', ['stress_burnout']],
     ['ws_caring_load_check', ['stress_burnout']],
   ];
 
@@ -146,11 +148,11 @@ describe('rule 2 — a new worksheet starts switched off', () => {
     };
     expect(LISTABLE_CATALOGUE.includes(draft)).toBe(false);
     // `isListable` is the one filter every list uses. The two Stress & Burnout
-    // worksheets the owner sent back for a wording change (24 Nov 2026) sit in
-    // the catalogue as drafts, and neither is in a list a client or the chat
-    // can see.
+    // worksheets the owner sent back for a wording change (24 Nov 2026) were
+    // revised and approved the same day, so the 24 Nov batch has no draft left;
+    // the state still has to hold for whatever is drafted next.
     const drafts = CATALOGUE.filter((r) => r.status === 'draft');
-    expect(drafts.map((r) => r.tool_id).sort()).toEqual(['ws_pros_cons_change', 'ws_unsent_letter']);
+    expect(drafts.map((r) => r.tool_id)).toEqual([]);
     for (const row of drafts) {
       expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain(row.tool_id);
       expect(row.content_en).not.toBeNull();
@@ -188,12 +190,12 @@ describe('rule 3 — the deeper screen belongs to the five named worksheets', ()
   });
 
   it('leaves every approved worksheet on the screen its row asks for', () => {
-    // The Doomscroll log is approved now and still carries the deeper screen, so
-    // "approved" and "shared-screen only" are not the same set any more. What
-    // must stay true: an approved row never quietly loses the deeper screen, and
-    // no other approved row gains it.
+    // The Doomscroll log and the Unsent letter are both approved now and both
+    // carry the deeper screen, so "approved" and "deeper screen" are not
+    // exclusive sets. What must stay true: an approved row never quietly loses
+    // the deeper screen, and no other approved row gains it.
     const deeper = LISTABLE_CATALOGUE.filter((row) => row.sensitive_check).map((row) => row.tool_id);
-    expect(deeper).toEqual(['ws_scrolling_log']);
+    expect(deeper.sort()).toEqual(['ws_scrolling_log', 'ws_unsent_letter']);
   });
 
   it('never asks for weight, measurements, calories, food amounts or medicines', () => {

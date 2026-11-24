@@ -3,7 +3,7 @@ export interface StageTiming {
   elapsedMs: number
 }
 
-import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal, SafetyNotice } from '@okuvu/shared-types';
+import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal, SafetyNotice, LibraryWorksheetRef } from '@okuvu/shared-types';
 
 // ─── Test Hooks (TH-S10) ───────────────────────────────────────────
 //
@@ -31,7 +31,7 @@ export interface TestModeOptions {
   /** OKUVU v2.0: use this instead of the hardcoded empty toolkit array — no real data source exists yet for "tools this therapist selected," so production always passes []; harness runs can override it to exercise A2 with a non-empty toolkit. */
   injectToolkit?: string[]
   /** OKUVU v2.0: use this instead of contextBundle.library_worksheets. */
-  injectLibraryWorksheets?: string[]
+  injectLibraryWorksheets?: LibraryWorksheetRef[]
   /**
    * Shallow-merge `payload` onto a boundary's result object before it is read.
    * Only `boundary: 'a2_result'` is supported for this story: it merges onto

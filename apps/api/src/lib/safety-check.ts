@@ -43,12 +43,35 @@ export const SAFETY_CHECK_TIMEOUT_MS = 8_000;
 /** Which surface the text came from. Recorded on the flag; never the text. */
 export type SafetySurface = 'journal_entry' | 'worksheet_answer' | 'treasure_note';
 
+/**
+ * Which screen the client must be shown, when it is not the ordinary help card.
+ *
+ * `harm_to_someone` is the owner-approved screen for "I want to hurt someone"
+ * (`lib/harm-to-someone.ts`). It is a distinct screen rather than the crisis
+ * card because that card is written about the reader's own safety, and rather
+ * than the ordinary help card because a list of helplines headed "call us about
+ * you" is the wrong instruction for this disclosure.
+ */
+export type SafetyScreenKind = 'harm_to_someone';
+
 export interface TextSafetyResult {
   level: SafetyState;
   /** S3/S4 — the levels that get a flag, an alert email and the help card. */
   flagged: boolean;
   /** True whenever `flagged`: the client is shown help straight away. */
   showHelp: boolean;
+  /**
+   * The screen to show, when it is not the ordinary help card. Null means the
+   * surface renders its normal help card / crisis card for `level`.
+   */
+  screen: SafetyScreenKind | null;
+  /**
+   * The therapist alert must be marked urgent. Set only by the harm-to-someone
+   * screen: the person is not describing their own risk, so the ordinary S3
+   * alert would read as routine, and this is the one disclosure where a short
+   * delay matters most.
+   */
+  urgent: boolean;
   /**
    * True when the check could not reach a verdict AND the crisis floor found
    * nothing. The client is offered help — "Help is here if you need it." — the
@@ -68,12 +91,15 @@ function result(
   level: SafetyState,
   reason: string,
   degraded = false,
+  screen: SafetyScreenKind | null = null,
 ): TextSafetyResult {
   const flagged = level === 'S3' || level === 'S4';
   return {
     level,
     flagged,
     showHelp: flagged,
+    screen,
+    urgent: screen === 'harm_to_someone',
     helpOffer: false,
     recheck: false,
     degraded,
@@ -95,6 +121,8 @@ function unscreened(reason: string): TextSafetyResult {
     level: SAFETY_CHECK_DEGRADED_LEVEL,
     flagged: false,
     showHelp: false,
+    screen: null,
+    urgent: false,
     helpOffer: true,
     recheck: true,
     degraded: true,
@@ -159,7 +187,16 @@ export async function checkClientText(
   if (options.sensitiveCheck) {
     const extra = worstExtraRisk(trimmed);
     if (extra) {
-      return result(extra.level, `sensitive_worksheet_floor:${extra.concern}`);
+      // "I want to hurt someone" gets its own short screen rather than the help
+      // card (owner's approval, 24 Nov 2026). The flag stays S3, so it is
+      // recorded and alerted exactly like the others; the difference is the copy
+      // the client reads and the urgency on the therapist's alert. A stronger
+      // first-person signal still wins — `worstExtraRisk` returns the S4 match
+      // when one exists, so this branch is never reached for a self-harm answer.
+      const screen = extra.concern === 'wanting_to_hurt_someone' && extra.level === 'S3'
+        ? 'harm_to_someone'
+        : null;
+      return result(extra.level, `sensitive_worksheet_floor:${extra.concern}`, false, screen);
     }
   }
 

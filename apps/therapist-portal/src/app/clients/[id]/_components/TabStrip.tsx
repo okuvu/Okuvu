@@ -21,6 +21,7 @@ const TABS = [
   { key: 'goals', label: 'Goals', href: (id: string) => `/clients/${id}/goals` },
   { key: 'tools', label: 'Tools', href: (id: string) => `/clients/${id}/tools` },
   { key: 'safety-plan', label: 'Safety plan', href: (id: string) => `/clients/${id}/safety-plan` },
+  { key: 'safety', label: 'Safety', href: (id: string) => `/clients/${id}/safety` },
   { key: 'shared', label: 'Shared with me', href: (id: string) => `/clients/${id}/shared` },
   { key: 'notes', label: 'Notes', href: (id: string) => `/clients/${id}/notes` },
 ] as const;

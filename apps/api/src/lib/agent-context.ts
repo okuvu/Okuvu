@@ -1,6 +1,6 @@
 import { prisma } from './prisma.js';
 import { getActiveHomework } from './homework.js';
-import { getVisibleWorksheetLabels } from './library-labels.js';
+import { getVisibleWorksheets } from './library-labels.js';
 import { DEFAULT_CARE_PLAN_FOCUS, isAgeDeclined } from '@okuvu/shared-types';
 import type { AgentContextBundle, SessionSummaryView } from '@okuvu/shared-types';
 import type { ConversationTurn } from '../agents/a1/types.js';
@@ -123,10 +123,11 @@ export async function getAgentContextBundle(authSubject: string): Promise<AgentC
   }
 
   const activeHomework = await getActiveHomework(user.id);
-  // The worksheets this client can actually see. Read on the context path so the
-  // chat and the Library cannot disagree about what exists; empty on failure, so
-  // no list ever means no suggestion (see lib/library-labels.ts).
-  const libraryWorksheets = await getVisibleWorksheetLabels(user.id);
+  // The worksheets this client can actually see, with the two facts the chat's
+  // own instructions depend on (how demanding, and whether it was assigned).
+  // Read on the context path so the chat and the Library cannot disagree about
+  // what exists; empty on failure, so no list never means an invented one.
+  const libraryWorksheets = await getVisibleWorksheets(user.id);
 
   const userMemoryRecord = user.user_memory
     ? {

@@ -1,4 +1,5 @@
 import { A2_PROMPT } from '../../prompts/index.js';
+import type { LibraryWorksheetRef } from '@okuvu/shared-types';
 import type { CarePlan } from './types.js';
 
 /**
@@ -257,6 +258,28 @@ export const RULE1_ARM_PROBES: Record<Rule1Arm, string> = {
   choice: RULE1_CHOICE_PROBE,
 };
 
+/**
+ * One line per worksheet for `${library_worksheets}`.
+ *
+ * The three facts the v2.7 wording relies on, in the order it reads them: name,
+ * how demanding, and who can start it. A worksheet the therapist has to assign
+ * and has not assigned says so plainly, because "your therapist has to assign
+ * this one" is the sentence that stops the companion offering something the
+ * client cannot open.
+ */
+export function formatLibraryWorksheet(row: LibraryWorksheetRef): string {
+  const load = row.load_level === 'demanding' ? 'demanding' : 'light';
+  if (row.access === 'in_session') {
+    return `${row.label} — ${load} · you and their therapist fill this in together`;
+  }
+  if (row.access === 'assigned') {
+    return row.assigned
+      ? `${row.label} — ${load} · assigned to them by their therapist`
+      : `${row.label} — ${load} · their therapist has to assign this one`;
+  }
+  return `${row.label} — ${load} · they can open this themselves`;
+}
+
 export function buildConversationalPrompt(params: {
   safetyState: string;
   sessionHistorySummary: string | null;
@@ -274,14 +297,11 @@ export function buildConversationalPrompt(params: {
   homework?: string | null;
   toolkit?: string[];
   /**
-   * The labels of the worksheets this client can actually see. Substituted into
-   * `${library_worksheets}` — a token the v2.6 prompt does not contain, so this
-   * is inert until the approved v2.7 wording references it. That is deliberate:
-   * the owner approves all chat wording, and a list that appeared without its
-   * sentence (or a sentence that appeared without its list) would be a change
-   * nobody signed off.
+   * The worksheets this client can actually see, with the two facts the v2.7
+   * wording depends on — how demanding each is, and whether it was assigned.
+   * Substituted into `${library_worksheets}`.
    */
-  libraryWorksheets?: string[];
+  libraryWorksheets?: LibraryWorksheetRef[];
   languageMode?: 'english' | 'mirror';
 }): string {
   const {
@@ -342,12 +362,10 @@ export function buildConversationalPrompt(params: {
     .replaceAll('${care_plan_focus}', carePlanFocus ?? 'null')
     .replaceAll('${homework}', homework ?? 'null')
     .replaceAll('${toolkit}', toolkit && toolkit.length > 0 ? toolkit.join(', ') : 'none selected — use the always-available tools')
-    // Inert on v2.6: the token is not in the prompt until approved wording adds
-    // it. Present here so the list and its sentence land in the same change.
     .replaceAll(
       '${library_worksheets}',
       libraryWorksheets && libraryWorksheets.length > 0
-        ? libraryWorksheets.join(', ')
+        ? '\n' + libraryWorksheets.map(formatLibraryWorksheet).join('\n')
         : 'none visible today',
     )
     .replaceAll('${language_mode}', languageMode ?? 'english');

@@ -858,8 +858,8 @@ describe('care-plan emphasis — §12 (v2.5)', () => {
   });
 
   describe('the shipped prompt', () => {
-    it('is v2.6 and keeps all three blocks, delimited and balanced', () => {
-      expect(A2_PROMPT_VERSION).toBe('v2.6');
+    it('is v2.7 and keeps all three blocks, delimited and balanced', () => {
+      expect(A2_PROMPT_VERSION).toBe('v2.7');
 
       for (const plan of ['CP1', 'CP2', 'CP3'] as const) {
         expect(A2_PROMPT.split(`[[${plan}]]`).length - 1).toBe(1);

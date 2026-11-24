@@ -4,6 +4,7 @@ import 'router/router.dart';
 import 'core/providers.dart';
 import 'core/app_update/app_update_gate.dart';
 import 'features/crisis/crisis_overlay.dart';
+import 'features/library/harm_to_someone_screen.dart';
 import 'features/home/care_ended_screen.dart';
 import 'features/home/providers/today_card_provider.dart';
 import 'features/notifications/notification_banner.dart';
@@ -50,6 +51,7 @@ class App extends ConsumerWidget {
               const NotificationPopupSlot(),
               const _CareEndedOverlaySlot(),
               const _CrisisOverlaySlot(),
+              const _HarmToSomeoneOverlaySlot(),
             ],
           ),
         );
@@ -66,6 +68,20 @@ class _CrisisOverlaySlot extends ConsumerWidget {
     final showCrisis = ref.watch(crisisOverlayProvider);
     if (!showCrisis) return const SizedBox.shrink();
     return const CrisisOverlay();
+  }
+}
+
+/// The harm-to-someone screen, above the crisis slot: it is only ever raised by
+/// the worksheet save that returned it, and when it is up it is the only thing
+/// the client should be reading.
+class _HarmToSomeoneOverlaySlot extends ConsumerWidget {
+  const _HarmToSomeoneOverlaySlot();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final screen = ref.watch(harmToSomeoneOverlayProvider);
+    if (screen == null) return const SizedBox.shrink();
+    return HarmToSomeoneOverlay(screen: screen);
   }
 }
 

@@ -66,12 +66,15 @@ describe('POST /worksheets/:toolId — Step 4', () => {
     vi.mocked(prisma.homework.findFirst).mockResolvedValue({ id: 'h1' } as any);
     vi.mocked(prisma.worksheetResponse.create).mockResolvedValue({ id: 'resp-1' } as any);
     vi.mocked(prisma.safetyState.findUnique).mockResolvedValue(null as any);
-    vi.mocked(prisma.safetyFlag.create).mockResolvedValue({
+    vi.mocked(prisma.safetyFlag.create).mockImplementation((async (args: any) => ({
       id: 'flag-1',
       user_id: MOCK_USER_ID,
-      level: 'S4',
+      // Mirror what the write actually recorded, so the alert that follows the
+      // insert is checked against the same level and urgency the row carries.
+      level: args?.data?.level ?? 'S4',
       occurred_at: new Date('2026-11-09T10:00:00Z'),
-    } as any);
+      urgent: args?.data?.urgent ?? false,
+    })) as any);
     vi.mocked(prisma.therapistClient.findMany).mockResolvedValue([
       { client_label: 'C-01', therapist: { email: 'therapist@example.com', name: 'T' } },
     ] as any);
@@ -143,6 +146,72 @@ describe('POST /worksheets/:toolId — Step 4', () => {
     });
 
     expect((res.json() as any).safety.showHelp).toBe(true);
+  });
+
+  it('serves the harm-to-someone screen, flags it urgent, and still sends no words', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_scrolling_log') as any,
+    );
+    app = buildApp();
+
+    const words = 'I scrolled for hours and all I could think was I want to hurt my brother';
+    const res = await app.inject({
+      method: 'POST',
+      url: '/worksheets/ws_scrolling_log',
+      payload: { answers: { pulled_in: words } },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as any;
+
+    // The client's own screen travels with the response, not the crisis card.
+    expect(body.safety).toMatchObject({
+      showHelp: true,
+      urgent: true,
+      screen: { kind: 'harm_to_someone' },
+    });
+    expect(body.safety.screen.emergency.number).toBe('112');
+    expect(body.safety.screen.plan_label).toBe('My plan for hard moments');
+
+    // S3 with its own source, marked urgent, and no text on the flag.
+    const flagArgs = vi.mocked(prisma.safetyFlag.create).mock.calls[0][0] as any;
+    expect(flagArgs.data).toMatchObject({
+      level: 'S3',
+      source: 'harm_to_someone',
+      urgent: true,
+      subject_kind: 'worksheet_response',
+      subject_id: 'resp-1',
+    });
+    expect(JSON.stringify(flagArgs.data)).not.toContain('hurt my brother');
+
+    // The alert is marked urgent; the words stay in the portal.
+    const { sendSafetyAlertEmail } = await import('../lib/email.js');
+    const mail = vi.mocked(sendSafetyAlertEmail).mock.calls[0][0] as any;
+    expect(mail).toMatchObject({ level: 'S3', urgent: true });
+    expect(JSON.stringify(mail)).not.toContain('hurt my brother');
+  });
+
+  it('keeps the words out of the response for an ordinary flagged answer', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
+      rowFor('ws_scrolling_log') as any,
+    );
+    app = buildApp();
+
+    // Same worksheet, a different concern: the deeper screen fires but there is
+    // no harm-to-someone screen to serve.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/worksheets/ws_scrolling_log',
+      payload: { answers: { pulled_in: 'I have been skipping meals again' } },
+    });
+
+    const body = res.json() as any;
+    expect(body.safety).toMatchObject({ showHelp: true, urgent: false, screen: null });
+
+    const flagArgs = vi.mocked(prisma.safetyFlag.create).mock.calls[0][0] as any;
+    expect(flagArgs.data).toMatchObject({ source: 'worksheet_answer', urgent: false });
   });
 
   it('refuses a demanding worksheet answered at 8 out of 10, and stores nothing', async () => {

@@ -555,6 +555,20 @@ export interface UserMemoryData {
   session_count: number
 }
 
+/**
+ * One worksheet the client can see, as the chat's list carries it.
+ *
+ * `load_level` mirrors ToolRegistryEntry.load_level ('light' | 'demanding');
+ * `access` mirrors access_mode for the three modes a client can have; `assigned`
+ * is true when this client has an active Homework row for it right now.
+ */
+export interface LibraryWorksheetRef {
+  label: string
+  load_level: 'light' | 'demanding'
+  access: 'open' | 'assigned' | 'in_session'
+  assigned: boolean
+}
+
 export interface AgentContextBundle {
   safety_state: SafetyState | null
   care_plan: {
@@ -579,16 +593,23 @@ export interface AgentContextBundle {
   /** OKUVU v2.0 — the client's most recent active Homework.description, or null. */
   homework: string | null
   /**
-   * The worksheets this client can actually see, by label — the Library's own
-   * rows, nothing else. Approved only (a draft is never here), never a
-   * therapist-only row (the exposure ladder is never here), and the safety plan
-   * only once one exists.
+   * The worksheets this client can actually see — the Library's own rows,
+   * nothing else. Approved only (a draft is never here), never a therapist-only
+   * row (the exposure ladder is never here), and the safety plan only once one
+   * exists.
    *
-   * This is what the chat may name when it suggests a worksheet. Optional so
-   * every existing producer of this shape stays valid; absent means "no list",
-   * which is the safe default: the model then has nothing to suggest from.
+   * Each row carries three things the chat needs in order to obey its own
+   * instructions (owner's instruction, 24 Nov 2026): how demanding the worksheet
+   * is, whether the client can open it themselves or only a therapist
+   * assignment opens it, and whether one is assigned to this client right now.
+   * Without the last two the companion cannot tell "the worry tree" apart from
+   * the Unsent letter it is never allowed to suggest uninvited.
+   *
+   * Optional so every existing producer of this shape stays valid; absent means
+   * "no list", which is the safe default: the model then has nothing to suggest
+   * from.
    */
-  library_worksheets?: string[]
+  library_worksheets?: LibraryWorksheetRef[]
   /**
    * Set only when the client answered the 18+ question with "no": the bundle is
    * then empty and `GET /users/me/context` answers 403 `UNDER_18` instead of

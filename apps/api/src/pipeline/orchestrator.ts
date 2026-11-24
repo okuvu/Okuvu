@@ -1,4 +1,4 @@
-import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal, ToolCardType } from '@okuvu/shared-types';
+import type { SafetyState, GovernanceState, RouterDecision, PipelineSignal, ToolCardType, LibraryWorksheetRef } from '@okuvu/shared-types';
 import { classifySafety } from '../agents/a1/agent.js';
 import { classifyGovernance } from '../agents/a9/agent.js';
 import { routeTurn } from '../agents/a8-router.js';
@@ -747,7 +747,7 @@ export async function processTurn(
   // The worksheets this client can actually see — the Library's own rows, so the
   // chat can only ever name something they can open. Inert until the approved
   // wording references ${library_worksheets} (see agents/a2/prompts.ts).
-  const libraryWorksheets: string[] =
+  const libraryWorksheets: LibraryWorksheetRef[] =
     testMode?.injectLibraryWorksheets ?? contextBundle.library_worksheets ?? [];
 
   if (a1Unavailable && !crisisFloorMatched) {

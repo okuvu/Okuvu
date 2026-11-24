@@ -109,10 +109,32 @@ const __dirname = dirname(__filename);
  * guard in a2.test.ts now fails if the header and A2_PROMPT_VERSION disagree or
  * name any vendor but Bedrock. v2.5's header stays wrong: superseded files are
  * frozen because their sha256 appears in the evidence records.
+ *
+ * v2.6 → v2.7 (owner-approved wording, Rajwant, 24 Nov 2026): a new paragraph
+ * under Toolkit. The companion may name one worksheet, say what it is for in a
+ * sentence, encourage, and ask one open question. It must never write, draft or
+ * complete an answer, never tell the client a thought is wrong or that they are
+ * in a thinking trap, and may say only the worksheet's name. Four sentences the
+ * owner added on top of the proposal: no worksheet suggestion while someone is
+ * very distressed or in crisis; only worksheets they can open themselves or
+ * their therapist assigned; never the Unsent letter, A letter from a kind
+ * friend, or any other high-load worksheet unless assigned; one worksheet at a
+ * time, and none again in the conversation after a no.
+ *
+ * The paragraph ends by pointing at `${library_worksheets}`, which carries one
+ * line per worksheet this client can actually see — label, light/demanding, and
+ * open-yourself/assigned — built by `lib/library-labels.ts` from the Library's
+ * own query. Until this version the token was not in the prompt at all, so the
+ * list was inert; that is why the paragraph and the token land together.
+ *
+ * Ships as the default only after the gold-set score runs against v2.7 (the
+ * standing rule for new clinical prompt text, docs/plans/2026-11-22-care-plan-
+ * style-blocks.md D5). No threshold, eval scenario, judge prompt or instrument
+ * file moves.
  */
-export const A2_PROMPT_VERSION = 'v2.6';
+export const A2_PROMPT_VERSION = 'v2.7';
 
 export const A2_PROMPT = readFileSync(
-  join(__dirname, 'a2-okuvu-v2.6.txt'),
+  join(__dirname, 'a2-okuvu-v2.7.txt'),
   'utf-8',
 );

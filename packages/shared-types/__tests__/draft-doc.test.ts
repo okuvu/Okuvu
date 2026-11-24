@@ -66,13 +66,16 @@ describe('approved wording document', () => {
     expect(readFileSync(APPROVED_FILE, 'utf8')).toBe(doc);
   });
 
-  it('records the eight, the owner’s date, and neither of the two sent back', () => {
+  it('records the ten, the owner’s date, and the revised text of the last two', () => {
     const doc = buildApprovedDoc();
     expect(doc).toContain('24 November 2026');
     for (const id of APPROVED_24_NOV_IDS) {
       expect(doc).toContain(`\`${id}\``);
     }
-    expect(doc).not.toContain('`ws_unsent_letter`');
-    expect(doc).not.toContain('`ws_pros_cons_change`');
+    // The two revised and then approved the same day are here, with the text
+    // that was actually approved rather than the pre-revision wording.
+    expect(doc).toContain('`ws_unsent_letter`');
+    expect(doc).toContain('`ws_pros_cons_change`');
+    expect(doc).toContain('Readiness can change from day to day');
   });
 });

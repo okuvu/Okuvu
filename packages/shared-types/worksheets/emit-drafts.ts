@@ -7,7 +7,11 @@
  *
  * Run (writes the file): WRITE_DRAFT_DOC=1 npx vitest run __tests__/draft-doc.test.ts
  */
-import { draftEntries, APPROVED_24_NOV_IDS } from '@okuvu/shared-types/worksheets/emit-sql';
+import {
+  draftEntries,
+  APPROVED_24_NOV_IDS,
+  APPROVED_24_NOV_REVISED_IDS,
+} from '@okuvu/shared-types/worksheets/emit-sql';
 import { CATALOGUE } from '@okuvu/shared-types/worksheets/index';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 import type { WorksheetContent, WorksheetField } from '@okuvu/shared-types/worksheet';
@@ -103,12 +107,14 @@ function header(entry: CatalogueEntry): string[] {
 }
 
 /**
- * The approved copy of the eight the owner approved on 24 Nov 2026.
+ * The approved copy of the 24 Nov 2026 batch: the eight approved as written,
+ * then the two revised and approved later the same day.
  *
  * Generated for the same reason the draft document is: so the record of what
  * was approved cannot describe a worksheet differently from the app.
  */
 export function buildApprovedDoc(): string {
+  const ids = [...APPROVED_24_NOV_IDS, ...APPROVED_24_NOV_REVISED_IDS];
   const out: string[] = [];
 
   out.push(
@@ -117,20 +123,22 @@ export function buildApprovedDoc(): string {
     'Generated from the catalogue in `packages/shared-types/worksheets`. Do not edit by',
     'hand: change the catalogue, then regenerate.',
     '',
-    '**Status: approved.** The owner approved these eight as written on 24 November 2026.',
-    'This document is the record of that approval; `02-approved-worksheet-copy.md` remains',
-    'the record for worksheets 1-16 (9 November 2026).',
+    '**Status: approved.** The owner approved these ten in two rounds on 24 November 2026:',
+    'eight as written, and Unsent letter and Weighing it up after the revisions he asked',
+    'for. This document is the record of that approval; `02-approved-worksheet-copy.md`',
+    'remains the record for worksheets 1-16 (9 November 2026).',
     '',
-    'All eight go through the same safety check the journal uses on every written and spoken',
-    'answer. The Doomscroll log also carries the deeper screen (eating and body, sleep,',
-    'self-harm, harm to someone else). None asks for weight, body measurements, calories,',
-    'food amounts or medicines, and none adds answers into a total, a level or a label.',
+    'All ten go through the same safety check the journal uses on every written and spoken',
+    'answer. The Doomscroll log and the Unsent letter also carry the deeper screen (eating',
+    'and body, sleep, self-harm, harm to someone else). None asks for weight, body',
+    'measurements, calories, food amounts or medicines, and none adds answers into a total,',
+    'a level or a label.',
     '',
     '---',
     '',
   );
 
-  for (const id of APPROVED_24_NOV_IDS) {
+  for (const id of ids) {
     const entry = CATALOGUE.find((row) => row.tool_id === id);
     if (!entry) throw new Error(`approved doc row "${id}" is not in the catalogue`);
     out.push(`## ${TITLE[id] ?? entry.label}`, '');
@@ -146,6 +154,8 @@ export function buildApprovedDoc(): string {
 
 export function buildDraftDoc(): string {
   const out: string[] = [];
+  const drafts = draftEntries();
+  const waiting = drafts.length > 0;
 
   out.push(
     '# Stress & Burnout worksheets — draft wording for review, NOT approved',
@@ -153,25 +163,50 @@ export function buildDraftDoc(): string {
     'Generated from the catalogue in `packages/shared-types/worksheets`. Do not edit by',
     'hand: change the catalogue, then regenerate.',
     '',
-    '**Status: drafts.** These are the worksheets the owner sent back for a wording',
-    'change on 24 November 2026, plus any later draft. They are switched off for clients:',
-    'no card in their Library, no direct open, no assignment from the portal. A therapist',
-    'can preview them. Nothing is switched on until you say the wording is approved.',
+    waiting
+      ? '**Status: drafts.** These are the worksheets the owner sent back for a wording'
+      : '**Status: none waiting.** Every written worksheet in the 24 Nov 2026 batch has been',
+    waiting
+      ? 'change on 24 November 2026, plus any later draft. They are switched off for clients:'
+      : 'approved. Nothing here is awaiting a read, and this document carries no worksheet',
+    waiting
+      ? 'no card in their Library, no direct open, no assignment from the portal. A therapist'
+      : 'bodies. A new worksheet added from now on starts `draft`, appears here, and stays',
+    waiting
+      ? 'can preview them. Nothing is switched on until you say the wording is approved.'
+      : 'switched off for clients until you say the wording is approved.',
     '',
-    'The other eight of the 24 Nov batch were approved as written that day; their copy is',
-    'in `25-approved-stress-burnout-copy.md`.',
+    'The ten of the 24 Nov batch are approved; their copy is in',
+    '`25-approved-stress-burnout-copy.md`.',
     '',
-    'Both go through the same safety check the journal uses on every written and spoken',
-    'answer, with the same response. The Unsent letter also carries the deeper screen (eating',
-    'and body, sleep, self-harm, harm to someone else). Neither asks for weight, body',
-    'measurements, calories, food amounts or medicines, and neither adds answers into a',
-    'total, a level or a label.',
+    'Every worksheet goes through the same safety check the journal uses on every written and',
+    'spoken answer, with the same response. The Unsent letter and the Doomscroll log also',
+    'carry the deeper screen (eating and body, sleep, self-harm, harm to someone else). None',
+    'asks for weight, body measurements, calories, food amounts or medicines, and none adds',
+    'answers into a total, a level or a label.',
     '',
     '---',
     '',
   );
 
-  for (const entry of draftEntries()) {
+  if (!waiting) {
+    out.push(
+      'No worksheet is waiting for approval.',
+      '',
+      'Two worksheets in the 24 Nov batch were sent back for a wording change and then',
+      'approved the same day, after the revisions:',
+      '',
+      '- Unsent letter — the letter helper and a line under "Delete it" saying a safety',
+      '  check-in may still be recorded with the therapist.',
+      '- Weighing it up — a first question ("What change are you thinking about?"), the four',
+      '  boxes rewritten around "this change", and the readiness helper reworded.',
+      '',
+      'Both are in `25-approved-stress-burnout-copy.md` with their approved text.',
+      '',
+    );
+  }
+
+  for (const entry of drafts) {
     out.push(`## ${TITLE[entry.tool_id] ?? entry.label}`, '');
     out.push(`**The brief:** ${BRIEF[entry.tool_id] ?? ''}`, '');
     out.push(...header(entry));

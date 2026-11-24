@@ -32,6 +32,13 @@ const DRAFTS_MIGRATION_DIR = '20261124140000_seed_stress_burnout_drafts';
 /** The owner's 24 Nov 2026 approvals, in their own migration. */
 const APPROVALS_MIGRATION_DIR = '20261124160000_approve_stress_burnout_eight';
 
+/**
+ * The owner's second read, later the same day: the two he sent back, revised and
+ * then approved. A separate migration so the history reads in order — drafted,
+ * eight approved, two revised, then those two approved.
+ */
+const REVISED_APPROVALS_MIGRATION_DIR = '20261124180000_approve_stress_burnout_revised';
+
 /** Deterministic ids so re-running against an upgrade database is idempotent. */
 function rowId(index: number): string {
   const n = (index + 1).toString(16).padStart(12, '0');
@@ -125,6 +132,21 @@ export const APPROVED_24_NOV_IDS = [
   'ws_scrolling_log',
   'ws_weekly_load_check',
   'ws_caring_load_check',
+] as const;
+
+/**
+ * The two the owner sent back on 24 Nov 2026, revised and then approved later
+ * the same day: Unsent letter and Weighing it up.
+ *
+ * A separate list from `APPROVED_24_NOV_IDS` because the approval has its own
+ * migration and its own record — the eight above were approved as written, and
+ * these two were approved only after the revisions (the letter's helper and
+ * delete line, the "what change are you thinking about" question and the
+ * readiness helper). A row here must still be `draft` in the drafts migration.
+ */
+export const APPROVED_24_NOV_REVISED_IDS = [
+  'ws_unsent_letter',
+  'ws_pros_cons_change',
 ] as const;
 
 /**
@@ -318,6 +340,7 @@ function buildInsert(rows: IndexedEntry[]): string[] {
 export const MIGRATION_PATH = `packages/prisma/migrations/${MIGRATION_DIR}/migration.sql`;
 export const DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${DRAFTS_MIGRATION_DIR}/migration.sql`;
 export const APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${APPROVALS_MIGRATION_DIR}/migration.sql`;
+export const REVISED_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${REVISED_APPROVALS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
   const lines: string[] = [];
@@ -485,6 +508,46 @@ export function buildApprovalsSql(): string {
           throw new Error(`"${id}" is in the approval batch but is ${entry.status} in the catalogue`);
         }
         // Same row id the drafts migration used, so the two agree about identity.
+        return { entry, index: DRAFT_ID_BASE + DRAFT_BATCH_IDS.indexOf(id) };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The owner's second read of 24 Nov 2026: the two worksheets he sent back,
+ * revised, then approved later the same day.
+ *
+ * Same shape as the eight-row approval — one INSERT ... ON CONFLICT per row, so
+ * the approved copy travels with the status and a row promoted by a status-only
+ * update cannot keep a body nobody approved.
+ */
+export function buildRevisedApprovalsSql(): string {
+  const lines: string[] = [
+    '-- The owner approved these two Stress & Burnout worksheets after the',
+    '-- revisions he asked for, later on 24 November 2026: the Unsent letter',
+    '-- (letter helper, delete helper) and Weighing it up (what change is this,',
+    '-- four boxes about it, readiness helper).',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- The copy written here is the revised text he read and approved. The',
+    '-- previous migration left both rows `draft` with the pre-revision wording.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      APPROVED_24_NOV_REVISED_IDS.map((id) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`revised approval row "${id}" is not in the catalogue`);
+        if (entry.status !== 'approved') {
+          throw new Error(`"${id}" is in the revised approval batch but is ${entry.status} in the catalogue`);
+        }
+        // Same row id the drafts migration used, so all three agree about identity.
         return { entry, index: DRAFT_ID_BASE + DRAFT_BATCH_IDS.indexOf(id) };
       }),
     ),

@@ -14,6 +14,7 @@ import { answersToText, checkClientText } from '../lib/safety-check.js';
 import { buildCompletionWrite } from '../lib/homework.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
 import { enqueueSafetyRecheck } from '../lib/safety-recheck.js';
+import { HARM_TO_SOMEONE_SCREEN } from '../lib/harm-to-someone.js';
 import { parseWorksheetRow, worksheetRowProblems, type WorksheetRegistryRow } from '../lib/worksheet-content.js';
 import { generateContent } from '../lib/generate-content.js';
 import { a9PostReview } from '../agents/a9-post/agent.js';
@@ -280,9 +281,14 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
         await flagSafetyEvent({
           userId: user.id,
           level: safety.level,
-          source: 'worksheet_answer',
+          // The harm-to-someone screen keeps its own source value so the portal
+          // can show the client's words on the urgent alert; every other answer
+          // stays `worksheet_answer` with no content anywhere (owner's approval,
+          // 24 Nov 2026).
+          source: safety.screen === 'harm_to_someone' ? 'harm_to_someone' : 'worksheet_answer',
           subjectKind: 'worksheet_response',
           subjectId: created.id,
+          urgent: safety.urgent,
         });
       } else if (safety.recheck) {
         // Unscreened: moderate concern, no alert. The answers are queued and
@@ -306,7 +312,15 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({
         id: created.id,
         success: true,
-        safety: { showHelp: safety.showHelp, helpOffer: safety.helpOffer },
+        safety: {
+          showHelp: safety.showHelp,
+          helpOffer: safety.helpOffer,
+          // When this is not the ordinary help card, the approved screen travels
+          // with the response as data: the app renders it, so the wording has
+          // one home (`lib/harm-to-someone.ts`) and no second copy in Dart.
+          screen: safety.screen === 'harm_to_someone' ? HARM_TO_SOMEONE_SCREEN : null,
+          urgent: safety.urgent,
+        },
         // A worksheet answer starts Private, like every entry and note. The
         // client is asked whether to share it right after finishing, and the
         // answer is what moves this flag — never the save itself.

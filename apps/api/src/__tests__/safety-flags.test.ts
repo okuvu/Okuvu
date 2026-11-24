@@ -78,8 +78,9 @@ describe('recordSafetyFlag', () => {
         crisis_screen_shown: true,
         subject_kind: null,
         subject_id: null,
+        urgent: false,
       },
-      select: { id: true, user_id: true, level: true, occurred_at: true },
+      select: { id: true, user_id: true, level: true, occurred_at: true, urgent: true },
     });
   });
 
@@ -106,6 +107,10 @@ describe('recordSafetyFlag', () => {
       crisis_screen_shown: true,
       subject_kind: 'journal_entry',
       subject_id: 'entry_9',
+      // Present since the urgent marker landed (24 Nov 2026). A journal entry
+      // is never urgent, and saying so explicitly is what stops the column
+      // default from being the only thing keeping it false.
+      urgent: false,
     });
     // The one thing a flag must never carry.
     expect(JSON.stringify(call.data)).not.toContain('content');
@@ -177,11 +182,35 @@ describe('notifyTherapistsOfSafetyFlag', () => {
         link: expect.stringContaining('/clients/user_1#safety'),
       }),
     );
-    // Nothing clinical rides along: the call is the whole payload.
+    // Nothing clinical rides along: the call is the whole payload. `urgent` is
+    // a boolean marker, not content — an inbox is still not the place to read
+    // what the client wrote.
     const payload = emailMock.sendSafetyAlertEmail.mock.calls[0][0];
     expect(Object.keys(payload).sort()).toEqual(
-      ['clientLabel', 'level', 'link', 'occurredAt', 'therapistName', 'to'].sort(),
+      ['clientLabel', 'level', 'link', 'occurredAt', 'therapistName', 'to', 'urgent'].sort(),
     );
+    expect(payload.urgent).toBe(false);
+  });
+
+  it('marks the alert urgent only when the flag says so', async () => {
+    prismaMock.therapistClient.findMany.mockResolvedValue([
+      { client_label: 'A.', therapist: { email: 't@example.test', name: 'Dr Rao' } },
+    ]);
+    const { notifyTherapistsOfSafetyFlag } = await load();
+
+    await notifyTherapistsOfSafetyFlag({
+      user_id: 'user_1',
+      level: 'S3',
+      occurred_at: new Date('2026-11-02T10:00:00Z'),
+      urgent: true,
+    });
+
+    const payload = emailMock.sendSafetyAlertEmail.mock.calls[0][0];
+    expect(payload.urgent).toBe(true);
+    // Still no words: the copy lives in the portal, which is the protected
+    // surface. The email says where to look, not what was written.
+    expect(JSON.stringify(payload)).not.toContain('answers');
+    expect(JSON.stringify(payload)).not.toContain('words');
   });
 
   it('swallows a send failure rather than failing the turn', async () => {

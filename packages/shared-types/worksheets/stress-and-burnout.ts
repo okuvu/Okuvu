@@ -7,9 +7,10 @@
  *     Boundary planner, Priority sorter, Doomscroll log, Weekly load check,
  *     Caring load check. They carry `status: 'approved'` and
  *     `OWNER_APPROVAL_24_NOV` as their approval date.
- *   - STILL DRAFT, revised and awaiting a second read: Unsent letter and
- *     Weighing it up. Their copy below is the revised draft, and neither can
- *     reach a client until the owner approves it.
+ *   - APPROVED LATER THE SAME DAY, after the revisions he asked for: Unsent
+ *     letter and Weighing it up. He read the revised wording and approved both
+ *     on 24 November 2026 (second round). Their copy below is the revised text
+ *     he approved, and it is the text that ships.
  *
  * The four that were already sitting in the catalogue as placeholders (Boundary
  * planner, Unsent letter, Doomscroll log — filed under its old name, Scrolling
@@ -35,9 +36,9 @@
  * doomscroll log and the unsent letter — carry `sensitive_check: true`; for the
  * rest the shared safety check on every write is the whole of it.
  *
- * Copy below is the client's wording. Eight rows are approved; the two marked
- * draft are not, and nothing in this file may be shown to a client until the
- * owner says the wording is approved.
+ * Copy below is the client's wording. All ten rows are approved: eight as
+ * written on 24 Nov 2026, and two after the revisions the owner asked for and
+ * then approved the same day.
  */
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 import { FEELINGS_EN } from '@okuvu/shared-types/worksheets/feelings';
@@ -513,7 +514,8 @@ const unsentLetter: CatalogueEntry = {
   load_level: 'demanding',
   est_minutes: 15,
   sort_order: 30,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: true,
@@ -575,7 +577,8 @@ const weighingItUp: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 50,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,

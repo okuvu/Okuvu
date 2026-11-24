@@ -20,6 +20,14 @@
  *
  * No message content is ever stored on a flag — the therapist is shown the
  * event, never the conversation.
+ *
+ * One exception in *reading*, added 24 Nov 2026 on the owner's instruction: the
+ * portal resolves a flag's `subject_kind`/`subject_id` pointer and shows the
+ * client's own words for the `harm_to_someone` screen, so he can judge that
+ * disclosure himself. That is a read of the answer row the therapist would not
+ * otherwise have — the client has not shared it — so it is confined to that one
+ * screen and it needs the privacy wording to say so. The flag row still stores
+ * no text, and no other source shows content.
  */
 
 import { prisma } from './prisma.js';
@@ -31,6 +39,14 @@ export type SafetyFlagSource =
   | 'crisis_card'
   | 'third_party_crisis'
   | 'medical_emergency'
+  /**
+   * The owner-approved screen for a client who says they want to hurt someone
+   * else (24 Nov 2026). Its own source value rather than `worksheet_answer` so
+   * the portal can show the words on the urgent alert: that screen is the one
+   * place the clinical owner asked to read what the client wrote, to judge the
+   * disclosure himself.
+   */
+  | 'harm_to_someone'
   // Non-chat surfaces. The client was shown the same help card, and the flag
   // says which screen it came from so the therapist knows where the words were
   // typed — never what they were (Step 4).
@@ -61,6 +77,13 @@ export interface RecordSafetyFlagParams {
    */
   subjectKind?: string | null;
   subjectId?: string | null;
+  /**
+   * The alert is urgent (owner's approval, 24 Nov 2026). Set only for the
+   * harm-to-someone screen: the portal pins it to the top of the client's Safety
+   * card, marks it in the alert email, and shows the client's own words beside
+   * it. Defaults false, so every existing writer is unchanged.
+   */
+  urgent?: boolean;
 }
 
 export interface RecordedSafetyFlag {
@@ -68,6 +91,8 @@ export interface RecordedSafetyFlag {
   user_id: string;
   level: SafetyFlagLevelValue;
   occurred_at: Date;
+  /** Carried so the alert that fires straight after the insert is marked too. */
+  urgent: boolean;
 }
 
 /** Backoff between write attempts. Attempt 1 is inline; these follow it. */
@@ -118,8 +143,9 @@ async function insertFlag(
         crisis_screen_shown: params.crisisScreenShown ?? true,
         subject_kind: params.subjectKind ?? null,
         subject_id: params.subjectId ?? null,
+        urgent: params.urgent ?? false,
       },
-      select: { id: true, user_id: true, level: true, occurred_at: true },
+      select: { id: true, user_id: true, level: true, occurred_at: true, urgent: true },
     });
     return row as RecordedSafetyFlag;
   } catch (err) {
@@ -207,6 +233,8 @@ export async function notifyTherapistsOfSafetyFlag(flag: {
   user_id: string;
   level: SafetyFlagLevelValue;
   occurred_at: Date;
+  /** Absent on a hand-rolled test double; treated as not urgent. */
+  urgent?: boolean;
 }): Promise<void> {
   try {
     const assignments = await prisma.therapistClient.findMany({
@@ -238,6 +266,7 @@ export async function notifyTherapistsOfSafetyFlag(flag: {
           level: flag.level,
           occurredAt: flag.occurred_at,
           link,
+          urgent: flag.urgent === true,
         });
       } catch (err) {
         console.error('[safety-flag] ALERT EMAIL NOT SENT', {

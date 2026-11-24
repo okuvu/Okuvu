@@ -1,7 +1,12 @@
-# "Wanting to hurt someone" — its own message, proposed, NOT switched on
+# "Wanting to hurt someone" — its own message, APPROVED and switched on
 
-Status: **awaiting the owner's approval of the wording on this page.** Nothing
-here is in the app. The current behaviour is unchanged: a hit on the
+Status: **approved on 24 November 2026 and built.** He took the draft with three
+changes and told me to switch it on and build the urgent marker. The shipped copy
+lives in `apps/api/src/lib/harm-to-someone.ts`; the three changes and the final
+wording are recorded in `27-24-nov-round-three.md` §2. This file is the proposal as
+he read it, kept for the record.
+
+What was written before his approval, for comparison: The current behaviour is unchanged: a hit on the
 `wanting_to_hurt_someone` pattern shows the same help card every other flagged
 answer gets, with the same therapist alert.
 

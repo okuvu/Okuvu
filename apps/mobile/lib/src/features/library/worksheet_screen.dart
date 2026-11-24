@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
 import 'library_api.dart';
+import 'harm_to_someone_screen.dart';
 import '../sharing/sharing.dart';
 import '../my_space/my_space_providers.dart';
 import 'worksheet_draft_store.dart';
@@ -143,7 +144,13 @@ class WorksheetScreen extends ConsumerWidget {
               ),
             );
           }
-          if (result.showHelp) {
+          if (result.harmToSomeone != null) {
+            // The client said they want to hurt someone. The approved screen
+            // goes up instead of the crisis card: it is written for a person
+            // frightened of what they might do to somebody else, and the crisis
+            // card's second-person copy is the wrong instruction for that.
+            ref.read(harmToSomeoneOverlayProvider.notifier).show(result.harmToSomeone!);
+          } else if (result.showHelp) {
             // Crisis: the answers are saved, and the card comes up at once.
             ref.read(crisisOverlayProvider.notifier).show();
           } else if (result.helpOffer) {

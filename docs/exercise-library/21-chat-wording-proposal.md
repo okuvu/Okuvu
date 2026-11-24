@@ -1,8 +1,26 @@
-# Chat wording for worksheets — proposed, NOT applied
+# Chat wording for worksheets — APPROVED and applied (v2.7)
 
-Status: **awaiting the owner's approval.** Nothing in this file is in the prompt.
-`apps/api/src/prompts/a2-okuvu-v2.6.txt` is unchanged, and the pinned copy tests
-still pass against the text as it is today.
+Status: **approved by the owner on 24 November 2026 and applied as v2.7.** He took
+the proposal below with four additions and one edit; the shipped paragraph is in
+`apps/api/src/prompts/a2-okuvu-v2.7.txt`, the version is bumped in
+`apps/api/src/prompts/index.ts`, and `__tests__/worksheet-chat-wording.test.ts` pins
+his sentences so a later edit cannot quietly drop one.
+
+His instructions, verbatim:
+
+> - "Change 'or name a thinking trap at all' to: 'or name a thinking trap in what
+>   they said. You may say the name of the worksheet.'"
+> - "Add: 'Do not suggest a worksheet when they are very distressed or in crisis.
+>   Help them settle first.'"
+> - "Add: 'Only suggest worksheets they can open on their own, or ones their
+>   therapist has assigned to them. Never suggest the Unsent letter, A letter from
+>   a kind friend, or any other high-load worksheet unless their therapist assigned
+>   it.'"
+> - "Add: 'Suggest one worksheet at a time. If they say no or ignore it, don't
+>   suggest a worksheet again in this conversation.'"
+
+The rest of this file is kept as it was read, so the approved text has the proposal
+it came from beside it. What follows is the proposal as sent.
 
 The owner approves all chat wording, so this is shown in full before it is
 touched. Two edits, both in the Toolkit section of the A2 system prompt.
@@ -81,7 +99,8 @@ draft, no therapist-only row (the exposure ladder), no grouped card, and the
 safety plan only once one exists. A failed lookup gives an empty list and the turn
 carries on.
 
-The current prompt does not contain the token, so the chat's instructions are
-byte-identical with and without it, and a test asserts exactly that. Nothing in
-this file is applied: when the wording above is approved, the paragraph and the
-token land together.
+v2.7 contains the token, and the paragraph and the list landed together, as
+planned. The list now also carries **load level** and **whether the worksheet was
+assigned** — he asked whether it did and told me to add both if it did not — so the
+sentence "never suggest ... any other high-load worksheet unless their therapist
+assigned it" is enforceable against the list rather than from memory.

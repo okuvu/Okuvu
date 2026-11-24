@@ -15,9 +15,11 @@ import {
   APPROVALS_MIGRATION_PATH,
   DRAFTS_MIGRATION_PATH,
   MIGRATION_PATH,
+  REVISED_APPROVALS_MIGRATION_PATH,
   buildApprovalsSql,
   buildDraftsSql,
   buildMigrationSql,
+  buildRevisedApprovalsSql,
   draftEntries,
   listableToolIds,
 } from '../worksheets/emit-sql';
@@ -26,6 +28,7 @@ const ROOT = join(__dirname, '../../..');
 const FILE = join(ROOT, MIGRATION_PATH);
 const DRAFTS_FILE = join(ROOT, DRAFTS_MIGRATION_PATH);
 const APPROVALS_FILE = join(ROOT, APPROVALS_MIGRATION_PATH);
+const REVISED_APPROVALS_FILE = join(ROOT, REVISED_APPROVALS_MIGRATION_PATH);
 
 function wrote(path: string, sql: string): boolean {
   if (process.env.WRITE_WORKSHEET_SQL !== '1') return false;
@@ -66,8 +69,8 @@ describe('generated migration', () => {
   });
 
   it('lists every approved Library entry and every placeholder', () => {
-    // 16 from the 9 Nov approved document + the 8 the owner approved on 24 Nov.
-    expect(listableToolIds()).toHaveLength(24);
+    // 16 from the 9 Nov approved document + the 10 the owner approved on 24 Nov.
+    expect(listableToolIds()).toHaveLength(26);
     const sql = buildMigrationSql();
     expect(sql).toContain("'ws_safety_plan'");
     expect(sql).toContain("'ws_energy_audit'");
@@ -110,11 +113,10 @@ describe('generated drafts migration', () => {
     expect(sql).not.toContain('2026-11-24');
   });
 
-  it('leaves exactly the two sent back for a wording change as drafts', () => {
-    expect(draftEntries().map((entry) => entry.tool_id)).toEqual([
-      'ws_unsent_letter',
-      'ws_pros_cons_change',
-    ]);
+  it('leaves nothing as a draft: both rows sent back were revised and approved', () => {
+    // The owner read the revised wording and approved it the same day, so the
+    // 24 Nov batch has no draft left. A later batch will add its own.
+    expect(draftEntries().map((entry) => entry.tool_id)).toEqual([]);
   });
 });
 
@@ -145,5 +147,34 @@ describe('generated approvals migration', () => {
     // Each approved row carries its content_en in the same statement.
     expect(sql.match(/"content_en" = EXCLUDED."content_en"/g)?.length).toBe(1);
     expect(sql).toContain('$ws_ws_weekly_load_check$');
+  });
+});
+
+describe('generated revised-approvals migration', () => {
+  it('matches the catalogue', () => {
+    const sql = buildRevisedApprovalsSql();
+    if (wrote(REVISED_APPROVALS_FILE, sql)) return;
+
+    expect(existsSync(REVISED_APPROVALS_FILE)).toBe(true);
+    expect(readFileSync(REVISED_APPROVALS_FILE, 'utf8')).toBe(sql);
+  });
+
+  it('approves exactly the two revised rows, with the owner’s date', () => {
+    const sql = buildRevisedApprovalsSql();
+    expect(sql).toContain("'ws_unsent_letter'");
+    expect(sql).toContain("'ws_pros_cons_change'");
+    expect(sql.match(/'approved'/g)?.length).toBe(2);
+    expect(sql.match(/'2026-11-24'::timestamp/g)?.length).toBe(2);
+    // The revised text, not the pre-revision wording.
+    expect(sql).toContain('OKUVU will check in with you and may let your therapist know');
+    expect(sql).toContain('Readiness can change from day to day');
+    expect(sql).not.toContain('2026-11-09');
+  });
+
+  it('carries the revised body with the promotion', () => {
+    const sql = buildRevisedApprovalsSql();
+    expect(sql.match(/"content_en" = EXCLUDED."content_en"/g)?.length).toBe(1);
+    expect(sql).toContain('$ws_ws_unsent_letter$');
+    expect(sql).toContain('$ws_ws_pros_cons_change$');
   });
 });

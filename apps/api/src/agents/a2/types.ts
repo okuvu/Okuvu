@@ -1,4 +1,5 @@
 import type { LlmFailureKind } from '../../lib/llm-failure.js';
+import type { LibraryWorksheetRef } from '@okuvu/shared-types';
 
 export type CarePlan = 'CP1' | 'CP2' | 'CP3';
 export type LanguageMode = 'english' | 'mirror';
@@ -45,12 +46,11 @@ export interface A2Input {
   homework?: string | null;
   toolkit?: string[];
   /**
-   * The labels of the worksheets this client can actually see (the Library's own
-   * rows). Carried on the turn so the approved worksheet wording — when it lands
-   * as v2.7 — has a real list to draw on; the v2.6 prompt does not reference it,
-   * so carrying it changes no instruction today.
+   * The worksheets this client can actually see (the Library's own rows), with
+   * how demanding each is and whether it was assigned. Carried on the turn so
+   * the approved v2.7 wording has a real list to draw on.
    */
-  libraryWorksheets?: string[];
+  libraryWorksheets?: LibraryWorksheetRef[];
   languageMode?: LanguageMode;
 }
 

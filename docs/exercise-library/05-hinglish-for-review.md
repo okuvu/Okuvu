@@ -941,6 +941,34 @@ _No Hinglish body._
 
 ---
 
+## Unsent letter
+
+- id: `ws_unsent_letter`
+- Library description (English): Write what was never said, then choose whether to keep it.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Some things never got said, and maybe they never will. Writing them down, with no plan to send them, can make a little more room inside you.
+
+- **short text** — Who is this letter to?
+  - helper: A name, a relationship, or just 'someone I used to know'. You don't have to explain.
+- **long text** — Write the letter.
+  - helper: Nobody reads this unless you choose to share it. If something you write sounds like you might not be safe, OKUVU will check in with you and may let your therapist know.
+- **choice** — What would you like to do with it now?
+  - helper: Keeping it saves it in Past me, private unless you share it later. Deleting removes it straight away.
+  - option `keep`: Keep it privately
+  - option `delete`: Delete it — This deletes the letter. If OKUVU already checked in about something you wrote, your therapist may still know that a check-in happened.
+
+> You wrote it, and you decided what happens to it. Both of those are yours.
+
+---
+
 ## Priority sorter
 
 - id: `ws_priority_sorter`
@@ -990,6 +1018,40 @@ _No Hinglish body._
   - helper: You can see your past weeks in Past me, under this worksheet.
 
 > However heavy the week was, you carried it. That counts.
+
+---
+
+## Weighing it up
+
+- id: `ws_pros_cons_change`
+- Library description (English): Look at both sides of changing, and of staying the same.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> When part of you wants to change and part of you doesn't, that's not a flaw. It's worth looking at both sides slowly.
+
+- **short text** — What change are you thinking about?
+  - helper: A sentence is enough. You can be as general or as specific as you like.
+- **long text** — What might be good about this change?
+  - helper: Even small good things. Nothing is too obvious.
+- **long text** — What might be good about not making this change?
+  - helper: There's usually something, or it would be easier to change.
+- **long text** — What might this change cost you?
+  - helper: Time, comfort, people, the way things are now.
+- **long text** — What might not making this change cost you?
+  - helper: It's alright if this is hard to answer. Take your time.
+- **scale 0 10** — How ready do you feel to change, right now?
+  - helper: There's no right number. Readiness can change from day to day.
+- **Closing reflection** — What do you notice, seeing all four side by side?
+  - helper: Optional.
+
+> Noticing both sides is not the same as staying stuck.
 
 ---
 

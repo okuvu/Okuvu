@@ -228,6 +228,13 @@ model SafetyFlag {
   /// retried write cannot double-count one crisis; subject_id is null for chat.
   subject_kind              String?
   subject_id                String?
+  /// The alert is urgent. Set only by the harm-to-someone screen (owner's
+  /// approval, 24 Nov 2026): the client is describing a risk to another person,
+  /// not their own, so the portal pins it to the top of the Safety card, marks
+  /// the alert email, and shows the client's own words beside it. False on every
+  /// other row, which is what the column default gives an insert that says
+  /// nothing.
+  urgent                    Boolean         @default(false)
   acknowledged_at           DateTime?
   acknowledged_by_therapist_id String?
   user                      User            @relation(fields: [user_id], references: [id], onDelete: Cascade)

@@ -24,6 +24,7 @@ vi.mock('../lib/prisma.js', () => ({
   prisma: {
     toolRegistryEntry: { findMany: vi.fn() },
     safetyPlan: { findUnique: vi.fn() },
+    homework: { findMany: vi.fn() },
   },
 }));
 
@@ -32,6 +33,7 @@ async function importMocks() {
   return prisma as unknown as {
     toolRegistryEntry: { findMany: ReturnType<typeof vi.fn> };
     safetyPlan: { findUnique: ReturnType<typeof vi.fn> };
+    homework: { findMany: ReturnType<typeof vi.fn> };
   };
 }
 
@@ -52,6 +54,7 @@ describe('the chat’s worksheet list', () => {
     // missing filter shows up as a leaked label rather than a silent pass.
     prisma.toolRegistryEntry.findMany.mockResolvedValue(rows);
     prisma.safetyPlan.findUnique.mockResolvedValue(null);
+    prisma.homework.findMany.mockResolvedValue([]);
   });
 
   it('asks only for approved, non-therapist-only, ungrouped catalogue rows', async () => {
@@ -106,10 +109,71 @@ describe('the chat’s worksheet list', () => {
 
     await expect(getVisibleWorksheetLabels('user-1')).resolves.toEqual([]);
   });
+
+  it('carries load level and whether this client was assigned it', async () => {
+    const { getVisibleWorksheets } = await import('../lib/library-labels.js');
+    const prisma = await importMocks();
+
+    prisma.toolRegistryEntry.findMany.mockResolvedValue([
+      { tool_id: 'ws_worry_tree', label: 'Worry tree', access_mode: 'open', load_level: 'light' },
+      {
+        tool_id: 'ws_boundary_planner',
+        label: 'Boundary planner',
+        access_mode: 'assigned',
+        load_level: 'light',
+      },
+      {
+        tool_id: 'ws_unsent_letter',
+        label: 'Unsent letter',
+        access_mode: 'assigned',
+        load_level: 'demanding',
+      },
+    ]);
+    prisma.homework.findMany.mockResolvedValue([{ tool_id: 'ws_boundary_planner' }]);
+
+    const list = await getVisibleWorksheets('user-1');
+
+    expect(list).toEqual([
+      { label: 'Worry tree', load_level: 'light', access: 'open', assigned: false },
+      { label: 'Boundary planner', load_level: 'light', access: 'assigned', assigned: true },
+      { label: 'Unsent letter', load_level: 'demanding', access: 'assigned', assigned: false },
+    ]);
+
+    // The assignment query is scoped to this client's active homework, and to
+    // the tools actually in the list — not the whole Homework table.
+    const homeworkQuery = prisma.homework.findMany.mock.calls[0][0];
+    expect(homeworkQuery.where).toMatchObject({
+      client_user_id: 'user-1',
+      status: 'active',
+    });
+  });
+
+  it('reports none assigned — never "assigned" — when the assignment lookup fails', async () => {
+    const { getVisibleWorksheets } = await import('../lib/library-labels.js');
+    const prisma = await importMocks();
+
+    prisma.toolRegistryEntry.findMany.mockResolvedValue([
+      {
+        tool_id: 'ws_unsent_letter',
+        label: 'Unsent letter',
+        access_mode: 'assigned',
+        load_level: 'demanding',
+      },
+    ]);
+    prisma.homework.findMany.mockRejectedValue(new Error('db down'));
+
+    const list = await getVisibleWorksheets('user-1');
+
+    // The failure narrows the list: an assigned-only worksheet is reported as
+    // not assigned, so the chat does not offer it. Never the other way round.
+    expect(list).toEqual([
+      { label: 'Unsent letter', load_level: 'demanding', access: 'assigned', assigned: false },
+    ]);
+  });
 });
 
-describe('the worksheet list changes no instruction today', () => {
-  it('assembles the identical v2.6 prompt whether or not a list is supplied', async () => {
+describe('the worksheet list changes no instruction by itself', () => {
+  it('is inert when no list is supplied — the token becomes "none visible today"', async () => {
     const { buildConversationalPrompt } = await import('../agents/a2/prompts.js');
 
     const base = {
@@ -119,15 +183,49 @@ describe('the worksheet list changes no instruction today', () => {
     };
 
     const withoutList = buildConversationalPrompt(base);
-    const withList = buildConversationalPrompt({
-      ...base,
-      libraryWorksheets: ['Worry tree', 'Thought record', 'Breathing'],
+
+    // v2.7 does reference the token now, so an absent list is not a no-op any
+    // more — it says there is nothing to suggest from, which is the safe
+    // direction. What must never happen: a token left unsubstituted.
+    expect(withoutList).not.toContain('${library_worksheets}');
+    expect(withoutList).toContain('none visible today');
+  });
+
+  it('renders one line per worksheet, with load level and who can open it', async () => {
+    const { buildConversationalPrompt, formatLibraryWorksheet } = await import(
+      '../agents/a2/prompts.js'
+    );
+
+    const lines = [
+      { label: 'Worry tree', load_level: 'light' as const, access: 'open' as const, assigned: false },
+      { label: 'Boundary planner', load_level: 'light' as const, access: 'assigned' as const, assigned: true },
+      { label: 'Priority sorter', load_level: 'light' as const, access: 'assigned' as const, assigned: false },
+      { label: 'Unsent letter', load_level: 'demanding' as const, access: 'assigned' as const, assigned: false },
+    ];
+
+    expect(formatLibraryWorksheet(lines[0])).toBe(
+      'Worry tree — light · they can open this themselves',
+    );
+    expect(formatLibraryWorksheet(lines[1])).toBe(
+      'Boundary planner — light · assigned to them by their therapist',
+    );
+    expect(formatLibraryWorksheet(lines[2])).toBe(
+      'Priority sorter — light · their therapist has to assign this one',
+    );
+    expect(formatLibraryWorksheet(lines[3])).toBe(
+      'Unsent letter — demanding · their therapist has to assign this one',
+    );
+
+    const prompt = buildConversationalPrompt({
+      safetyState: 'S0' as const,
+      sessionHistorySummary: null,
+      perceivedIntensity: null,
+      libraryWorksheets: lines,
     });
 
-    // Byte-identical: the token is not in v2.6, so this is a no-op until the
-    // owner approves wording that references it.
-    expect(withList).toBe(withoutList);
-    expect(withList).not.toContain('${library_worksheets}');
-    expect(withList).not.toContain('Worry tree');
+    // Every fact the wording needs is in the prompt, on its own line.
+    expect(prompt).toContain('Worry tree — light · they can open this themselves');
+    expect(prompt).toContain('Unsent letter — demanding · their therapist has to assign this one');
+    expect(prompt).not.toContain('${library_worksheets}');
   });
 });

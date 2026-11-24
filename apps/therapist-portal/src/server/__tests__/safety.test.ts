@@ -98,12 +98,16 @@ describe('safety.flagsForClient', () => {
       crisisScreenShown: true,
       source: 's3_grounding',
       acknowledgedAt: null,
+      urgent: false,
+      words: null,
+      wordsFrom: null,
     });
-    // Newest first, as the card renders them.
+    // Newest first inside the urgent group, and urgent first overall (24 Nov
+    // 2026): an urgent flag must not be below five ordinary ones.
     expect(prisma.safetyFlag.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { user_id: CLIENT_ID },
-        orderBy: { occurred_at: 'desc' },
+        orderBy: [{ urgent: 'desc' }, { occurred_at: 'desc' }],
       }),
     );
   });
@@ -119,12 +123,15 @@ describe('safety.flagsForClient', () => {
     expect(prisma.safetyFlag.findMany).not.toHaveBeenCalled();
   });
 
-  it('carries no conversation content — a flag row has no field for it', async () => {
+  it('carries no conversation content on an ordinary flag', async () => {
     const prisma = buildPrisma({ flags: [flagRow()] });
     const caller = callerWith(prisma);
 
     const [flag] = await caller.safety.flagsForClient({ clientUserId: CLIENT_ID, limit: 20 });
 
+    // The shape, stated once: a level, a time, a source and a marker — never a
+    // message. `words` exists for the urgent harm-to-someone row only (24 Nov
+    // 2026), and it is null here.
     expect(Object.keys(flag).sort()).toEqual([
       'acknowledgedAt',
       'crisisScreenShown',
@@ -132,7 +139,11 @@ describe('safety.flagsForClient', () => {
       'level',
       'occurredAt',
       'source',
+      'urgent',
+      'words',
+      'wordsFrom',
     ]);
+    expect(flag.words).toBeNull();
   });
 });
 

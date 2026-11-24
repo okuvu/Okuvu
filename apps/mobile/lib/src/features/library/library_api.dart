@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import 'harm_to_someone_screen.dart';
 
 /// One card in the Library.
 ///
@@ -254,10 +255,15 @@ class LibraryApi {
       },
     );
     final safety = res.data?['safety'];
+    final rawScreen = safety is Map ? safety['screen'] : null;
     return WorksheetSubmitResult(
       id: (res.data?['id'] as String?) ?? '',
       showHelp: safety is Map && safety['showHelp'] == true,
       helpOffer: safety is Map && safety['helpOffer'] == true,
+      // The approved harm-to-someone screen, when the api served one. Parsed
+      // strictly: a body that is not the shape the screen needs comes back null
+      // and the caller shows the ordinary help card instead of half the copy.
+      harmToSomeone: HarmToSomeoneScreen.fromJson(rawScreen),
     );
   }
 
@@ -301,6 +307,7 @@ class WorksheetSubmitResult {
     required this.id,
     required this.showHelp,
     this.helpOffer = false,
+    this.harmToSomeone,
   });
 
   final String id;
@@ -313,6 +320,15 @@ class WorksheetSubmitResult {
   /// ("Help is here if you need it.") and let the client carry on — the answers
   /// were saved and are screened again when the service is back.
   final bool helpOffer;
+
+  /// The owner-approved harm-to-someone screen, when the api served one.
+  ///
+  /// Present instead of the ordinary help card: the client has said they want to
+  /// hurt someone else, and the crisis card (about their own safety) and the
+  /// helpline list are both the wrong instruction for that. Null on every other
+  /// answer, including when the body could not be parsed — the caller then shows
+  /// the ordinary help card.
+  final HarmToSomeoneScreen? harmToSomeone;
 }
 
 final libraryApiProvider = Provider<LibraryApi>((ref) {

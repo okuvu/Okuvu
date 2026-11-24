@@ -56,10 +56,12 @@ describe('worksheet preview', () => {
     }
   });
 
-  it('has Hinglish for the sixteen approved earlier, and none for the eight of 24 Nov', () => {
+  it('has Hinglish for the sixteen approved earlier, and none for the ten of 24 Nov', () => {
     // The 24 Nov approvals were English-only: the Hinglish gate is released per
     // row after review, so a newly approved worksheet must not arrive with a
-    // translation nobody has read.
+    // translation nobody has read. The translations are the owner's to approve
+    // separately (his instruction, 24 Nov 2026: "noted for later"), so this list
+    // stays at ten until he releases them one by one.
     const withoutHinglish = LISTABLE_CATALOGUE.filter(
       (entry) => parseWorksheetRow(row(entry)).hinglish === null,
     ).map((entry) => entry.tool_id);
@@ -68,8 +70,10 @@ describe('worksheet preview', () => {
       'ws_boundary_planner',
       'ws_caring_load_check',
       'ws_priority_sorter',
+      'ws_pros_cons_change',
       'ws_rest_break',
       'ws_scrolling_log',
+      'ws_unsent_letter',
       'ws_weekly_load_check',
       'ws_whats_on_my_plate',
     ]);

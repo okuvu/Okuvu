@@ -100,8 +100,8 @@ function entry(toolId: string): CatalogueEntry {
 }
 
 describe('catalogue content', () => {
-  it('has twenty-four approved Library entries (worksheets 1-16, plus the eight of 24 Nov)', () => {
-    expect(LISTABLE_CATALOGUE).toHaveLength(24);
+  it('has twenty-six approved Library entries (worksheets 1-16, plus the ten of 24 Nov)', () => {
+    expect(LISTABLE_CATALOGUE).toHaveLength(26);
   });
 
   it('validates every approved row with the same checks a save runs', () => {
@@ -307,7 +307,7 @@ describe('the Stress & Burnout batch of 24 November 2026', () => {
     }
   });
 
-  it('is exactly the eight the owner approved, and the two that are still drafts', () => {
+  it('is exactly the ten the owner approved, in two rounds the same day', () => {
     expect(batch.filter((entry) => entry.status === 'approved').map((entry) => entry.tool_id)).toEqual([
       'ws_whats_on_my_plate',
       'ws_basics_check',
@@ -316,25 +316,20 @@ describe('the Stress & Burnout batch of 24 November 2026', () => {
       'ws_priority_sorter',
       'ws_scrolling_log',
       'ws_weekly_load_check',
+      'ws_unsent_letter',
+      'ws_pros_cons_change',
       'ws_caring_load_check',
     ]);
-    expect(drafts.map((entry) => entry.tool_id).sort()).toEqual([
-      'ws_pros_cons_change',
-      'ws_unsent_letter',
-    ]);
+    // Eight as written, then the two he sent back for a wording change, revised
+    // and approved later the same day. Nothing from this batch is still a draft.
+    expect(drafts.map((entry) => entry.tool_id)).toEqual([]);
   });
 
-  it('records the owner’s approval date on the eight, not the 9 Nov one', () => {
+  it('records the owner’s approval date on all ten, not the 9 Nov one', () => {
     for (const entry of batch.filter((row) => row.status === 'approved')) {
       expect({ tool: entry.tool_id, approvedAt: toRegistryRow(entry).approved_at }).toEqual({
         tool: entry.tool_id,
         approvedAt: '2026-11-24',
-      });
-    }
-    for (const entry of drafts) {
-      expect({ tool: entry.tool_id, approvedAt: toRegistryRow(entry).approved_at }).toEqual({
-        tool: entry.tool_id,
-        approvedAt: null,
       });
     }
   });

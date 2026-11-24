@@ -25,6 +25,7 @@ import {
   therapistMutation,
   therapistProcedure,
 } from "../trpc";
+import { answersToReadableText } from "../answer-text";
 
 /** One row of the Safety card's history list. */
 export interface SafetyFlagView {
@@ -34,6 +35,23 @@ export interface SafetyFlagView {
   crisisScreenShown: boolean;
   source: string | null;
   acknowledgedAt: string | null;
+  /**
+   * The harm-to-someone screen (owner's approval, 24 Nov 2026). Urgent flags
+   * lead the card, and they are the only rows that carry `words`.
+   */
+  urgent: boolean;
+  /**
+   * The client's own words, for an urgent harm-to-someone flag only.
+   *
+   * The flag itself stores no text. This is read from the worksheet answer the
+   * flag points at (`subject_kind` + `subject_id`), which the client has not
+   * shared — the owner asked for it so he can judge the disclosure himself.
+   * Every other source keeps the old rule: the therapist sees the event, not
+   * the words.
+   */
+  words: string | null;
+  /** Which worksheet the words came from, when `words` is present. */
+  wordsFrom: string | null;
 }
 
 /** What the Dashboard needs per client — one entry per assigned client. */
@@ -137,7 +155,9 @@ export const safetyRouter = router({
 
       const rows = await db.safetyFlag.findMany({
         where: { user_id: input.clientUserId },
-        orderBy: { occurred_at: "desc" },
+        // Urgent first, then newest: an urgent flag is the one the therapist
+        // needs before anything else, and it must not be scrolled for.
+        orderBy: [{ urgent: "desc" }, { occurred_at: "desc" }],
         take: input.limit,
         select: {
           id: true,
@@ -146,17 +166,57 @@ export const safetyRouter = router({
           crisis_screen_shown: true,
           source: true,
           acknowledged_at: true,
+          urgent: true,
+          subject_kind: true,
+          subject_id: true,
         },
       });
 
-      return rows.map((row) => ({
+      const views = rows.map((row) => ({
         id: row.id,
         level: row.level,
         occurredAt: row.occurred_at.toISOString(),
         crisisScreenShown: row.crisis_screen_shown,
         source: row.source ?? null,
         acknowledgedAt: row.acknowledged_at?.toISOString() ?? null,
+        urgent: row.urgent === true,
+        words: null as string | null,
+        wordsFrom: null as string | null,
+        subjectKind: row.subject_kind ?? null,
+        subjectId: row.subject_id ?? null,
       }));
+
+      // The client's own words, for the urgent harm-to-someone rows only.
+      // Read from the answer the flag points at, never stored on the flag.
+      const wantWords = views.filter(
+        (view) =>
+          view.urgent &&
+          view.source === "harm_to_someone" &&
+          view.subjectKind === "worksheet_response" &&
+          view.subjectId !== null,
+      );
+      if (wantWords.length > 0) {
+        if (!isBypassEnabled()) {
+          await logClinicalAccess(db, therapistId, input.clientUserId, "READ_HARM_TO_SOMEONE_WORDS");
+        }
+        for (const view of wantWords) {
+          try {
+            const answer = await db.worksheetResponse.findFirst({
+              where: { id: view.subjectId!, user_id: input.clientUserId },
+              select: { worksheet_id: true, answers: true },
+            });
+            if (!answer) continue;
+            view.words = answersToReadableText(answer.answers);
+            view.wordsFrom = answer.worksheet_id;
+          } catch (err) {
+            // The words are a reading aid; the flag is the record. A failed
+            // read must not take the Safety card down with it.
+            console.error("[safety] could not read the flagged answer", err);
+          }
+        }
+      }
+
+      return views.map(({ subjectKind: _k, subjectId: _i, ...view }) => view);
     }),
 
   /**
