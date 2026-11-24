@@ -67,22 +67,21 @@ makes "which prompt was live on this date" answerable from the repo.
   default — that is the standing rule for new clinical prompt text
   (`docs/plans/2026-11-22-care-plan-style-blocks.md`, D5).
 
-## The one thing Edit 1 cannot do today
+## The worksheet list Edit 1 relies on — built, and not yet used
 
-The chat has **no worksheet list** at runtime: `${toolkit}` is empty in
-production (there is no data source for "tools the therapist chose"), so the
-suggestion sentence can only name a worksheet the model already knows about from
-the prompt. Two honest options, for the owner to pick:
+The chat had **no worksheet list** at runtime when this was written: `${toolkit}`
+is empty in production (there is no data source for "tools the therapist
+chose"), so the suggestion sentence could only name a worksheet the model already
+knew about from the prompt.
 
-1. **Approve the wording and ship it as it is.** The model suggests from what the
-   prompt already describes (breathing, grounding, the named worksheets), and
-   never invents one — the last sentence is what stops it.
-2. **Feed a real list first.** Give `${toolkit}` the client's approved, visible
-   worksheet labels — never a draft, never a therapist-only row — and then the
-   wording can be relied on to suggest only from that list. This is a small API
-   change (the Library query, reused) plus the wording above, and it is the
-   version where "may suggest which worksheet to try" actually means the client's
-   Library.
+That is now built, as its own runtime token rather than by overloading
+`${toolkit}`: **`${library_worksheets}`** carries the labels of the worksheets the
+client can actually see — the Library's own query, so approved rows only, no
+draft, no therapist-only row (the exposure ladder), no grouped card, and the
+safety plan only once one exists. A failed lookup gives an empty list and the turn
+carries on.
 
-Recommendation: option 2, in the same change as the wording. Until one of the two
-is chosen, rule 4's suggestion half has nothing to suggest from.
+The current prompt does not contain the token, so the chat's instructions are
+byte-identical with and without it, and a test asserts exactly that. Nothing in
+this file is applied: when the wording above is approved, the paragraph and the
+token land together.
