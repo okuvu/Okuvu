@@ -259,6 +259,13 @@ const counters = {
   // {"verdict":"satisfied","requirements":[]}, which scored 2 requirements as a
   // free pass. Never a pass now.
   judge_requirement_count_mismatch: 0,
+  /**
+   * A turn the pipeline returned with no text at all (an A2 reply that parsed to
+   * an empty body, or a path that served nothing). Found in the 24 Nov candidate
+   * run: ta-07 was empty for all three reps and its three judgements quietly left
+   * the pool, which lowers a category's n without saying so.
+   */
+  served_text_empty: 0,
   probe_calls: 0,
   probe_failures_expected: 0,
   retries: 0,
@@ -815,6 +822,7 @@ async function runGate(): Promise<void> {
         parse_mode: 'none',
       };
     } else if (turn.served_text.trim().length === 0) {
+      counters.served_text_empty += 1;
       judgeOut = { ok: false, verdict: null, reason: '', requirements: [], raw: '', error: 'nothing was served', parse_mode: 'none' };
     } else {
       const expectedRequirements = requirementsFor(task.scenario, turn.path).length;
@@ -934,7 +942,8 @@ async function runGate(): Promise<void> {
     counters.a1_fallbacks === 0 &&
     counters.judge_call_failures === 0 &&
     counters.judge_parse_failures === 0 &&
-    counters.judge_requirement_count_mismatch === 0;
+    counters.judge_requirement_count_mismatch === 0 &&
+    counters.served_text_empty === 0;
 
   const legacyAgreements = results.flatMap((r) =>
     r.reps.map((rep) => ({
@@ -963,6 +972,9 @@ async function runGate(): Promise<void> {
           counters.judge_parse_failures > 0 ? `${counters.judge_parse_failures} judge output(s) were unparseable` : null,
           counters.judge_requirement_count_mismatch > 0
             ? `${counters.judge_requirement_count_mismatch} judge output(s) carried fewer requirements than the rubric asked about and were NOT counted as passes`
+            : null,
+          counters.served_text_empty > 0
+            ? `${counters.served_text_empty} turn(s) served no text at all, so their judgements are missing from the pool`
             : null,
         ]
           .filter(Boolean)
