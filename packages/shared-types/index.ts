@@ -579,6 +579,17 @@ export interface AgentContextBundle {
   /** OKUVU v2.0 — the client's most recent active Homework.description, or null. */
   homework: string | null
   /**
+   * The worksheets this client can actually see, by label — the Library's own
+   * rows, nothing else. Approved only (a draft is never here), never a
+   * therapist-only row (the exposure ladder is never here), and the safety plan
+   * only once one exists.
+   *
+   * This is what the chat may name when it suggests a worksheet. Optional so
+   * every existing producer of this shape stays valid; absent means "no list",
+   * which is the safe default: the model then has nothing to suggest from.
+   */
+  library_worksheets?: string[]
+  /**
    * Set only when the client answered the 18+ question with "no": the bundle is
    * then empty and `GET /users/me/context` answers 403 `UNDER_18` instead of
    * sending it. Absent (not false) for everyone else, so every existing

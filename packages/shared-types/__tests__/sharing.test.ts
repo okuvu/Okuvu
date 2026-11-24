@@ -59,11 +59,14 @@ describe('sharing copy is the approved copy', () => {
     expect(norm(DOC)).toContain(norm(UPDATES_SHARED_LINE));
   });
 
-  it('knows exactly the three shareable surfaces', () => {
+  it('knows exactly the four shareable surfaces', () => {
     expect([...SHAREABLE_KINDS]).toEqual([
       'journal_entry',
       'worksheet_response',
       'treasure_note',
+      // Per-entry mood check-ins, approved 22 Nov 2026: private by default,
+      // shared one check-in at a time, each with its own switch.
+      'mood_log',
     ]);
   });
 

@@ -14,6 +14,15 @@ vi.mock('../lib/prisma.js', () => ({
     homework: {
       findFirst: vi.fn(),
     },
+    // The chat's worksheet list reads the catalogue and, only when the safety
+    // plan is among the rows, whether a plan exists. Empty by default: these
+    // tests are about the client record, not the Library.
+    toolRegistryEntry: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    safetyPlan: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 
@@ -290,6 +299,9 @@ describe('GET /users/me/context', () => {
         'engagement',
         'homework',
         'language_mode',
+        // The worksheets this client can see: added 24 Nov 2026 for the chat's
+        // worksheet list. Labels only, and only rows the client can already open.
+        'library_worksheets',
         'recent_history',
         'safety_state',
         'session_summary',
@@ -327,6 +339,9 @@ describe('GET /users/me/context', () => {
         'engagement',
         'homework',
         'language_mode',
+        // The worksheets this client can see: added 24 Nov 2026 for the chat's
+        // worksheet list. Labels only, and only rows the client can already open.
+        'library_worksheets',
         'recent_history',
         'safety_state',
         'session_summary',

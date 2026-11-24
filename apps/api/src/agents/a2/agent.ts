@@ -53,6 +53,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     talkOrDo,
     homework,
     toolkit,
+    libraryWorksheets,
     languageMode,
   } = input;
 
@@ -69,6 +70,7 @@ export async function handleTurn(input: A2Input): Promise<A2Output> {
     talkOrDo,
     homework,
     toolkit,
+    libraryWorksheets,
     languageMode,
   });
 

@@ -273,6 +273,15 @@ export function buildConversationalPrompt(params: {
   talkOrDo?: boolean;
   homework?: string | null;
   toolkit?: string[];
+  /**
+   * The labels of the worksheets this client can actually see. Substituted into
+   * `${library_worksheets}` — a token the v2.6 prompt does not contain, so this
+   * is inert until the approved v2.7 wording references it. That is deliberate:
+   * the owner approves all chat wording, and a list that appeared without its
+   * sentence (or a sentence that appeared without its list) would be a change
+   * nobody signed off.
+   */
+  libraryWorksheets?: string[];
   languageMode?: 'english' | 'mirror';
 }): string {
   const {
@@ -286,6 +295,7 @@ export function buildConversationalPrompt(params: {
     carePlan,
     homework,
     toolkit,
+    libraryWorksheets,
     languageMode,
   } = params;
 
@@ -332,5 +342,13 @@ export function buildConversationalPrompt(params: {
     .replaceAll('${care_plan_focus}', carePlanFocus ?? 'null')
     .replaceAll('${homework}', homework ?? 'null')
     .replaceAll('${toolkit}', toolkit && toolkit.length > 0 ? toolkit.join(', ') : 'none selected — use the always-available tools')
+    // Inert on v2.6: the token is not in the prompt until approved wording adds
+    // it. Present here so the list and its sentence land in the same change.
+    .replaceAll(
+      '${library_worksheets}',
+      libraryWorksheets && libraryWorksheets.length > 0
+        ? libraryWorksheets.join(', ')
+        : 'none visible today',
+    )
     .replaceAll('${language_mode}', languageMode ?? 'english');
 }

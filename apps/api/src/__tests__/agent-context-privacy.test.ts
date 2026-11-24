@@ -28,6 +28,8 @@ vi.mock('../lib/prisma.js', () => ({
     user: { findUnique: vi.fn() },
     turn: { findMany: vi.fn().mockResolvedValue([]) },
     homework: { findFirst: vi.fn().mockResolvedValue(null) },
+    toolRegistryEntry: { findMany: vi.fn().mockResolvedValue([]) },
+    safetyPlan: { findUnique: vi.fn().mockResolvedValue(null) },
   },
 }));
 

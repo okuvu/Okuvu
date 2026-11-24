@@ -1,5 +1,6 @@
 import { prisma } from './prisma.js';
 import { getActiveHomework } from './homework.js';
+import { getVisibleWorksheetLabels } from './library-labels.js';
 import { DEFAULT_CARE_PLAN_FOCUS, isAgeDeclined } from '@okuvu/shared-types';
 import type { AgentContextBundle, SessionSummaryView } from '@okuvu/shared-types';
 import type { ConversationTurn } from '../agents/a1/types.js';
@@ -33,6 +34,7 @@ function emptyBundle(under18: boolean): AgentContextBundle {
     therapist_name: null,
     care_plan_focus: null,
     homework: null,
+    library_worksheets: [],
     ...(under18 ? { under_18: true } : {}),
   };
 }
@@ -121,6 +123,10 @@ export async function getAgentContextBundle(authSubject: string): Promise<AgentC
   }
 
   const activeHomework = await getActiveHomework(user.id);
+  // The worksheets this client can actually see. Read on the context path so the
+  // chat and the Library cannot disagree about what exists; empty on failure, so
+  // no list ever means no suggestion (see lib/library-labels.ts).
+  const libraryWorksheets = await getVisibleWorksheetLabels(user.id);
 
   const userMemoryRecord = user.user_memory
     ? {
@@ -162,6 +168,7 @@ export async function getAgentContextBundle(authSubject: string): Promise<AgentC
       user.clinical_config?.care_plan_focus ??
       (user.clinical_config ? DEFAULT_CARE_PLAN_FOCUS[user.clinical_config.care_plan_id] : null),
     homework: activeHomework?.description ?? null,
+    library_worksheets: libraryWorksheets,
   };
 }
 

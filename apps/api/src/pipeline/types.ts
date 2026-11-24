@@ -30,6 +30,8 @@ export interface TestModeOptions {
   injectCarePlanFocus?: string
   /** OKUVU v2.0: use this instead of the hardcoded empty toolkit array — no real data source exists yet for "tools this therapist selected," so production always passes []; harness runs can override it to exercise A2 with a non-empty toolkit. */
   injectToolkit?: string[]
+  /** OKUVU v2.0: use this instead of contextBundle.library_worksheets. */
+  injectLibraryWorksheets?: string[]
   /**
    * Shallow-merge `payload` onto a boundary's result object before it is read.
    * Only `boundary: 'a2_result'` is supported for this story: it merges onto

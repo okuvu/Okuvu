@@ -744,6 +744,11 @@ export async function processTurn(
   // degrading to the prompt's own "always-available tools" default. Harness
   // runs can override via injectToolkit to exercise A2 with a real toolkit.
   const toolkit: string[] = testMode?.injectToolkit ?? [];
+  // The worksheets this client can actually see — the Library's own rows, so the
+  // chat can only ever name something they can open. Inert until the approved
+  // wording references ${library_worksheets} (see agents/a2/prompts.ts).
+  const libraryWorksheets: string[] =
+    testMode?.injectLibraryWorksheets ?? contextBundle.library_worksheets ?? [];
 
   if (a1Unavailable && !crisisFloorMatched) {
     // E17-S4 — the classifier is unreachable and the deterministic screen found
@@ -810,6 +815,7 @@ export async function processTurn(
         carePlanFocus,
         homework,
         toolkit,
+        libraryWorksheets,
         languageMode,
       });
 

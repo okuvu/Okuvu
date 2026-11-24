@@ -44,6 +44,13 @@ export interface A2Input {
   talkOrDo?: boolean;
   homework?: string | null;
   toolkit?: string[];
+  /**
+   * The labels of the worksheets this client can actually see (the Library's own
+   * rows). Carried on the turn so the approved worksheet wording — when it lands
+   * as v2.7 — has a real list to draw on; the v2.6 prompt does not reference it,
+   * so carrying it changes no instruction today.
+   */
+  libraryWorksheets?: string[];
   languageMode?: LanguageMode;
 }
 
