@@ -70,10 +70,13 @@ describe('case 3 — a frightening unwanted thought reaches the gentler screen',
     expect(route(message).agent).toBe('harm-to-someone-thoughts');
   });
 
-  it('does not instruct anyone to call 112, and keeps the alert and the plan', () => {
+  it('does not instruct anyone to call 112, in the body or the alert', () => {
     const body = HARM_TO_SOMEONE_THOUGHTS_SCREEN.paragraphs.join(' ');
     expect(body).not.toContain('call 112');
     expect(body).not.toContain('112 now');
+    // The intent screen's alert ends with "call 112". Reusing it here was the
+    // first gold-set run's one failure on this screen (3/3 reps, both cases).
+    expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert).not.toContain('112');
     expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert).toContain('told this is urgent');
     expect(HARM_TO_SOMEONE_THOUGHTS_SCREEN.plan_label).toBe('My plan for hard moments');
   });

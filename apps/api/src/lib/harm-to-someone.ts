@@ -161,12 +161,25 @@ const THOUGHTS_THIRD =
   'keep coming back, or they frighten you a lot, it is worth talking them through properly with ' +
   'someone who can help.';
 
+/**
+ * The alert line for this screen only.
+ *
+ * The intent screen's alert ends "…so if you need help right now, call 112."
+ * Carried onto a disclosure that describes no intent, that sentence is the
+ * 112 push the owner ruled out — and the first gold-set run proved he was right
+ * to: the judge failed both thought scenarios on it, three reps of three. So
+ * this variant says what happened and stops, and the 112 row stays available
+ * without being urged.
+ */
+const THOUGHTS_ALERT =
+  'Your therapist has been told this is urgent. They may not be able to reply straight away.';
+
 export const HARM_TO_SOMEONE_THOUGHTS_SCREEN: HarmToSomeoneScreen = {
   kind: 'harm_to_someone_thoughts',
   paragraphs: [THOUGHTS_OPENING, THOUGHTS_SECOND, THOUGHTS_THIRD],
   emergency: HARM_TO_SOMEONE_RESOURCE_EMERGENCY,
   resources: [HARM_TO_SOMEONE_RESOURCE_VANDREVALA],
-  alert: ALERT,
+  alert: THOUGHTS_ALERT,
   plan_label: HARM_TO_SOMEONE_PLAN_LABEL,
   closing: CLOSING,
 };
