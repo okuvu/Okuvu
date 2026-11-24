@@ -1,12 +1,20 @@
 /**
  * STRESS & BURNOUT — the ten worksheets the owner briefed on 24 November 2026.
  *
- * Every row is `status: 'draft'`. They are written, validated and previewable by
- * a therapist, and switched off for clients until the owner approves the wording
- * (rule 2 of the same date). The four that were already sitting in the catalogue
- * as placeholders (Boundary planner, Unsent letter, Doomscroll log — filed under
- * its old name, Scrolling log — and Weighing it up — filed as Pros and cons of
- * change) keep their existing ids, so nothing has to be renamed later.
+ * STATUS, 24 November 2026 (owner's decisions, in chat):
+ *
+ *   - APPROVED, as written: What's on my plate, Basics check, Rest break,
+ *     Boundary planner, Priority sorter, Doomscroll log, Weekly load check,
+ *     Caring load check. They carry `status: 'approved'` and
+ *     `OWNER_APPROVAL_24_NOV` as their approval date.
+ *   - STILL DRAFT, revised and awaiting a second read: Unsent letter and
+ *     Weighing it up. Their copy below is the revised draft, and neither can
+ *     reach a client until the owner approves it.
+ *
+ * The four that were already sitting in the catalogue as placeholders (Boundary
+ * planner, Unsent letter, Doomscroll log — filed under its old name, Scrolling
+ * log — and Weighing it up — filed as Pros and cons of change) keep their
+ * existing ids, and the approved pair now shows the new name in the Library.
  *
  * The owner's brief, one line each:
  *
@@ -27,11 +35,13 @@
  * doomscroll log and the unsent letter — carry `sensitive_check: true`; for the
  * rest the shared safety check on every write is the whole of it.
  *
- * Copy below is DRAFT. It is not approved wording, and nothing here may be shown
- * to a client until the owner says so.
+ * Copy below is the client's wording. Eight rows are approved; the two marked
+ * draft are not, and nothing in this file may be shown to a client until the
+ * owner says the wording is approved.
  */
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 import { FEELINGS_EN } from '@okuvu/shared-types/worksheets/feelings';
+import { OWNER_APPROVAL_24_NOV } from '@okuvu/shared-types/worksheets/types';
 
 const whatsOnMyPlate: CatalogueEntry = {
   tool_id: 'ws_whats_on_my_plate',
@@ -47,7 +57,8 @@ const whatsOnMyPlate: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 30,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,
@@ -106,7 +117,8 @@ const basicsCheck: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 3,
   sort_order: 20,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,
@@ -165,7 +177,8 @@ const restBreak: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 30,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,
@@ -243,7 +256,8 @@ const boundaryPlanner: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 20,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,
@@ -314,7 +328,8 @@ const prioritySorter: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 40,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,
@@ -374,7 +389,8 @@ const doomscrollLog: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 3,
   sort_order: 30,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: true,
@@ -442,7 +458,8 @@ const weeklyLoadCheck: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 40,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,
@@ -477,6 +494,7 @@ const weeklyLoadCheck: CatalogueEntry = {
     closing: {
       text: 'However heavy the week was, you carried it. That counts.',
     },
+    timeline: { leadField: 'load' },
   },
   content_hi: null,
 };
@@ -515,7 +533,7 @@ const unsentLetter: CatalogueEntry = {
         type: 'long_text',
         prompt: 'Write the letter.',
         helper:
-          'Say the whole thing. Nobody reads this unless you choose to share it. You can type it or speak it.',
+          'Nobody reads this unless you choose to share it. If something you write sounds like you might not be safe, OKUVU will check in with you and may let your therapist know.',
       },
       {
         id: 'keep',
@@ -526,7 +544,12 @@ const unsentLetter: CatalogueEntry = {
           'Keeping it saves it in Past me, private unless you share it later. Deleting removes it straight away.',
         options: [
           { value: 'keep', label: 'Keep it privately' },
-          { value: 'delete', label: 'Delete it' },
+          {
+            value: 'delete',
+            label: 'Delete it',
+            description:
+              'This deletes the letter. If OKUVU already checked in about something you wrote, your therapist may still know that a check-in happened.',
+          },
         ],
       },
     ],
@@ -562,34 +585,41 @@ const weighingItUp: CatalogueEntry = {
       "When part of you wants to change and part of you doesn't, that's not a flaw. It's worth looking at both sides slowly.",
     fields: [
       {
+        id: 'change',
+        type: 'short_text',
+        prompt: 'What change are you thinking about?',
+        required: true,
+        helper: 'A sentence is enough. You can be as general or as specific as you like.',
+      },
+      {
         id: 'good_changing',
         type: 'long_text',
-        prompt: 'What might be good about changing?',
+        prompt: 'What might be good about this change?',
         helper: 'Even small good things. Nothing is too obvious.',
       },
       {
         id: 'good_same',
         type: 'long_text',
-        prompt: 'What might be good about staying the same?',
+        prompt: 'What might be good about not making this change?',
         helper: "There's usually something, or it would be easier to change.",
       },
       {
         id: 'cost_changing',
         type: 'long_text',
-        prompt: 'What might changing cost you?',
+        prompt: 'What might this change cost you?',
         helper: 'Time, comfort, people, the way things are now.',
       },
       {
         id: 'cost_same',
         type: 'long_text',
-        prompt: 'What might staying the same cost you?',
+        prompt: 'What might not making this change cost you?',
         helper: "It's alright if this is hard to answer. Take your time.",
       },
       {
         id: 'ready',
         type: 'scale_0_10',
         prompt: 'How ready do you feel to change, right now?',
-        helper: "There's no right number. Ready moves.",
+        helper: "There's no right number. Readiness can change from day to day.",
         minLabel: '0 = not at all',
         maxLabel: '10 = completely',
       },
@@ -621,7 +651,8 @@ const caringLoadCheck: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 50,
-  status: 'draft',
+  status: 'approved',
+  approved_at: OWNER_APPROVAL_24_NOV.approvedAt,
   opens: 'worksheet',
   care_plans: ['stress_burnout'],
   sensitive_check: false,

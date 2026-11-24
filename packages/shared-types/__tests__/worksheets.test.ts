@@ -13,6 +13,8 @@ import {
   catalogueProblems,
   toRegistryRow,
 } from '../worksheets/index';
+import { stressAndBurnoutEntries } from '../worksheets/stress-and-burnout';
+import type { CatalogueEntry } from '../worksheets/types';
 import {
   stripTherapistCopy,
   toClientWorksheetView,
@@ -23,6 +25,17 @@ import {
 
 const DOC = readFileSync(
   join(__dirname, '../../../docs/exercise-library/02-approved-worksheet-copy.md'),
+  'utf8',
+);
+
+/**
+ * The second approved document: the eight Stress & Burnout worksheets the owner
+ * approved on 24 Nov 2026. A row is checked against the document that recorded
+ * its approval, so a new approval needs a new document rather than an edit to
+ * the old one.
+ */
+const DOC_24_NOV = readFileSync(
+  join(__dirname, '../../../docs/exercise-library/25-approved-stress-burnout-copy.md'),
   'utf8',
 );
 
@@ -42,9 +55,11 @@ function norm(s: string): string {
 }
 
 const DOC_NORM = norm(DOC);
+const DOC_24_NOV_NORM = norm(DOC_24_NOV);
 
 function inDoc(s: string): boolean {
-  return DOC_NORM.includes(norm(s));
+  const needle = norm(s);
+  return DOC_NORM.includes(needle) || DOC_24_NOV_NORM.includes(needle);
 }
 
 /** Every client-facing string in a body, with the path it came from. */
@@ -78,9 +93,15 @@ function clientStrings(content: WorksheetContent): Array<{ path: string; text: s
  */
 const STRUCTURAL_LABELS = new Set(['What makes it feel true', "What doesn't quite fit"]);
 
+function entry(toolId: string): CatalogueEntry {
+  const found = CATALOGUE.find((row) => row.tool_id === toolId);
+  if (!found) throw new Error(`no catalogue entry ${toolId}`);
+  return found;
+}
+
 describe('catalogue content', () => {
-  it('has sixteen approved Library entries (worksheets 1-16)', () => {
-    expect(LISTABLE_CATALOGUE).toHaveLength(16);
+  it('has twenty-four approved Library entries (worksheets 1-16, plus the eight of 24 Nov)', () => {
+    expect(LISTABLE_CATALOGUE).toHaveLength(24);
   });
 
   it('validates every approved row with the same checks a save runs', () => {
@@ -182,11 +203,12 @@ describe('catalogue content', () => {
  * clients. The checks below are the rules that can be broken by content alone,
  * so they run on the catalogue rather than on the database.
  */
-describe('the Stress & Burnout drafts', () => {
+describe('the Stress & Burnout batch of 24 November 2026', () => {
+  const batch = stressAndBurnoutEntries;
   const drafts = CATALOGUE.filter((entry) => entry.status === 'draft');
 
   it('is the ten the owner briefed, in the owner\'s order', () => {
-    expect(drafts.map((entry) => entry.label)).toEqual([
+    expect(batch.map((entry) => entry.label)).toEqual([
       "What's on my plate",
       'Basics check',
       'Rest break',
@@ -200,8 +222,23 @@ describe('the Stress & Burnout drafts', () => {
     ]);
   });
 
+  it('shows the new names on the four rows that were placeholders', () => {
+    // The applied seed created these ids with placeholder names. The library now
+    // shows the owner's names, not "Scrolling log" or "Pros and cons of change".
+    const renamed: Record<string, string> = {
+      ws_boundary_planner: 'Boundary planner',
+      ws_unsent_letter: 'Unsent letter',
+      ws_scrolling_log: 'Doomscroll log',
+      ws_pros_cons_change: 'Weighing it up',
+    };
+    for (const [toolId, label] of Object.entries(renamed)) {
+      const row = batch.find((entry) => entry.tool_id === toolId);
+      expect({ toolId, label: row?.label }).toEqual({ toolId, label });
+    }
+  });
+
   it('passes the same checks a save runs', () => {
-    for (const entry of drafts) {
+    for (const entry of batch) {
       expect({ tool: entry.tool_id, problems: worksheetRowProblems(toRegistryRow(entry)) }).toEqual({
         tool: entry.tool_id,
         problems: [],
@@ -210,7 +247,7 @@ describe('the Stress & Burnout drafts', () => {
   });
 
   it('carries the Stress & Burnout label and nothing else', () => {
-    for (const entry of drafts) {
+    for (const entry of batch) {
       expect({ tool: entry.tool_id, care_plans: entry.care_plans }).toEqual({
         tool: entry.tool_id,
         care_plans: ['stress_burnout'],
@@ -231,7 +268,7 @@ describe('the Stress & Burnout drafts', () => {
       ws_pros_cons_change: 'assigned',
       ws_caring_load_check: 'assigned',
     };
-    for (const entry of drafts) {
+    for (const entry of batch) {
       expect({ tool: entry.tool_id, access: entry.access_mode }).toEqual({
         tool: entry.tool_id,
         access: brief[entry.tool_id],
@@ -240,21 +277,21 @@ describe('the Stress & Burnout drafts', () => {
   });
 
   it('gives the deeper screen to the doomscroll log and the unsent letter only', () => {
-    expect(drafts.filter((entry) => entry.sensitive_check).map((entry) => entry.tool_id).sort()).toEqual([
+    expect(batch.filter((entry) => entry.sensitive_check).map((entry) => entry.tool_id)).toEqual([
       'ws_scrolling_log',
       'ws_unsent_letter',
     ]);
   });
 
   it('keeps the high-load letter demanding, and everything else light', () => {
-    // The only `demanding` draft, because the owner said "High load" for it.
-    expect(drafts.filter((entry) => entry.load_level === 'demanding').map((entry) => entry.tool_id)).toEqual([
+    // The only `demanding` row, because the owner said "High load" for it.
+    expect(batch.filter((entry) => entry.load_level === 'demanding').map((entry) => entry.tool_id)).toEqual([
       'ws_unsent_letter',
     ]);
   });
 
   it('ships no Hinglish until the English is approved', () => {
-    for (const entry of drafts) {
+    for (const entry of batch) {
       expect({ tool: entry.tool_id, hi: entry.content_hi, labelHi: entry.label_hi }).toEqual({
         tool: entry.tool_id,
         hi: null,
@@ -263,9 +300,87 @@ describe('the Stress & Burnout drafts', () => {
     }
   });
 
+  it('uses one slider and no totals anywhere', () => {
+    for (const entry of batch) {
+      const text = JSON.stringify(entry.content_en).toLowerCase();
+      expect(text).not.toMatch(/total|overall|your score|stress level|burnout level/);
+    }
+  });
+
+  it('is exactly the eight the owner approved, and the two that are still drafts', () => {
+    expect(batch.filter((entry) => entry.status === 'approved').map((entry) => entry.tool_id)).toEqual([
+      'ws_whats_on_my_plate',
+      'ws_basics_check',
+      'ws_rest_break',
+      'ws_boundary_planner',
+      'ws_priority_sorter',
+      'ws_scrolling_log',
+      'ws_weekly_load_check',
+      'ws_caring_load_check',
+    ]);
+    expect(drafts.map((entry) => entry.tool_id).sort()).toEqual([
+      'ws_pros_cons_change',
+      'ws_unsent_letter',
+    ]);
+  });
+
+  it('records the owner’s approval date on the eight, not the 9 Nov one', () => {
+    for (const entry of batch.filter((row) => row.status === 'approved')) {
+      expect({ tool: entry.tool_id, approvedAt: toRegistryRow(entry).approved_at }).toEqual({
+        tool: entry.tool_id,
+        approvedAt: '2026-11-24',
+      });
+    }
+    for (const entry of drafts) {
+      expect({ tool: entry.tool_id, approvedAt: toRegistryRow(entry).approved_at }).toEqual({
+        tool: entry.tool_id,
+        approvedAt: null,
+      });
+    }
+  });
+
+  it('reports the load number beside the date in Past me, from content not a tool id', () => {
+    const weekly = entry('ws_weekly_load_check');
+    expect(weekly.content_en?.timeline).toEqual({ leadField: 'load' });
+    // Nobody else declares one, so no other Past me row changes.
+    expect(batch.filter((row) => row.content_en?.timeline).map((row) => row.tool_id)).toEqual([
+      'ws_weekly_load_check',
+    ]);
+  });
+
+  it('carries the delete helper under the delete choice only', () => {
+    const letter = entry('ws_unsent_letter').content_en!;
+    const keep = letter.fields.find((field) => field.id === 'keep');
+    if (!keep || keep.type !== 'choice') throw new Error('no keep choice');
+    const del = keep.options.find((option) => option.value === 'delete');
+    expect(del?.description).toContain('your therapist may still know that a check-in happened');
+    expect(keep.options.find((option) => option.value === 'keep')?.description).toBeUndefined();
+  });
+
+  it('asks what the change is before the four boxes, and refers to it throughout', () => {
+    const weighing = entry('ws_pros_cons_change').content_en!;
+    expect(weighing.fields[0]).toMatchObject({
+      id: 'change',
+      type: 'short_text',
+      required: true,
+      prompt: 'What change are you thinking about?',
+    });
+    const prompts = weighing.fields.slice(1, 5).map((field) => field.prompt);
+    expect(prompts).toEqual([
+      'What might be good about this change?',
+      'What might be good about not making this change?',
+      'What might this change cost you?',
+      'What might not making this change cost you?',
+    ]);
+    const ready = weighing.fields.find((field) => field.id === 'ready');
+    expect(ready && 'helper' in ready ? ready.helper : null).toBe(
+      "There's no right number. Readiness can change from day to day.",
+    );
+  });
+
   it('reads back the keep-or-delete choice only where it exists', () => {
-    const withDiscard = drafts.filter((entry) => entry.content_en?.closing?.discardWhen);
-    expect(withDiscard.map((entry) => entry.tool_id)).toEqual(['ws_unsent_letter']);
+    const withDiscard = CATALOGUE.filter((row) => row.content_en?.closing?.discardWhen);
+    expect(withDiscard.map((row) => row.tool_id)).toEqual(['ws_unsent_letter']);
     const discard = withDiscard[0].content_en!.closing!.discardWhen!;
     expect(discard).toEqual({ field: 'keep', in: ['delete'] });
     const choice = withDiscard[0].content_en!.fields.find((field) => field.id === discard.field);
@@ -273,12 +388,5 @@ describe('the Stress & Burnout drafts', () => {
       'keep',
       'delete',
     ]);
-  });
-
-  it('uses one slider and no totals anywhere', () => {
-    for (const entry of drafts) {
-      const text = JSON.stringify(entry.content_en).toLowerCase();
-      expect(text).not.toMatch(/total|overall|your score|stress level|burnout level/);
-    }
   });
 });

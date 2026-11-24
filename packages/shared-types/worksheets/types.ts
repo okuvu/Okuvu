@@ -33,6 +33,17 @@ export const ENGLISH_APPROVAL = {
 } as const;
 
 /**
+ * The owner's own approval, given in chat, of the eight Stress & Burnout
+ * worksheets on 24 November 2026. Recorded separately because the date is part
+ * of what "which wording was live when" means, and the 9 Nov document did not
+ * contain these worksheets.
+ */
+export const OWNER_APPROVAL_24_NOV = {
+  approvedBy: 'Rajwant (owner)',
+  approvedAt: '2026-11-24',
+} as const;
+
+/**
  * `placeholder` rows are a name and a one-line purpose for worksheets that do
  * not exist yet. They are hidden from clients AND from therapists, so they are
  * excluded from every list query by `isListable`.
@@ -141,6 +152,12 @@ export interface CatalogueEntry {
   est_minutes: number | null;
   sort_order: number;
   status: CatalogueStatus;
+  /**
+   * The date the wording was approved. Absent means `ENGLISH_APPROVAL.approvedAt`
+   * — the 9 Nov 2026 approved document. Set explicitly on a row approved later,
+   * so a second approval never rewrites the first one's date.
+   */
+  approved_at?: string;
   content_en: WorksheetContent | null;
   /** Translation of the approved English. Unapproved until the owner says so. */
   content_hi: WorksheetContent | null;

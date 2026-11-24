@@ -29,6 +29,9 @@ const MIGRATION_DIR = '20261109130000_seed_library_worksheets';
 /** The first batch of drafts: the Stress & Burnout worksheets of 24 Nov 2026. */
 const DRAFTS_MIGRATION_DIR = '20261124140000_seed_stress_burnout_drafts';
 
+/** The owner's 24 Nov 2026 approvals, in their own migration. */
+const APPROVALS_MIGRATION_DIR = '20261124160000_approve_stress_burnout_eight';
+
 /** Deterministic ids so re-running against an upgrade database is idempotent. */
 function rowId(index: number): string {
   const n = (index + 1).toString(16).padStart(12, '0');
@@ -87,10 +90,11 @@ const DRAFT_ID_BASE = 1000;
 /**
  * The ten Stress & Burnout rows of 24 Nov 2026, in the owner's order.
  *
- * Membership is a list rather than "whatever is `draft` today", so approving one
- * later changes only its status cell in the drafts migration and cannot pull the
- * row back into the applied seed. A later batch gets its own list and its own
- * migration.
+ * Membership is a list rather than "whatever is `draft` today", so a later
+ * approval never silently adds a row to the applied seed or drops one from the
+ * batch. The eight the owner approved on the same day are flipped in their own
+ * migration, generated from `APPROVED_24_NOV_IDS`; the two sent back for a
+ * wording change stay here as drafts. A later batch gets its own list.
  */
 export const DRAFT_BATCH_IDS = [
   'ws_whats_on_my_plate',
@@ -102,6 +106,24 @@ export const DRAFT_BATCH_IDS = [
   'ws_weekly_load_check',
   'ws_unsent_letter',
   'ws_pros_cons_change',
+  'ws_caring_load_check',
+] as const;
+
+/**
+ * The eight rows the owner approved on 24 November 2026, as written.
+ *
+ * A list, not "whatever is `approved` today": a later approval gets its own
+ * migration, and this one keeps meaning the 24 Nov decisions. The two rows of
+ * the same batch that were sent back for a wording change are not here.
+ */
+export const APPROVED_24_NOV_IDS = [
+  'ws_whats_on_my_plate',
+  'ws_basics_check',
+  'ws_rest_break',
+  'ws_boundary_planner',
+  'ws_priority_sorter',
+  'ws_scrolling_log',
+  'ws_weekly_load_check',
   'ws_caring_load_check',
 ] as const;
 
@@ -254,7 +276,7 @@ function buildInsert(rows: IndexedEntry[]): string[] {
       jsonb(entry.content_en, tagFor(entry.tool_id)),
       jsonb(entry.content_hi, tagFor(entry.tool_id)),
       q(entry.status),
-      entry.status === 'approved' ? `'2026-11-09'::timestamp` : 'NULL',
+      entry.status === 'approved' ? q(entry.approved_at ?? '2026-11-09') + '::timestamp' : 'NULL',
       String(entry.sort_order),
       q(entry.library_group ?? null),
       `ARRAY[${entry.care_plans.map((label) => q(label)).join(', ')}]::TEXT[]`,
@@ -295,6 +317,7 @@ function buildInsert(rows: IndexedEntry[]): string[] {
 
 export const MIGRATION_PATH = `packages/prisma/migrations/${MIGRATION_DIR}/migration.sql`;
 export const DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${DRAFTS_MIGRATION_DIR}/migration.sql`;
+export const APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${APPROVALS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
   const lines: string[] = [];
@@ -389,9 +412,13 @@ export function buildMigrationSql(): string {
 }
 
 /**
- * The draft rows, in their own migration. `status = 'draft'` is written
- * explicitly for every row: nothing here relies on a column default to stay
- * switched off, and the ON CONFLICT branch cannot promote an existing row.
+ * The drafts migration, regenerated after the 24 Nov decisions.
+ *
+ * It still carries all ten rows of the batch, and every one is written
+ * `status = 'draft'` — the status the batch had when it was drafted. Approving
+ * a row is a separate migration (below), so the history reads in order: these
+ * ten were drafted, then eight were approved, and two were sent back for a
+ * wording change and remain drafts here with the revised copy.
  */
 export function buildDraftsSql(): string {
   const lines: string[] = [
@@ -405,6 +432,10 @@ export function buildDraftsSql(): string {
     '-- reuse a placeholder id the applied seed already created (Boundary planner,',
     '-- Unsent letter, Scrolling log, Pros and cons of change) and are upgraded in',
     '-- place by the ON CONFLICT branch; the other six are new.',
+    '--',
+    '-- The owner approved eight of these on 24 Nov 2026; that decision is the',
+    '-- next migration, not an edit here. The two that were sent back for a wording',
+    '-- change (Unsent letter, Weighing it up) stay drafts, with the revised copy.',
     '',
   ];
 
@@ -413,7 +444,48 @@ export function buildDraftsSql(): string {
       DRAFT_BATCH_IDS.map((id, i) => {
         const entry = CATALOGUE.find((row) => row.tool_id === id);
         if (!entry) throw new Error(`draft batch row "${id}" is not in the catalogue`);
-        return { entry, index: DRAFT_ID_BASE + i };
+        // The batch was drafted here, whatever a later approval says.
+        return { entry: { ...entry, status: 'draft' as const, approved_at: undefined }, index: DRAFT_ID_BASE + i };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The owner's approvals of 24 Nov 2026.
+ *
+ * One INSERT ... ON CONFLICT per row rather than an `UPDATE ... SET status`,
+ * because the approved copy must travel with the status: a row promoted by a
+ * status-only update would keep whatever body the drafts migration wrote, and
+ * the two migrations would have to be read together to know what a client sees.
+ * The `approved_at` date is the owner's, not the 9 Nov document's.
+ */
+export function buildApprovalsSql(): string {
+  const lines: string[] = [
+    '-- The owner approved these eight Stress & Burnout worksheets as written,',
+    '-- on 24 November 2026. The wording is unchanged from the drafts migration;',
+    '-- this migration is the approval, and it writes the approval date with it.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- Unsent letter and Weighing it up are NOT here: they were sent back for a',
+    '-- wording change and stay `draft` in the previous migration.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      APPROVED_24_NOV_IDS.map((id) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`approved batch row "${id}" is not in the catalogue`);
+        if (entry.status !== 'approved') {
+          throw new Error(`"${id}" is in the approval batch but is ${entry.status} in the catalogue`);
+        }
+        // Same row id the drafts migration used, so the two agree about identity.
+        return { entry, index: DRAFT_ID_BASE + DRAFT_BATCH_IDS.indexOf(id) };
       }),
     ),
   );

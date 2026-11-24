@@ -47,14 +47,32 @@ describe('worksheet preview', () => {
     expect(broken).toEqual([]);
   });
 
-  it('returns both bodies and a therapist-only note for each one', () => {
+  it('returns an English body and a therapist-only note for each one', () => {
     for (const entry of LISTABLE_CATALOGUE) {
       const parsed = parseWorksheetRow(row(entry));
       expect(parsed.english.fields.length).toBeGreaterThan(0);
-      expect(parsed.hinglish).not.toBeNull();
       expect(entry.therapist_note).toBeTruthy();
       expect(entry.therapy_modality).toBeTruthy();
     }
+  });
+
+  it('has Hinglish for the sixteen approved earlier, and none for the eight of 24 Nov', () => {
+    // The 24 Nov approvals were English-only: the Hinglish gate is released per
+    // row after review, so a newly approved worksheet must not arrive with a
+    // translation nobody has read.
+    const withoutHinglish = LISTABLE_CATALOGUE.filter(
+      (entry) => parseWorksheetRow(row(entry)).hinglish === null,
+    ).map((entry) => entry.tool_id);
+    expect(withoutHinglish.sort()).toEqual([
+      'ws_basics_check',
+      'ws_boundary_planner',
+      'ws_caring_load_check',
+      'ws_priority_sorter',
+      'ws_rest_break',
+      'ws_scrolling_log',
+      'ws_weekly_load_check',
+      'ws_whats_on_my_plate',
+    ]);
   });
 
   it('keeps the safety plan out of the list of things a client can start', () => {

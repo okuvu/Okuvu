@@ -332,6 +332,17 @@ export interface WorksheetContent {
      */
     discardWhen?: { field: string; in: string[] };
   };
+  /**
+   * How this worksheet's row reads in Past me, beyond the first answer's text.
+   *
+   * `leadField` names one `scale_0_10` piece whose chosen number leads the row,
+   * written as the number the client picked — "7 out of 10" — never a band, a
+   * trend or an average. It is content, not app code: a worksheet that does not
+   * declare it reads exactly as before, and no field id is hard-coded in a
+   * screen. The owner asked for it on the weekly load check (24 Nov 2026) so a
+   * past week shows its number beside the date, with no graph.
+   */
+  timeline?: { leadField: string };
 }
 
 // ─── Answers ──────────────────────────────────────────────────────────────
@@ -424,7 +435,7 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
     return { ok: false, errors: ['content must be an object'] };
   }
 
-  const topKeys = new Set(['version', 'intro', 'fields', 'closing']);
+  const topKeys = new Set(['version', 'intro', 'fields', 'closing', 'timeline']);
   for (const key of Object.keys(value)) {
     if (!topKeys.has(key)) errors.push(`content: unknown key "${key}"`);
   }
@@ -971,6 +982,27 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
             }
           });
         }
+      }
+    }
+  }
+
+  if (value.timeline !== undefined) {
+    const timeline = value.timeline;
+    if (!isPlainObject(timeline)) {
+      errors.push('content.timeline: must be an object');
+    } else {
+      for (const key of Object.keys(timeline)) {
+        if (key !== 'leadField') errors.push(`content.timeline: unknown key "${key}"`);
+      }
+      if (!isNonEmptyString(timeline.leadField)) {
+        errors.push('content.timeline.leadField: required');
+      } else if (seen.get(timeline.leadField as string) !== 'scale_0_10') {
+        // The row leads with a number the client chose on a 0-10 slider. Any
+        // other piece would have to be summarised to become a lead, and a
+        // summary is exactly what rule 5 refuses.
+        errors.push(
+          `content.timeline.leadField: "${timeline.leadField}" must be an earlier scale_0_10 piece`,
+        );
       }
     }
   }

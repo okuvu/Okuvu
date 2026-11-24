@@ -56,9 +56,18 @@ describe('rule 1 — care plan labels', () => {
     ['ws_bring_to_session', ['all']],
     ['ws_post_session', ['all']],
     ['ws_safety_plan', ['all']],
+    // The eight the owner approved on 24 Nov 2026, all Stress & Burnout.
+    ['ws_whats_on_my_plate', ['stress_burnout']],
+    ['ws_basics_check', ['stress_burnout']],
+    ['ws_rest_break', ['stress_burnout']],
+    ['ws_boundary_planner', ['stress_burnout']],
+    ['ws_priority_sorter', ['stress_burnout']],
+    ['ws_scrolling_log', ['stress_burnout']],
+    ['ws_weekly_load_check', ['stress_burnout']],
+    ['ws_caring_load_check', ['stress_burnout']],
   ];
 
-  it('labels all sixteen entries exactly as the owner listed them', () => {
+  it('labels every approved entry exactly as the owner listed them', () => {
     expect(LISTABLE_CATALOGUE).toHaveLength(EXPECTED.length);
     for (const [toolId, labels] of EXPECTED) {
       expect({ toolId, care_plans: entry(toolId).care_plans }).toEqual({
@@ -136,11 +145,12 @@ describe('rule 2 — a new worksheet starts switched off', () => {
       status: 'draft',
     };
     expect(LISTABLE_CATALOGUE.includes(draft)).toBe(false);
-    // `isListable` is the one filter every list uses. The ten Stress & Burnout
-    // worksheets of 24 Nov 2026 sit in the catalogue as drafts, and none of them
-    // is in the list a client or the chat can see.
+    // `isListable` is the one filter every list uses. The two Stress & Burnout
+    // worksheets the owner sent back for a wording change (24 Nov 2026) sit in
+    // the catalogue as drafts, and neither is in a list a client or the chat
+    // can see.
     const drafts = CATALOGUE.filter((r) => r.status === 'draft');
-    expect(drafts).toHaveLength(10);
+    expect(drafts.map((r) => r.tool_id).sort()).toEqual(['ws_pros_cons_change', 'ws_unsent_letter']);
     for (const row of drafts) {
       expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain(row.tool_id);
       expect(row.content_en).not.toBeNull();
@@ -177,13 +187,13 @@ describe('rule 3 — the deeper screen belongs to the five named worksheets', ()
     ]);
   });
 
-  it('leaves every approved worksheet on the shared screen only', () => {
-    for (const row of LISTABLE_CATALOGUE) {
-      expect({ toolId: row.tool_id, sensitive: row.sensitive_check }).toEqual({
-        toolId: row.tool_id,
-        sensitive: false,
-      });
-    }
+  it('leaves every approved worksheet on the screen its row asks for', () => {
+    // The Doomscroll log is approved now and still carries the deeper screen, so
+    // "approved" and "shared-screen only" are not the same set any more. What
+    // must stay true: an approved row never quietly loses the deeper screen, and
+    // no other approved row gains it.
+    const deeper = LISTABLE_CATALOGUE.filter((row) => row.sensitive_check).map((row) => row.tool_id);
+    expect(deeper).toEqual(['ws_scrolling_log']);
   });
 
   it('never asks for weight, measurements, calories, food amounts or medicines', () => {
@@ -244,6 +254,25 @@ describe('rule 5 — no worksheet adds answers into a total, a level or a label'
       fields: [{ id: 'a', type: 'scale_0_10', prompt: 'How anxious are you?', helper: 'Your score is saved.' }],
     };
     expect(worksheetRequestProblems(content).join(' ')).toContain('talks about a score');
+  });
+
+  it('lets a row lead Past me with the number the client chose, and nothing else', () => {
+    const withLead = (timeline: unknown): unknown => ({
+      version: 1,
+      fields: [
+        { id: 'load', type: 'scale_0_10', prompt: 'How heavy was this week?' },
+        { id: 'why', type: 'short_text', prompt: 'What made it heavy?' },
+      ],
+      timeline,
+    });
+    expect(validateWorksheetContent(withLead({ leadField: 'load' })).ok).toBe(true);
+    // Not a text answer: a lead must be a number the client picked, never a
+    // sentence someone shortened into a summary.
+    expect(validateWorksheetContent(withLead({ leadField: 'why' })).ok).toBe(false);
+    // Not a field at all.
+    expect(validateWorksheetContent(withLead({ leadField: 'nope' })).ok).toBe(false);
+    // No stray keys: the shape is exactly the one the renderer knows.
+    expect(validateWorksheetContent(withLead({ leadField: 'load', average: true })).ok).toBe(false);
   });
 
   it('stores a slider answer as one number, never a computed result', () => {

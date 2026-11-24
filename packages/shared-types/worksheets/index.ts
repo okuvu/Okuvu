@@ -82,7 +82,7 @@ export function toRegistryRow(entry: CatalogueEntry): WorksheetRegistryRow & {
     content_en: entry.content_en,
     content_hi: entry.content_hi,
     therapist_note: entry.therapist_note,
-    approved_at: entry.status === 'approved' ? ENGLISH_APPROVAL.approvedAt : null,
+    approved_at: entry.status === 'approved' ? (entry.approved_at ?? ENGLISH_APPROVAL.approvedAt) : null,
   };
 }
 

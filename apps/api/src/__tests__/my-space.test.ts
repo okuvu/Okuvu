@@ -95,6 +95,81 @@ describe('my space — toolkit, Past me, export, delete', () => {
     expect(body.filters[0]).toMatchObject({ toolId: null, label: 'Everything', count: 2 });
   });
 
+  it('Past me shows the load number beside the week, as the client picked it', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.worksheetResponse.findMany).mockResolvedValue([
+      {
+        id: 'w2',
+        worksheet_id: 'ws_weekly_load_check',
+        answers: { load: 7, demands: ['Work', 'Money'], noticed: 'Heavy week.' },
+        completed_at: new Date('2026-11-09T11:00:00Z'),
+        shared_with_therapist: false,
+        feeling_before: null,
+        feeling_after: null,
+        worksheet: {
+          label: 'Weekly load check',
+          content_en: { version: 1, timeline: { leadField: 'load' }, fields: [] },
+        },
+      },
+    ] as any);
+    vi.mocked(prisma.worksheetResponse.groupBy).mockResolvedValue([
+      { worksheet_id: 'ws_weekly_load_check', _count: { _all: 1 } },
+    ] as any);
+
+    const response = await app.inject({ method: 'GET', url: '/past-me' });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { items: Array<{ excerpt: string }> };
+    // "7 out of 10", the number the client chose, then their own words. No band,
+    // no average, no comparison with another week.
+    expect(body.items[0].excerpt).toBe('7 out of 10 · Work, Money');
+  });
+
+  it('Past me leaves a worksheet with no lead alone', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.worksheetResponse.findMany).mockResolvedValue([
+      {
+        id: 'w3',
+        worksheet_id: 'ws_three_good_things',
+        answers: { three: 'Coffee in the sun' },
+        completed_at: new Date('2026-11-09T11:00:00Z'),
+        shared_with_therapist: false,
+        feeling_before: null,
+        feeling_after: null,
+        worksheet: { label: 'Three good things', content_en: { version: 1, fields: [] } },
+      },
+    ] as any);
+
+    const response = await app.inject({ method: 'GET', url: '/past-me' });
+
+    const body = response.json() as { items: Array<{ excerpt: string }> };
+    expect(body.items[0].excerpt).toBe('Coffee in the sun');
+  });
+
+  it('Past me ignores a lead that has no usable number, rather than inventing one', async () => {
+    const prisma = await importMocks();
+    vi.mocked(prisma.worksheetResponse.findMany).mockResolvedValue([
+      {
+        id: 'w4',
+        worksheet_id: 'ws_weekly_load_check',
+        answers: { load: 42, demands: ['Work'] },
+        completed_at: new Date('2026-11-09T11:00:00Z'),
+        shared_with_therapist: false,
+        feeling_before: null,
+        feeling_after: null,
+        worksheet: {
+          label: 'Weekly load check',
+          content_en: { version: 1, timeline: { leadField: 'load' }, fields: [] },
+        },
+      },
+    ] as any);
+
+    const response = await app.inject({ method: 'GET', url: '/past-me' });
+
+    const body = response.json() as { items: Array<{ excerpt: string }> };
+    expect(body.items[0].excerpt).toBe('Work');
+  });
+
   it('Past me filtered by an exercise asks only for that exercise’s rows', async () => {
     const prisma = await importMocks();
 

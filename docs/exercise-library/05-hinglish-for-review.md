@@ -718,6 +718,71 @@ change with language, so a client can switch language and keep their answers.
 
 ---
 
+## Basics check
+
+- id: `ws_basics_check`
+- Library description (English): A quick look at the everyday basics, and one to look after today.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> When you're running on empty, the basics are usually the first to go — and the hardest to notice. This is a quick look, not a test.
+
+- **checklist** — Which of these have you had in the last day or two?
+  - helper: Tick what's true. Nothing here is graded.
+  - option `slept`: slept enough
+  - option `ate`: ate proper meals
+  - option `moved`: moved my body
+  - option `break`: took a break
+  - option `outside`: went outside
+  - option `talked`: talked to someone
+- **scale 0 10** — How empty does my tank feel?
+- **short text** — One basic I'll look after today
+  - helper: Pick the easiest one, not the most important one.
+  - example: Go to bed by eleven. Text my sister back.
+
+> One basic, done today, is worth more than a perfect plan for next week.
+
+---
+
+## Boundary planner
+
+- id: `ws_boundary_planner`
+- Library description (English): Work out what you want to say no to, and the words to say it.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> A boundary is a sentence about what you can and can't do. It's easier to say when you've decided the words before you need them.
+
+- **short text** — What's the situation?
+  - helper: A few words is enough.
+  - example: My manager keeps adding work at 7pm.
+- **short text** — Who is it with?
+  - helper: A name, a role, or just 'someone at home'.
+- **short text** — What do you want to say no to?
+  - example: Taking on another project this month.
+- **long text** — What will you say? Write it the way you'd actually say it.
+  - helper: Short and plain usually works better than a speech. You can change it after you've said it out loud once.
+  - example: I can't take another project this month. I can start it in December.
+- **scale 0 10** — How hard does this feel to say?
+- **Closing reflection** — What would make it a little easier to say?
+  - helper: Where you say it, who is nearby, what you do straight afterwards.
+
+> You're allowed to take up space in your own life.
+
+---
+
 ## Worry tree
 
 - id: `ws_worry_tree`
@@ -764,5 +829,197 @@ change with language, so a client can switch language and keep their answers.
 - **long text** — Look back at what you parked. Does it still feel as urgent? Is there anything you can do about it now?
 
 > You don't have to solve everything at once.
+
+---
+
+## What's on my plate
+
+- id: `ws_whats_on_my_plate`
+- Library description (English): Put everything down in one place, then decide what can wait.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> When everything is in your head at once, it can all feel equally urgent. Writing it down helps you see what's actually there — and what can wait.
+
+- **row list** — What's on your plate right now?
+  - helper: One thing per line. Anything counts — big, small, work, home, the message you keep meaning to send.
+  - column `task`: What (text)
+  - column `plan`: What I'll do with it (choice)
+- **Closing reflection** — Was anything easier to decide once you saw it written down?
+  - helper: There's no right answer. This is just for you.
+
+> You don't have to do all of it. Deciding what can wait is part of the work.
+
+---
+
+## Rest break
+
+- id: `ws_rest_break`
+- Library description (English): Stop for a few minutes on purpose, with nothing to show for it.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Rest is not a reward you earn after everything else is done. It's part of how you keep going.
+
+- **choice** — How long do you want to stop for?
+  - option `two`: 2 minutes
+  - option `five`: 5 minutes
+  - option `ten`: 10 minutes
+- **countdown timer** — You have permission to stop. Nothing needs to be earned first.
+  - helper: Sit, lie down, look out of the window. Doing nothing is the point.
+- **countdown timer** — You have permission to stop. Nothing needs to be earned first.
+  - helper: Put the phone down if you can. The world will still be there after.
+- **countdown timer** — You have permission to stop. Nothing needs to be earned first.
+  - helper: Ten minutes is a real rest, not a long one. You can stop earlier if you want.
+- **Closing reflection** — Anything different after stopping for a moment?
+  - helper: Optional. A word is enough.
+
+> Stopping is a skill. You just practised it.
+
+---
+
+## Doomscroll log
+
+- id: `ws_scrolling_log`
+- Library description (English): Note when you scrolled, how long, and how it felt before and after.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Scrolling isn't a moral failure. It's easier to change when you can see what it does for you — and what it costs.
+
+- **datetime** — When did this happen?
+- **choice** — How long were you scrolling?
+  - option `under_15`: Under 15 minutes
+  - option `15_to_60`: 15–60 minutes
+  - option `over_hour`: Over an hour
+- **feelings picker** — How did you feel just before you picked up your phone?
+  - feeling `sad`: sad
+  - feeling `scared`: scared
+  - feeling `angry`: angry
+  - feeling `ashamed`: ashamed
+  - feeling `happy`: happy
+  - feeling `calm`: calm
+  - feeling `numb`: numb
+  - feeling `worried`: worried (under scared)
+  - feeling `panicky`: panicky (under scared)
+  - feeling `unsafe`: unsafe (under scared)
+  - feeling `on_edge`: on edge (under scared)
+- **feelings picker** — And afterwards?
+  - feeling `sad`: sad
+  - feeling `scared`: scared
+  - feeling `angry`: angry
+  - feeling `ashamed`: ashamed
+  - feeling `happy`: happy
+  - feeling `calm`: calm
+  - feeling `numb`: numb
+  - feeling `worried`: worried (under scared)
+  - feeling `panicky`: panicky (under scared)
+  - feeling `unsafe`: unsafe (under scared)
+  - feeling `on_edge`: on edge (under scared)
+- **short text** — What pulled you in?
+  - helper: Boredom, a notification, a feeling you didn't want, a habit. All of these count.
+
+> Noticing is the whole exercise. Nothing here has to be different next time.
+
+---
+
+## Priority sorter
+
+- id: `ws_priority_sorter`
+- Library description (English): Sort what you are carrying into four boxes, then pick one to start.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Not everything urgent is important, and not everything important is urgent. Sorting it takes a minute and saves a lot.
+
+- **row list** — Add the things you're carrying.
+  - helper: Urgent means it needs doing soon. Important means it matters to you. Most things are only one of the two.
+  - column `task`: What (text)
+  - column `box`: Which box (choice)
+- **short text** — Which one will you do first?
+  - helper: One only. The rest can wait their turn.
+
+> You don't have to do it all today. You just have to know what's first.
+
+---
+
+## Weekly load check
+
+- id: `ws_weekly_load_check`
+- Library description (English): Look at how much you carried this week, and what it was made of.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Once a week, it helps to look at how much you were carrying — not to judge it, just to see it.
+
+- **scale 0 10** — How heavy did this week feel?
+- **row list** — What were the biggest things you carried this week?
+  - helper: Work, people, money, health, things you kept saying you would do.
+  - column `demand`: What (text)
+- **Closing reflection** — What do you notice, looking at this week?
+  - helper: You can see your past weeks in Past me, under this worksheet.
+
+> However heavy the week was, you carried it. That counts.
+
+---
+
+## Caring load check
+
+- id: `ws_caring_load_check`
+- Library description (English): Name the caring you carry, and one bit of help you could ask for.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Looking after other people is real work, even when nobody counts it as work. This is a place to put it down for a minute.
+
+- **checklist** — Which of these are you carrying at the moment?
+  - helper: Tick as many as are true. Some of them are easy to miss.
+  - option `family_member`: looking after a family member
+  - option `household`: the household
+  - option `money`: money and bills
+  - option `emotional`: emotional support for someone
+  - option `admin`: appointments and paperwork
+  - option `other`: something else
+- **scale 0 10** — How stretched do you feel?
+- **short text** — One bit of help you could ask for
+  - helper: It can be small. Someone else making dinner once. An hour to yourself.
+
+> Asking for help is part of caring, not a break from it.
 
 ---

@@ -165,6 +165,28 @@ function excerpt(text: string): string {
 }
 
 /**
+ * The number a worksheet asked the client to pick, written the way they picked
+ * it: "7 out of 10".
+ *
+ * Driven by `content.timeline.leadField`, not by a tool id — a worksheet that
+ * declares it (the weekly load check does) gets its own number beside the date
+ * in Past me. Nothing is averaged, banded or compared with another week; the
+ * owner asked for the number and no graph.
+ */
+function timelineLead(answers: unknown, content: unknown): string | null {
+  if (typeof answers !== 'object' || answers === null || Array.isArray(answers)) return null;
+  const timeline =
+    typeof content === 'object' && content !== null
+      ? (content as { timeline?: { leadField?: unknown } }).timeline
+      : undefined;
+  const field = timeline && typeof timeline.leadField === 'string' ? timeline.leadField : null;
+  if (!field) return null;
+  const value = (answers as Record<string, unknown>)[field];
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 10) return null;
+  return `${value} out of 10`;
+}
+
+/**
  * The client's own space: what helped, what they wrote before, and their data.
  *
  * Every procedure here is scoped to the authenticated client's `user_id`; there
@@ -278,7 +300,7 @@ export async function mySpaceRoute(app: FastifyInstance): Promise<void> {
                 shared_with_therapist: true,
                 feeling_before: true,
                 feeling_after: true,
-                worksheet: { select: { label: true } },
+                worksheet: { select: { label: true, content_en: true } },
               },
             }),
         prisma.worksheetResponse.groupBy({
@@ -307,7 +329,14 @@ export async function mySpaceRoute(app: FastifyInstance): Promise<void> {
           at: row.completed_at.toISOString(),
           toolId: row.worksheet_id,
           toolLabel: row.worksheet?.label ?? null,
-          excerpt: excerpt(firstAnswerText(row.answers)),
+          excerpt: excerpt(
+            [
+              timelineLead(row.answers, row.worksheet?.content_en),
+              firstAnswerText(row.answers),
+            ]
+              .filter((part): part is string => typeof part === 'string' && part.length > 0)
+              .join(' · '),
+          ),
           shared: row.shared_with_therapist,
           feelingBefore: row.feeling_before,
           feelingAfter: row.feeling_after,

@@ -7,11 +7,15 @@
  *
  * Run (writes the file): WRITE_DRAFT_DOC=1 npx vitest run __tests__/draft-doc.test.ts
  */
-import { draftEntries } from '@okuvu/shared-types/worksheets/emit-sql';
+import { draftEntries, APPROVED_24_NOV_IDS } from '@okuvu/shared-types/worksheets/emit-sql';
+import { CATALOGUE } from '@okuvu/shared-types/worksheets/index';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 import type { WorksheetContent, WorksheetField } from '@okuvu/shared-types/worksheet';
 
 export const DRAFT_DOC_PATH = 'docs/exercise-library/23-draft-stress-burnout-copy.md';
+
+/** The owner-approved copy, in its own document, so the approval has a record. */
+export const APPROVED_DOC_PATH = 'docs/exercise-library/25-approved-stress-burnout-copy.md';
 
 const TITLE: Record<string, string> = {
   ws_whats_on_my_plate: "1. What's on my plate",
@@ -46,7 +50,10 @@ function fieldLines(field: WorksheetField): string[] {
   if (field.helper) lines.push(`  - helper: ${field.helper}`);
   if (field.example) lines.push(`  - example: ${field.example}`);
   if ('options' in field) {
-    for (const option of field.options) lines.push(`  - option: ${option.label}`);
+    for (const option of field.options) {
+      lines.push(`  - option: ${option.label}`);
+      if (option.description) lines.push(`    - helper: ${option.description}`);
+    }
   }
   if ('feelings' in field) {
     lines.push(`  - feelings offered: ${field.feelings.map((f) => f.label).join(', ')}`);
@@ -95,6 +102,48 @@ function header(entry: CatalogueEntry): string[] {
   ];
 }
 
+/**
+ * The approved copy of the eight the owner approved on 24 Nov 2026.
+ *
+ * Generated for the same reason the draft document is: so the record of what
+ * was approved cannot describe a worksheet differently from the app.
+ */
+export function buildApprovedDoc(): string {
+  const out: string[] = [];
+
+  out.push(
+    '# Stress & Burnout worksheets — approved wording',
+    '',
+    'Generated from the catalogue in `packages/shared-types/worksheets`. Do not edit by',
+    'hand: change the catalogue, then regenerate.',
+    '',
+    '**Status: approved.** The owner approved these eight as written on 24 November 2026.',
+    'This document is the record of that approval; `02-approved-worksheet-copy.md` remains',
+    'the record for worksheets 1-16 (9 November 2026).',
+    '',
+    'All eight go through the same safety check the journal uses on every written and spoken',
+    'answer. The Doomscroll log also carries the deeper screen (eating and body, sleep,',
+    'self-harm, harm to someone else). None asks for weight, body measurements, calories,',
+    'food amounts or medicines, and none adds answers into a total, a level or a label.',
+    '',
+    '---',
+    '',
+  );
+
+  for (const id of APPROVED_24_NOV_IDS) {
+    const entry = CATALOGUE.find((row) => row.tool_id === id);
+    if (!entry) throw new Error(`approved doc row "${id}" is not in the catalogue`);
+    out.push(`## ${TITLE[id] ?? entry.label}`, '');
+    out.push(`**The brief:** ${BRIEF[id] ?? ''}`, '');
+    out.push(...header(entry));
+    out.push('');
+    if (entry.content_en) out.push(...bodyLines(entry.content_en));
+    out.push('', '---', '');
+  }
+
+  return out.join('\n');
+}
+
 export function buildDraftDoc(): string {
   const out: string[] = [];
 
@@ -104,15 +153,19 @@ export function buildDraftDoc(): string {
     'Generated from the catalogue in `packages/shared-types/worksheets`. Do not edit by',
     'hand: change the catalogue, then regenerate.',
     '',
-    '**Status: drafts.** All ten are `status: draft`. They are switched off for clients:',
+    '**Status: drafts.** These are the worksheets the owner sent back for a wording',
+    'change on 24 November 2026, plus any later draft. They are switched off for clients:',
     'no card in their Library, no direct open, no assignment from the portal. A therapist',
     'can preview them. Nothing is switched on until you say the wording is approved.',
     '',
-    'Every one of them goes through the same safety check the journal uses on every written',
-    'and spoken answer, with the same response. The Doomscroll log and the Unsent letter also',
-    'carry the deeper screen (eating and body, sleep, self-harm, harm to someone else). None',
-    'of them asks for weight, body measurements, calories, food amounts or medicines, and none',
-    'adds answers into a total, a level or a label.',
+    'The other eight of the 24 Nov batch were approved as written that day; their copy is',
+    'in `25-approved-stress-burnout-copy.md`.',
+    '',
+    'Both go through the same safety check the journal uses on every written and spoken',
+    'answer, with the same response. The Unsent letter also carries the deeper screen (eating',
+    'and body, sleep, self-harm, harm to someone else). Neither asks for weight, body',
+    'measurements, calories, food amounts or medicines, and neither adds answers into a',
+    'total, a level or a label.',
     '',
     '---',
     '',
