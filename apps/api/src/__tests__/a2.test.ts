@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { handleTurn, parseA2Response } from '../agents/a2/agent.js';
 import type { A2Input, S07Signal } from '../agents/a2/types.js';
 import { A2_PROMPT, A2_PROMPT_VERSION } from '../prompts/index.js';
+import { defaultPromptVersion } from '../prompts/gate.js';
 import {
   applyCarePlanEmphasis,
   applyConversationDefault,
@@ -858,8 +859,11 @@ describe('care-plan emphasis — §12 (v2.5)', () => {
   });
 
   describe('the shipped prompt', () => {
-    it('is v2.7 and keeps all three blocks, delimited and balanced', () => {
-      expect(A2_PROMPT_VERSION).toBe('v2.7');
+    it('is the prompt the gate made the default, and keeps all three blocks, delimited and balanced', () => {
+      // Owner's rule, 24 Nov 2026: the default is decided by src/prompts/gate.ts,
+      // not by the last version someone wrote. A file name in this test would be
+      // the hand-edit the gate exists to stop.
+      expect(A2_PROMPT_VERSION).toBe(defaultPromptVersion());
 
       for (const plan of ['CP1', 'CP2', 'CP3'] as const) {
         expect(A2_PROMPT.split(`[[${plan}]]`).length - 1).toBe(1);

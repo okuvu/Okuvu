@@ -4,6 +4,7 @@ export interface StageTiming {
 }
 
 import type { ToolCardConfig, SafetyState, GovernanceState, RouterDecision, PipelineSignal, SafetyNotice, LibraryWorksheetRef } from '@okuvu/shared-types';
+import type { HarmToSomeoneScreen } from '../lib/harm-to-someone.js';
 
 // ─── Test Hooks (TH-S10) ───────────────────────────────────────────
 //
@@ -82,6 +83,11 @@ export type FallbackSource =
   // the deterministic third-party crisis copy (helper-facing, 112 for immediate
   // danger). Same tier as 'medical_emergency': no model wrote this turn.
   | 'crisis_third_party'
+  // Owner's rule, 24 Nov 2026 — the message said the client wants to hurt
+  // someone else, so the reply is the approved harm-to-someone screen. Same
+  // tier as the two above: static copy, no model, and no A9-post review of text
+  // no model wrote.
+  | 'harm_to_someone'
   // §3 — the model's reply labelled the client with a clinical condition (or
   // attributed their state to a named cause), so it was replaced by the same
   // governed substitute an A9-post block serves. Deterministic lint, not a
@@ -104,6 +110,13 @@ export type PipelineResult =
       estimatedIntensity: number | null
       toolCard?: ToolCardConfig
       journalPromptSuggested: string | null
+      /**
+       * The approved harm-to-someone screen, when that is what this turn served
+       * (owner's rule, 24 Nov 2026). The app renders it like the worksheet
+       * overlay, from the api's copy. `message` carries the same content as
+       * text, so a client that cannot render the card still shows the screen.
+       */
+      screen?: HarmToSomeoneScreen
       signals?: PipelineSignal[]
     }
   | {

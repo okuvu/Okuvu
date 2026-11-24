@@ -12,8 +12,24 @@
  * failing sentence here names the line a reviewer needs to look at.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
-import { A2_PROMPT, A2_PROMPT_VERSION } from '../prompts/index.js';
+import { A2_PROMPT_VERSION, defaultPromptVersion } from '../prompts/index.js';
+import { promptGateEntry } from '../prompts/gate.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The candidate file, not the default. v2.7 carries the paragraph the owner
+ * approved and did NOT pass the gold set, so `gate.ts` keeps v2.6 in production;
+ * the wording still has to be pinned exactly as approved, so it is read straight
+ * from its own file. When v2.7 passes and becomes the default, this keeps
+ * working unchanged — it asserts the same bytes either way.
+ */
+const A2_PROMPT = readFileSync(join(__dirname, '..', 'prompts', 'a2-okuvu-v2.7.txt'), 'utf-8');
 
 const START = 'Worksheets. Some of the Library';
 const END = '# 7.1 One next move';
@@ -29,7 +45,10 @@ function paragraph(): string {
 
 describe('the v2.7 worksheets paragraph', () => {
   it('sits under Toolkit, before §7.1', () => {
-    expect(A2_PROMPT_VERSION).toBe('v2.7');
+    // The paragraph is approved; the version is not yet the default.
+    expect(defaultPromptVersion()).not.toBe('v2.7');
+    expect(promptGateEntry('v2.7')?.state).toBe('failed');
+    expect(A2_PROMPT_VERSION).toBe(defaultPromptVersion());
     const toolkit = A2_PROMPT.indexOf('Toolkit. You work from the OKUVU tools library');
     const start = A2_PROMPT.indexOf(START);
     const section = A2_PROMPT.indexOf('# 7.1 One next move');

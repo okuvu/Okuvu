@@ -1,4 +1,5 @@
 import 'tool_card_config.dart';
+import '../../library/harm_to_someone_screen.dart';
 
 class AgentTurnFrame {
   final String content;
@@ -8,6 +9,11 @@ class AgentTurnFrame {
   final ToolCardConfig? toolCard;
   final String? journalPromptSuggested;
 
+  /// The approved harm-to-someone screen, when the api served one for this turn
+  /// (owner's rule, 24 Nov 2026). The chat renders it through the same overlay a
+  /// worksheet answer uses, so the wording has one home — the api's.
+  final HarmToSomeoneScreen? harmToSomeone;
+
   const AgentTurnFrame({
     required this.content,
     this.turnId,
@@ -15,6 +21,7 @@ class AgentTurnFrame {
     this.turnCount = 0,
     this.toolCard,
     this.journalPromptSuggested,
+    this.harmToSomeone,
   });
 
   factory AgentTurnFrame.fromJson(Map<String, dynamic> json) {
@@ -34,6 +41,7 @@ class AgentTurnFrame {
       turnCount: (payload?['turn_count'] as int?) ?? (json['turn_count'] as int?) ?? 0,
       toolCard: toolCardJson != null ? ToolCardConfig.fromJson(toolCardJson) : null,
       journalPromptSuggested: payload?['journal_prompt_suggested'] as String?,
+      harmToSomeone: HarmToSomeoneScreen.fromJson(payload?['screen']),
     );
   }
 }

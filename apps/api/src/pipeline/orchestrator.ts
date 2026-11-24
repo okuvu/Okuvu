@@ -13,6 +13,12 @@ import { retrieveRelevantSessions, formatRetrievedContext } from '../lib/memory-
 import { getRetrievedContext, setRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { A2_DEGRADED_RESPONSE, getSafeFallback, A9_PRE_BLOCKED_RESPONSE, A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE, CRISIS_THIRD_PARTY_RESPONSE, SAFETY_UNAVAILABLE_RESPONSE, getModelUnavailableFallback, MEDICAL_EMERGENCY_RESPONSE, MEDICAL_EMERGENCY_CRISIS_RESPONSE } from './fallbacks.js';
 import { flagSafetyEvent } from '../lib/safety-flags.js';
+import {
+  HARM_TO_SOMEONE_SCREEN,
+  HARM_TO_SOMEONE_RESPONSE,
+  HARM_TO_SOMEONE_THOUGHTS_SCREEN,
+  HARM_TO_SOMEONE_THOUGHTS_RESPONSE,
+} from '../lib/harm-to-someone.js';
 import { hasCrisisLanguage, hasSelfIngestion } from '../agents/a1/crisis-keywords.js';
 import { applySessionFloor, diagnosisLint, medicationTitrationCap, medicationCapEnabled } from './guards.js';
 import { recordAuditEvent } from '../lib/audit-log.js';
@@ -547,6 +553,95 @@ export async function processTurn(
     });
 
     return { type: 'crisis', message: crisisCopy, timing, ...(crisisSafety ? { safety: crisisSafety } : {}), ...(testMode?.captureSignalBus ? { signals } : {}) };
+  }
+
+  // ─── Owner's rule, 24 Nov 2026 — "I want to hurt someone", typed in chat ──
+  //
+  // Same disclosure, same screen, wherever it is said. Before this, only a
+  // worksheet answer could raise it; in chat the same sentence reached the
+  // governance line or an ordinary A2 reply. Static, approved copy (no model
+  // wrote this turn), a persisted exchange, an S3 flag marked urgent, and the
+  // screen travelling as data so the app renders the api's wording rather than
+  // a second copy in Dart.
+  //
+  // Level: S3, because it is flagged and alerted but it is not the
+  // second-person crisis card. If A1 independently called this turn S4, the
+  // flag keeps S4 — a screen must never lower what the classifier said. The
+  // crisis card still wins whenever the message carries a first-person risk
+  // signal, because `screenHarmToSomeone` refuses anything the crisis floor
+  // matches and the router checks this path after the third-party card.
+  if (decision.agent === 'harm-to-someone' || decision.agent === 'harm-to-someone-thoughts') {
+    const thoughts = decision.agent === 'harm-to-someone-thoughts';
+    const screen = thoughts ? HARM_TO_SOMEONE_THOUGHTS_SCREEN : HARM_TO_SOMEONE_SCREEN;
+    const screenText = thoughts ? HARM_TO_SOMEONE_THOUGHTS_RESPONSE : HARM_TO_SOMEONE_RESPONSE;
+    const harmLevel: SafetyState = effectiveSafetyState === 'S4' ? 'S4' : 'S3';
+
+    const persistStart = now();
+    const harmTurnCount = await incrementTurnCount(sessionId);
+    await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: harmTurnCount,
+        role: 'user', content: message,
+      },
+    });
+    const harmAssistantTurn = await prisma.turn.create({
+      data: {
+        session_id: sessionId, user_id: user.id, turn_number: harmTurnCount,
+        role: 'assistant', content: screenText,
+      },
+      select: { id: true },
+    });
+    await prisma.safetyState.upsert({
+      where: { user_id: user.id },
+      update: { safety_state_current: harmLevel },
+      create: { user_id: user.id, safety_state_current: harmLevel },
+    });
+    // updateMany, not update: a missing session row must not throw on a safety
+    // path. The flag and the alert are the record; this column is the badge.
+    await prisma.sessionLog.updateMany({
+      where: { id: sessionId },
+      data: { crisis_flag_detected: true },
+    });
+    recordTiming(timing, 'harm_to_someone_persistence', persistStart, now());
+
+    // The therapist alert, marked urgent. It points at the assistant turn; the
+    // portal resolves the user's own words from the same turn number so the
+    // therapist can judge the disclosure himself (owner's instruction).
+    await flagSafetyEvent({
+      userId: user.id,
+      level: harmLevel,
+      source: 'harm_to_someone',
+      sessionId,
+      turnId: harmAssistantTurn?.id ?? null,
+      urgent: true,
+    });
+
+    await recordAuditEvent({
+      actor: 'A8',
+      action: 'SAFETY_HARM_TO_SOMEONE_ROUTED',
+      object: `turn:${harmAssistantTurn?.id ?? `${sessionId}:${harmTurnCount}`}`,
+      detail: {
+        safety_state: harmLevel,
+        screen_kind: screen.kind,
+        classifier_state: a1Result.status === 'fulfilled' ? a1Result.value.safetyState : null,
+        classifier_fallback: a1FallbackUsed,
+      },
+    });
+
+    return {
+      type: 'agent_turn',
+      message: screenText,
+      turnCount: harmTurnCount,
+      turnId: harmAssistantTurn?.id ?? null,
+      timing,
+      fallbackUsed: true,
+      fallbackSource: 'harm_to_someone',
+      safety: { code: 'HARM_TO_SOMEONE_SCREEN', reason: 'deterministic_screen' },
+      estimatedIntensity: null,
+      journalPromptSuggested: null,
+      screen,
+      ...(testMode?.captureSignalBus ? { signals } : {}),
+    };
   }
 
   // ─── E17-S9 — a medical emergency is not a chat turn ────────────────────

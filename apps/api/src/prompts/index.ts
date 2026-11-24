@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { defaultPromptVersion } from './gate.js';
+
+export { defaultPromptVersion, isEligibleAsDefault, PROMPT_GATE, promptGateEntry } from './gate.js';
+export type { PromptGateEntry, PromptGateState } from './gate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -127,14 +131,15 @@ const __dirname = dirname(__filename);
  * own query. Until this version the token was not in the prompt at all, so the
  * list was inert; that is why the paragraph and the token land together.
  *
- * Ships as the default only after the gold-set score runs against v2.7 (the
- * standing rule for new clinical prompt text, docs/plans/2026-11-22-care-plan-
- * style-blocks.md D5). No threshold, eval scenario, judge prompt or instrument
- * file moves.
+ * NOT THE DEFAULT. v2.7 was first scored on 24 Nov 2026 and did not pass the
+ * gold set, so the owner made the gate strict: the prompt that ships is decided
+ * by `gate.ts`, not by this file's last commit. v2.7 stays in the repo, fully
+ * readable and scoreable with `--prompt v2.7`, and becomes the default only when
+ * a run marks it passed. v2.6 is what clients are on today.
  */
-export const A2_PROMPT_VERSION = 'v2.7';
+export const A2_PROMPT_VERSION = defaultPromptVersion();
 
 export const A2_PROMPT = readFileSync(
-  join(__dirname, 'a2-okuvu-v2.7.txt'),
+  join(__dirname, `a2-okuvu-${A2_PROMPT_VERSION}.txt`),
   'utf-8',
 );

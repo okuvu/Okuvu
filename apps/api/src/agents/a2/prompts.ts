@@ -303,6 +303,16 @@ export function buildConversationalPrompt(params: {
    */
   libraryWorksheets?: LibraryWorksheetRef[];
   languageMode?: 'english' | 'mirror';
+  /**
+   * Candidate prompt bytes, for the eval runner only (`--prompt v2.8`).
+   *
+   * The product never passes this: it always builds from the prompt the gate
+   * made the default. The runner needs it because the owner's rule is "no
+   * prompt becomes the default unless it passes", and a candidate has to be
+   * scoreable before it is the default. Passing it changes nothing else — the
+   * same builders, the same arm stripping, the same token substitution.
+   */
+  systemPrompt?: string;
 }): string {
   const {
     safetyState,
@@ -329,7 +339,7 @@ export function buildConversationalPrompt(params: {
       : null;
 
   const talkOrDo = params.talkOrDo ?? talkOrDoEnabled();
-  const rule1 = applyConversationDefault(A2_PROMPT, talkOrDo ? 'choice' : 'step');
+  const rule1 = applyConversationDefault(params.systemPrompt ?? A2_PROMPT, talkOrDo ? 'choice' : 'step');
   const emphasis = applyCarePlanEmphasis(rule1.prompt, selected);
 
   // One line per turn: a production log answers "which emphasis did this turn

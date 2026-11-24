@@ -1,6 +1,7 @@
 import type { RouterInput, RouterDecision, SafetyState } from '@okuvu/shared-types'
 import { hasMedicalEmergencyLanguage } from './a1/medical-emergency-keywords.js'
 import { hasThirdPartyCrisisLanguage } from './a1/crisis-keywords.js'
+import { screenHarmToSomeone } from './a1/harm-to-someone-keywords.js'
 
 const VALID_SAFETY_STATES: ReadonlySet<string> = new Set(['S0', 'S1', 'S2', 'S3', 'S4'])
 
@@ -80,6 +81,19 @@ export function routeTurn(input: RouterInput): RouterDecision {
   // for the user themselves.
   if (input.message && hasThirdPartyCrisisLanguage(input.message)) {
     return { agent: 'crisis-third-party' }
+  }
+
+  // Owner's rule, 24 Nov 2026: the same disclosure gets the same screen whether
+  // it is typed into a worksheet or into chat. Placed AFTER the third-party
+  // check (that path is about someone else's risk) and BEFORE the S4/S3 checks,
+  // because the screen itself refuses any message the crisis floor matches — so
+  // self-harm or "wanting not to wake up" in the same message still lands on the
+  // crisis card, and a pure harm-to-someone message does not inherit the
+  // second-person crisis copy from an over-called S4.
+  if (input.message) {
+    const harm = screenHarmToSomeone(input.message)
+    if (harm === 'intent') return { agent: 'harm-to-someone' }
+    if (harm === 'frightening_thought') return { agent: 'harm-to-someone-thoughts' }
   }
 
   if (safetyState === 'S4') {

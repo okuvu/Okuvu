@@ -84,7 +84,12 @@ class HarmToSomeoneScreen {
   /// falls back to the ordinary help card rather than rendering a fragment.
   static HarmToSomeoneScreen? fromJson(dynamic raw) {
     if (raw is! Map) return null;
-    if (raw['kind'] != 'harm_to_someone') return null;
+    // Both approved variants render through this one widget: the intent screen
+    // and the gentler "frightening thought" screen (owner's rule, 24 Nov 2026).
+    if (raw['kind'] != 'harm_to_someone' &&
+        raw['kind'] != 'harm_to_someone_thoughts') {
+      return null;
+    }
 
     final rawParagraphs = raw['paragraphs'];
     final paragraphs = rawParagraphs is List

@@ -66,6 +66,9 @@ function buildPrisma(overrides: Overrides = {}) {
             : overrides.answer,
         ),
     },
+    // Chat-sourced urgent flags resolve the user turn beside the assistant turn
+    // the flag names.
+    turn: { findFirst: vi.fn().mockResolvedValue(null) },
     clinicalAccessLog: { create: vi.fn().mockResolvedValue({}) },
   } as unknown as PrismaClient;
 }
@@ -158,6 +161,46 @@ describe('safety.flagsForClient — the urgent row', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].words).toBeNull();
     expect(rows[0].urgent).toBe(true);
+  });
+
+  it('shows the client’s own words for a chat-sourced urgent flag too', async () => {
+    // Owner's rule, 24 Nov 2026: the same disclosure typed into chat must reach
+    // the same screen — so it must also be readable here, or the therapist gets
+    // an urgent alert with nothing to judge.
+    const prisma = buildPrisma({
+      flags: [
+        flagRow({
+          source: 'harm_to_someone',
+          subject_kind: null,
+          subject_id: null,
+          turn_id: 'turn_assistant_1',
+          session_id: 'sess_1',
+        }),
+      ],
+    });
+
+    // The flag names the assistant turn; the words are the user turn with the
+    // same number in the same session.
+    vi.mocked(prisma.turn.findFirst)
+      .mockResolvedValueOnce({ session_id: 'sess_1', turn_number: 7 } as any)
+      .mockResolvedValueOnce({ content: 'I want to hurt my brother.' } as any);
+
+    const rows = await callerWith(prisma).safety.flagsForClient({ clientUserId: CLIENT_ID });
+
+    expect(rows[0].words).toBe('I want to hurt my brother.');
+    expect(rows[0].wordsFrom).toBe('chat');
+    expect(rows[0].urgent).toBe(true);
+
+    const second = vi.mocked(prisma.turn.findFirst).mock.calls[1][0] as any;
+    expect(second.where).toEqual({
+      session_id: 'sess_1',
+      turn_number: 7,
+      user_id: CLIENT_ID,
+      role: 'user',
+    });
+
+    // Reading it is a clinical access, exactly like the worksheet path.
+    expect(prisma.clinicalAccessLog.create).toHaveBeenCalled();
   });
 
   it('still refuses a client the therapist is not assigned to', async () => {

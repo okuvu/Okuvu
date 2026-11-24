@@ -375,6 +375,10 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
               tts_url: null,
               tool_card: result.toolCard,
               journal_prompt_suggested: result.journalPromptSuggested,
+              // The approved harm-to-someone screen, when that is what this turn
+              // served. Rides as data so the app renders the api's wording
+              // (`lib/harm-to-someone.ts`) instead of a second copy in Dart.
+              ...(result.screen ? { screen: result.screen } : {}),
               ...(result.safety ? { safety: result.safety } : {}),
             },
           });

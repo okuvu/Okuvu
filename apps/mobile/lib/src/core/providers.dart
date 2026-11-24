@@ -14,6 +14,7 @@ import 'analytics_service.dart';
 import '../features/chat/models/agent_turn_frame.dart';
 import '../features/chat/models/chat_message.dart';
 import '../features/chat/models/chat_state.dart';
+import '../features/library/harm_to_someone_screen.dart';
 import '../features/settings/voice_settings_notifier.dart';
 
 export '../features/settings/voice_settings_notifier.dart'
@@ -212,6 +213,17 @@ class ChatNotifier extends Notifier<ChatState> {
       ],
       turnCount: frame.turnCount,
     );
+
+    // The harm-to-someone screen, when the api served one (owner's rule,
+    // 24 Nov 2026). Same overlay a worksheet answer raises, so the wording has
+    // one home. The turn's text is the same screen, so it is not also read
+    // aloud — the card is the thing to read, and a voice reading five numbers
+    // over it is noise.
+    final screen = frame.harmToSomeone;
+    if (screen != null) {
+      ref.read(harmToSomeoneOverlayProvider.notifier).show(screen);
+      return;
+    }
 
     ref.read(ttsServiceProvider).speak(frame.content);
   }

@@ -14,7 +14,15 @@ export interface JudgeRequirement {
 }
 
 /** Every path a turn can be served by. A group with no `applies_to` applies to all of them. */
-export const ALL_PATHS: readonly ServedPath[] = ['a2', 'crisis', 'grounding', 'medical', 'a2_blocked'];
+export const ALL_PATHS: readonly ServedPath[] = [
+  'a2',
+  'crisis',
+  'grounding',
+  'medical',
+  'a2_blocked',
+  'harm_to_someone',
+  'harm_to_someone_thoughts',
+];
 
 /**
  * A group is scored only on the paths it declares itself meaningful for.

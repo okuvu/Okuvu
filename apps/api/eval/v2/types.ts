@@ -1,6 +1,16 @@
 /** Shared shapes for the E17-S5 v2 eval instrument. */
 
-export type ServedPath = 'crisis' | 'grounding' | 'medical' | 'a2' | 'a2_blocked' | 'fail_closed';
+export type ServedPath =
+  | 'crisis'
+  | 'grounding'
+  | 'medical'
+  | 'a2'
+  | 'a2_blocked'
+  | 'fail_closed'
+  /** Owner's rule, 24 Nov 2026: the approved harm-to-someone screen. */
+  | 'harm_to_someone'
+  /** The gentler variant for a frightening unwanted thought with no intent. */
+  | 'harm_to_someone_thoughts';
 
 export interface RubricGroup {
   label: string;

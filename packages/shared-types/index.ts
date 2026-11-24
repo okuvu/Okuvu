@@ -181,6 +181,8 @@ export const ROUTER_AGENTS = [
   'crisis',
   'crisis-third-party',
   'medical-emergency',
+  'harm-to-someone',
+  'harm-to-someone-thoughts',
   'deterministic-grounding',
   'A2',
 ] as const
@@ -350,6 +352,15 @@ export type SafetyNoticeCode =
    * a second-person crisis overlay must not show it here.
    */
   | 'CRISIS_THIRD_PARTY_FLOOR'
+  /**
+   * Owner's rule, 24 Nov 2026 — the reply is the approved harm-to-someone
+   * screen: the client said they want to hurt someone else. `HARM_TO_SOMEONE_SCREEN`
+   * for intent, `HARM_TO_SOMEONE_THOUGHTS_SCREEN` for a frightening unwanted
+   * thought with no intent. Same tier as the two floors above: no model wrote
+   * this turn. A client that renders the screen reads the accompanying
+   * `screen` payload rather than deriving anything from this code.
+   */
+  | 'HARM_TO_SOMEONE_SCREEN'
 
 export interface SafetyNotice {
   code: SafetyNoticeCode

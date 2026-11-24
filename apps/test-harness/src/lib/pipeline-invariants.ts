@@ -127,13 +127,19 @@ export function checkGovernanceBlockedMode(
 }
 
 /**
- * S3 and the deterministic-grounding route must imply each other exactly —
- * `safetyState === 'S3' <=> a8Decision.agent === 'deterministic-grounding'`
- * — regardless of governance state (S3 is checked before governance in
- * a8-router.ts, so a Blocked verdict never overrides it). Mirrors
- * `checkFullSuppression`'s bidirectional S4<=>crisis shape one tier down:
- * A2 is skipped entirely for S3 (same as S4), but unlike S4 this still
- * produces a real, persisted, agent_turn reply, never silence.
+ * S3 and the deterministic-grounding route imply each other, regardless of
+ * governance state (S3 is checked before governance in a8-router.ts, so a
+ * Blocked verdict never overrides it), with one deliberate exception added
+ * 24 Nov 2026:
+ *
+ *   `safetyState === 'S3'` routes to `deterministic-grounding` **or** to one of
+ *   the two harm-to-someone screens.
+ *
+ * `harm-to-someone` is a message-level screen, like `medical-emergency`: it is
+ * decided by what the client actually wrote, and it fires whatever the state, so
+ * an S3 turn carrying "I want to hurt my brother" reaches that screen instead of
+ * the grounding card. The other direction still holds exactly — nothing but S3
+ * may produce `deterministic-grounding`.
  */
 export function checkS3Deterministic(
   signals: PipelineSignal[],
@@ -142,10 +148,18 @@ export function checkS3Deterministic(
   const safetyState = stringPayload(findSignal(signals, 'A1_result'));
   const a8Decision = findSignal(signals, 'A8_decision')?.payload as { agent?: string } | undefined;
 
-  if (safetyState === 'S3' && resultType === 'agent_turn' && a8Decision?.agent !== 'deterministic-grounding') {
+  const harmScreens = new Set(['harm-to-someone', 'harm-to-someone-thoughts']);
+  const isHarmScreen = a8Decision?.agent !== undefined && harmScreens.has(a8Decision.agent);
+
+  if (
+    safetyState === 'S3' &&
+    resultType === 'agent_turn' &&
+    a8Decision?.agent !== 'deterministic-grounding' &&
+    !isHarmScreen
+  ) {
     return {
       rule: 's3-deterministic',
-      reason: `safetyState=S3 must route to agent='deterministic-grounding', got agent='${a8Decision?.agent ?? 'unknown'}'.`,
+      reason: `safetyState=S3 must route to agent='deterministic-grounding' (or a harm-to-someone screen), got agent='${a8Decision?.agent ?? 'unknown'}'.`,
     };
   }
   if (a8Decision?.agent === 'deterministic-grounding' && safetyState !== 'S3') {

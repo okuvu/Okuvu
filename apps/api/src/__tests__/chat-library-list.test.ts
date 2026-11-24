@@ -18,7 +18,13 @@
  * changes the assembled prompt by exactly nothing.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
@@ -173,6 +179,18 @@ describe('the chat’s worksheet list', () => {
 });
 
 describe('the worksheet list changes no instruction by itself', () => {
+  /**
+   * The v2.7 candidate file, passed explicitly.
+   *
+   * The default prompt is v2.6 again (the gate is strict, and v2.7 did not
+   * pass), and v2.6 has no `${library_worksheets}` token — so scoring the
+   * builder against the default would prove nothing about the wording that
+   * needs it. Reading the candidate here keeps the assertion attached to the
+   * paragraph that will ship with the list.
+   */
+  const candidatePrompt = () =>
+    readFileSync(join(__dirname, '..', 'prompts', 'a2-okuvu-v2.7.txt'), 'utf-8');
+
   it('is inert when no list is supplied — the token becomes "none visible today"', async () => {
     const { buildConversationalPrompt } = await import('../agents/a2/prompts.js');
 
@@ -180,6 +198,7 @@ describe('the worksheet list changes no instruction by itself', () => {
       safetyState: 'S0' as const,
       sessionHistorySummary: null,
       perceivedIntensity: null,
+      systemPrompt: candidatePrompt(),
     };
 
     const withoutList = buildConversationalPrompt(base);
@@ -221,6 +240,7 @@ describe('the worksheet list changes no instruction by itself', () => {
       sessionHistorySummary: null,
       perceivedIntensity: null,
       libraryWorksheets: lines,
+      systemPrompt: candidatePrompt(),
     });
 
     // Every fact the wording needs is in the prompt, on its own line.

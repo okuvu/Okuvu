@@ -85,6 +85,7 @@ import { routeTurn } from '../../src/agents/a8-router.js';
 import { resolveContentBackend, resolveAwsRegion, resolveBedrockModelId } from '../../src/lib/provider-config.js';
 import { classifyLlmFailure } from '../../src/lib/llm-failure.js';
 import { hasCrisisLanguage, hasSelfIngestion } from '../../src/agents/a1/crisis-keywords.js';
+import { screenHarmToSomeone } from '../../src/agents/a1/harm-to-someone-keywords.js';
 import { applySessionFloor, diagnosisLint, medicationTitrationCap } from '../../src/pipeline/guards.js';
 import { hasMedicalEmergencyLanguage } from '../../src/agents/a1/medical-emergency-keywords.js';
 import {
@@ -98,6 +99,10 @@ import {
   SAFETY_UNAVAILABLE_RESPONSE,
   getModelUnavailableFallback,
 } from '../../src/pipeline/fallbacks.js';
+import {
+  HARM_TO_SOMEONE_RESPONSE,
+  HARM_TO_SOMEONE_THOUGHTS_RESPONSE,
+} from '../../src/lib/harm-to-someone.js';
 
 import { legacyScoreScenario, type ServedPath as LegacyPath } from './legacy-regex.js';
 import { appliesTo, buildJudgeMessage, parseJudgeOutput, requirementsFor, type JudgeOutput } from './judge.js';
@@ -130,11 +135,28 @@ const REPO_ROOT = repoRoot();
  * a version bump cannot leave the evidence quoting a stale file — every run
  * before v2.3 reported v2.1's sha while serving v2.2's bytes.
  */
+/**
+ * `--prompt v2.8` scores a CANDIDATE file without making it the default.
+ *
+ * The owner's rule is strict — nothing becomes the default unless it passes —
+ * so a candidate has to be measurable first. The bytes come from the file named
+ * here, the report records that it was a candidate, and `gate.ts` is untouched:
+ * promotion is a separate, evidenced edit.
+ */
+const PROMPT_OVERRIDE = arg('prompt', '');
+const SCORED_PROMPT_VERSION = PROMPT_OVERRIDE || A2_PROMPT_VERSION;
 const PROMPT_FILE = join(
   API_ROOT,
   'src/prompts',
-  `a2-okuvu-${A2_PROMPT_VERSION}.txt`,
+  `a2-okuvu-${SCORED_PROMPT_VERSION}.txt`,
 );
+if (PROMPT_OVERRIDE && !existsSync(PROMPT_FILE)) {
+  console.error(
+    JSON.stringify({ ok: false, stage: 'prompt', error: `--prompt: no such file ${PROMPT_FILE}` }, null, 2),
+  );
+  process.exit(2);
+}
+const SCORED_PROMPT = PROMPT_OVERRIDE ? readFileSync(PROMPT_FILE, 'utf-8') : undefined;
 const JUDGE_PROMPT_FILE = join(__dirname, 'judge-prompt.txt');
 
 // Production inference defaults for A2 — identical to lib/bedrock.ts
@@ -344,6 +366,14 @@ function expectedPath(scenario: Scenario): ServedPath | null {
   if (scenario.category === 'medical_emergency' && hasMedicalEmergencyLanguage(scenario.message)) return 'medical';
   if (scenario.category === 'crisis_self_harm' && hasCrisisLanguage(scenario.message)) return 'crisis';
   if (scenario.category === 'crisis_self_harm' && hasMedicalEmergencyLanguage(scenario.message)) return 'medical';
+  if (scenario.category === 'harm_to_someone') {
+    // The shipped screen decides which of the two approved variants serves it;
+    // the rubric for these scenarios is written per path, so a scenario cannot
+    // pass by being served the gentler copy when it described an intent.
+    const screened = screenHarmToSomeone(scenario.message);
+    if (screened === 'intent') return 'harm_to_someone';
+    if (screened === 'frightening_thought') return 'harm_to_someone_thoughts';
+  }
   return null;
 }
 
@@ -448,9 +478,13 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
         ? 'medical'
         : decision.agent === 'deterministic-grounding'
           ? 'grounding'
-          : decision.mode === 'blocked'
-            ? 'a2_blocked'
-            : 'a2';
+          : decision.agent === 'harm-to-someone'
+            ? 'harm_to_someone'
+            : decision.agent === 'harm-to-someone-thoughts'
+              ? 'harm_to_someone_thoughts'
+              : decision.mode === 'blocked'
+                ? 'a2_blocked'
+                : 'a2';
   const routing = crisisFloorMatched
     ? `${classified.safety_state} + crisis keyword floor -> S4 -> routeTurn -> ${path}`
     : `${classified.safety_state} -> routeTurn -> ${path}`;
@@ -470,7 +504,11 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
             ? effectiveState === 'S4' || classified.crisis_language_detected
               ? MEDICAL_EMERGENCY_CRISIS_RESPONSE
               : MEDICAL_EMERGENCY_RESPONSE
-            : A9_PRE_BLOCKED_RESPONSE;
+            : path === 'harm_to_someone'
+              ? HARM_TO_SOMEONE_RESPONSE
+              : path === 'harm_to_someone_thoughts'
+                ? HARM_TO_SOMEONE_THOUGHTS_RESPONSE
+                : A9_PRE_BLOCKED_RESPONSE;
     return {
       path,
       routing,
@@ -494,6 +532,7 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
     homework: (scenario.context.homework as string | null) ?? null,
     toolkit: (scenario.context.toolkit as string[] | undefined) ?? [],
     languageMode: ((scenario.context.language_mode as 'english' | 'mirror') ?? 'english'),
+    ...(SCORED_PROMPT ? { systemPrompt: SCORED_PROMPT } : {}),
   });
 
   counters.a2_calls += 1;
@@ -965,10 +1004,15 @@ async function runGate(): Promise<void> {
     },
     prompt: {
       agent: 'A2',
-      version: A2_PROMPT_VERSION,
-      file: `apps/api/src/prompts/a2-okuvu-${A2_PROMPT_VERSION}.txt`,
+      version: SCORED_PROMPT_VERSION,
+      file: `apps/api/src/prompts/a2-okuvu-${SCORED_PROMPT_VERSION}.txt`,
       sha256: sha256File(PROMPT_FILE),
       built_by: 'buildConversationalPrompt() from src/agents/a2/prompts.ts',
+      // True when this run scored a candidate rather than the gate's default
+      // (--prompt). Such a run can never promote itself: promotion is an edit to
+      // src/prompts/gate.ts, made after the report exists.
+      candidate: SCORED_PROMPT !== undefined,
+      default_version: A2_PROMPT_VERSION,
     },
     code: {
       branch: git(['rev-parse', '--abbrev-ref', 'HEAD']),

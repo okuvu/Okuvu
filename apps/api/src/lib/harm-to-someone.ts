@@ -57,7 +57,13 @@ export interface HarmToSomeoneResource {
 }
 
 export interface HarmToSomeoneScreen {
-  kind: 'harm_to_someone';
+  /**
+   * `harm_to_someone` — intent, or a disclosure that reads as intent.
+   * `harm_to_someone_thoughts` — a frightening unwanted thought with no intent
+   * (owner's 24 Nov 2026 case 3): the same alert and the same safety plan, in
+   * gentler words and with no instruction to call 112.
+   */
+  kind: 'harm_to_someone' | 'harm_to_someone_thoughts';
   /** The body, in order. Each string is one paragraph on screen. */
   paragraphs: string[];
   /** The emergency row, rendered above the other resources. */
@@ -126,6 +132,54 @@ export const HARM_TO_SOMEONE_SCREEN: HarmToSomeoneScreen = {
   plan_label: HARM_TO_SOMEONE_PLAN_LABEL,
   closing: CLOSING,
 };
+
+// ─── Case 3: a frightening thought, with no intent ─────────────────────────
+//
+// Owner's instruction, 24 Nov 2026: "frightening unwanted thoughts with no
+// intent: urgent screen with gentle wording, no 112 push beyond what the
+// message already says."
+//
+// So this is the same screen with a different body: the alert is still urgent,
+// the safety plan is still one tap away, and Vandrevala is still offered as a
+// line to talk to. What it does not do is tell the person to call 112 — they
+// have not said they are about to act, and an emergency instruction aimed at
+// someone frightened of their own thoughts reads as an accusation. The 112 row
+// stays as a tappable resource; the body carries no instruction to use it.
+//
+// PROPOSED COPY — awaiting the owner's approval. Nothing about this paragraph
+// set has been read by him yet; the routing and the alert do not depend on the
+// wording being final, but the wording does not ship until he says so.
+const THOUGHTS_OPENING = 'Thank you for telling me. Saying that out loud is not easy.';
+
+const THOUGHTS_SECOND =
+  'A frightening thought is not the same as wanting to act on it. Thoughts like this can arrive ' +
+  'uninvited and feel appalling, and having one does not make you a bad person or a danger to ' +
+  'anyone.';
+
+const THOUGHTS_THIRD =
+  'It helps to say it to someone real — your therapist, or someone you trust. If these thoughts ' +
+  'keep coming back, or they frighten you a lot, it is worth talking them through properly with ' +
+  'someone who can help.';
+
+export const HARM_TO_SOMEONE_THOUGHTS_SCREEN: HarmToSomeoneScreen = {
+  kind: 'harm_to_someone_thoughts',
+  paragraphs: [THOUGHTS_OPENING, THOUGHTS_SECOND, THOUGHTS_THIRD],
+  emergency: HARM_TO_SOMEONE_RESOURCE_EMERGENCY,
+  resources: [HARM_TO_SOMEONE_RESOURCE_VANDREVALA],
+  alert: ALERT,
+  plan_label: HARM_TO_SOMEONE_PLAN_LABEL,
+  closing: CLOSING,
+};
+
+/** The same screen as one string, for surfaces that can only carry text. */
+export const HARM_TO_SOMEONE_THOUGHTS_RESPONSE =
+  HARM_TO_SOMEONE_THOUGHTS_SCREEN.paragraphs.join('\n\n') +
+  '\n\n' +
+  `${HARM_TO_SOMEONE_THOUGHTS_SCREEN.resources[0].label}: ${HARM_TO_SOMEONE_THOUGHTS_SCREEN.resources[0].display}` +
+  ` (${HARM_TO_SOMEONE_THOUGHTS_SCREEN.resources[0].description})\n\n` +
+  HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert +
+  '\n\n' +
+  HARM_TO_SOMEONE_THOUGHTS_SCREEN.closing;
 
 /**
  * The same screen as one string.

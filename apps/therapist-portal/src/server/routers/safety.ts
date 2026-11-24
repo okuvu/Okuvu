@@ -169,6 +169,11 @@ export const safetyRouter = router({
           urgent: true,
           subject_kind: true,
           subject_id: true,
+          // Chat-sourced flags point at the assistant Turn instead of a
+          // worksheet answer; the user's words are the sibling Turn with the
+          // same turn_number in the same session.
+          turn_id: true,
+          session_id: true,
         },
       });
 
@@ -184,16 +189,21 @@ export const safetyRouter = router({
         wordsFrom: null as string | null,
         subjectKind: row.subject_kind ?? null,
         subjectId: row.subject_id ?? null,
+        turnId: row.turn_id ?? null,
+        sessionId: row.session_id ?? null,
       }));
 
       // The client's own words, for the urgent harm-to-someone rows only.
-      // Read from the answer the flag points at, never stored on the flag.
+      // Read from the row the flag points at, never stored on the flag. Two
+      // pointers exist because the same disclosure can arrive from a worksheet
+      // answer or from chat (owner's rule, 24 Nov 2026): a worksheet answer row,
+      // or the user Turn that precedes the assistant Turn the flag names.
       const wantWords = views.filter(
         (view) =>
           view.urgent &&
           view.source === "harm_to_someone" &&
-          view.subjectKind === "worksheet_response" &&
-          view.subjectId !== null,
+          ((view.subjectKind === "worksheet_response" && view.subjectId !== null) ||
+            (view.turnId !== null && view.sessionId !== null)),
       );
       if (wantWords.length > 0) {
         if (!isBypassEnabled()) {
@@ -201,13 +211,35 @@ export const safetyRouter = router({
         }
         for (const view of wantWords) {
           try {
-            const answer = await db.worksheetResponse.findFirst({
-              where: { id: view.subjectId!, user_id: input.clientUserId },
-              select: { worksheet_id: true, answers: true },
+            if (view.subjectKind === "worksheet_response" && view.subjectId) {
+              const answer = await db.worksheetResponse.findFirst({
+                where: { id: view.subjectId, user_id: input.clientUserId },
+                select: { worksheet_id: true, answers: true },
+              });
+              if (!answer) continue;
+              view.words = answersToReadableText(answer.answers);
+              view.wordsFrom = answer.worksheet_id;
+              continue;
+            }
+            // Chat: the flag names the assistant Turn. The client's words are
+            // the user Turn at the same turn_number in the same session.
+            const assistant = await db.turn.findFirst({
+              where: { id: view.turnId!, user_id: input.clientUserId },
+              select: { session_id: true, turn_number: true },
             });
-            if (!answer) continue;
-            view.words = answersToReadableText(answer.answers);
-            view.wordsFrom = answer.worksheet_id;
+            if (!assistant) continue;
+            const said = await db.turn.findFirst({
+              where: {
+                session_id: assistant.session_id,
+                turn_number: assistant.turn_number,
+                user_id: input.clientUserId,
+                role: "user",
+              },
+              select: { content: true },
+            });
+            if (!said) continue;
+            view.words = said.content;
+            view.wordsFrom = "chat";
           } catch (err) {
             // The words are a reading aid; the flag is the record. A failed
             // read must not take the Safety card down with it.
@@ -216,7 +248,7 @@ export const safetyRouter = router({
         }
       }
 
-      return views.map(({ subjectKind: _k, subjectId: _i, ...view }) => view);
+      return views.map(({ subjectKind: _k, subjectId: _i, turnId: _t, sessionId: _s, ...view }) => view);
     }),
 
   /**
