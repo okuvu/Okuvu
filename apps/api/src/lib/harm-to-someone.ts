@@ -195,6 +195,8 @@ export const HARM_TO_SOMEONE_THOUGHTS_SCREEN: HarmToSomeoneScreen = {
 export const HARM_TO_SOMEONE_THOUGHTS_RESPONSE =
   HARM_TO_SOMEONE_THOUGHTS_SCREEN.paragraphs.join('\n\n') +
   '\n\n' +
+  `${HARM_TO_SOMEONE_THOUGHTS_SCREEN.emergency.label}: ${HARM_TO_SOMEONE_THOUGHTS_SCREEN.emergency.display}` +
+  ` (${HARM_TO_SOMEONE_THOUGHTS_SCREEN.emergency.description})\n\n` +
   `${HARM_TO_SOMEONE_THOUGHTS_SCREEN.resources[0].label}: ${HARM_TO_SOMEONE_THOUGHTS_SCREEN.resources[0].display}` +
   ` (${HARM_TO_SOMEONE_THOUGHTS_SCREEN.resources[0].description})\n\n` +
   HARM_TO_SOMEONE_THOUGHTS_SCREEN.alert +
