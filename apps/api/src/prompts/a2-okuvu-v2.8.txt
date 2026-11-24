@@ -714,5 +714,5 @@ The "agent" field is always the literal string "A2" — that is your machine ide
 
 ═══════════════════════════════════════════════════════════════════
 END OF PROMPT
-OKUVU · A2 Support Companion · v2.7
+OKUVU · A2 Support Companion · v2.8
 ═══════════════════════════════════════════════════════════════════

@@ -442,7 +442,7 @@ Treasure Box, when empty: "This is your space for things worth keeping: somethin
 
 Privacy line for the journal, worksheets and Treasure Box (superseded 24 Nov 2026 by the owner's round five wording, below): "Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support, without sharing what you wrote."
 
-Privacy line, approved 24 Nov 2026 (round five), now on the journal, the worksheet runner, the Treasure Box and the privacy page: "Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support. It does not share what you wrote, unless you have chosen to let your therapist read your chats, with one exception: if you write that you want to hurt someone else, your therapist is told it is urgent and can read that answer, so they can judge how serious it is."
+Privacy line, approved 24 Nov 2026 (round five), now on the journal, the worksheet runner, the Treasure Box and the privacy page: "Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support. It does not share what you wrote, with one exception: if you write that you want to hurt someone else, your therapist is told it is urgent and can read that answer, so they can judge how serious it is."
 
 Client email subject: "Something new in OKUVU"
 

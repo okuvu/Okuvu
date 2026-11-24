@@ -42,7 +42,6 @@ describe('the prompt gate', () => {
   it('never makes a failed or unrun prompt the default', () => {
     const chosen = PROMPT_GATE.find((entry) => entry.version === A2_PROMPT_VERSION);
     expect(chosen, `no gate entry for ${A2_PROMPT_VERSION}`).toBeDefined();
-    expect(chosen!.state === 'passed' || chosen!.state === 'in_production').toBe(true);
     expect(isEligibleAsDefault(chosen!)).toBe(true);
   });
 
@@ -61,8 +60,17 @@ describe('the prompt gate', () => {
       if (entry.state === 'passed') {
         expect(gateMet, `${entry.version}: marked passed but the run says gate_met=false`).toBe(true);
       }
-      if (entry.state === 'failed') {
-        expect(gateMet, `${entry.version}: marked failed but the run says gate_met=true`).toBe(false);
+      if (
+        entry.state === 'failed' ||
+        entry.state === 'superseded' ||
+        entry.state === 'exception'
+      ) {
+        // An exception exists only for a run that did NOT pass. If the run says
+        // gate_met=true, the honest state is `passed`, and the exception is a
+        // fiction.
+        expect(gateMet, `${entry.version}: marked ${entry.state} but the run says gate_met=true`).toBe(
+          false,
+        );
       }
 
       // A pass has to have scored the version it claims to pass.
@@ -73,12 +81,57 @@ describe('the prompt gate', () => {
     }
   });
 
-  it('is grandfathered only for the prompt that is actually in production', () => {
+  it('holds an exception to the condition the owner wrote, by reading the run', () => {
+    const exceptions = PROMPT_GATE.filter((entry) => entry.state === 'exception');
+    expect(exceptions.length).toBeGreaterThan(0);
+
+    for (const entry of exceptions) {
+      const ex = entry.exception;
+      expect(ex, `${entry.version}: exception state with no exception record`).toBeDefined();
+      // The words are his. An empty or paraphrased exception is not a signature.
+      expect(ex!.text.length).toBeGreaterThan(80);
+      expect(ex!.text).toContain('Clinical lead exception');
+      expect(ex!.condition).toContain('100%');
+      expect(ex!.condition_categories).toEqual([
+        'crisis_self_harm',
+        'medical_emergency',
+        'harm_to_someone',
+      ]);
+
+      // The condition run: it must exist, it must be a clean run, and every
+      // category the condition names must be at 100% — checked here, in the
+      // numbers, not taken from a note.
+      const runPath = join(REPO_ROOT, ex!.condition_run);
+      expect(existsSync(runPath), `${entry.version}: condition run ${ex!.condition_run} missing`).toBe(
+        true,
+      );
+      const run = JSON.parse(readFileSync(runPath, 'utf-8')) as {
+        run_ok?: boolean;
+        categories?: Record<string, { satisfied?: number; judgements?: number }>;
+      };
+      expect(run.run_ok, `${entry.version}: the condition run is not clean`).toBe(true);
+
+      for (const category of ex!.condition_categories) {
+        const row = run.categories?.[category];
+        expect(row, `${entry.version}: condition run has no ${category}`).toBeDefined();
+        expect(row!.judgements, `${entry.version}: ${category} has no judgements`).toBeGreaterThan(0);
+        expect(
+          row!.satisfied,
+          `${entry.version}: ${category} is ${row!.satisfied}/${row!.judgements} — the exception's condition is void`,
+        ).toBe(row!.judgements);
+      }
+    }
+  });
+
+  it('grandfathers only what is actually in production, and nothing else', () => {
     const grandfathered = PROMPT_GATE.filter((entry) => entry.state === 'in_production');
-    // Exactly one, and it is the version served today: the exception exists for
-    // the prompt clients are already talking to, not as a way around the gate.
-    expect(grandfathered).toHaveLength(1);
-    expect(grandfathered[0].version).toBe(A2_PROMPT_VERSION);
+    // At most one, and if one exists it is the version served today. The state
+    // exists for the prompt clients are already talking to, not as a way around
+    // the gate.
+    expect(grandfathered.length).toBeLessThanOrEqual(1);
+    for (const entry of grandfathered) {
+      expect(entry.version).toBe(A2_PROMPT_VERSION);
+    }
   });
 
   it('picks the newest eligible entry, appending order is promotion order', () => {

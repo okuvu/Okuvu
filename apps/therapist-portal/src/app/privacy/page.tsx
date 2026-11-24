@@ -230,7 +230,7 @@ export default function PrivacyPolicyPage() {
                   // become misleading once journal text started being screened:
                   // a crisis in an entry raises the help card and tells the
                   // therapist that an event happened, without the words.
-                  "The journal feature itself. Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support. It does not share what you wrote, unless you have chosen to let your therapist read your chats, with one exception: if you write that you want to hurt someone else, your therapist is told it is urgent and can read that answer, so they can judge how serious it is. This applies to journal entries, chat messages, worksheet answers and Treasure Box notes alike.", 
+                  "The journal feature itself. Your therapist can't read this unless you choose to share it. If OKUVU's safety system notices you may be in danger, it will show you help straight away and let your therapist know you may need support. It does not share what you wrote, with one exception: if you write that you want to hurt someone else, your therapist is told it is urgent and can read that answer, so they can judge how serious it is. This applies to journal entries, chat messages, worksheet answers and Treasure Box notes alike.", 
                 ],
                 [
                   <strong key="f">Therapist notes</strong>,

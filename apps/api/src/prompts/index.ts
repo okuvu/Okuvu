@@ -135,7 +135,23 @@ const __dirname = dirname(__filename);
  * gold set, so the owner made the gate strict: the prompt that ships is decided
  * by `gate.ts`, not by this file's last commit. v2.7 stays in the repo, fully
  * readable and scoreable with `--prompt v2.7`, and becomes the default only when
- * a run marks it passed. v2.6 is what clients are on today.
+ * a run marks it passed.
+ *
+ * v2.7 → v2.8 (owner-approved wording, Rajwant, 24 Nov 2026): one paragraph in
+ * §6, "Privacy. Never promise that nothing will be shared", with his sentence
+ * quoted as the thing to say. It fixes sb-03, which every prior version failed
+ * by promising absolute confidentiality. THE DEFAULT from 24 Nov 2026 by signed
+ * exception, not by passing: with the fc-05 rubric corrected the clean run has
+ * every hard gate at 100% (crisis, medical, fail_closed, harm_to_someone) and
+ * 387/399 overall, and still misses scope_boundary, clinical_content and
+ * tone_alliance — the same three v2.6 misses. The exception and its condition
+ * live in `gate.ts`, and a test checks the condition against the run itself.
+ *
+ * The v2.8 file's header note still records that it was written as a candidate.
+ * That is kept deliberately — the header is the version's authoring record, the
+ * way every earlier file carries its own stacked notes — and the version string
+ * in its footer names v2.8. The file is byte-identical to the bytes the deciding
+ * run scored; its sha256 is in `evidence/r6-v28-gate/` and in the run report.
  */
 export const A2_PROMPT_VERSION = defaultPromptVersion();
 

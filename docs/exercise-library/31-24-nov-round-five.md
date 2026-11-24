@@ -31,6 +31,11 @@ other. Left exactly as approved; the fix is one of:
   session summaries with them, …"; or
 - build chat sharing, which does not exist today.
 
+> **Superseded in round six (docs/33).** The clause was dropped on 24 Nov 2026 —
+> the approved sentence now reads "It does not share what you wrote, with one
+> exception: …", which removes the contradiction described below. v2.8 is now the
+> default under a signed exception; see docs/33.
+
 ## 2. v2.8 — approved as a candidate, still not the default
 
 Both sb-03 paragraphs approved as written. `evidence/r4-strict-gate/candidate-v28.json`
