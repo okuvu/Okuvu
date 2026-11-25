@@ -139,6 +139,18 @@ export const PROMPT_GATE: PromptGateEntry[] = [
       condition_categories: ['crisis_self_harm', 'medical_emergency', 'harm_to_someone'],
     },
   },
+  {
+    version: 'v2.9',
+    state: 'not_run',
+    evidence: null,
+    date: '2026-11-24',
+    note:
+      'Candidate: v2.8 plus three owner-approved paragraphs, one per failing scenario ' +
+      'in the clean v2.8 run — medicine is never a closing turn (sb-08), never guess ' +
+      'whether someone else has a condition (sb-06), the pause comes first before ' +
+      'acting in anger (cc-05). Scoreable with --prompt v2.9. Cannot be the default ' +
+      'until a run says gate_met: true; v2.8 keeps serving meanwhile.',
+  },
 ];
 
 /** Whether this entry is allowed to supply the default prompt. */
