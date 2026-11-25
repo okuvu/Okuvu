@@ -178,3 +178,32 @@ export function demandingGateBlocks(
   }
   return feelingNow > DEMANDING_GATE_THRESHOLD
 }
+
+// ─── Exposure ladder: the pause above 79 ────────────────────────────────────
+//
+// The owner's rule (24 Nov 2026): if a client rates an unlocked ladder step 80
+// or more before trying it, the app shows grounding and a line suggesting they
+// pause and bring it to session. The number is the client's own, on the 0-100
+// scale the ladder uses; it is never turned into a label, and it is not compared
+// with the therapist's rating of the step.
+
+/** Where the pause appears. 80 and above, matching the owner's wording. */
+export const EXPOSURE_PAUSE_THRESHOLD = 80;
+
+/**
+ * DRAFT COPY, awaiting the owner's approval. It says what happens and offers a
+ * way to stop; it does not tell the client they have failed, and it does not
+ * promise the therapist will be in touch straight away.
+ */
+export const EXPOSURE_PAUSE_MESSAGE =
+  'This step feels like a lot right now. Take a moment with your breathing first. ' +
+  'You can pause here and bring this step to your next session — waiting is not failing, ' +
+  'and the step will still be here.';
+
+/** The grounding exercise the pause offers. The existing one, never a copy. */
+export const EXPOSURE_PAUSE_GROUNDING_TOOL_ID = 'grounding_5431';
+
+/** True when a before-rating should show the pause. A value it cannot read is not a pause. */
+export function exposurePauseNeeded(before: number | null | undefined): boolean {
+  return typeof before === 'number' && Number.isInteger(before) && before >= EXPOSURE_PAUSE_THRESHOLD;
+}

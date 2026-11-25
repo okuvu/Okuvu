@@ -9,6 +9,7 @@
  */
 import type { WorksheetRegistryRow } from '@okuvu/shared-types/worksheet';
 import { worksheetRowProblems } from '@okuvu/shared-types/worksheet';
+import { anxietyWorryEntries } from '@okuvu/shared-types/worksheets/anxiety-worry';
 import { calmMyBodyEntries } from '@okuvu/shared-types/worksheets/calm-my-body';
 import { beKinderEntries } from '@okuvu/shared-types/worksheets/be-kinder';
 import { doWhatMattersEntries } from '@okuvu/shared-types/worksheets/do-what-matters';
@@ -40,6 +41,7 @@ export const CATALOGUE: CatalogueEntry[] = [
   // array position, so an entry added in the middle would renumber rows that
   // already exist. Library order comes from `sort_order`, never from this index.
   ...stressAndBurnoutEntries,
+  ...anxietyWorryEntries,
 ];
 
 /** What a client or therapist may see: approved rows only, in order. */
@@ -66,7 +68,10 @@ export function toRegistryRow(entry: CatalogueEntry): WorksheetRegistryRow & {
   return {
     tool_id: entry.tool_id,
     kind:
-      entry.opens === 'breathing'
+      // A card that opens an existing screen rather than the runner is a group:
+      // the Breathing card (four techniques) and SOS calm (a breath, then
+      // grounding) both open built screens, so neither has a worksheet body.
+      entry.opens === 'breathing' || entry.opens === 'sos_calm'
         ? 'group'
         : entry.opens === 'grounding'
           ? 'exercise'

@@ -53,7 +53,11 @@ export type SafetyFlagSource =
   | 'journal_entry'
   | 'worksheet_answer'
   | 'treasure_note'
-  | 'mood_log';
+  | 'mood_log'
+  // Worry time (Anxiety & Worry batch, 24 Nov 2026): a parked worry is client
+  // text typed outside chat, and the therapist's alert says which screen it came
+  // from. Never the words.
+  | 'worry_parked';
 
 /** Only the two levels a therapist is alerted about. S0–S2 are not flags. */
 export type SafetyFlagLevelValue = 'S3' | 'S4';
@@ -238,6 +242,8 @@ export function surfacePhraseFor(source: SafetyFlagSource | undefined): string |
       return 'a Treasure Box note';
     case 'mood_log':
       return 'a mood check-in';
+    case 'worry_parked':
+      return 'a parked worry';
     case 's3_grounding':
     case 'crisis_card':
     case 'third_party_crisis':

@@ -14,6 +14,7 @@ import { sharedRouter } from "./shared";
 import { treasureBoxRouter } from "./treasure-box";
 import { exerciseSetsRouter } from "./exercise-sets";
 import { goalsRouter } from "./goals";
+import { exposureRouter } from "./exposure";
 
 export const appRouter = router({
   clients: clientsRouter,
@@ -31,6 +32,7 @@ export const appRouter = router({
   treasureBox: treasureBoxRouter,
   exerciseSets: exerciseSetsRouter,
   goals: goalsRouter,
+  exposure: exposureRouter,
 });
 
 export type AppRouter = typeof appRouter;

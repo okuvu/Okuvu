@@ -12,10 +12,12 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  ANXIETY_DRAFTS_MIGRATION_PATH,
   APPROVALS_MIGRATION_PATH,
   DRAFTS_MIGRATION_PATH,
   MIGRATION_PATH,
   REVISED_APPROVALS_MIGRATION_PATH,
+  buildAnxietyDraftsSql,
   buildApprovalsSql,
   buildDraftsSql,
   buildMigrationSql,
@@ -29,6 +31,7 @@ const FILE = join(ROOT, MIGRATION_PATH);
 const DRAFTS_FILE = join(ROOT, DRAFTS_MIGRATION_PATH);
 const APPROVALS_FILE = join(ROOT, APPROVALS_MIGRATION_PATH);
 const REVISED_APPROVALS_FILE = join(ROOT, REVISED_APPROVALS_MIGRATION_PATH);
+const ANXIETY_FILE = join(ROOT, ANXIETY_DRAFTS_MIGRATION_PATH);
 
 function wrote(path: string, sql: string): boolean {
   if (process.env.WRITE_WORKSHEET_SQL !== '1') return false;
@@ -113,10 +116,97 @@ describe('generated drafts migration', () => {
     expect(sql).not.toContain('2026-11-24');
   });
 
-  it('leaves nothing as a draft: both rows sent back were revised and approved', () => {
+  it('leaves the earlier batch with nothing as a draft', () => {
     // The owner read the revised wording and approved it the same day, so the
-    // 24 Nov batch has no draft left. A later batch will add its own.
-    expect(draftEntries().map((entry) => entry.tool_id)).toEqual([]);
+    // Stress & Burnout batch has no draft left. Drafts now exist only in the
+    // Anxiety & Worry batch, which has its own migration and its own test.
+    const stressIds = new Set([
+      'ws_whats_on_my_plate',
+      'ws_basics_check',
+      'ws_rest_break',
+      'ws_boundary_planner',
+      'ws_priority_sorter',
+      'ws_scrolling_log',
+      'ws_weekly_load_check',
+      'ws_unsent_letter',
+      'ws_pros_cons_change',
+      'ws_caring_load_check',
+    ]);
+    expect(draftEntries().filter((entry) => stressIds.has(entry.tool_id))).toEqual([]);
+  });
+});
+
+describe('generated Anxiety & Worry drafts migration', () => {
+  it('matches the catalogue', () => {
+    const sql = buildAnxietyDraftsSql();
+    if (wrote(ANXIETY_FILE, sql)) return;
+
+    expect(existsSync(ANXIETY_FILE)).toBe(true);
+    expect(readFileSync(ANXIETY_FILE, 'utf8')).toBe(sql);
+  });
+
+  it('carries all nine rows, every one switched off', () => {
+    const sql = buildAnxietyDraftsSql();
+    for (const id of [
+      'ws_worry_time',
+      'ws_brain_dump',
+      'ws_unhooking',
+      'ws_sos_calm',
+      'ws_sitting_with_not_knowing',
+      'ws_exam_career_pressure',
+      'ws_social_situation_prep',
+      'ws_family_expectations',
+      'ws_exposure_ladder',
+    ]) {
+      expect(sql).toContain(`'${id}'`);
+    }
+    expect(sql.match(/'draft'/g)?.length).toBe(9);
+    // Drafting is not approval: no approved status and no approval date.
+    expect(sql).not.toContain("'approved'");
+    expect(sql).not.toContain('2026-11-24');
+  });
+
+  it('writes the exposure ladder as therapist-only, in the row itself', () => {
+    // The owner's rule: never a Library card, never assignable. The access mode
+    // travels with the row so no query has to know the id.
+    const sql = buildAnxietyDraftsSql();
+    const row = sql.split('\n').find((line) => line.includes("'ws_exposure_ladder', 'Exposure ladder'"));
+    expect(row).toBeTruthy();
+    expect(row).toContain("'therapist_only'");
+    expect(row).toContain("'demanding'");
+  });
+
+  it('keeps the six genuinely new ids out of the applied seed', () => {
+    const sql = buildMigrationSql();
+    for (const id of [
+      'ws_worry_time',
+      'ws_brain_dump',
+      'ws_sos_calm',
+      'ws_sitting_with_not_knowing',
+      'ws_social_situation_prep',
+    ]) {
+      expect(sql).not.toContain(`'${id}'`);
+    }
+    // The three reused ids are still placeholders there, upgraded in place here.
+    expect(sql).toContain("'ws_unhooking', 'Unhooking from thoughts'");
+    expect(sql).toContain("'ws_exam_career_pressure', 'Exam and career pressure planner'");
+    expect(sql).toContain("'ws_family_expectations', 'Family expectations map'");
+  });
+
+  it('leaves the other nine as the only drafts in the catalogue', () => {
+    expect(draftEntries().map((entry) => entry.tool_id).sort()).toEqual(
+      [
+        'ws_brain_dump',
+        'ws_exam_career_pressure',
+        'ws_exposure_ladder',
+        'ws_family_expectations',
+        'ws_sitting_with_not_knowing',
+        'ws_social_situation_prep',
+        'ws_sos_calm',
+        'ws_unhooking',
+        'ws_worry_time',
+      ].sort(),
+    );
   });
 });
 

@@ -172,7 +172,7 @@ export interface CatalogueEntry {
    * Rows that already exist in the app and must not be re-created: the card
    * opens an existing screen instead of the worksheet runner.
    */
-  opens: 'worksheet' | 'mood_checkin' | 'grounding' | 'breathing';
+  opens: 'worksheet' | 'mood_checkin' | 'grounding' | 'breathing' | 'sos_calm';
   /**
    * Which care plan(s) this belongs to. Drives the order a client sees, never a
    * badge: the client is not shown a plan name. `['all']` means every plan.

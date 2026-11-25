@@ -34,6 +34,7 @@ import '../features/notifications/notifications_inbox_screen.dart';
 import '../features/homework/homework_screen.dart';
 import '../features/goals/goals_screen.dart';
 import '../features/home/breathing_screen.dart';
+import '../features/library/sos_calm_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/library/worksheet_screen.dart';
 import '../features/library/safety_plan_screen.dart';
@@ -241,7 +242,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/library/breathing',
-        builder: (context, state) => const BreathingScreen(),
+        // `?tool=` lands the player on a named technique. SOS calm uses it to
+        // open the long-out-breath exercise directly instead of the default.
+        builder: (context, state) => BreathingScreen(
+          initialToolId: state.uri.queryParameters['tool'],
+        ),
+      ),
+      GoRoute(
+        path: '/library/sos',
+        builder: (context, state) => const SosCalmScreen(),
       ),
       GoRoute(
         path: '/library/grounding',

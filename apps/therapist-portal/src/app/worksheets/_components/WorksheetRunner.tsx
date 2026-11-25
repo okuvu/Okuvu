@@ -387,6 +387,20 @@ function FieldView({ field, answers, onChange }: FieldProps) {
         </div>
       )}
 
+      {field.type === 'echo' && (
+        <div className="space-y-2">
+          {field.frames.map((frame, i) => (
+            <p key={i} className="text-base leading-relaxed text-gray-900">
+              {frame.replaceAll('{answer}', '\u2026')}
+            </p>
+          ))}
+          <p className="text-xs text-gray-500">
+            A read-back of the client&rsquo;s own answer, shown inside these sentences and
+            never rewritten. The preview leaves a gap where their words appear.
+          </p>
+        </div>
+      )}
+
       {field.type === 'datetime' && (
         <div className="flex flex-wrap gap-2">
           {(field.withDate ?? true) && (

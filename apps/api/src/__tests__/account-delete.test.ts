@@ -43,6 +43,12 @@ const { USER_FK_TABLES, STRING_REF_TABLES, ALL_TABLES, prismaMock } = vi.hoisted
     // Library work (Step 1). Client-authored worksheet answers, Treasure notes
     // and the client's own "Open when..." collections.
     'worksheetResponse',
+    // Worry time and the exposure ladder (Anxiety & Worry batch, 24 Nov 2026):
+    // a parked worry and a ladder step are the subject's own data.
+    'exposureStepRun',
+    'exposureStep',
+    'worryParked',
+    'worryTimeSetting',
     'safetyPlan',
     'safetyRecheck',
     'treasureNote',
@@ -421,7 +427,9 @@ describe('erasure coverage vs packages/prisma/schema.prisma', () => {
 
   it('finds the schema and the known set of subject tables', () => {
     expect(models.length).toBeGreaterThan(30);
-    expect(modelsWithUserFk.length).toBe(28);
+    // 28 before the Anxiety & Worry batch; +4 tables with a User FK now
+    // (WorryTimeSetting, WorryParked, ExposureStep, ExposureStepRun).
+    expect(modelsWithUserFk.length).toBe(32);
   });
 
   it('every relation to User declares onDelete: Cascade', () => {

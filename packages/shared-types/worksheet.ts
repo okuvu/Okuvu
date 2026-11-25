@@ -72,6 +72,7 @@ export const WORKSHEET_FIELD_TYPES = [
   'datetime',
   'countdown_timer',
   'body_outline',
+  'echo',
   'closing_reflection',
 ] as const;
 
@@ -287,6 +288,29 @@ export interface BodyOutlineField extends WorksheetFieldBase {
   strengthPrompt?: string;
 }
 
+/**
+ * Reads an earlier answer back inside fixed sentences, in the client's own
+ * words.
+ *
+ * The unhooking worksheet needs this: the client writes a thought once, and the
+ * screen then shows it back as "I'm having the thought that …" and "I notice I'm
+ * having the thought that …". The client's words are substituted into `{answer}`
+ * verbatim and never rewritten, summarised or corrected — the whole point of the
+ * exercise is that the thought is unchanged and only the framing moves.
+ *
+ * Not answerable: like an instruction it is a screen to read, and it can never
+ * be required. A frame that does not contain `{answer}` is refused, because a
+ * frame with no place for the client's words would silently hide what they
+ * wrote.
+ */
+export interface EchoField extends WorksheetFieldBase {
+  type: 'echo';
+  /** Id of an earlier short_text / long_text / voice_note piece. */
+  fromField: string;
+  /** Sentences carrying `{answer}`, in reading order. */
+  frames: string[];
+}
+
 export interface ClosingReflectionField extends WorksheetFieldBase {
   type: 'closing_reflection';
 }
@@ -305,6 +329,7 @@ export type WorksheetField =
   | DateTimeField
   | CountdownTimerField
   | BodyOutlineField
+  | EchoField
   | ClosingReflectionField;
 
 export interface WorksheetClosingButton {
@@ -409,6 +434,7 @@ const TYPE_KEYS: Record<WorksheetFieldType, string[]> = {
   datetime: ['withDate', 'withTime'],
   countdown_timer: ['seconds', 'startLabel', 'doneLabel', 'minSeconds'],
   body_outline: ['regions', 'maxSelections', 'withStrength', 'strengthPrompt'],
+  echo: ['fromField', 'frames'],
   closing_reflection: [],
 };
 
@@ -530,6 +556,48 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
     }
     if (raw.showAnswers !== undefined && typeof raw.showAnswers !== 'boolean') {
       errors.push(`${at}.showAnswers: must be true or false`);
+    }
+
+    if (fieldType === 'echo') {
+      const fromField = raw.fromField;
+      if (!isNonEmptyString(fromField)) {
+        errors.push(`${at}.fromField: required`);
+      } else if (seen.get(fromField as string) === undefined) {
+        // A frame can only read back something the client has already written.
+        errors.push(`${at}.fromField: "${fromField}" is not an earlier piece`);
+      } else {
+        const earlier = seen.get(fromField as string);
+        if (earlier !== 'short_text' && earlier !== 'long_text' && earlier !== 'voice_note') {
+          errors.push(`${at}.fromField: "${fromField}" must be a text piece`);
+        }
+      }
+
+      const frames = raw.frames;
+      if (!Array.isArray(frames) || frames.length === 0) {
+        errors.push(`${at}.frames: at least one frame is required`);
+      } else if (frames.length > 4) {
+        errors.push(`${at}.frames: at most 4 frames`);
+      } else {
+        frames.forEach((frame, fi) => {
+          if (!isNonEmptyString(frame)) {
+            errors.push(`${at}.frames[${fi}]: must be a non-empty string`);
+            return;
+          }
+          if ((frame as string).length > WORKSHEET_LIMITS.prompt) {
+            errors.push(`${at}.frames[${fi}]: over ${WORKSHEET_LIMITS.prompt} characters`);
+          }
+          // Without the token there is nowhere for the client's own words to
+          // go, and the screen would show a sentence about a thought it had
+          // silently dropped.
+          if (!(frame as string).includes('{answer}')) {
+            errors.push(`${at}.frames[${fi}]: must contain {answer}`);
+          }
+        });
+      }
+
+      if (raw.required === true) {
+        errors.push(`${at}.required: an echo piece is never required`);
+      }
     }
 
     if (fieldType === 'closing_reflection') {
@@ -1154,7 +1222,8 @@ export function validateWorksheetAnswers(
     }
 
     switch (field.type) {
-      case 'instruction': {
+      case 'instruction':
+      case 'echo': {
         // Not answerable; a value here means the client's answers are stale.
         errors.push(`${field.id}: this piece does not take an answer`);
         break;
@@ -1380,7 +1449,7 @@ export function worksheetProgress(
   answers: WorksheetAnswers,
 ): { answered: number; total: number } {
   const answerable = visibleFields(content, answers).filter(
-    (f) => f.type !== 'instruction' && f.type !== 'closing_reflection',
+    (f) => f.type !== 'instruction' && f.type !== 'echo' && f.type !== 'closing_reflection',
   );
   const answered = answerable.filter((f) => isAnswerPresent(answers[f.id])).length;
   return { answered, total: answerable.length };
@@ -1393,7 +1462,10 @@ export function missingRequiredFields(
 ): WorksheetField[] {
   return visibleFields(content, answers).filter(
     (f) =>
-      f.required === true && f.type !== 'instruction' && !isAnswerPresent(answers[f.id]),
+      f.required === true &&
+      f.type !== 'instruction' &&
+      f.type !== 'echo' &&
+      !isAnswerPresent(answers[f.id]),
   );
 }
 
@@ -1466,6 +1538,7 @@ export function clientFacingStrings(content: WorksheetContent): string[] {
     push(field.addLabel);
     push(field.minLabel);
     push(field.maxLabel);
+    for (const frame of Array.isArray(field.frames) ? field.frames : []) push(frame);
     for (const option of asObjects(field.options)) {
       push(option.label);
       push(option.description);

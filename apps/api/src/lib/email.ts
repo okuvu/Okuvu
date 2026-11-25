@@ -80,6 +80,83 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<{ 
 }
 
 /**
+ * Worry time — the daily reminder (owner's brief, 24 Nov 2026).
+ *
+ * DRAFT COPY, awaiting the owner's approval. It is deliberately content-free:
+ * the subject names the feature, and the body never quotes, summarises or
+ * counts out what the client wrote. "You parked 2 worries" is a count of their
+ * own writing on a lock screen, which is not the same thing as a reminder.
+ *
+ * Same fail-open shape as the invite: no BREVO_API_KEY logs and returns
+ * `{ sent: false }`, so a missing key never breaks the sweep.
+ */
+export interface SendWorryTimeEmailParams {
+  to: string;
+  name: string | null;
+  minutes: number;
+  parkedCount: number;
+}
+
+export async function sendWorryTimeEmail(
+  params: SendWorryTimeEmailParams,
+): Promise<{ sent: boolean }> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
+  const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
+
+  const greeting = params.name ? `Hi ${params.name},` : 'Hi,';
+  const hasParked = params.parkedCount > 0;
+  const htmlContent = `
+    <p>${greeting}</p>
+    <p>It's your worry time.</p>
+    <p>${
+      hasParked
+        ? 'There is something waiting on your parked list. Open OKUVU when you have a few minutes, and look at each one.'
+        : 'Open OKUVU when you have a few minutes. Nothing has to be on the list for this to count.'
+    }</p>
+    <p>You gave yourself ${params.minutes} minutes. You can finish early.</p>
+  `;
+
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — skipping send for worry-time reminder', {
+      toRef: identityRef('c', params.to),
+    });
+    return { sent: false };
+  }
+
+  try {
+    const response = await fetch(BREVO_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email: params.to, name: params.name ?? undefined }],
+        subject: 'Your worry time',
+        htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('[email] Brevo send failed', {
+        status: response.status,
+        body: redactEmails(body).slice(0, 500),
+      });
+      return { sent: false };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] Brevo send threw', err);
+    return { sent: false };
+  }
+}
+
+/**
  * S6 (waitlist) — confirmation sent after a phone number with no
  * invite/account joins the waitlist. Same fail-open shape as
  * sendInviteEmail: a missing key or send failure never blocks the

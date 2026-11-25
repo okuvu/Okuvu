@@ -94,6 +94,8 @@ class WorksheetField {
     this.doneLabel,
     this.regions = const [],
     this.strengthPrompt,
+    this.fromField,
+    this.frames = const [],
   });
 
   final String id;
@@ -151,7 +153,17 @@ class WorksheetField {
   /// Question above the per-part sliders, when the approved copy gives one.
   final String? strengthPrompt;
 
-  bool get takesAnAnswer => type != 'instruction';
+  // echo (read-back)
+  /// The earlier text piece whose answer is shown inside [frames].
+  final String? fromField;
+
+  /// Sentences carrying `{answer}`, in reading order. The client's words are
+  /// substituted verbatim and never rewritten.
+  final List<String> frames;
+
+  /// An echo is a screen to read, not a question: it never takes an answer and
+  /// never blocks "next", exactly like an instruction.
+  bool get takesAnAnswer => type != 'instruction' && type != 'echo';
 
   bool get isTimer => type == 'countdown_timer';
 
@@ -505,6 +517,29 @@ WorksheetContent parseWorksheetContent(Object? raw) {
       problems.add('$at.regions: at least one part is required');
     }
 
+    if (type == 'echo') {
+      final fromField = rawField['fromField'];
+      if (fromField is! String || fromField.isEmpty) {
+        problems.add('$at.fromField: required');
+      }
+      final rawFrames = rawField['frames'];
+      if (rawFrames is! List || rawFrames.isEmpty) {
+        problems.add('$at.frames: at least one frame is required');
+      } else {
+        for (var fi = 0; fi < rawFrames.length; fi++) {
+          final frame = rawFrames[fi];
+          if (frame is! String || frame.isEmpty) {
+            problems.add('$at.frames[$fi]: must be a non-empty string');
+          } else if (!frame.contains('{answer}')) {
+            problems.add('$at.frames[$fi]: must contain {answer}');
+          }
+        }
+      }
+      if (rawField['required'] == true) {
+        problems.add('$at.required: an echo piece is never required');
+      }
+    }
+
     final withDate = rawField['withDate'];
     final withTime = rawField['withTime'];
     if (type == 'datetime') {
@@ -544,6 +579,10 @@ WorksheetContent parseWorksheetContent(Object? raw) {
         regions: regions,
         strengthPrompt:
             rawField['strengthPrompt'] is String ? rawField['strengthPrompt'] as String : null,
+        fromField: rawField['fromField'] is String ? rawField['fromField'] as String : null,
+        frames: rawField['frames'] is List
+            ? (rawField['frames'] as List).whereType<String>().toList(growable: false)
+            : const [],
       ),
     );
   }
@@ -689,6 +728,7 @@ List<String> worksheetAnswerProblems(WorksheetContent content, WorksheetAnswers 
 
     switch (field.type) {
       case 'instruction':
+      case 'echo':
         problems.add('${field.id}: this piece does not take an answer');
       case 'short_text':
       case 'long_text':

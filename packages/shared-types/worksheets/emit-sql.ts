@@ -29,6 +29,9 @@ const MIGRATION_DIR = '20261109130000_seed_library_worksheets';
 /** The first batch of drafts: the Stress & Burnout worksheets of 24 Nov 2026. */
 const DRAFTS_MIGRATION_DIR = '20261124140000_seed_stress_burnout_drafts';
 
+/** The Anxiety & Worry drafts of 24 Nov 2026, in their own migration. */
+const ANXIETY_DRAFTS_MIGRATION_DIR = '20261124200000_seed_anxiety_worry_drafts';
+
 /** The owner's 24 Nov 2026 approvals, in their own migration. */
 const APPROVALS_MIGRATION_DIR = '20261124160000_approve_stress_burnout_eight';
 
@@ -93,6 +96,30 @@ const LEGACY_SEED_ORDER = [
 
 /** First id index for rows that were never in the applied seed. */
 const DRAFT_ID_BASE = 1000;
+
+/**
+ * The Anxiety & Worry batch (24 Nov 2026), in the owner's order.
+ *
+ * Its own list and its own id range: the Stress & Burnout batch already owns
+ * 1000-1009, and a shared range would give two rows the same primary key the
+ * moment both migrations run. Membership is a list rather than "whatever is
+ * `draft` today", for the same reason as the first batch — a later approval must
+ * never silently move a row between migrations.
+ */
+export const ANXIETY_DRAFT_BATCH_IDS = [
+  'ws_worry_time',
+  'ws_brain_dump',
+  'ws_unhooking',
+  'ws_sos_calm',
+  'ws_sitting_with_not_knowing',
+  'ws_exam_career_pressure',
+  'ws_social_situation_prep',
+  'ws_family_expectations',
+  'ws_exposure_ladder',
+] as const;
+
+/** First id index for the Anxiety batch, kept clear of the earlier batch. */
+const ANXIETY_ID_BASE = 2000;
 
 /**
  * The ten Stress & Burnout rows of 24 Nov 2026, in the owner's order.
@@ -167,6 +194,7 @@ function frozenPlaceholder(
   section: CatalogueEntry['section'],
   sort_order: number,
   sensitiveCheck: boolean,
+  accessMode: CatalogueEntry['access_mode'] = 'assigned',
 ): CatalogueEntry {
   return {
     tool_id,
@@ -177,7 +205,7 @@ function frozenPlaceholder(
     section,
     therapy_modality: null,
     therapist_note: null,
-    access_mode: 'assigned',
+    access_mode: accessMode,
     load_level: null,
     est_minutes: null,
     sort_order,
@@ -214,6 +242,39 @@ const FROZEN_DRAFT_PLACEHOLDERS: Record<string, CatalogueEntry> = {
     'energy_life',
     1020,
     true,
+  ),
+  ws_exposure_ladder: frozenPlaceholder(
+    'ws_exposure_ladder',
+    'Exposure ladder',
+    'Therapist-only: order avoided situations from easiest to hardest, and plan the steps.',
+    'do_what_matters',
+    1070,
+    false,
+    'therapist_only',
+  ),
+  ws_unhooking: frozenPlaceholder(
+    'ws_unhooking',
+    'Unhooking from thoughts',
+    'Notice a thought, name it as a thought, and let it pass without arguing with it.',
+    'untangle_thoughts',
+    910,
+    false,
+  ),
+  ws_exam_career_pressure: frozenPlaceholder(
+    'ws_exam_career_pressure',
+    'Exam and career pressure planner',
+    'Plan around exam and career pressure: what is in your control this week, and what is not.',
+    'energy_life',
+    1000,
+    false,
+  ),
+  ws_family_expectations: frozenPlaceholder(
+    'ws_family_expectations',
+    'Family expectations map',
+    'Map what family expects, what the client wants, and where the two overlap.',
+    'people_boundaries',
+    1030,
+    false,
   ),
   ws_pros_cons_change: frozenPlaceholder(
     'ws_pros_cons_change',
@@ -338,6 +399,7 @@ function buildInsert(rows: IndexedEntry[]): string[] {
 }
 
 export const MIGRATION_PATH = `packages/prisma/migrations/${MIGRATION_DIR}/migration.sql`;
+export const ANXIETY_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${ANXIETY_DRAFTS_MIGRATION_DIR}/migration.sql`;
 export const DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${DRAFTS_MIGRATION_DIR}/migration.sql`;
 export const APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const REVISED_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${REVISED_APPROVALS_MIGRATION_DIR}/migration.sql`;
@@ -549,6 +611,50 @@ export function buildRevisedApprovalsSql(): string {
         }
         // Same row id the drafts migration used, so all three agree about identity.
         return { entry, index: DRAFT_ID_BASE + DRAFT_BATCH_IDS.indexOf(id) };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The Anxiety & Worry drafts of 24 Nov 2026.
+ *
+ * Same shape as the first batch: every row is written `status = 'draft'`, so a
+ * therapist can preview it and no client can list, open or be assigned one until
+ * the owner approves its wording. Three rows reuse ids the applied seed created
+ * as placeholders (Unhooking, Exam and career pressure planner, Family
+ * expectations map) and are upgraded in place by the ON CONFLICT branch; the
+ * other six are new.
+ */
+export function buildAnxietyDraftsSql(): string {
+  const lines: string[] = [
+    '-- Anxiety & Worry worksheets, 24 November 2026: the nine the owner briefed.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- Every row is `draft`: a therapist can preview it, and no client can open,',
+    '-- list or be assigned one until the owner approves its wording. Three rows',
+    '-- reuse a placeholder id the applied seed already created (Unhooking, Exam',
+    '-- and career pressure planner, Family expectations map) and are upgraded in',
+    '-- place by the ON CONFLICT branch; the other six are new.',
+    '--',
+    '-- The exposure ladder is therapist-only: it can never be a Library card,',
+    '-- never be assigned, and a direct client request answers as an unknown id.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      ANXIETY_DRAFT_BATCH_IDS.map((id, i) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`anxiety batch row "${id}" is not in the catalogue`);
+        return {
+          entry: { ...entry, status: 'draft' as const, approved_at: undefined },
+          index: ANXIETY_ID_BASE + i,
+        };
       }),
     ),
   );

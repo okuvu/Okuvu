@@ -123,6 +123,10 @@ model User {
   safety_rechecks     SafetyRecheck[]     @relation("ClientToSafetyRecheck")
   homework_completions HomeworkCompletion[] @relation("ClientToHomeworkCompletion")
   goals               ClientGoal[]        @relation("ClientToGoal")
+  worry_time_setting  WorryTimeSetting?   @relation("ClientToWorryTimeSetting")
+  worry_parked        WorryParked[]       @relation("ClientToWorryParked")
+  exposure_steps      ExposureStep[]      @relation("ClientToExposureStep")
+  exposure_runs       ExposureStepRun[]   @relation("ClientToExposureStepRun")
 }
 
 /// The single global counter behind `User.client_code`'s four-digit serial.
@@ -1677,4 +1681,78 @@ model TranscriptEmail {
 
   @@index([group_id])
   @@index([status, created_at])
+}
+
+/// One client's daily worry-time window (owner's brief, 24 Nov 2026).
+///
+/// The client picks a time and a length; a daily email reminder is the only
+/// reminder there is (no app notification). `time_ist` is "HH:MM" in the
+/// client's own day, because "worry time at 19:00" means their 19:00.
+/// `last_reminded_on` makes the sender idempotent: a retried sweep on the same
+/// day cannot send two emails.
+model WorryTimeSetting {
+  user_id          String    @id
+  time_ist         String
+  minutes          Int       @default(10)
+  active           Boolean   @default(true)
+  last_reminded_on DateTime? @db.Date
+  updated_at       DateTime  @updatedAt
+  user             User      @relation("ClientToWorryTimeSetting", fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+/// A worry parked during the day, to be looked at at worry time.
+///
+/// `status` is the client's own review answer: "parked" (not looked at yet),
+/// "still" (still bothering me) or "released" (not anymore). It is a record of
+/// what they said, never a tally — nothing counts these or scores them.
+model WorryParked {
+  id          String    @id @default(uuid())
+  user_id     String
+  text        String
+  status      String    @default("parked")
+  created_at  DateTime  @default(now())
+  resolved_at DateTime?
+  user        User      @relation("ClientToWorryParked", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, status, created_at])
+}
+
+/// One step of a client's exposure ladder, built by their therapist.
+///
+/// THERAPIST-ONLY. Never a Library card and never assignable: the worksheet row
+/// is `therapist_only`, and the client only ever sees the steps whose
+/// `unlocked_at` is set. `difficulty` is the therapist's 0-100 rating of the
+/// step, not the client's.
+model ExposureStep {
+  id             String            @id @default(uuid())
+  client_user_id String
+  tool_id        String            @default("ws_exposure_ladder")
+  position       Int
+  label          String
+  difficulty     Int
+  unlocked_at    DateTime?
+  created_at     DateTime          @default(now())
+  updated_at     DateTime          @updatedAt
+  client         User              @relation("ClientToExposureStep", fields: [client_user_id], references: [id], onDelete: Cascade)
+  runs           ExposureStepRun[]
+
+  @@index([client_user_id, position])
+}
+
+/// The client's own 0-100 rating of a step, before and after trying it.
+///
+/// Two numbers at two moments, shown as chosen. Nothing subtracts them, and a
+/// high `before` triggers grounding and a pause line rather than a verdict.
+model ExposureStepRun {
+  id             String       @id @default(uuid())
+  step_id        String
+  client_user_id String
+  before         Int
+  after          Int?
+  created_at     DateTime     @default(now())
+  step           ExposureStep @relation(fields: [step_id], references: [id], onDelete: Cascade)
+  client         User         @relation("ClientToExposureStepRun", fields: [client_user_id], references: [id], onDelete: Cascade)
+
+  @@index([step_id, created_at])
+  @@index([client_user_id, created_at])
 }

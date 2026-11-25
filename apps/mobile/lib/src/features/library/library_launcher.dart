@@ -31,6 +31,11 @@ Future<void> openLibraryTool(
     case 'mood_checkin':
       context.push('/library/mood');
       return;
+    case 'ws_sos_calm':
+      // One card, two existing exercises in order: a long breath out, then
+      // grounding. Nothing to type and nothing copied (owner's brief, 24 Nov 2026).
+      context.push('/library/sos');
+      return;
     case 'ws_safety_plan':
       // Co-created in session: the card only exists once the therapist has
       // saved a plan, and it opens the plan itself rather than a form.

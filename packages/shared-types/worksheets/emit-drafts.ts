@@ -32,6 +32,15 @@ const TITLE: Record<string, string> = {
   ws_unsent_letter: '8. Unsent letter',
   ws_pros_cons_change: '9. Weighing it up',
   ws_caring_load_check: '10. Caring load check',
+  ws_worry_time: '1. Worry time',
+  ws_brain_dump: '2. Brain-dump',
+  ws_unhooking: '3. Unhooking from a thought',
+  ws_sos_calm: '4. SOS calm',
+  ws_sitting_with_not_knowing: '5. Sitting with not knowing',
+  ws_exam_career_pressure: '6. Big day planner',
+  ws_social_situation_prep: '7. Social situation prep',
+  ws_family_expectations: '8. Pressure map',
+  ws_exposure_ladder: '9. Exposure ladder (therapist-only)',
 };
 
 const BRIEF: Record<string, string> = {
@@ -45,6 +54,15 @@ const BRIEF: Record<string, string> = {
   ws_unsent_letter: 'Who it is to, then the letter (typed or spoken). At the end: Keep it privately / Delete it.',
   ws_pros_cons_change: 'Four boxes: good things about changing, good things about staying the same, costs of changing, costs of staying the same. 0–10 how ready I feel. Closing reflection.',
   ws_caring_load_check: 'Checklist of caring tasks, 0–10 how stretched I feel, one bit of help I could ask for.',
+  ws_worry_time: 'A daily time and length for worry time, a parked list, and a still bothering / not anymore review for each worry. Daily email reminder, no app notification.',
+  ws_brain_dump: 'One long answer, typed or spoken. At the end: Save it / Let it go (delete).',
+  ws_unhooking: 'Short answer: the thought. The app shows it back as "I\'m having the thought that…" then "I notice I\'m having the thought that…". 0–100 belief before and after. Never rewrites the thought.',
+  ws_sos_calm: 'One-tap card on Home and in chat: the existing long-out-breath exercise, then 5-4-3-2-1 grounding. Nothing to type.',
+  ws_sitting_with_not_knowing: 'What I\'m unsure about, 0–10 discomfort, one small way to let it stay unknown, 0–10 again.',
+  ws_exam_career_pressure: 'For exams, placements and interviews: the date, prep steps with dates, an on-the-day checklist, and what I want to remember.',
+  ws_social_situation_prep: 'The situation, the prediction, 0–10 worry, one small thing to try. Afterwards: went as feared / better than feared / didn\'t do it, and what actually happened.',
+  ws_family_expectations: 'One line per area with expectations (studies, career, money, family, marriage, friends, future): who expects what, 0–10 how heavy, and whose expectation it mostly is.',
+  ws_exposure_ladder: 'Therapist-only. Built in the portal with the client: steps rated 0–100, unlocked one at a time. The client rates 0–100 before and after; above 79 shows grounding and a pause line.',
 };
 
 function fieldLines(field: WorksheetField): string[] {
@@ -99,7 +117,15 @@ function header(entry: CatalogueEntry): string[] {
   return [
     `- id: \`${entry.tool_id}\``,
     `- Library description: ${entry.summary}`,
-    `- opens: ${entry.access_mode === 'open' ? 'S — the client can open it themselves' : 'A — therapist-assigned'}`,
+    `- opens: ${
+      entry.access_mode === 'open'
+        ? 'S — the client can open it themselves'
+        : entry.access_mode === 'assigned'
+          ? 'A — therapist-assigned'
+          : entry.access_mode === 'therapist_only'
+            ? 'T — therapist-only: never a Library card, never assignable, never suggested by chat'
+            : 'in session, with the therapist'
+    }`,
     `- load: ${entry.load_level} · about ${entry.est_minutes} minutes`,
     `- care plan label: ${entry.care_plans.join(', ')}`,
     `- deeper safety screen: ${entry.sensitive_check ? 'yes' : 'no (the shared check on every answer still runs)'}`,
@@ -158,52 +184,36 @@ export function buildDraftDoc(): string {
   const waiting = drafts.length > 0;
 
   out.push(
-    '# Stress & Burnout worksheets — draft wording for review, NOT approved',
+    '# Worksheet draft wording for review, NOT approved',
     '',
     'Generated from the catalogue in `packages/shared-types/worksheets`. Do not edit by',
-    'hand: change the catalogue, then regenerate.',
+    'hand: change the catalogue, then regenerate. This is the document the owner reads to',
+    'approve wording, so it can never describe a worksheet differently from the app.',
     '',
     waiting
-      ? '**Status: drafts.** These are the worksheets the owner sent back for a wording'
-      : '**Status: none waiting.** Every written worksheet in the 24 Nov 2026 batch has been',
+      ? `**Status: drafts.** ${drafts.length} worksheets are written and none of them is`
+      : '**Status: none waiting.** Every written worksheet has been',
     waiting
-      ? 'change on 24 November 2026, plus any later draft. They are switched off for clients:'
+      ? 'approved. Every one is switched off for clients: no card in their Library, no direct'
       : 'approved. Nothing here is awaiting a read, and this document carries no worksheet',
     waiting
-      ? 'no card in their Library, no direct open, no assignment from the portal. A therapist'
+      ? 'open, no assignment from the portal. A therapist can preview them. Nothing is'
       : 'bodies. A new worksheet added from now on starts `draft`, appears here, and stays',
     waiting
-      ? 'can preview them. Nothing is switched on until you say the wording is approved.'
+      ? 'switched on until you say the wording is approved.'
       : 'switched off for clients until you say the wording is approved.',
     '',
-    'The ten of the 24 Nov batch are approved; their copy is in',
-    '`25-approved-stress-burnout-copy.md`.',
-    '',
     'Every worksheet goes through the same safety check the journal uses on every written and',
-    'spoken answer, with the same response. The Unsent letter and the Doomscroll log also',
-    'carry the deeper screen (eating and body, sleep, self-harm, harm to someone else). None',
-    'asks for weight, body measurements, calories, food amounts or medicines, and none adds',
-    'answers into a total, a level or a label.',
+    'spoken answer, with the same response. None of the rows below asks for weight, body',
+    'measurements, calories, food amounts or medicines, and none adds answers into a total,',
+    'a level or a label.',
     '',
     '---',
     '',
   );
 
   if (!waiting) {
-    out.push(
-      'No worksheet is waiting for approval.',
-      '',
-      'Two worksheets in the 24 Nov batch were sent back for a wording change and then',
-      'approved the same day, after the revisions:',
-      '',
-      '- Unsent letter — the letter helper and a line under "Delete it" saying a safety',
-      '  check-in may still be recorded with the therapist.',
-      '- Weighing it up — a first question ("What change are you thinking about?"), the four',
-      '  boxes rewritten around "this change", and the readiness helper reworded.',
-      '',
-      'Both are in `25-approved-stress-burnout-copy.md` with their approved text.',
-      '',
-    );
+    out.push('No worksheet is waiting for approval.', '');
   }
 
   for (const entry of drafts) {
@@ -220,7 +230,7 @@ export function buildDraftDoc(): string {
     '',
     'Reply with the worksheet names whose wording is approved, and any line you want',
     'changed. Approval flips that row to `approved` in a new migration — the wording itself',
-    'is edited in `packages/shared-types/worksheets/stress-and-burnout.ts`, never in a screen.',
+    'is edited in `packages/shared-types/worksheets/<batch>.ts`, never in a screen.',
     '',
   );
 

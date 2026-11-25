@@ -57,13 +57,6 @@ export const placeholderEntries: CatalogueEntry[] = [
     900,
   ),
   placeholder(
-    'ws_unhooking',
-    'Unhooking from thoughts',
-    'Notice a thought, name it as a thought, and let it pass without arguing with it.',
-    'untangle_thoughts',
-    910,
-  ),
-  placeholder(
     'ws_fear_ladder',
     'Fear ladder',
     'Break an avoided situation into graded steps, from easiest to hardest.',
@@ -106,26 +99,12 @@ export const placeholderEntries: CatalogueEntry[] = [
     990,
   ),
   placeholder(
-    'ws_exam_career_pressure',
-    'Exam and career pressure planner',
-    'Plan around exam and career pressure: what is in your control this week, and what is not.',
-    'energy_life',
-    1000,
-  ),
-  placeholder(
     'ws_sleep_diary',
     'Sleep diary',
     'Record sleep and wake times and how the day felt, to spot a pattern.',
     'energy_life',
     1010,
     { sensitiveCheck: true },
-  ),
-  placeholder(
-    'ws_family_expectations',
-    'Family expectations map',
-    'Map what family expects, what the client wants, and where the two overlap.',
-    'people_boundaries',
-    1030,
   ),
   placeholder(
     'ws_comparison_check',
@@ -142,16 +121,5 @@ export const placeholderEntries: CatalogueEntry[] = [
     'be_kinder',
     1060,
     { sensitiveCheck: true },
-  ),
-  placeholder(
-    'ws_exposure_ladder',
-    'Exposure ladder',
-    'Therapist-only: order avoided situations from easiest to hardest, and plan the steps.',
-    'do_what_matters',
-    1070,
-    // Owner's rule, 24 Nov 2026: the exposure ladder is the therapist's tool. It
-    // never appears in the client Library and the chat never offers it, so its
-    // access mode is the one the client routes refuse outright.
-    { accessMode: 'therapist_only' },
   ),
 ];

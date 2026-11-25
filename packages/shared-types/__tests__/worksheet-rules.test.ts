@@ -147,12 +147,22 @@ describe('rule 2 — a new worksheet starts switched off', () => {
       status: 'draft',
     };
     expect(LISTABLE_CATALOGUE.includes(draft)).toBe(false);
-    // `isListable` is the one filter every list uses. The two Stress & Burnout
-    // worksheets the owner sent back for a wording change (24 Nov 2026) were
-    // revised and approved the same day, so the 24 Nov batch has no draft left;
-    // the state still has to hold for whatever is drafted next.
+    // `isListable` is the one filter every list uses. The drafts that exist are
+    // exactly the Anxiety & Worry batch of 24 Nov 2026: every one of them was
+    // written and none has been approved, so the state has to hold for all nine
+    // — a draft is previewable by a therapist and invisible to a client.
     const drafts = CATALOGUE.filter((r) => r.status === 'draft');
-    expect(drafts.map((r) => r.tool_id)).toEqual([]);
+    expect(drafts.map((r) => r.tool_id).sort()).toEqual([
+      'ws_brain_dump',
+      'ws_exam_career_pressure',
+      'ws_exposure_ladder',
+      'ws_family_expectations',
+      'ws_sitting_with_not_knowing',
+      'ws_social_situation_prep',
+      'ws_sos_calm',
+      'ws_unhooking',
+      'ws_worry_time',
+    ]);
     for (const row of drafts) {
       expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain(row.tool_id);
       expect(row.content_en).not.toBeNull();
@@ -293,7 +303,12 @@ describe('rule 6 — the exposure ladder is therapist-only', () => {
     const ladder = entry('ws_exposure_ladder');
     expect(ladder.access_mode).toBe('therapist_only');
     expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain('ws_exposure_ladder');
-    expect(PLACEHOLDER_CATALOGUE.map((r) => r.tool_id)).toContain('ws_exposure_ladder');
+    expect(PLACEHOLDER_CATALOGUE.map((r) => r.tool_id)).not.toContain('ws_exposure_ladder');
+    // It is a real row now, with a body a therapist can read — and still draft,
+    // because drafting is not approval and this one is not even client-facing.
+    expect(ladder.status).toBe('draft');
+    expect(ladder.content_en).not.toBeNull();
+    expect(ladder.load_level).toBe('demanding');
   });
 });
 

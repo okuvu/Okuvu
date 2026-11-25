@@ -64,6 +64,13 @@ export const SUBJECT_TABLES = [
   // Completion history (Step 6). A child of both Homework and User; erased
   // before `homework` so the ordered deletes never rely on the cascade.
   'homeworkCompletion',
+  // Worry time and the exposure ladder (Anxiety & Worry batch, 24 Nov 2026). A
+  // parked worry and a ladder rating are the client's own words and numbers; the
+  // run rows go before the step they point at.
+  'exposureStepRun',
+  'exposureStep',
+  'worryParked',
+  'worryTimeSetting',
   'appointment',
   'inviteToken',
   'therapistClient',
@@ -258,6 +265,22 @@ export async function deleteAccount(
       record(
         'homeworkCompletion',
         await tx.homeworkCompletion.deleteMany({ where: { client_user_id: user.id } }),
+      );
+      // Worry time: the parked worries are what the client would have said out
+      // loud, and the setting is their daily routine. Run rows first — a run
+      // points at a step.
+      record(
+        'exposureStepRun',
+        await tx.exposureStepRun.deleteMany({ where: { client_user_id: user.id } }),
+      );
+      record(
+        'exposureStep',
+        await tx.exposureStep.deleteMany({ where: { client_user_id: user.id } }),
+      );
+      record('worryParked', await tx.worryParked.deleteMany({ where: { user_id: user.id } }));
+      record(
+        'worryTimeSetting',
+        await tx.worryTimeSetting.deleteMany({ where: { user_id: user.id } }),
       );
       record(
         'appointment',

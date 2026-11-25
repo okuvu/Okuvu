@@ -37,7 +37,7 @@ import { identityRef } from './log-identity.js';
 /** The non-chat surfaces, same vocabulary as `SafetyFlag.source`. */
 export type RecheckSurface = Extract<
   SafetyFlagSource,
-  'journal_entry' | 'worksheet_answer' | 'treasure_note' | 'mood_log'
+  'journal_entry' | 'worksheet_answer' | 'treasure_note' | 'mood_log' | 'worry_parked'
 >;
 
 const SUBJECT_KIND_BY_SURFACE: Record<RecheckSurface, string> = {
@@ -45,6 +45,7 @@ const SUBJECT_KIND_BY_SURFACE: Record<RecheckSurface, string> = {
   worksheet_answer: 'worksheet_response',
   treasure_note: 'treasure_note',
   mood_log: 'mood_log',
+  worry_parked: 'worry_parked',
 };
 
 /** How long a row waits between attempts while the classifier is still down. */

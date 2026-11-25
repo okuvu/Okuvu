@@ -885,6 +885,36 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       case 'instruction':
         return const SizedBox.shrink();
 
+      case 'echo':
+        // The read-back: the client's own words inside fixed sentences. Nothing
+        // is rewritten, shortened or corrected — the substitution is the whole
+        // piece. When the earlier answer is missing or hidden, the frame is not
+        // drawn at all rather than drawn with invented words in it.
+        final source = field.fromField == null ? null : _answers[field.fromField];
+        final words = source is String ? source.trim() : '';
+        if (words.isEmpty) {
+          return Text(
+            field.helper ?? '',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.inkSoft,
+              fontStyle: FontStyle.italic,
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final frame in field.frames)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  frame.replaceAll('{answer}', words),
+                  style: theme.textTheme.titleMedium?.copyWith(height: 1.5),
+                ),
+              ),
+          ],
+        );
+
       case 'short_text':
       case 'long_text':
       case 'closing_reflection':

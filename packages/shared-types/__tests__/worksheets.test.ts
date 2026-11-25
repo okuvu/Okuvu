@@ -109,10 +109,12 @@ describe('catalogue content', () => {
   });
 
   it('keeps every placeholder hidden, empty and unapproved', () => {
-    // Fourteen left: the 24 Nov 2026 batch filled four placeholders in — Boundary
-    // planner, Unsent letter, Scrolling log (now Doomscroll log) and Pros and cons
-    // of change (now Weighing it up) — and kept their ids.
-    expect(PLACEHOLDER_CATALOGUE).toHaveLength(14);
+    // Ten left. The Stress & Burnout batch filled four in (Boundary planner,
+    // Unsent letter, Scrolling log, Pros and cons of change) and the Anxiety &
+    // Worry batch filled three more (Unhooking, Exam and career pressure planner,
+    // Family expectations map), each keeping its id. The exposure ladder left this
+    // list too, but as a real therapist-only draft rather than an approved row.
+    expect(PLACEHOLDER_CATALOGUE).toHaveLength(10);
     for (const entry of PLACEHOLDER_CATALOGUE) {
       expect(entry.status).toBe('placeholder');
       expect(entry.content_en).toBeNull();
@@ -322,7 +324,21 @@ describe('the Stress & Burnout batch of 24 November 2026', () => {
     ]);
     // Eight as written, then the two he sent back for a wording change, revised
     // and approved later the same day. Nothing from this batch is still a draft.
-    expect(drafts.map((entry) => entry.tool_id)).toEqual([]);
+    // Scoped to this batch: the Anxiety & Worry batch drafted nine more, and it
+    // has its own test. Nothing from THIS batch is still a draft.
+    const thisBatch = new Set([
+      'ws_whats_on_my_plate',
+      'ws_basics_check',
+      'ws_rest_break',
+      'ws_boundary_planner',
+      'ws_priority_sorter',
+      'ws_scrolling_log',
+      'ws_weekly_load_check',
+      'ws_unsent_letter',
+      'ws_pros_cons_change',
+      'ws_caring_load_check',
+    ]);
+    expect(drafts.filter((entry) => thisBatch.has(entry.tool_id))).toEqual([]);
   });
 
   it('records the owner’s approval date on all ten, not the 9 Nov one', () => {
@@ -375,13 +391,20 @@ describe('the Stress & Burnout batch of 24 November 2026', () => {
 
   it('reads back the keep-or-delete choice only where it exists', () => {
     const withDiscard = CATALOGUE.filter((row) => row.content_en?.closing?.discardWhen);
-    expect(withDiscard.map((row) => row.tool_id)).toEqual(['ws_unsent_letter']);
-    const discard = withDiscard[0].content_en!.closing!.discardWhen!;
-    expect(discard).toEqual({ field: 'keep', in: ['delete'] });
-    const choice = withDiscard[0].content_en!.fields.find((field) => field.id === discard.field);
-    expect(choice && 'options' in choice ? choice.options.map((o) => o.value) : []).toEqual([
-      'keep',
-      'delete',
-    ]);
+    // Two now: the Unsent letter and the Brain-dump. The rule is per body, not a
+    // list of ids, so the assertion is about the shape every one of them has.
+    expect(withDiscard.map((row) => row.tool_id).sort()).toEqual(['ws_brain_dump', 'ws_unsent_letter']);
+    const unsent = withDiscard.find((row) => row.tool_id === 'ws_unsent_letter')!;
+    expect(unsent.content_en!.closing!.discardWhen).toEqual({ field: 'keep', in: ['delete'] });
+    const dump = withDiscard.find((row) => row.tool_id === 'ws_brain_dump')!;
+    expect(dump.content_en!.closing!.discardWhen).toEqual({ field: 'keep', in: ['delete'] });
+    for (const row of withDiscard) {
+      const rule = row.content_en!.closing!.discardWhen!;
+      const choice = row.content_en!.fields.find((field) => field.id === rule.field);
+      expect(choice && 'options' in choice ? choice.options.map((o) => o.value) : []).toEqual([
+        'keep',
+        'delete',
+      ]);
+    }
   });
 });
