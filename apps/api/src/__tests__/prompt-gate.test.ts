@@ -168,6 +168,22 @@ describe('the prompt gate', () => {
     );
   });
 
+  it('keeps v2.9 in the repo and scoreable while it is not the default', () => {
+    const v29 = PROMPT_GATE.find((entry) => entry.version === 'v2.9');
+    expect(v29).toBeDefined();
+    expect(v29!.state).toBe('failed');
+    const file = join(API_ROOT, 'src', 'prompts', 'a2-okuvu-v2.9.txt');
+    expect(existsSync(file)).toBe(true);
+    // The three owner-approved paragraphs are still there, verbatim — a failed
+    // score keeps a version out of the default, it does not undo his wording,
+    // and a later edit must not quietly soften what he approved.
+    const text = readFileSync(file, 'utf-8');
+    expect(text).toContain('**A medication question is never a goodbye.**');
+    expect(text).toContain('**About someone else, never guess.**');
+    expect(text).toContain('**the pause\n  comes first**');
+    expect(text).toContain('Exception —\n   medicine.');
+  });
+
   it('has no entry that claims a pass with no run behind it', () => {
     for (const entry of PROMPT_GATE) {
       if (entry.state === 'passed') {
