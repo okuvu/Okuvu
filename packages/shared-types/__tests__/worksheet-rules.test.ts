@@ -15,6 +15,7 @@ import {
   LISTABLE_CATALOGUE,
   PLACEHOLDER_CATALOGUE,
   entryById,
+  handOffProblems,
   isListable,
   toRegistryRow,
 } from '../worksheets/index';
@@ -165,11 +166,13 @@ describe('rule 2 — a new worksheet starts switched off', () => {
       status: 'draft',
     };
     expect(LISTABLE_CATALOGUE.includes(draft)).toBe(false);
-    // `isListable` is the one filter every list uses. The Anxiety & Worry batch
-    // was approved on 24 Nov 2026, so no row is a draft today — and the
-    // invariant still has to hold for the next batch: a draft is previewable by
-    // a therapist and invisible to a client.
-    expect(CATALOGUE.filter((r) => r.status === 'draft')).toEqual([]);
+    // `isListable` is the one filter every list uses. Restated as the property
+    // rather than as "no row is a draft": the Low Mood batch briefed on 24 Nov
+    // 2026 is deliberately all draft, and every one of those rows has to be
+    // invisible to a client while staying previewable by a therapist.
+    const drafts = CATALOGUE.filter((r) => r.status === 'draft');
+    expect(drafts.length).toBeGreaterThan(0);
+    for (const row of drafts) expect(LISTABLE_CATALOGUE.includes(row)).toBe(false);
     const probe: CatalogueEntry = {
       ...entry('ws_worry_tree'),
       tool_id: 'ws_rule_two_draft_probe',
@@ -264,7 +267,9 @@ describe('rule 5 — no worksheet adds answers into a total, a level or a label'
 
   it('keeps the promise out of every client-facing sentence', () => {
     // `worksheetRequestProblems` carries the score/level/total copy guard.
-    for (const row of LISTABLE_CATALOGUE) {
+    // Drafts are included: a worksheet that promises a score must not get as far
+    // as being approved, so the guard runs on the words before anyone reads them.
+    for (const row of [...LISTABLE_CATALOGUE, ...CATALOGUE.filter((r) => r.status === 'draft')]) {
       const problems = worksheetRequestProblems(row.content_en).filter((p) => p.startsWith('talks about'));
       expect({ toolId: row.tool_id, problems }).toEqual({ toolId: row.tool_id, problems: [] });
     }
@@ -388,5 +393,319 @@ describe('rule 7 — the two new pieces', () => {
     expect(
       validateWorksheetAnswers(outlineContent.content, { where: { picked: ['elbow'] } }).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+// ─── The Low Mood batch of 24 November 2026 ───────────────────────────────
+
+describe('the Low Mood batch of 24 November 2026', () => {
+  /** The owner's nine, verbatim, in the order he briefed them. */
+  const BATCH: Array<[string, string]> = [
+    ['ws_one_small_thing', 'One small thing'],
+    ['ws_mood_activity_log', 'Mood and activity log'],
+    ['ws_strengths', 'Strengths spotting'],
+    ['ws_things_i_might_enjoy', 'Things I might enjoy'],
+    ['ws_tiny_steps', 'Tiny steps ladder'],
+    ['ws_inner_critic', 'Meet the inner critic'],
+    ['ws_reconnect_planner', 'Reconnect planner'],
+    ['ws_comparison_check', 'Comparison check'],
+    ['ws_miracle_question', 'The morning after a miracle'],
+  ];
+
+  it('is the nine the owner briefed, with the new names on the reused rows', () => {
+    for (const [id, label] of BATCH) {
+      expect(entry(id).label, id).toBe(label);
+      // The reused placeholder names are gone, not aliased.
+      expect(entry(id).summary.length, id).toBeGreaterThan(0);
+    }
+    // Four reused rows were filed under an older name. Every one is renamed.
+    expect(entry('ws_strengths').label).not.toBe('Strengths');
+    expect(entry('ws_tiny_steps').label).not.toBe('Tiny steps');
+    expect(entry('ws_miracle_question').label).not.toBe('The miracle question');
+  });
+
+  it('keeps every one switched off for clients', () => {
+    // Rule 2: a new worksheet starts draft, and cannot be listed, opened or
+    // assigned. Approval is the only thing that changes this.
+    for (const [id] of BATCH) {
+      const row = entry(id);
+      expect(row.status, id).toBe('draft');
+      expect(isListable(row), id).toBe(false);
+      expect(LISTABLE_CATALOGUE.includes(row), id).toBe(false);
+      expect(CLIENT_LIBRARY_CATALOGUE.includes(row), id).toBe(false);
+    }
+  });
+
+  it('carries the Low Mood label and the access mode the owner asked for', () => {
+    // S (open) for the self-serve ones, A (assigned) for the rest.
+    const open = new Set([
+      'ws_one_small_thing',
+      'ws_mood_activity_log',
+      'ws_strengths',
+      'ws_things_i_might_enjoy',
+    ]);
+    for (const [id] of BATCH) {
+      const row = entry(id);
+      expect(row.care_plans, id).toEqual(['low_mood']);
+      expect(row.access_mode, id).toBe(open.has(id) ? 'open' : 'assigned');
+    }
+  });
+
+  it('is low load except the two the owner called high load', () => {
+    const high = new Set(['ws_inner_critic', 'ws_comparison_check']);
+    for (const [id] of BATCH) {
+      expect(entry(id).load_level, id).toBe(high.has(id) ? 'demanding' : 'light');
+    }
+  });
+
+  it('gives the deeper screen to exactly the two the owner named for it', () => {
+    // Rule 3: the Comparison check and Meet the inner critic also watch for
+    // skipped meals, restricted food, purging, punishing exercise, hating the
+    // body, days without sleep, wanting not to wake up, wanting to hurt someone
+    // and self-harm. Nobody else in the batch claims the deeper screen.
+    const sensitive = BATCH.filter(([id]) => entry(id).sensitive_check).map(([id]) => id);
+    expect(sensitive.sort()).toEqual(['ws_comparison_check', 'ws_inner_critic']);
+  });
+
+  it('adds nothing into a total, a level or a label', () => {
+    // Rule 5, over the batch's own copy.
+    for (const [id] of BATCH) {
+      const problems = worksheetRequestProblems(entry(id).content_en).filter((p) =>
+        p.startsWith('talks about'),
+      );
+      expect({ toolId: id, problems }).toEqual({ toolId: id, problems: [] });
+    }
+    // And there is no aggregate piece to add one up with.
+    for (const [id] of BATCH) {
+      for (const field of entry(id).content_en?.fields ?? []) {
+        expect(field.type, id).not.toBe('aggregate');
+      }
+    }
+  });
+
+  it('asks for none of the forbidden things in any client-facing string', () => {
+    // Rule 3's second half, over the batch including the two sensitive rows,
+    // where a body or food field would be most tempting.
+    for (const [id] of BATCH) {
+      expect({ toolId: id, problems: worksheetRequestProblems(entry(id).content_en) }).toEqual({
+        toolId: id,
+        problems: [],
+      });
+    }
+  });
+
+  it('needs no Hinglish yet: English only, awaiting the owner', () => {
+    // Translations are approved separately, so a new row arrives with an empty
+    // Hinglish body rather than a machine one.
+    for (const [id] of BATCH) {
+      expect(entry(id).content_hi, id).toBeNull();
+      expect(entry(id).label_hi, id).toBeNull();
+      expect(entry(id).summary_hi, id).toBeNull();
+    }
+  });
+});
+
+// ─── The two capabilities this batch needed ────────────────────────────────
+
+describe('review — a week read back in words', () => {
+  const base = (over: Record<string, unknown> = {}) => ({
+    version: 1,
+    fields: [
+      { id: 'doing', type: 'short_text', prompt: 'What were you doing?' },
+      {
+        id: 'feelings',
+        type: 'feelings_picker',
+        prompt: 'How did you feel?',
+        feelings: [{ id: 'calm', label: 'calm' }],
+      },
+    ],
+    ...over,
+  });
+
+  it('accepts a well-formed review', () => {
+    const result = validateWorksheetContent(
+      base({ review: { withinDays: 7, activityField: 'doing', feelingsField: 'feelings' } }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('refuses a window that is not 1 to 90 whole days', () => {
+    for (const withinDays of [0, -1, 91, 7.5]) {
+      const result = validateWorksheetContent(
+        base({ review: { withinDays, activityField: 'doing', feelingsField: 'feelings' } }),
+      );
+      expect(result.ok, String(withinDays)).toBe(false);
+    }
+  });
+
+  it('refuses an unknown key, so a typo cannot silently change what is read back', () => {
+    const result = validateWorksheetContent(
+      base({
+        review: {
+          withinDays: 7,
+          activityField: 'doing',
+          feelingsField: 'feelings',
+          score: true,
+        },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(' ')).toContain('unknown key "score"');
+  });
+
+  it('refuses a review that points at the wrong kind of piece', () => {
+    const wrongActivity = validateWorksheetContent(
+      base({ review: { withinDays: 7, activityField: 'feelings', feelingsField: 'feelings' } }),
+    );
+    expect(wrongActivity.ok).toBe(false);
+    const wrongFeelings = validateWorksheetContent(
+      base({ review: { withinDays: 7, activityField: 'doing', feelingsField: 'doing' } }),
+    );
+    expect(wrongFeelings.ok).toBe(false);
+    // A dangling id is refused too, not silently skipped.
+    const dangling = validateWorksheetContent(
+      base({ review: { withinDays: 7, activityField: 'nope', feelingsField: 'feelings' } }),
+    );
+    expect(dangling.ok).toBe(false);
+  });
+
+  it('is declared by the one log in the batch, and nothing else', () => {
+    const declared = CATALOGUE.filter((row) => row.content_en?.review).map((row) => row.tool_id);
+    expect(declared).toEqual(['ws_mood_activity_log']);
+    const review = entry('ws_mood_activity_log').content_en?.review;
+    expect(review).toEqual({ withinDays: 7, activityField: 'doing', feelingsField: 'feelings' });
+  });
+});
+
+describe('handOff — carrying picks into another worksheet', () => {
+  const base = (over: Record<string, unknown> = {}) => ({
+    version: 1,
+    fields: [
+      {
+        id: 'ideas',
+        type: 'checklist',
+        prompt: 'Which of these might be worth a try?',
+        options: [
+          { value: 'walk', label: 'A walk, anywhere' },
+          { value: 'music', label: 'Music, loud or quiet' },
+        ],
+      },
+    ],
+    ...over,
+  });
+
+  it('accepts a well-formed hand-off', () => {
+    const result = validateWorksheetContent(
+      base({
+        closing: {
+          handOff: {
+            toolId: 'ws_small_things',
+            field: 'ideas',
+            label: 'Take these to my Small things planner',
+            targetField: 'plan',
+            targetColumn: 'what',
+          },
+        },
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('refuses a field that is not a checklist', () => {
+    const result = validateWorksheetContent({
+      version: 1,
+      fields: [{ id: 'thought', type: 'short_text', prompt: 'What?' }],
+      closing: {
+        handOff: {
+          toolId: 'ws_small_things',
+          field: 'thought',
+          label: 'Take these',
+          targetField: 'plan',
+          targetColumn: 'what',
+        },
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(' ')).toContain('must be an earlier checklist');
+  });
+
+  it('refuses an unknown key or a missing label', () => {
+    const extra = validateWorksheetContent(
+      base({
+        closing: {
+          handOff: {
+            toolId: 'ws_small_things',
+            field: 'ideas',
+            label: 'Take',
+            rows: 3,
+            targetField: 'plan',
+            targetColumn: 'what',
+          },
+        },
+      }),
+    );
+    expect(extra.ok).toBe(false);
+    const noLabel = validateWorksheetContent(
+      base({
+        closing: {
+          handOff: {
+            toolId: 'ws_small_things',
+            field: 'ideas',
+            targetField: 'plan',
+            targetColumn: 'what',
+          },
+        },
+      }),
+    );
+    expect(noLabel.ok).toBe(false);
+  });
+
+  it('refuses a hand-off that does not say where the picks go', () => {
+    const result = validateWorksheetContent(
+      base({
+        closing: {
+          handOff: { toolId: 'ws_small_things', field: 'ideas', label: 'Take these' },
+        },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.join(' ')).toContain('handOff.targetField: required');
+      expect(result.errors.join(' ')).toContain('handOff.targetColumn: required');
+    }
+  });
+
+  it('proves the target across the catalogue: it exists, is client-openable and has a list', () => {
+    // The validator cannot see other rows, so this is the check that stops a
+    // hand-off becoming a dead button.
+    expect(handOffProblems()).toEqual([]);
+    const declared = CATALOGUE.filter((row) => row.content_en?.closing?.handOff);
+    expect(declared.map((row) => row.tool_id)).toEqual(['ws_things_i_might_enjoy']);
+    expect(declared[0].content_en?.closing?.handOff?.toolId).toBe('ws_small_things');
+    expect(declared[0].content_en?.closing?.handOff?.targetField).toBe('plan');
+    expect(declared[0].content_en?.closing?.handOff?.targetColumn).toBe('what');
+    // The target is the approved planner, unchanged and still client-openable.
+    expect(entry('ws_small_things').status).toBe('approved');
+    expect(entry('ws_small_things').access_mode).toBe('assigned');
+  });
+
+  it('is a separate key from discardWhen, so neither can silently act as the other', () => {
+    const both = validateWorksheetContent(
+      base({
+        closing: {
+          discardWhen: { field: 'ideas', in: ['walk'] },
+          handOff: {
+            toolId: 'ws_small_things',
+            field: 'ideas',
+            label: 'Take these',
+            targetField: 'plan',
+            targetColumn: 'what',
+          },
+        },
+      }),
+    );
+    // Both are structurally valid at once; the bodies in the catalogue use only
+    // one each, and the app reads them independently.
+    expect(both.ok).toBe(true);
   });
 });

@@ -14,12 +14,14 @@ import { describe, expect, it } from 'vitest';
 import {
   ANXIETY_APPROVALS_MIGRATION_PATH,
   ANXIETY_DRAFTS_MIGRATION_PATH,
+  LOW_MOOD_DRAFTS_MIGRATION_PATH,
   APPROVALS_MIGRATION_PATH,
   DRAFTS_MIGRATION_PATH,
   MIGRATION_PATH,
   REVISED_APPROVALS_MIGRATION_PATH,
   buildAnxietyApprovalsSql,
   buildAnxietyDraftsSql,
+  buildLowMoodDraftsSql,
   buildApprovalsSql,
   buildDraftsSql,
   buildMigrationSql,
@@ -35,6 +37,7 @@ const APPROVALS_FILE = join(ROOT, APPROVALS_MIGRATION_PATH);
 const REVISED_APPROVALS_FILE = join(ROOT, REVISED_APPROVALS_MIGRATION_PATH);
 const ANXIETY_FILE = join(ROOT, ANXIETY_DRAFTS_MIGRATION_PATH);
 const ANXIETY_APPROVALS_FILE = join(ROOT, ANXIETY_APPROVALS_MIGRATION_PATH);
+const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFTS_MIGRATION_PATH);
 
 function wrote(path: string, sql: string): boolean {
   if (process.env.WRITE_WORKSHEET_SQL !== '1') return false;
@@ -124,8 +127,8 @@ describe('generated drafts migration', () => {
 
   it('leaves the earlier batch with nothing as a draft', () => {
     // The owner read the revised wording and approved it the same day, so the
-    // Stress & Burnout batch has no draft left. Drafts now exist only in the
-    // Anxiety & Worry batch, which has its own migration and its own test.
+    // Stress & Burnout batch has no draft left. The batches briefed later the
+    // same day have their own migrations and their own tests.
     const stressIds = new Set([
       'ws_whats_on_my_plate',
       'ws_basics_check',
@@ -199,10 +202,23 @@ describe('generated Anxiety & Worry drafts migration', () => {
     expect(sql).toContain("'ws_family_expectations', 'Family expectations map'");
   });
 
-  it('leaves nothing in the batch as a draft once the approvals land', () => {
+  it('leaves nothing in this batch as a draft once the approvals land', () => {
     // The owner read the wording back and approved all nine on 24 Nov 2026, so
-    // the catalogue has no draft rows left from this batch.
-    expect(draftEntries().map((entry) => entry.tool_id)).toEqual([]);
+    // this batch has no draft left. Restated as the property rather than as
+    // "the catalogue has no drafts at all": the Low Mood batch, briefed later
+    // the same day, is deliberately all draft.
+    const anxietyIds = new Set([
+      'ws_worry_time',
+      'ws_brain_dump',
+      'ws_unhooking',
+      'ws_sos_calm',
+      'ws_sitting_with_not_knowing',
+      'ws_exam_career_pressure',
+      'ws_social_situation_prep',
+      'ws_family_expectations',
+      'ws_exposure_ladder',
+    ]);
+    expect(draftEntries().filter((entry) => anxietyIds.has(entry.tool_id))).toEqual([]);
   });
 
 });
@@ -309,5 +325,88 @@ describe('generated Anxiety & Worry approvals migration', () => {
     expect(sql).not.toContain('is how it starts to sound like one');
     expect(sql).not.toContain('10 = unbearable');
     expect(sql).not.toContain('keep you awake');
+  });
+});
+
+describe('generated Low Mood drafts migration', () => {
+  it('matches the catalogue', () => {
+    const sql = buildLowMoodDraftsSql();
+    if (wrote(LOW_MOOD_FILE, sql)) return;
+
+    expect(existsSync(LOW_MOOD_FILE)).toBe(true);
+    expect(readFileSync(LOW_MOOD_FILE, 'utf8')).toBe(sql);
+  });
+
+  it('carries all nine rows, every one switched off', () => {
+    const sql = buildLowMoodDraftsSql();
+    for (const id of [
+      'ws_one_small_thing',
+      'ws_mood_activity_log',
+      'ws_strengths',
+      'ws_things_i_might_enjoy',
+      'ws_tiny_steps',
+      'ws_inner_critic',
+      'ws_reconnect_planner',
+      'ws_comparison_check',
+      'ws_miracle_question',
+    ]) {
+      expect(sql, id).toContain(`'${id}'`);
+    }
+    expect(sql.match(/'draft'/g)?.length).toBe(9);
+    // Drafting is not approval: no approved status and no approval date.
+    expect(sql).not.toContain("'approved'");
+    expect(sql).not.toContain('2026-11-24');
+    // Every row carries the Low Mood label. Which two carry the deeper screen
+    // is asserted per row in the test below, not by counting the column name.
+    expect(sql.match(/'low_mood'/g)?.length).toBe(9);
+  });
+
+  it('upgrades the five placeholder ids in place, and leaves the seed alone', () => {
+    const seed = buildMigrationSql();
+    // The applied seed still creates them as placeholders, byte for byte.
+    expect(seed).toContain("'ws_strengths', 'Strengths'");
+    expect(seed).toContain("'ws_tiny_steps', 'Tiny steps'");
+    expect(seed).toContain("'ws_miracle_question', 'The miracle question'");
+    expect(seed).toContain("'ws_comparison_check', 'Comparison check'");
+    expect(seed).toContain("'ws_inner_critic', 'Meet the inner critic'");
+    // ...and the four genuinely new ids never appear there.
+    for (const id of [
+      'ws_one_small_thing',
+      'ws_mood_activity_log',
+      'ws_things_i_might_enjoy',
+      'ws_reconnect_planner',
+    ]) {
+      expect(seed).not.toContain(`'${id}'`);
+    }
+  });
+
+  it('carries the two deeper-screen rows as demanding, and the rest as light', () => {
+    const sql = buildLowMoodDraftsSql();
+    for (const id of ['ws_inner_critic', 'ws_comparison_check']) {
+      const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
+      expect(row, id).toBeTruthy();
+      expect(row, id).toContain("'demanding'");
+      expect(row, id).toContain('true');
+    }
+  });
+
+  it('writes the access mode the owner asked for, per row', () => {
+    const sql = buildLowMoodDraftsSql();
+    const open = ['ws_one_small_thing', 'ws_mood_activity_log', 'ws_strengths', 'ws_things_i_might_enjoy'];
+    const assigned = [
+      'ws_tiny_steps',
+      'ws_inner_critic',
+      'ws_reconnect_planner',
+      'ws_comparison_check',
+      'ws_miracle_question',
+    ];
+    for (const id of open) {
+      const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
+      expect(row, id).toContain("'open'");
+    }
+    for (const id of assigned) {
+      const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
+      expect(row, id).toContain("'assigned'");
+    }
   });
 });

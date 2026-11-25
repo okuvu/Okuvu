@@ -87,6 +87,13 @@ class WorksheetScreen extends ConsumerWidget {
       String? responseId;
       Map<String, Object?> savedAnswers = const {};
 
+      // A worksheet that declares a review gets its own last few entries read
+      // back on the closing screen. The api answers 404 when there is nothing to
+      // show, which arrives as null and draws nothing at all.
+      final review = content.review == null
+          ? null
+          : ref.watch(worksheetReviewProvider(entry.toolId)).asData?.value;
+
       return WorksheetRunnerScreen(
         toolId: entry.toolId,
         userId: uid,
@@ -94,6 +101,7 @@ class WorksheetScreen extends ConsumerWidget {
         feelingBefore: feelingNow,
         isAssigned: entry.accessMode == 'assigned',
         personalNote: entry.personalNote,
+        review: review,
         onFinished: (answers, outcome) async {
           final api = ref.read(libraryApiProvider);
           savedAnswers = Map<String, Object?>.from(answers);
@@ -109,6 +117,9 @@ class WorksheetScreen extends ConsumerWidget {
             helped: outcome.helped,
           );
           responseId = result.id.isEmpty ? null : result.id;
+          // The entry just saved belongs in the read-back, so the view is
+          // refetched rather than left showing the week before this one.
+          if (content.review != null) ref.invalidate(worksheetReviewProvider(entry.toolId));
 
           // "Keep it privately / Delete it": the worksheet body declares which
           // answer means discard (closing.discardWhen), so no screen hard-codes a

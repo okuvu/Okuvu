@@ -124,13 +124,27 @@ describe('catalogue content', () => {
     expect(catalogueProblems()).toEqual([]);
   });
 
+  it('validates every draft row too, because a therapist previews these', () => {
+    // `catalogueProblems()` covers the listable rows, which is what a client can
+    // reach. A draft is reachable by a therapist's preview and by the portal, so
+    // a body that fails its own rules must fail here rather than at the moment
+    // someone opens it in a session.
+    const broken = CATALOGUE.filter((row) => row.status === 'draft' && row.opens === 'worksheet')
+      .map((row) => ({
+        tool_id: row.tool_id,
+        problems: worksheetRowProblems(toRegistryRow(row) as never),
+      }))
+      .filter((row) => row.problems.length > 0);
+    expect(broken).toEqual([]);
+  });
+
   it('keeps every placeholder hidden, empty and unapproved', () => {
-    // Ten left. The Stress & Burnout batch filled four in (Boundary planner,
-    // Unsent letter, Scrolling log, Pros and cons of change) and the Anxiety &
-    // Worry batch filled three more (Unhooking, Exam and career pressure planner,
-    // Family expectations map), each keeping its id. The exposure ladder left this
-    // list too, but as a real therapist-only draft rather than an approved row.
-    expect(PLACEHOLDER_CATALOGUE).toHaveLength(10);
+    // Five left. The Stress & Burnout batch filled four in, the Anxiety & Worry
+    // batch three more, and the Low Mood batch five more (Strengths, Tiny steps,
+    // The miracle question, Comparison check, Meet the inner critic), each
+    // keeping its id. The exposure ladder left this list too, but as a real
+    // therapist-only approved row rather than a placeholder.
+    expect(PLACEHOLDER_CATALOGUE).toHaveLength(5);
     for (const entry of PLACEHOLDER_CATALOGUE) {
       expect(entry.status).toBe('placeholder');
       expect(entry.content_en).toBeNull();

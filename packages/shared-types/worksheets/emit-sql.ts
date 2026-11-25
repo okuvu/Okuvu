@@ -22,6 +22,7 @@
  */
 import { CATALOGUE, LISTABLE_CATALOGUE } from '@okuvu/shared-types/worksheets';
 import { APPROVED_ANXIETY_IDS } from '@okuvu/shared-types/worksheets/anxiety-worry';
+import { LOW_MOOD_BATCH_IDS } from '@okuvu/shared-types/worksheets/low-mood';
 import { BREATHING_CHILD_TOOL_IDS } from '@okuvu/shared-types/worksheets/types';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
@@ -32,6 +33,9 @@ const DRAFTS_MIGRATION_DIR = '20261124140000_seed_stress_burnout_drafts';
 
 /** The Anxiety & Worry drafts of 24 Nov 2026, in their own migration. */
 const ANXIETY_DRAFTS_MIGRATION_DIR = '20261124200000_seed_anxiety_worry_drafts';
+
+/** The Low Mood drafts of 24 Nov 2026, in their own migration. */
+const LOW_MOOD_DRAFTS_MIGRATION_DIR = '20261124230000_seed_low_mood_drafts';
 
 /** The owner's 24 Nov 2026 approvals, in their own migration. */
 const APPROVALS_MIGRATION_DIR = '20261124160000_approve_stress_burnout_eight';
@@ -129,6 +133,9 @@ export const ANXIETY_DRAFT_BATCH_IDS = [
 
 /** First id index for the Anxiety batch, kept clear of the earlier batch. */
 const ANXIETY_ID_BASE = 2000;
+
+/** First id index for the Low Mood batch, kept clear of the two before it. */
+const LOW_MOOD_ID_BASE = 3000;
 
 /**
  * The ten Stress & Burnout rows of 24 Nov 2026, in the owner's order.
@@ -285,6 +292,46 @@ const FROZEN_DRAFT_PLACEHOLDERS: Record<string, CatalogueEntry> = {
     1030,
     false,
   ),
+  ws_tiny_steps: frozenPlaceholder(
+    'ws_tiny_steps',
+    'Tiny steps',
+    'Turn one big task into the smallest first step that can be done today.',
+    'do_what_matters',
+    930,
+    false,
+  ),
+  ws_miracle_question: frozenPlaceholder(
+    'ws_miracle_question',
+    'The miracle question',
+    'Describe how things would look if the problem were solved, to find a first step.',
+    'do_what_matters',
+    980,
+    false,
+  ),
+  ws_strengths: frozenPlaceholder(
+    'ws_strengths',
+    'Strengths',
+    'Name strengths the client already uses, with an example of each.',
+    'be_kinder',
+    990,
+    false,
+  ),
+  ws_comparison_check: frozenPlaceholder(
+    'ws_comparison_check',
+    'Comparison check',
+    'Notice where comparing yourself with other people lands, and what it costs.',
+    'untangle_thoughts',
+    1050,
+    true,
+  ),
+  ws_inner_critic: frozenPlaceholder(
+    'ws_inner_critic',
+    'Meet the inner critic',
+    'Describe the critical voice as something separate, and notice what it says.',
+    'be_kinder',
+    1060,
+    true,
+  ),
   ws_pros_cons_change: frozenPlaceholder(
     'ws_pros_cons_change',
     'Pros and cons of change',
@@ -413,6 +460,7 @@ export const DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${DRAFTS_MIGRAT
 export const APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const REVISED_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${REVISED_APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const ANXIETY_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${ANXIETY_APPROVALS_MIGRATION_DIR}/migration.sql`;
+export const LOW_MOOD_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${LOW_MOOD_DRAFTS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
   const lines: string[] = [];
@@ -716,6 +764,50 @@ export function buildAnxietyApprovalsSql(): string {
         }
         // Same row id the drafts migration used, so the two agree about identity.
         return { entry, index: ANXIETY_ID_BASE + ANXIETY_DRAFT_BATCH_IDS.indexOf(id) };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The Low Mood drafts of 24 Nov 2026.
+ *
+ * Same shape as the two batches before it: every row is written
+ * `status = 'draft'`, so a therapist can preview it and no client can list, open
+ * or be assigned one until the owner approves its wording. Five rows reuse ids
+ * the applied seed created as placeholders (Tiny steps, The miracle question,
+ * Strengths, Comparison check, Meet the inner critic) and are upgraded in place
+ * by the ON CONFLICT branch; the other four are new.
+ */
+export function buildLowMoodDraftsSql(): string {
+  const lines: string[] = [
+    '-- Low Mood worksheets, 24 November 2026: the nine the owner briefed.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- Every row is `draft`: a therapist can preview it, and no client can open,',
+    '-- list or be assigned one until the owner approves its wording. Five rows',
+    '-- reuse a placeholder id the applied seed already created (Tiny steps, The',
+    '-- miracle question, Strengths, Comparison check, Meet the inner critic) and',
+    '-- are upgraded in place by the ON CONFLICT branch; the other four are new.',
+    '--',
+    '-- Meet the inner critic and the Comparison check carry `sensitive_check`, so',
+    '-- their answers also run the deeper screen the owner named on 24 Nov 2026.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      LOW_MOOD_BATCH_IDS.map((id, i) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`low mood batch row \"${id}\" is not in the catalogue`);
+        return {
+          entry: { ...entry, status: 'draft' as const, approved_at: undefined },
+          index: LOW_MOOD_ID_BASE + i,
+        };
       }),
     ),
   );

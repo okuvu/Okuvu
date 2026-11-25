@@ -11,14 +11,18 @@ import { describe, expect, it } from 'vitest';
 import {
   APPROVED_DOC_PATH,
   DRAFT_DOC_PATH,
+  LOW_MOOD_DRAFT_DOC_PATH,
   buildApprovedDoc,
   buildDraftDoc,
+  buildLowMoodDraftDoc,
 } from '../worksheets/emit-drafts';
 import { APPROVED_24_NOV_IDS, draftEntries } from '../worksheets/emit-sql';
+import { LOW_MOOD_BATCH_IDS } from '../worksheets/low-mood';
 
 const ROOT = join(__dirname, '../../..');
 const DRAFT_FILE = join(ROOT, DRAFT_DOC_PATH);
 const APPROVED_FILE = join(ROOT, APPROVED_DOC_PATH);
+const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFT_DOC_PATH);
 
 const writing = (): boolean => process.env.WRITE_DRAFT_DOC === '1';
 
@@ -38,12 +42,16 @@ describe('draft wording review document', () => {
     expect(readFileSync(DRAFT_FILE, 'utf8')).toBe(doc);
   });
 
-  it('says plainly that it is not approved, and covers every remaining draft', () => {
+  it('says plainly that it is not approved, and covers every draft it owns', () => {
     const doc = buildDraftDoc();
     expect(doc).toContain('NOT approved');
-    expect(doc).toContain('switched off for clients');
-    for (const entry of draftEntries()) {
-      expect(doc).toContain(`\`${entry.tool_id}\``);
+    // The stress/anxiety handover is complete, so this document now reports
+    // nothing waiting. The Low Mood drafts have their own document.
+    const earlier = draftEntries().filter((entry) => !LOW_MOOD_BATCH_IDS.includes(entry.tool_id as never));
+    expect(earlier).toEqual([]);
+    expect(doc).toContain('No worksheet is waiting for approval.');
+    for (const id of LOW_MOOD_BATCH_IDS) {
+      expect(doc).not.toContain(`\`${id}\``);
     }
   });
 
@@ -77,5 +85,47 @@ describe('approved wording document', () => {
     expect(doc).toContain('`ws_unsent_letter`');
     expect(doc).toContain('`ws_pros_cons_change`');
     expect(doc).toContain('Readiness can change from day to day');
+  });
+});
+
+describe('Low Mood draft review document', () => {
+  it('matches the catalogue', () => {
+    const doc = buildLowMoodDraftDoc();
+    if (writing()) {
+      write(LOW_MOOD_FILE, doc);
+      return;
+    }
+    expect(existsSync(LOW_MOOD_FILE)).toBe(true);
+    expect(readFileSync(LOW_MOOD_FILE, 'utf8')).toBe(doc);
+  });
+
+  it('covers all nine, in the owner’s order, and says it is not approved', () => {
+    const doc = buildLowMoodDraftDoc();
+    expect(doc).toContain('NOT approved');
+    expect(doc).toContain('switched off for clients');
+    let cursor = -1;
+    for (const id of LOW_MOOD_BATCH_IDS) {
+      const at = doc.indexOf(`\`${id}\``);
+      expect(at, id).toBeGreaterThan(-1);
+      // In the owner's order, not the catalogue's append order.
+      expect(at, id).toBeGreaterThan(cursor);
+      cursor = at;
+    }
+  });
+
+  it('shows the two mechanisms in words, so they can be reviewed with the copy', () => {
+    const doc = buildLowMoodDraftDoc();
+    expect(doc).toContain('Carries over:');
+    expect(doc).toContain('ws_small_things');
+    expect(doc).toContain('Nothing is saved on the client');
+    expect(doc).toContain('Read back:');
+    expect(doc).toContain('no score, no average, no ranking of feelings');
+  });
+
+  it('never renders the therapist note to the reviewer as client copy', () => {
+    const doc = buildLowMoodDraftDoc();
+    // The header names the modality is therapist-only by omission: the row's
+    // therapist_note is not in the document at all.
+    expect(doc).not.toContain('Carry the deeper safety screen');
   });
 });

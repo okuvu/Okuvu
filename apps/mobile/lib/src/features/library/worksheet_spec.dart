@@ -174,7 +174,12 @@ class WorksheetField {
 
 /// The closing line and buttons under the last piece.
 class WorksheetClosing {
-  const WorksheetClosing({this.text, this.buttons = const [], this.discardWhen});
+  const WorksheetClosing({
+    this.text,
+    this.buttons = const [],
+    this.discardWhen,
+    this.handOff,
+  });
 
   final String? text;
   final List<WorksheetClosingButton> buttons;
@@ -182,6 +187,53 @@ class WorksheetClosing {
   /// The worksheet's own "delete it" rule, when it has one. The content decides
   /// which answer means discard, so no screen knows a field id.
   final WorksheetDiscardRule? discardWhen;
+
+  /// Carrying the picked answers into another worksheet's own draft, when the
+  /// body declares it. The screen renders the button from this; the target id
+  /// is never written into a widget.
+  final WorksheetHandOff? handOff;
+}
+
+/// "Take the options picked in `field` to `toolId`, and open it prefilled."
+///
+/// The picks are seeded into that worksheet's own unsaved draft: nothing is
+/// saved on the client's behalf, no row they already wrote is replaced, and the
+/// target worksheet itself is unchanged.
+class WorksheetHandOff {
+  const WorksheetHandOff({
+    required this.toolId,
+    required this.field,
+    required this.label,
+    required this.targetField,
+    required this.targetColumn,
+  });
+
+  final String toolId;
+  final String field;
+  final String label;
+
+  /// The row list on the destination that receives the picks, and the text
+  /// column inside it. Declared by the body so no screen hard-codes an id.
+  final String targetField;
+  final String targetColumn;
+}
+
+/// A plain-language read-back of this worksheet's own recent entries.
+///
+/// Words only: the api groups the client's entries by the activity text they
+/// wrote and lists the feelings they picked each time. No score, no average and
+/// no ranking of feelings, because "which feeling is better" is a judgement the
+/// app is not entitled to make.
+class WorksheetReview {
+  const WorksheetReview({
+    required this.withinDays,
+    required this.activityField,
+    required this.feelingsField,
+  });
+
+  final int withinDays;
+  final String activityField;
+  final String feelingsField;
 }
 
 /// "Answer this with one of these values, and the saved entry is deleted."
@@ -210,12 +262,14 @@ class WorksheetContent {
     required this.fields,
     this.intro,
     this.closing,
+    this.review,
   });
 
   final int version;
   final String? intro;
   final List<WorksheetField> fields;
   final WorksheetClosing? closing;
+  final WorksheetReview? review;
 }
 
 /// Thrown when a body cannot be trusted. The runner shows this as a plain
@@ -620,16 +674,67 @@ WorksheetContent parseWorksheetContent(Object? raw) {
         }
       }
     }
+    WorksheetHandOff? handOff;
+    final rawHandOff = rawClosing['handOff'];
+    if (rawHandOff is Map) {
+      final toolId = rawHandOff['toolId'];
+      final field = rawHandOff['field'];
+      final label = rawHandOff['label'];
+      final targetField = rawHandOff['targetField'];
+      final targetColumn = rawHandOff['targetColumn'];
+      if (toolId is String && toolId.isNotEmpty && field is String && field.isNotEmpty &&
+          label is String && label.isNotEmpty &&
+          targetField is String && targetField.isNotEmpty &&
+          targetColumn is String && targetColumn.isNotEmpty) {
+        handOff = WorksheetHandOff(
+          toolId: toolId,
+          field: field,
+          label: label,
+          targetField: targetField,
+          targetColumn: targetColumn,
+        );
+      } else {
+        problems.add(
+          'content.closing.handOff: toolId, field, label, targetField and targetColumn are required',
+        );
+      }
+    }
     closing = WorksheetClosing(
       text: rawClosing['text'] is String ? rawClosing['text'] as String : null,
       buttons: buttons,
       discardWhen: discardWhen,
+      handOff: handOff,
     );
+  }
+
+  WorksheetReview? review;
+  final rawReview = raw['review'];
+  if (rawReview is Map) {
+    final withinDays = rawReview['withinDays'];
+    final activityField = rawReview['activityField'];
+    final feelingsField = rawReview['feelingsField'];
+    if (withinDays is int && withinDays >= 1 && withinDays <= 90 &&
+        activityField is String && activityField.isNotEmpty &&
+        feelingsField is String && feelingsField.isNotEmpty) {
+      review = WorksheetReview(
+        withinDays: withinDays,
+        activityField: activityField,
+        feelingsField: feelingsField,
+      );
+    } else {
+      problems.add('content.review: withinDays, activityField and feelingsField are required');
+    }
   }
 
   if (problems.isNotEmpty) throw WorksheetContentException(problems);
 
-  return WorksheetContent(version: worksheetContentVersion, intro: intro as String?, fields: fields, closing: closing);
+  return WorksheetContent(
+    version: worksheetContentVersion,
+    intro: intro as String?,
+    fields: fields,
+    closing: closing,
+    review: review,
+  );
 }
 
 /// Parse straight from the JSON string the catalogue hands over.

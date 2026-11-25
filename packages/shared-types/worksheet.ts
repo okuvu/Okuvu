@@ -368,6 +368,33 @@ export interface WorksheetContent {
      * behaves exactly as before, and no field id is hard-coded in a screen.
      */
     discardWhen?: { field: string; in: string[] };
+    /**
+     * Carrying picked answers into another worksheet's own draft.
+     *
+     * "Things I might enjoy" is a menu; the Small things planner is where the
+     * chosen items become a plan. Declaring the hand-off here keeps the target
+     * out of the screen: the closing screen renders the button from the body,
+     * and the app seeds the target's local draft with the picked labels — it
+     * does not save on the client's behalf, overwrite a row they wrote, or
+     * change the target worksheet in any way. The owner was explicit that the
+     * planner itself must not change (24 Nov 2026), and this is the mechanism
+     * that honours it.
+     *
+     * `field` must be an earlier checklist on this body. `targetField` names the
+     * row list on the destination that receives the picks, and `targetColumn`
+     * the text column inside it — named here so no screen hard-codes an id and
+     * the button needs no network round-trip to work out where to put anything.
+     * `toolId`, `targetField` and `targetColumn` are proved against the rest of
+     * the catalogue in `handOffProblems`, because a body cannot see its
+     * neighbours.
+     */
+    handOff?: {
+      toolId: string;
+      field: string;
+      label: string;
+      targetField: string;
+      targetColumn: string;
+    };
   };
   /**
    * How this worksheet's row reads in Past me, beyond the first answer's text.
@@ -380,6 +407,25 @@ export interface WorksheetContent {
    * past week shows its number beside the date, with no graph.
    */
   timeline?: { leadField: string };
+  /**
+   * A plain-language read-back of this worksheet's own recent entries.
+   *
+   * The owner asked for a weekly view "in words" on the Mood and activity log
+   * (24 Nov 2026), with no score. So this declares which piece holds the
+   * activity words and which holds the feelings, and the api groups the last
+   * `withinDays` entries by the client's own activity text, listing the feelings
+   * they picked each time. Nothing is summed, averaged, ranked or turned into a
+   * level — the app cannot compute "better" without inventing an ordering of
+   * feelings, which would be a clinical judgement and a label.
+   */
+  review?: {
+    /** How far back the view looks. 1-90 whole days. */
+    withinDays: number;
+    /** Id of an earlier short_text piece: the activity words, verbatim. */
+    activityField: string;
+    /** Id of an earlier feelings_picker piece. */
+    feelingsField: string;
+  };
 }
 
 // ─── Answers ──────────────────────────────────────────────────────────────
@@ -473,7 +519,7 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
     return { ok: false, errors: ['content must be an object'] };
   }
 
-  const topKeys = new Set(['version', 'intro', 'fields', 'closing', 'timeline']);
+  const topKeys = new Set(['version', 'intro', 'fields', 'closing', 'timeline', 'review']);
   for (const key of Object.keys(value)) {
     if (!topKeys.has(key)) errors.push(`content: unknown key "${key}"`);
   }
@@ -999,7 +1045,7 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
       errors.push('content.closing: must be an object');
     } else {
       for (const key of Object.keys(value.closing)) {
-        if (!['text', 'buttons', 'discardWhen'].includes(key)) {
+        if (!['text', 'buttons', 'discardWhen', 'handOff'].includes(key)) {
           errors.push(`content.closing: unknown key "${key}"`);
         }
       }
@@ -1039,6 +1085,40 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
                 }
               });
             }
+          }
+        }
+      }
+      if (value.closing.handOff !== undefined) {
+        const handOff = value.closing.handOff;
+        if (!isPlainObject(handOff)) {
+          errors.push('content.closing.handOff: must be an object');
+        } else {
+          for (const key of Object.keys(handOff)) {
+            if (!['toolId', 'field', 'label', 'targetField', 'targetColumn'].includes(key)) {
+              errors.push(`content.closing.handOff: unknown key \"${key}\"`);
+            }
+          }
+          if (!isNonEmptyString(handOff.toolId)) {
+            errors.push('content.closing.handOff.toolId: required');
+          }
+          if (!isNonEmptyString(handOff.label)) {
+            errors.push('content.closing.handOff.label: required');
+          }
+          if (!isNonEmptyString(handOff.targetField)) {
+            errors.push('content.closing.handOff.targetField: required');
+          }
+          if (!isNonEmptyString(handOff.targetColumn)) {
+            errors.push('content.closing.handOff.targetColumn: required');
+          }
+          if (!isNonEmptyString(handOff.field)) {
+            errors.push('content.closing.handOff.field: required');
+          } else if (seen.get(handOff.field as string) !== 'checklist') {
+            // "Send the ones I picked" only means something if the client
+            // actually picked from a list. A text field would have no labels to
+            // carry over, and a choice would carry exactly one.
+            errors.push(
+              `content.closing.handOff.field: \"${handOff.field}\" must be an earlier checklist`,
+            );
           }
         }
       }
@@ -1090,6 +1170,39 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
         // summary is exactly what rule 5 refuses.
         errors.push(
           `content.timeline.leadField: "${timeline.leadField}" must be an earlier scale_0_10 piece`,
+        );
+      }
+    }
+  }
+
+  if (value.review !== undefined) {
+    const review = value.review;
+    if (!isPlainObject(review)) {
+      errors.push('content.review: must be an object');
+    } else {
+      for (const key of Object.keys(review)) {
+        if (!['withinDays', 'activityField', 'feelingsField'].includes(key)) {
+          errors.push(`content.review: unknown key \"${key}\"`);
+        }
+      }
+      const days = asInt(review.withinDays);
+      if (days === null || days < 1 || days > 90) {
+        errors.push('content.review.withinDays: must be a whole number between 1 and 90');
+      }
+      if (!isNonEmptyString(review.activityField)) {
+        errors.push('content.review.activityField: required');
+      } else if (seen.get(review.activityField as string) !== 'short_text') {
+        // The activity words are read back verbatim. A long or spoken piece
+        // would put a paragraph in a one-line group heading.
+        errors.push(
+          `content.review.activityField: \"${review.activityField}\" must be an earlier short_text piece`,
+        );
+      }
+      if (!isNonEmptyString(review.feelingsField)) {
+        errors.push('content.review.feelingsField: required');
+      } else if (seen.get(review.feelingsField as string) !== 'feelings_picker') {
+        errors.push(
+          `content.review.feelingsField: \"${review.feelingsField}\" must be an earlier feelings_picker piece`,
         );
       }
     }

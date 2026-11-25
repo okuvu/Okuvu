@@ -660,4 +660,155 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
       });
     },
   });
+  /**
+   * GET /worksheets/:toolId/review — this worksheet's own entries, read back in
+   * words.
+   *
+   * The owner asked for a "simple weekly view in words showing which activities
+   * came with better feelings, with no score" on the Mood and activity log
+   * (24 Nov 2026). What the app cannot do is decide which feeling is "better" —
+   * that would mean inventing an ordering of feelings and labelling the client
+   * with it. So the api groups the client's own entries by the activity words
+   * they wrote and lists the feelings they picked each time, and the client reads
+   * the pattern for themselves. No total, no average, no ranking, no score.
+   *
+   * Fails closed everywhere: a draft, an unknown id, a therapist-only row, an
+   * assigned worksheet with no assignment and no entries, an invalid body, or a
+   * worksheet that declares no review all answer 404 exactly alike, so a guessed
+   * URL learns nothing.
+   */
+  app.get<{ Params: { toolId: string } }>('/worksheets/:toolId/review', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const { toolId } = request.params;
+
+      const notFound = () =>
+        reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+
+      const user = await prisma.user.findUnique({
+        where: { auth_subject: uid },
+        select: { id: true },
+      });
+      if (!user) {
+        return reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'User not found' } });
+      }
+
+      const row = await prisma.toolRegistryEntry.findUnique({
+        where: { tool_id: toolId },
+        select: {
+          tool_id: true,
+          kind: true,
+          status: true,
+          access_mode: true,
+          label: true,
+          summary: true,
+          section: true,
+          therapy_modality: true,
+          therapist_note: true,
+          load_level: true,
+          est_minutes: true,
+          library_group: true,
+          content_en: true,
+          content_hi: true,
+          sensitive_check: true,
+        },
+      });
+
+      if (
+        !row ||
+        row.status !== 'approved' ||
+        row.kind !== 'worksheet' ||
+        row.access_mode === 'therapist_only' ||
+        row.access_mode === 'in_session'
+      ) {
+        return notFound();
+      }
+
+      const problems = worksheetRowProblems(row as WorksheetRegistryRow);
+      if (problems.length > 0) {
+        // A body that fails its own rules is refused on read too, never
+        // half-rendered.
+        request.log.error({ event: 'worksheet_body_invalid', tool_id: toolId, problems });
+        return notFound();
+      }
+
+      const parsed = parseWorksheetRow(row as WorksheetRegistryRow);
+      const review = parsed.english.review;
+      if (!review) return notFound();
+
+      const since = new Date(Date.now() - review.withinDays * 24 * 60 * 60 * 1000);
+
+      const responses = await prisma.worksheetResponse.findMany({
+        where: { user_id: user.id, worksheet_id: toolId, completed_at: { gte: since } },
+        orderBy: { completed_at: 'desc' },
+        take: 60,
+        select: { answers: true, completed_at: true },
+      });
+
+      if (row.access_mode === 'assigned' && responses.length === 0) {
+        // An assignment gate that the entries cannot answer on their own. Same
+        // refusal as the worksheet itself, so the view cannot be used to learn
+        // that a worksheet exists.
+        const assignment = await prisma.homework.findFirst({
+          where: { client_user_id: user.id, tool_id: toolId, status: 'active' },
+          select: { id: true },
+        });
+        if (!assignment) return notFound();
+      }
+
+      const feelingsField = parsed.english.fields.find(
+        (field) => field.id === review.feelingsField && field.type === 'feelings_picker',
+      );
+      const labelById = new Map<string, string>();
+      if (feelingsField && feelingsField.type === 'feelings_picker') {
+        for (const feeling of feelingsField.feelings) labelById.set(feeling.id, feeling.label);
+      }
+
+      interface ReviewEntry {
+        at: string;
+        feelings: string[];
+      }
+      const groups = new Map<string, { activity: string; entries: ReviewEntry[] }>();
+
+      for (const response of responses) {
+        const answers = isPlainObject(response.answers) ? response.answers : {};
+        const rawActivity = answers[review.activityField];
+        if (typeof rawActivity !== 'string') continue;
+        const activity = rawActivity.trim();
+        if (activity.length === 0) continue;
+
+        const picked = isPlainObject(answers[review.feelingsField])
+          ? (answers[review.feelingsField] as { picked?: unknown }).picked
+          : undefined;
+        const feelings = Array.isArray(picked)
+          ? picked
+              .filter((id): id is string => typeof id === 'string')
+              .map((id) => labelById.get(id) ?? id)
+          : [];
+
+        // Grouped on the words the client actually wrote, case-insensitively so
+        // "Chai with a friend" and "chai with a friend" are one group, but the
+        // heading always shows their first spelling rather than a tidied one.
+        const key = activity.toLowerCase();
+        const group = groups.get(key) ?? { activity, entries: [] };
+        group.entries.push({ at: response.completed_at.toISOString(), feelings });
+        groups.set(key, group);
+      }
+
+      const ordered = [...groups.values()].sort((a, b) => {
+        const aLatest = a.entries[0]?.at ?? '';
+        const bLatest = b.entries[0]?.at ?? '';
+        return bLatest.localeCompare(aLatest);
+      });
+
+      return reply.send({
+        available: true,
+        withinDays: review.withinDays,
+        totalEntries: ordered.reduce((sum, group) => sum + group.entries.length, 0),
+        groups: ordered,
+      });
+    },
+  });
+
 }

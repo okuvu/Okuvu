@@ -386,4 +386,119 @@ void main() {
       expect(broken.closing?.discardWhen, isNull);
     });
   });
+
+  group('the two capabilities the Low Mood batch needed', () {
+    Map<String, Object?> withReview(Object? review) => {
+          'version': 1,
+          'fields': [
+            {'id': 'doing', 'type': 'short_text', 'prompt': 'What were you doing?'},
+            {
+              'id': 'feelings',
+              'type': 'feelings_picker',
+              'prompt': 'How did you feel?',
+              'feelings': [
+                {'id': 'calm', 'label': 'calm'},
+              ],
+            },
+          ],
+          'review': review,
+        };
+
+    test('parses a review, so the screen can ask for the read-back', () {
+      final content = parseWorksheetContent(withReview({
+        'withinDays': 7,
+        'activityField': 'doing',
+        'feelingsField': 'feelings',
+      }));
+      expect(content.review, isNotNull);
+      expect(content.review!.withinDays, 7);
+      expect(content.review!.activityField, 'doing');
+      expect(content.review!.feelingsField, 'feelings');
+    });
+
+    test('refuses a review that is missing a part rather than guessing one', () {
+      for (final broken in <Object?>[
+        {'withinDays': 7, 'activityField': 'doing'},
+        {'withinDays': 0, 'activityField': 'doing', 'feelingsField': 'feelings'},
+        {'withinDays': 7.5, 'activityField': 'doing', 'feelingsField': 'feelings'},
+        {'withinDays': 7, 'activityField': '', 'feelingsField': 'feelings'},
+      ]) {
+        expect(
+          () => parseWorksheetContent(withReview(broken)),
+          throwsA(isA<WorksheetContentException>()),
+        );
+      }
+    });
+
+    test('parses a hand-off, including where the picks go', () {
+      final content = parseWorksheetContent({
+        'version': 1,
+        'fields': [
+          {
+            'id': 'ideas',
+            'type': 'checklist',
+            'prompt': 'Which of these?',
+            'options': [
+              {'value': 'walk', 'label': 'A walk'},
+              {'value': 'music', 'label': 'Music'},
+            ],
+          },
+        ],
+        'closing': {
+          'handOff': {
+            'toolId': 'ws_small_things',
+            'field': 'ideas',
+            'label': 'Take these',
+            'targetField': 'plan',
+            'targetColumn': 'what',
+          },
+        },
+      });
+      final handOff = content.closing?.handOff;
+      expect(handOff, isNotNull);
+      expect(handOff!.toolId, 'ws_small_things');
+      expect(handOff.targetField, 'plan');
+      expect(handOff.targetColumn, 'what');
+    });
+
+    test('refuses a hand-off that does not say where the picks go', () {
+      expect(
+        () => parseWorksheetContent({
+          'version': 1,
+          'fields': [
+            {
+              'id': 'ideas',
+              'type': 'checklist',
+              'prompt': 'Which of these?',
+              'options': [
+                {'value': 'walk', 'label': 'A walk'},
+                {'value': 'music', 'label': 'Music'},
+              ],
+            },
+          ],
+          'closing': {
+            'handOff': {'toolId': 'ws_small_things', 'field': 'ideas', 'label': 'Take these'},
+          },
+        }),
+        throwsA(
+          isA<WorksheetContentException>().having(
+            (error) => error.problems.join(' '),
+            'problems',
+            contains('handOff'),
+          ),
+        ),
+      );
+    });
+
+    test('a worksheet with neither key parses exactly as before', () {
+      final content = parseWorksheetContent({
+        'version': 1,
+        'fields': [
+          {'id': 'a', 'type': 'short_text', 'prompt': 'What happened?'},
+        ],
+      });
+      expect(content.review, isNull);
+      expect(content.closing?.handOff, isNull);
+    });
+  });
 }

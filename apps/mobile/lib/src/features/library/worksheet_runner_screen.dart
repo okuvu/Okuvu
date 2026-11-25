@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/providers.dart';
@@ -67,6 +68,7 @@ class WorksheetRunnerScreen extends ConsumerStatefulWidget {
     this.onSaveToTreasureBox,
     this.feelingBefore,
     this.isAssigned = false,
+    this.review,
   });
 
   final String toolId;
@@ -81,6 +83,12 @@ class WorksheetRunnerScreen extends ConsumerStatefulWidget {
   /// True when this worksheet came from a therapist's assignment, which is what
   /// adds the "Did you do it?" / "What got in the way?" question.
   final bool isAssigned;
+
+  /// This worksheet's own recent entries, grouped by the activity words the
+  /// client wrote, when the body declares a review. Null on every other
+  /// worksheet, and null while the view is still loading — in which case the
+  /// closing screen simply has no read-back section rather than a spinner.
+  final WorksheetReviewView? review;
 
   /// "Save to my Treasure Box" — only called when the approved closing copy has
   /// that button. Returns false when the save failed, so the screen can say so
@@ -862,6 +870,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
 
   Widget _buildClosing(ThemeData theme) {
     final closing = widget.content.closing;
+    final handOff = closing?.handOff;
     return Scaffold(
       appBar: AppBar(title: const Text('Done')),
       body: SafeArea(
@@ -877,6 +886,10 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                   style: theme.textTheme.titleMedium?.copyWith(height: 1.5),
                   textAlign: TextAlign.center,
                 ),
+              if (widget.review != null && !widget.review!.isEmpty) ...[
+                const SizedBox(height: 24),
+                _ReviewSection(review: widget.review!),
+              ],
               const SizedBox(height: 24),
               for (final button in closing?.buttons ?? const <WorksheetClosingButton>[])
                 Padding(
@@ -910,11 +923,91 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                           child: Text(button.label),
                         ),
                 ),
+              if (handOff != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 12),
+                  child: OutlinedButton(
+                    key: const Key('worksheet_hand_off'),
+                    onPressed: () => _handOff(handOff),
+                    child: Text(handOff.label),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Carrying picked answers into another worksheet's own draft.
+  ///
+  /// The body declares the destination, the list and the column, so this screen
+  /// hard-codes nothing. What it writes is an *unsaved* draft for the target:
+  /// nothing is saved on the client's behalf, a row they already wrote is never
+  /// replaced, and the planner itself is untouched. The client arrives with the
+  /// picks already in the list and saves it themselves.
+  Future<void> _handOff(WorksheetHandOff handOff) async {
+    final raw = _answers[handOff.field];
+    final picked = raw is List ? raw.whereType<String>().toList() : const <String>[];
+
+    // The labels the client actually saw, taken from this body rather than the
+    // stored option values.
+    final labels = <String>[];
+    for (final field in widget.content.fields) {
+      if (field.id != handOff.field || field.options.isEmpty) continue;
+      for (final value in picked) {
+        for (final option in field.options) {
+          if (option.value == value && !labels.contains(option.label)) labels.add(option.label);
+        }
+      }
+    }
+
+    if (labels.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pick at least one first.')),
+      );
+      return;
+    }
+
+    WorksheetDraft? existing;
+    try {
+      existing = await _drafts.load(widget.userId, handOff.toolId);
+    } catch (_) {
+      existing = null;
+    }
+
+    final answers = WorksheetAnswers.from(existing?.answers ?? const {});
+    final rows = <Map<String, Object?>>[];
+    final current = answers[handOff.targetField];
+    if (current is List) {
+      for (final row in current) {
+        if (row is Map) rows.add(row.map((key, value) => MapEntry(key.toString(), value)));
+      }
+    }
+
+    final already = rows.map((row) => row[handOff.targetColumn]).whereType<String>().toSet();
+    for (final label in labels) {
+      if (already.contains(label)) continue;
+      rows.add({handOff.targetColumn: label});
+    }
+    answers[handOff.targetField] = rows;
+
+    try {
+      await _drafts.save(
+        widget.userId,
+        handOff.toolId,
+        WorksheetDraft(answers: answers, stepIndex: 0, updatedAt: DateTime.now()),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't open that just now. Try again in a moment.")),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    context.push('/library/worksheet/${handOff.toolId}');
   }
 
   Widget _buildInput(WorksheetField field, ThemeData theme) {
@@ -1534,6 +1627,64 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
 }
 
 /// One tappable part on the drawing.
+/// The weekly read-back, in the client's own words.
+///
+/// Deliberately plain: their activity words, the feelings they picked each time,
+/// and the date. No total, no average, no "best" activity and no ranking of
+/// feelings — the app is not entitled to decide which feeling was better, and
+/// saying so would be the label rule 5 forbids.
+class _ReviewSection extends StatelessWidget {
+  const _ReviewSection({required this.review});
+
+  final WorksheetReviewView review;
+
+  String _day(DateTime at) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final local = at.toLocal();
+    return '${local.day} ${months[local.month - 1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      key: const Key('worksheet_review'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.lavenderWash,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your last ${review.withinDays} days, in your own words',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 12),
+          for (final group in review.groups) ...[
+            Text(group.activity, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+            for (final entry in group.entries)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 2),
+                child: Text(
+                  entry.feelings.isEmpty
+                      ? _day(entry.at)
+                      : '${_day(entry.at)} · ${entry.feelings.join(', ')}',
+                  style: theme.textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
+                ),
+              ),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _BodySpot extends StatelessWidget {
   const _BodySpot({required this.label, required this.selected, required this.onTap});
 

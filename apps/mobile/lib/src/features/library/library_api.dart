@@ -275,6 +275,49 @@ class LibraryApi {
   /// and the caller raises the safety response instead. Building the frame here
   /// from the answer in memory would draw the words with no check at all — which
   /// is exactly what the owner's rule (24 Nov 2026) forbids.
+  /// The worksheet's own last few entries, grouped by the activity words the
+  /// client wrote.
+  ///
+  /// Words only. The api refuses this for a worksheet that declares no review,
+  /// for a draft, and for anything the client may not open — all as 404, which
+  /// is answered here as null.
+  Future<WorksheetReviewView?> review(String toolId) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>('/worksheets/$toolId/review');
+      final raw = res.data?['groups'];
+      final groups = <WorksheetReviewGroup>[];
+      if (raw is List) {
+        for (final item in raw.whereType<Map<String, dynamic>>()) {
+          final activity = item['activity'];
+          if (activity is! String) continue;
+          final entries = <WorksheetReviewEntry>[];
+          final rawEntries = item['entries'];
+          if (rawEntries is List) {
+            for (final entry in rawEntries.whereType<Map<String, dynamic>>()) {
+              final at = entry['at'];
+              final feelings = entry['feelings'];
+              entries.add(
+                WorksheetReviewEntry(
+                  at: at is String ? DateTime.tryParse(at) ?? DateTime.now() : DateTime.now(),
+                  feelings: feelings is List ? feelings.whereType<String>().toList() : const [],
+                ),
+              );
+            }
+          }
+          groups.add(WorksheetReviewGroup(activity: activity, entries: entries));
+        }
+      }
+      final withinDays = res.data?['withinDays'];
+      return WorksheetReviewView(
+        withinDays: withinDays is int ? withinDays : 7,
+        groups: groups,
+      );
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
   Future<WorksheetReadback> readback(String toolId, String fieldId, String text) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/worksheets/$toolId/readback',
@@ -362,8 +405,51 @@ class WorksheetSubmitResult {
   final HarmToSomeoneScreen? harmToSomeone;
 }
 
+/// One saved entry, as the weekly read-back shows it.
+class WorksheetReviewEntry {
+  const WorksheetReviewEntry({required this.at, required this.feelings});
+
+  final DateTime at;
+  final List<String> feelings;
+}
+
+/// The client's own activity words, with the feelings they picked each time.
+class WorksheetReviewGroup {
+  const WorksheetReviewGroup({required this.activity, required this.entries});
+
+  final String activity;
+  final List<WorksheetReviewEntry> entries;
+}
+
+/// A worksheet's own recent entries, in words.
+///
+/// No score, no average and no ranking of feelings: the api groups by the words
+/// the client wrote and lists what they picked. "Which felt better" is theirs to
+/// read, not the app's to decide.
+class WorksheetReviewView {
+  const WorksheetReviewView({
+    required this.withinDays,
+    required this.groups,
+  });
+
+  final int withinDays;
+  final List<WorksheetReviewGroup> groups;
+
+  bool get isEmpty => groups.isEmpty;
+}
+
 final libraryApiProvider = Provider<LibraryApi>((ref) {
   return LibraryApi(ref.watch(dioClientProvider));
+});
+
+/// The weekly read-back for a worksheet that declares one, or null.
+///
+/// A 404 means "no such view" — the worksheet does not declare a review, or it
+/// is not the client's to see — and is answered with null rather than an error,
+/// so the screen simply draws nothing.
+final worksheetReviewProvider =
+    FutureProvider.autoDispose.family<WorksheetReviewView?, String>((ref, toolId) {
+  return ref.watch(libraryApiProvider).review(toolId);
 });
 
 final libraryCardsProvider = FutureProvider<List<LibraryCard>>((ref) {
