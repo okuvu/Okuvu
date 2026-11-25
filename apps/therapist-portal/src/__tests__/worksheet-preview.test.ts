@@ -56,26 +56,35 @@ describe('worksheet preview', () => {
     }
   });
 
-  it('has Hinglish for the sixteen approved earlier, and none for the ten of 24 Nov', () => {
+  it('has Hinglish only for the sixteen approved earlier, not for the nineteen of 24 Nov', () => {
     // The 24 Nov approvals were English-only: the Hinglish gate is released per
     // row after review, so a newly approved worksheet must not arrive with a
     // translation nobody has read. The translations are the owner's to approve
     // separately (his instruction, 24 Nov 2026: "noted for later"), so this list
-    // stays at ten until he releases them one by one.
+    // stays at nineteen until he releases them one by one.
     const withoutHinglish = LISTABLE_CATALOGUE.filter(
       (entry) => parseWorksheetRow(row(entry)).hinglish === null,
     ).map((entry) => entry.tool_id);
     expect(withoutHinglish.sort()).toEqual([
       'ws_basics_check',
       'ws_boundary_planner',
+      'ws_brain_dump',
       'ws_caring_load_check',
+      'ws_exam_career_pressure',
+      'ws_exposure_ladder',
+      'ws_family_expectations',
       'ws_priority_sorter',
       'ws_pros_cons_change',
       'ws_rest_break',
       'ws_scrolling_log',
+      'ws_sitting_with_not_knowing',
+      'ws_social_situation_prep',
+      'ws_sos_calm',
+      'ws_unhooking',
       'ws_unsent_letter',
       'ws_weekly_load_check',
       'ws_whats_on_my_plate',
+      'ws_worry_time',
     ]);
   });
 

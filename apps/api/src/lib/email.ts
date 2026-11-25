@@ -15,6 +15,19 @@
  */
 
 import { identityRef, redactEmails } from './log-identity.js';
+import {
+  WORRY_REMINDER_COPY_APPROVED,
+  WORRY_REMINDER_EMAIL,
+} from '@okuvu/shared-types/worksheets/anxiety-worry';
+
+/** Minimal HTML escape for the two interpolated strings in the reminder. */
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
 
 const BREVO_SEND_URL = 'https://api.brevo.com/v3/smtp/email';
 
@@ -82,10 +95,18 @@ export async function sendInviteEmail(params: SendInviteEmailParams): Promise<{ 
 /**
  * Worry time — the daily reminder (owner's brief, 24 Nov 2026).
  *
- * DRAFT COPY, awaiting the owner's approval. It is deliberately content-free:
- * the subject names the feature, and the body never quotes, summarises or
- * counts out what the client wrote. "You parked 2 worries" is a count of their
- * own writing on a lock screen, which is not the same thing as a reminder.
+ * The wording is NOT approved yet, so this function sends nothing until
+ * `WORRY_REMINDER_COPY_APPROVED` is true. That is a fail-closed switch rather
+ * than a comment: the owner approves every client-facing string, and a reminder
+ * is a string that arrives on a phone by itself.
+ *
+ * The copy lives in the catalogue (one home, next to the rest of the approved
+ * content) and is deliberately dull. The owner's constraint is that the subject
+ * and the preview must not mention worry, anxiety or mental health, because a
+ * family member may see the notification on a shared phone; the body never
+ * quotes, summarises or counts what the client wrote. "You parked 2 worries" is
+ * a count of their own writing on a lock screen, which is not the same thing as
+ * a reminder.
  *
  * Same fail-open shape as the invite: no BREVO_API_KEY logs and returns
  * `{ sent: false }`, so a missing key never breaks the sweep.
@@ -104,17 +125,25 @@ export async function sendWorryTimeEmail(
   const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@okuvu.in';
   const fromName = process.env.BREVO_FROM_NAME || 'OKUVU';
 
-  const greeting = params.name ? `Hi ${params.name},` : 'Hi,';
-  const hasParked = params.parkedCount > 0;
+  // Fail closed: no approved wording, no email.
+  if (!WORRY_REMINDER_COPY_APPROVED) {
+    console.info('[email] worry-time reminder is waiting on the owner’s approval; nothing sent', {
+      toRef: identityRef('c', params.to),
+    });
+    return { sent: false };
+  }
+
+  const greeting = params.name ? `Hi ${params.name},` : 'Hello,';
+  // One paragraph per line of the approved body, with the greeting in place of
+  // the neutral opener. Nothing about the client's own list appears here.
+  const bodyLines = WORRY_REMINDER_EMAIL.body.split('\n').filter((line) => line.trim().length > 0);
+  const paragraphs = bodyLines.slice(1).map((line) => `<p>${escapeHtml(line)}</p>`).join('\n');
   const htmlContent = `
-    <p>${greeting}</p>
-    <p>It's your worry time.</p>
-    <p>${
-      hasParked
-        ? 'There is something waiting on your parked list. Open OKUVU when you have a few minutes, and look at each one.'
-        : 'Open OKUVU when you have a few minutes. Nothing has to be on the list for this to count.'
-    }</p>
-    <p>You gave yourself ${params.minutes} minutes. You can finish early.</p>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(
+      WORRY_REMINDER_EMAIL.preview,
+    )}</div>
+    <p>${escapeHtml(greeting)}</p>
+    ${paragraphs}
   `;
 
   if (!apiKey) {
@@ -135,7 +164,7 @@ export async function sendWorryTimeEmail(
       body: JSON.stringify({
         sender: { email: fromEmail, name: fromName },
         to: [{ email: params.to, name: params.name ?? undefined }],
-        subject: 'Your worry time',
+        subject: WORRY_REMINDER_EMAIL.subject,
         htmlContent,
       }),
     });

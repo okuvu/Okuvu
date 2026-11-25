@@ -17,6 +17,10 @@ import '../../theme/app_colors.dart';
 /// of the pairing, and the other three are box breathing, a physiological sigh
 /// and humming, none of which is built around a lengthened exhale. The player is
 /// passed that technique id rather than opening on its default.
+///
+/// The intro and closing lines are the owner's, verbatim. The one instruction
+/// between them is the worksheet's own instruction; nothing else is written for
+/// this path.
 class SosCalmScreen extends StatelessWidget {
   const SosCalmScreen({super.key});
 
@@ -31,7 +35,15 @@ class SosCalmScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
-          onPressed: () => context.go('/library'),
+          // Home and the Library both open this screen; going back must return
+          // to whichever one did, not always to the Library.
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
         ),
         title: const Text('SOS calm'),
       ),
@@ -40,16 +52,15 @@ class SosCalmScreen extends StatelessWidget {
         children: [
           Text(
             "You don't have to explain anything. Let's take one long breath out "
-            'first, then look around the room together.',
+            "first, then notice what's around you.",
             style: theme.textTheme.titleMedium?.copyWith(height: 1.5),
           ),
           const SizedBox(height: 28),
           _Step(
             number: 1,
             title: 'One long breath out',
-            body: 'We start with the breathing exercise that lets the out-breath '
-                'be the long one. One breath, then another — you can stop '
-                'whenever you want.',
+            body: "Start with the long breath out. It's one breath, then another "
+                '— you can stop whenever you want.',
             buttonLabel: 'Open the breathing exercise',
             onTap: () => context.push(
               '/library/breathing?tool=$breathingToolId',
@@ -58,16 +69,13 @@ class SosCalmScreen extends StatelessWidget {
           const SizedBox(height: 20),
           _Step(
             number: 2,
-            title: 'Then look around the room',
-            body: 'Five things you can see, four you can touch, three you can '
-                'hear, two you can smell, one you can taste. Nothing has to be '
-                'written down.',
-            buttonLabel: '5-4-3-2-1 grounding',
+            title: '5-4-3-2-1 grounding',
+            buttonLabel: 'Open the grounding exercise',
             onTap: () => context.push('/library/grounding'),
           ),
           const SizedBox(height: 28),
           Text(
-            "You're here. Take your time leaving.",
+            'Stay here as long as you need.',
             style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
           ),
         ],
@@ -80,14 +88,14 @@ class _Step extends StatelessWidget {
   const _Step({
     required this.number,
     required this.title,
-    required this.body,
     required this.buttonLabel,
     required this.onTap,
+    this.body,
   });
 
   final int number;
   final String title;
-  final String body;
+  final String? body;
   final String buttonLabel;
   final VoidCallback onTap;
 
@@ -109,8 +117,10 @@ class _Step extends StatelessWidget {
               '$number. $title',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 8),
-            Text(body, style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+            if (body != null) ...[
+              const SizedBox(height: 8),
+              Text(body!, style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+            ],
             const SizedBox(height: 14),
             FilledButton(onPressed: onTap, child: Text(buttonLabel)),
           ],

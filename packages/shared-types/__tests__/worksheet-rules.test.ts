@@ -9,7 +9,15 @@
  * Run: npx vitest run __tests__/worksheet-rules.test.ts
  */
 import { describe, expect, it } from 'vitest';
-import { CATALOGUE, LISTABLE_CATALOGUE, PLACEHOLDER_CATALOGUE, entryById, toRegistryRow } from '../worksheets/index';
+import {
+  CATALOGUE,
+  CLIENT_LIBRARY_CATALOGUE,
+  LISTABLE_CATALOGUE,
+  PLACEHOLDER_CATALOGUE,
+  entryById,
+  isListable,
+  toRegistryRow,
+} from '../worksheets/index';
 import {
   CARE_PLAN_LABELS,
   appliesToScope,
@@ -67,6 +75,16 @@ describe('rule 1 — care plan labels', () => {
     ['ws_unsent_letter', ['stress_burnout']],
     ['ws_pros_cons_change', ['stress_burnout']],
     ['ws_caring_load_check', ['stress_burnout']],
+    // The nine the owner approved on 24 Nov 2026, all Anxiety & Worry.
+    ['ws_worry_time', ['anxiety_worry']],
+    ['ws_brain_dump', ['anxiety_worry']],
+    ['ws_unhooking', ['anxiety_worry']],
+    ['ws_sos_calm', ['anxiety_worry']],
+    ['ws_sitting_with_not_knowing', ['anxiety_worry']],
+    ['ws_exam_career_pressure', ['anxiety_worry']],
+    ['ws_social_situation_prep', ['anxiety_worry']],
+    ['ws_family_expectations', ['anxiety_worry']],
+    ['ws_exposure_ladder', ['anxiety_worry']],
   ];
 
   it('labels every approved entry exactly as the owner listed them', () => {
@@ -147,26 +165,18 @@ describe('rule 2 — a new worksheet starts switched off', () => {
       status: 'draft',
     };
     expect(LISTABLE_CATALOGUE.includes(draft)).toBe(false);
-    // `isListable` is the one filter every list uses. The drafts that exist are
-    // exactly the Anxiety & Worry batch of 24 Nov 2026: every one of them was
-    // written and none has been approved, so the state has to hold for all nine
-    // — a draft is previewable by a therapist and invisible to a client.
-    const drafts = CATALOGUE.filter((r) => r.status === 'draft');
-    expect(drafts.map((r) => r.tool_id).sort()).toEqual([
-      'ws_brain_dump',
-      'ws_exam_career_pressure',
-      'ws_exposure_ladder',
-      'ws_family_expectations',
-      'ws_sitting_with_not_knowing',
-      'ws_social_situation_prep',
-      'ws_sos_calm',
-      'ws_unhooking',
-      'ws_worry_time',
-    ]);
-    for (const row of drafts) {
-      expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain(row.tool_id);
-      expect(row.content_en).not.toBeNull();
-    }
+    // `isListable` is the one filter every list uses. The Anxiety & Worry batch
+    // was approved on 24 Nov 2026, so no row is a draft today — and the
+    // invariant still has to hold for the next batch: a draft is previewable by
+    // a therapist and invisible to a client.
+    expect(CATALOGUE.filter((r) => r.status === 'draft')).toEqual([]);
+    const probe: CatalogueEntry = {
+      ...entry('ws_worry_tree'),
+      tool_id: 'ws_rule_two_draft_probe',
+      status: 'draft',
+    };
+    expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain(probe.tool_id);
+    expect(isListable(probe)).toBe(false);
   });
 
   it('refuses to serve a draft body to a client', () => {
@@ -302,11 +312,11 @@ describe('rule 6 — the exposure ladder is therapist-only', () => {
   it('is never in the client list', () => {
     const ladder = entry('ws_exposure_ladder');
     expect(ladder.access_mode).toBe('therapist_only');
-    expect(LISTABLE_CATALOGUE.map((r) => r.tool_id)).not.toContain('ws_exposure_ladder');
+    // Approved, so the catalogue lists it; therapist-only, so the client Library
+    // does not.
+    expect(CLIENT_LIBRARY_CATALOGUE.map((r) => r.tool_id)).not.toContain('ws_exposure_ladder');
     expect(PLACEHOLDER_CATALOGUE.map((r) => r.tool_id)).not.toContain('ws_exposure_ladder');
-    // It is a real row now, with a body a therapist can read — and still draft,
-    // because drafting is not approval and this one is not even client-facing.
-    expect(ladder.status).toBe('draft');
+    expect(ladder.status).toBe('approved');
     expect(ladder.content_en).not.toBeNull();
     expect(ladder.load_level).toBe('demanding');
   });

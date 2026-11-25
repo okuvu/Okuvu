@@ -21,6 +21,7 @@
  * Run (writes both files): WRITE_WORKSHEET_SQL=1 npx vitest run __tests__/migration.test.ts
  */
 import { CATALOGUE, LISTABLE_CATALOGUE } from '@okuvu/shared-types/worksheets';
+import { APPROVED_ANXIETY_IDS } from '@okuvu/shared-types/worksheets/anxiety-worry';
 import { BREATHING_CHILD_TOOL_IDS } from '@okuvu/shared-types/worksheets/types';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
@@ -34,6 +35,14 @@ const ANXIETY_DRAFTS_MIGRATION_DIR = '20261124200000_seed_anxiety_worry_drafts';
 
 /** The owner's 24 Nov 2026 approvals, in their own migration. */
 const APPROVALS_MIGRATION_DIR = '20261124160000_approve_stress_burnout_eight';
+
+/**
+ * The Anxiety & Worry approvals: the nine rows the owner approved on 24 Nov
+ * 2026, after the five revisions he asked for. Its own migration, for the same
+ * reason every approval has one — the eight of the first batch were approved as
+ * written, and these were approved only once their wording changed.
+ */
+const ANXIETY_APPROVALS_MIGRATION_DIR = '20261124220000_approve_anxiety_worry_nine';
 
 /**
  * The owner's second read, later the same day: the two he sent back, revised and
@@ -403,6 +412,7 @@ export const ANXIETY_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${ANXIE
 export const DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${DRAFTS_MIGRATION_DIR}/migration.sql`;
 export const APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const REVISED_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${REVISED_APPROVALS_MIGRATION_DIR}/migration.sql`;
+export const ANXIETY_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${ANXIETY_APPROVALS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
   const lines: string[] = [];
@@ -655,6 +665,57 @@ export function buildAnxietyDraftsSql(): string {
           entry: { ...entry, status: 'draft' as const, approved_at: undefined },
           index: ANXIETY_ID_BASE + i,
         };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The nine Anxiety & Worry rows the owner approved on 24 November 2026.
+ *
+ * His message approved six as written and five after changes (Unhooking from a
+ * thought, SOS calm, Sitting with not knowing, Social situation prep — four
+ * rows; Worry time, Brain-dump, Big day planner, Pressure map, Exposure ladder
+ * and the exposure pause line as written). The copy inserted here is the text
+ * he read back, so the migration carries the approved wording with the status
+ * rather than promoting a body nobody approved.
+ *
+ * The Exposure ladder is `therapist_only` and approved: it is in the catalogue
+ * for therapists to build from, and it is still never a Library card, never
+ * assignable and never suggested by chat — those are properties of the row, not
+ * of its status.
+ */
+export function buildAnxietyApprovalsSql(): string {
+  const lines: string[] = [
+    '-- The owner approved the nine Anxiety & Worry worksheets on 24 November',
+    '-- 2026: five as written, four after the revisions he asked for.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- The copy written here is the revised, approved text. The drafts migration',
+    '-- that preceded it leaves every row `draft`; this one is the approval, and',
+    '-- it carries the wording with it so a row cannot be promoted without its',
+    '-- approved body.',
+    '--',
+    '-- The Exposure ladder is approved and therapist-only. Approval does not put',
+    '-- it in the client Library: that is `access_mode`, and the client read path',
+    '-- still answers 404 for it.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      APPROVED_ANXIETY_IDS.map((id) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`approved anxiety row "${id}" is not in the catalogue`);
+        if (entry.status !== 'approved') {
+          throw new Error(`"${id}" is in the approval batch but is ${entry.status} in the catalogue`);
+        }
+        // Same row id the drafts migration used, so the two agree about identity.
+        return { entry, index: ANXIETY_ID_BASE + ANXIETY_DRAFT_BATCH_IDS.indexOf(id) };
       }),
     ),
   );

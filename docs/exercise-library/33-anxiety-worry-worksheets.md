@@ -1,9 +1,10 @@
 # Anxiety & Worry worksheets — nine drafts, 24 November 2026
 
-**Status: DRAFT. Nothing in this batch is approved, nothing is merged, and no app
-or image was built.** Every row is `status: 'draft'`: no card in a client's
-Library, no direct open (404 as an unknown id), no assignment from the portal. A
-therapist can preview each one. The owner's Step 0 rules apply unchanged.
+**Status: APPROVED on 24 November 2026, not merged, not deployed, no app built.**
+The owner read the wording back and approved all nine, four of them after the
+revisions recorded in `35-24-nov-round-seven.md`. The bodies below are the drafts
+as written; where they differ from the approved text, the approved copy is in
+`34-approved-anxiety-worry-copy.md` and in the approvals migration.
 
 ## What was built
 

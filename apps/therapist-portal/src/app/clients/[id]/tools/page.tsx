@@ -46,6 +46,18 @@ export default function ClientToolsPage() {
           </Link>
 
           <Link
+            href={`/clients/${clientId}/exposure`}
+            className="block rounded-xl bg-oat-elevated p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline hover:shadow-md transition text-center"
+          >
+            <span className="text-sm font-medium text-royal-purple">
+              Build the exposure ladder &rarr;
+            </span>
+            <p className="mt-1 text-xs text-gray-500">
+              Steps you add stay hidden until you unlock them.
+            </p>
+          </Link>
+
+          <Link
             href={`/clients/${clientId}/reminders`}
             className="block rounded-xl bg-oat-elevated p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-hairline hover:shadow-md transition text-center"
           >

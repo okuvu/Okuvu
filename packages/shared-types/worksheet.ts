@@ -309,6 +309,18 @@ export interface EchoField extends WorksheetFieldBase {
   fromField: string;
   /** Sentences carrying `{answer}`, in reading order. */
   frames: string[];
+  /**
+   * The words are safety-screened before the frame is drawn (owner's decision,
+   * 24 Nov 2026).
+   *
+   * `true` is the only value, and it is required: a read-back is the one place
+   * the app repeats a client's own sentence back to them, so it must not be
+   * possible to build one that skips the check. The api answers
+   * `POST /worksheets/:toolId/readback` with the frames only when the screen
+   * raised nothing, and with the approved safety response when it did — so a
+   * flagged thought is never shown inside "I'm having the thought that …".
+   */
+  screened: true;
 }
 
 export interface ClosingReflectionField extends WorksheetFieldBase {
@@ -434,7 +446,7 @@ const TYPE_KEYS: Record<WorksheetFieldType, string[]> = {
   datetime: ['withDate', 'withTime'],
   countdown_timer: ['seconds', 'startLabel', 'doneLabel', 'minSeconds'],
   body_outline: ['regions', 'maxSelections', 'withStrength', 'strengthPrompt'],
-  echo: ['fromField', 'frames'],
+  echo: ['fromField', 'frames', 'screened'],
   closing_reflection: [],
 };
 
@@ -597,6 +609,14 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
 
       if (raw.required === true) {
         errors.push(`${at}.required: an echo piece is never required`);
+      }
+
+      // A read-back repeats the client's own words, so it is screened before it
+      // is drawn. The flag is not optional and cannot be false: the app asks the
+      // api for the frames, and the api withholds them when the screen raises
+      // anything (owner's decision, 24 Nov 2026).
+      if (raw.screened !== true) {
+        errors.push(`${at}.screened: an echo piece must be screened before it is shown`);
       }
     }
 

@@ -12,11 +12,13 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  ANXIETY_APPROVALS_MIGRATION_PATH,
   ANXIETY_DRAFTS_MIGRATION_PATH,
   APPROVALS_MIGRATION_PATH,
   DRAFTS_MIGRATION_PATH,
   MIGRATION_PATH,
   REVISED_APPROVALS_MIGRATION_PATH,
+  buildAnxietyApprovalsSql,
   buildAnxietyDraftsSql,
   buildApprovalsSql,
   buildDraftsSql,
@@ -32,6 +34,7 @@ const DRAFTS_FILE = join(ROOT, DRAFTS_MIGRATION_PATH);
 const APPROVALS_FILE = join(ROOT, APPROVALS_MIGRATION_PATH);
 const REVISED_APPROVALS_FILE = join(ROOT, REVISED_APPROVALS_MIGRATION_PATH);
 const ANXIETY_FILE = join(ROOT, ANXIETY_DRAFTS_MIGRATION_PATH);
+const ANXIETY_APPROVALS_FILE = join(ROOT, ANXIETY_APPROVALS_MIGRATION_PATH);
 
 function wrote(path: string, sql: string): boolean {
   if (process.env.WRITE_WORKSHEET_SQL !== '1') return false;
@@ -72,8 +75,11 @@ describe('generated migration', () => {
   });
 
   it('lists every approved Library entry and every placeholder', () => {
-    // 16 from the 9 Nov approved document + the 10 the owner approved on 24 Nov.
-    expect(listableToolIds()).toHaveLength(26);
+    // 16 from the 9 Nov approved document + the 10 the owner approved on 24 Nov
+    // + the 9 he approved on 24 Nov (Anxiety & Worry). The exposure ladder is in
+    // this count because it is approved; the api's client query excludes
+    // `therapist_only`, which is what keeps it out of the Library.
+    expect(listableToolIds()).toHaveLength(35);
     const sql = buildMigrationSql();
     expect(sql).toContain("'ws_safety_plan'");
     expect(sql).toContain("'ws_energy_audit'");
@@ -193,21 +199,12 @@ describe('generated Anxiety & Worry drafts migration', () => {
     expect(sql).toContain("'ws_family_expectations', 'Family expectations map'");
   });
 
-  it('leaves the other nine as the only drafts in the catalogue', () => {
-    expect(draftEntries().map((entry) => entry.tool_id).sort()).toEqual(
-      [
-        'ws_brain_dump',
-        'ws_exam_career_pressure',
-        'ws_exposure_ladder',
-        'ws_family_expectations',
-        'ws_sitting_with_not_knowing',
-        'ws_social_situation_prep',
-        'ws_sos_calm',
-        'ws_unhooking',
-        'ws_worry_time',
-      ].sort(),
-    );
+  it('leaves nothing in the batch as a draft once the approvals land', () => {
+    // The owner read the wording back and approved all nine on 24 Nov 2026, so
+    // the catalogue has no draft rows left from this batch.
+    expect(draftEntries().map((entry) => entry.tool_id)).toEqual([]);
   });
+
 });
 
 describe('generated approvals migration', () => {
@@ -266,5 +263,51 @@ describe('generated revised-approvals migration', () => {
     expect(sql.match(/"content_en" = EXCLUDED."content_en"/g)?.length).toBe(1);
     expect(sql).toContain('$ws_ws_unsent_letter$');
     expect(sql).toContain('$ws_ws_pros_cons_change$');
+  });
+});
+
+describe('generated Anxiety & Worry approvals migration', () => {
+  it('matches the catalogue', () => {
+    const sql = buildAnxietyApprovalsSql();
+    if (wrote(ANXIETY_APPROVALS_FILE, sql)) return;
+
+    expect(existsSync(ANXIETY_APPROVALS_FILE)).toBe(true);
+    expect(readFileSync(ANXIETY_APPROVALS_FILE, 'utf8')).toBe(sql);
+  });
+
+  it('carries all nine rows as approved, with the approval date', () => {
+    const sql = buildAnxietyApprovalsSql();
+    for (const id of [
+      'ws_worry_time',
+      'ws_brain_dump',
+      'ws_unhooking',
+      'ws_sos_calm',
+      'ws_sitting_with_not_knowing',
+      'ws_exam_career_pressure',
+      'ws_social_situation_prep',
+      'ws_family_expectations',
+      'ws_exposure_ladder',
+    ]) {
+      expect(sql, id).toContain(`'${id}'`);
+    }
+    expect(sql.match(/'approved'/g)?.length).toBe(9);
+    expect(sql.match(/2026-11-24/g)?.length).toBe(9);
+    // The approval carries the copy with it.
+    expect(sql).not.toContain("'draft'");
+  });
+
+  it('records the approved revisions, not the text they replaced', () => {
+    const sql = buildAnxietyApprovalsSql();
+    // The four rows the owner changed before approving.
+    expect(sql).toContain('helps it sound like what it is: a thought');
+    expect(sql).toContain("then notice what's around you");
+    expect(sql).toContain('Stay here as long as you need.');
+    expect(sql).toContain('keep you stuck');
+    expect(sql).toContain('10 = very hard');
+    expect(sql).toContain('What got in the way?');
+    // ...and the pre-revision sentences are gone from the approved body.
+    expect(sql).not.toContain('is how it starts to sound like one');
+    expect(sql).not.toContain('10 = unbearable');
+    expect(sql).not.toContain('keep you awake');
   });
 });

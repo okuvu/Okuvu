@@ -7,6 +7,7 @@ import { flagSafetyEvent } from '../lib/safety-flags.js';
 import { enqueueSafetyRecheck } from '../lib/safety-recheck.js';
 import { startOfIstDay } from '../lib/homework.js';
 import { sendWorryTimeEmail } from '../lib/email.js';
+import { WORRY_REMINDER_COPY_APPROVED } from '@okuvu/shared-types/worksheets/anxiety-worry';
 
 /**
  * Worry time, and its daily reminder email.
@@ -319,6 +320,13 @@ export async function worryTimeRoute(app: FastifyInstance): Promise<void> {
       }
       if (!secretMatches(request.headers[INTERNAL_HEADER] as string | undefined, expected)) {
         return reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } });
+      }
+
+      // The owner has not approved the reminder's wording, so the sweep does
+      // nothing at all rather than mailing copy nobody signed off. The sender
+      // refuses too; this guard is here so the answer says why.
+      if (!WORRY_REMINDER_COPY_APPROVED) {
+        return reply.send({ sent: 0, skipped: 0, waitingForApproval: true });
       }
 
       const now = new Date();

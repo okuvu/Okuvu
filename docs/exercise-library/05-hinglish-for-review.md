@@ -1021,6 +1021,55 @@ _No Hinglish body._
 
 ---
 
+## SOS calm
+
+- id: `ws_sos_calm`
+- Library description (English): One tap: a long breath out, then look around the room. Nothing to type.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> You don't have to explain anything. Let's take one long breath out first, then notice what's around you.
+
+- **Text** — Start with the long breath out. It's one breath, then another — you can stop whenever you want.
+
+> Stay here as long as you need.
+
+---
+
+## Pressure map
+
+- id: `ws_family_expectations`
+- Library description (English): See where the pressure comes from, and whose expectation it really is.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> A lot of pressure comes from what we think other people expect. Mapping it shows which of it is yours, and which you picked up somewhere else.
+
+- **row list** — Which areas are carrying expectations?
+  - helper: One line for each area that applies — studies, career, money, family, marriage, friends, the future. Skip the ones that carry nothing.
+  - column `area`: Area (choice)
+  - column `who`: Who expects what? (text)
+  - column `heavy`: How heavy does it feel? (scale_0_10)
+  - column `whose`: Whose expectation is it mostly? (choice)
+- **Closing reflection** — What do you notice, seeing them side by side?
+  - helper: Optional.
+
+> Naming whose expectation it is doesn't settle it. It does make it easier to see.
+
+---
+
 ## Weighing it up
 
 - id: `ws_pros_cons_change`
@@ -1083,5 +1132,216 @@ _No Hinglish body._
   - helper: It can be small. Someone else making dinner once. An hour to yourself.
 
 > Asking for help is part of caring, not a break from it.
+
+---
+
+## Worry time
+
+- id: `ws_worry_time`
+- Library description (English): Give worrying one time and one place, instead of all day.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Worrying has a way of spreading across the whole day. Giving it one time and one place doesn't make it disappear — it gives it somewhere to wait.
+
+- **datetime** — What time each day do you want to give it?
+  - helper: Pick a time when you can usually stop for a bit. It doesn't have to be perfect, and you can move it later.
+- **choice** — How long do you want?
+  - helper: A shorter window is easier to keep. You can always finish early.
+  - option `ten`: 10 minutes
+  - option `fifteen`: 15 minutes
+  - option `twenty`: 20 minutes
+- **row list** — What's parked for that time?
+  - helper: During the day, when a worry turns up, put it here instead of carrying it round. When your worry time comes, come back and look at each one.
+  - column `worry`: The worry (text)
+  - column `review`: When you came back to it (choice)
+- **Closing reflection** — What do you notice about the ones you parked?
+  - helper: Optional. A word is enough.
+
+> A worry kept for later is a worry you're not carrying all day.
+
+---
+
+## Brain-dump
+
+- id: `ws_brain_dump`
+- Library description (English): Empty the whole swirl onto one page, then decide whether to keep it.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Nothing here has to be tidy. Put the whole swirl down in one place, and let it be as messy as it actually is.
+
+- **long text** — What's in your head right now?
+  - helper: One long list is fine. Nothing has to be in order. You can type this or say it out loud — whichever is easier.
+- **choice** — What would you like to do with it?
+  - option `keep`: Save it — It goes into Past me, private unless you choose to share it.
+  - option `delete`: Let it go — This deletes it straight away. If OKUVU already checked in about something you wrote, your therapist may still know that a check-in happened.
+
+> You got it out of your head. That's the whole job.
+
+---
+
+## Big day planner
+
+- id: `ws_exam_career_pressure`
+- Library description (English): Get the practical parts of a big day out of your head and onto one page.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Big days take up a lot of room in your head. Putting the practical parts somewhere helps you keep your head for the day itself.
+
+- **datetime** — When is it?
+  - helper: The date is enough.
+- **row list** — What needs doing before then?
+  - helper: One step per line, with the day you will do it. Small steps are easier to keep.
+  - column `step`: What (text)
+  - column `by_when`: By when (datetime)
+- **checklist** — On the day
+  - helper: Tick these as they happen. Nothing here is a rule.
+  - option `eat`: eat something before I go
+  - option `leave_early`: leave earlier than I need to
+  - option `take`: take what I need with me
+  - option `quiet_phone`: put my phone on silent
+  - option `arrive`: get there and sit down for a minute
+  - option `afterwards`: plan something kind for afterwards
+- **short text** — What do you want to remember on the day?
+  - helper: One sentence you'd want to read at the door.
+  - example: I've done the work. I just have to turn up.
+
+> The day will go how it goes. You'll have done what you could.
+
+---
+
+## Unhooking from a thought
+
+- id: `ws_unhooking`
+- Library description (English): Say a thought back to yourself as a thought, and notice if it loosens.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> A thought can feel like a fact about the world. Saying it back as a thought, in your own words, helps it sound like what it is: a thought.
+
+- **short text** — What's the thought that keeps coming?
+  - helper: Write it the way it arrives, exactly as harsh as it sounds. Nothing here is edited.
+- **scale 0 100** — How much do you believe it right now?
+- **echo** — Here it is again, a little further away.
+  - helper: These are your own words. Nothing has been changed.
+- **scale 0 100** — And now, having read it back?
+- **Closing reflection** — What's different, if anything, about the thought now?
+  - helper: Optional. Nothing has to have changed.
+
+> The thought didn't have to change for you to step back from it.
+
+---
+
+## Social situation prep
+
+- id: `ws_social_situation_prep`
+- Library description (English): Write the prediction before, and what actually happened after.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Before something social, the mind often writes the ending in advance. This is somewhere to write that ending down — and then, later, what actually happened.
+
+- **short text** — What's the situation?
+  - helper: A few words is enough.
+  - example: Drinks with the team on Friday.
+- **short text** — What do you think will happen?
+  - helper: The version your mind keeps showing you, in its own words.
+- **scale 0 10** — How worried do you feel about it?
+- **short text** — One small thing you'll try
+  - helper: Small is the point. Say one sentence. Stay ten minutes. Arrive and leave when you like.
+- **choice** — If you have done it — how did it go?
+  - helper: Leave this until afterwards. You can come back to this worksheet.
+  - option `as_feared`: Went as feared
+  - option `better`: Better than feared
+  - option `didnt_do`: Didn't do it
+- **short text** — What actually happened?
+  - helper: Just what happened, in plain words.
+- **short text** — What got in the way?
+  - helper: No judgement. This helps you and your therapist plan better.
+
+> A prediction written down is a prediction you can check.
+
+---
+
+## Sitting with not knowing
+
+- id: `ws_sitting_with_not_knowing`
+- Library description (English): Let one unanswered question stay open, and see how it feels afterwards.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Some things don't have an answer yet. Trying to force one can keep you stuck. This is a few minutes of letting a question stay open.
+
+- **short text** — What are you unsure about?
+  - helper: A few words. You don't have to explain the whole situation.
+- **scale 0 10** — How uncomfortable does leaving it unknown feel?
+- **short text** — One small way you'll let it stay unknown today
+  - helper: Something you can actually do, or actually not do. "I'll wait until Thursday before deciding" counts. Checking it one more time doesn't.
+- **scale 0 10** — And now, having written that?
+- **Closing reflection** — What do you notice?
+  - helper: Optional.
+
+> Not knowing for a while is not the same as giving up.
+
+---
+
+## Exposure ladder
+
+- id: `ws_exposure_ladder`
+- Library description (English): Therapist-built: graded steps, unlocked one at a time.
+- Library description (Hinglish): _missing_
+- who can open it: therapist_only
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Your therapist builds this ladder with you, in session. Each step is added together, and unlocked when you are both ready for it.
+
+- **Text** — You will see only the steps that have been unlocked for you. For each one, rate how difficult it feels before you try it, and again afterwards. If a step feels like too much on the day, it can wait.
+- **scale 0 100** — Before you try this step, how difficult does it feel?
+- **scale 0 100** — And afterwards?
+
+> Each step is yours to take when you are ready.
 
 ---

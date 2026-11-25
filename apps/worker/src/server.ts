@@ -31,6 +31,10 @@ import {
   setActiveSummaryConsumer,
   type SummaryJobConsumer,
 } from './lib/summary-consumer.js';
+import {
+  reminderConfigFromEnv,
+  WorryTimeReminderScheduler,
+} from './lib/worry-time-reminders.js';
 
 async function checkDatabaseConnection(): Promise<void> {
   const { getPrisma } = await import('./lib/prisma.js');
@@ -39,6 +43,7 @@ async function checkDatabaseConnection(): Promise<void> {
 
 let app: ReturnType<typeof buildApp> | undefined;
 let summaryConsumer: SummaryJobConsumer | null = null;
+let reminderScheduler: WorryTimeReminderScheduler | null = null;
 
 async function main() {
   app = buildApp();
@@ -73,6 +78,17 @@ async function main() {
     setActiveSummaryConsumer(summaryConsumer);
     await summaryConsumer.start();
   }
+
+  // The daily worry-time reminder sweep. Same placement rule as the consumer:
+  // after `listen`, so a slow api or an unset secret cannot delay `/health`.
+  // It is inert (logs why, schedules nothing) when OKUVU_API_URL or
+  // OKUVU_INTERNAL_SECRET is unset, and it no-ops while the copy approval flag
+  // is false. The api owns per-client, per-IST-day idempotence.
+  reminderScheduler = new WorryTimeReminderScheduler({
+    ...reminderConfigFromEnv(),
+    log: app.log,
+  });
+  reminderScheduler.start();
 }
 
 process.on('SIGTERM', async () => {
@@ -85,6 +101,13 @@ process.on('SIGTERM', async () => {
   if (summaryConsumer) {
     await summaryConsumer.stop().catch(() => undefined);
     setActiveSummaryConsumer(null);
+  }
+  // Stop the reminder timer before Prisma disconnects; an in-flight sweep is
+  // awaited (bounded by its own request timeout), and a failure there is
+  // already logged, so shutdown does not wait on it indefinitely.
+  if (reminderScheduler) {
+    await reminderScheduler.stop().catch(() => undefined);
+    reminderScheduler = null;
   }
   const { getPrisma } = await import('./lib/prisma.js');
   await getPrisma().$disconnect();

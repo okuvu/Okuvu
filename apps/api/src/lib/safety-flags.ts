@@ -57,7 +57,17 @@ export type SafetyFlagSource =
   // Worry time (Anxiety & Worry batch, 24 Nov 2026): a parked worry is client
   // text typed outside chat, and the therapist's alert says which screen it came
   // from. Never the words.
-  | 'worry_parked';
+  | 'worry_parked'
+  /**
+   * The read-back in Unhooking from a thought (`POST /worksheets/:id/readback`).
+   *
+   * Its own source because nothing is saved at that point: the client's thought
+   * has been typed but the worksheet is not submitted, so there is no response
+   * row to point at. The flag records that a check-in happened, carries no
+   * content, and the subject id is derived from the client, the worksheet and
+   * the piece so a retry cannot double-count.
+   */
+  | 'worksheet_readback';
 
 /** Only the two levels a therapist is alerted about. S0–S2 are not flags. */
 export type SafetyFlagLevelValue = 'S3' | 'S4';
@@ -244,6 +254,10 @@ export function surfacePhraseFor(source: SafetyFlagSource | undefined): string |
       return 'a mood check-in';
     case 'worry_parked':
       return 'a parked worry';
+    case 'worksheet_readback':
+      // Deliberately not "a worksheet answer": the client had not saved
+      // anything yet, and telling a therapist they had would be wrong.
+      return 'a worksheet step';
     case 's3_grounding':
     case 'crisis_card':
     case 'third_party_crisis':

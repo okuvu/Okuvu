@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
+import 'exposure_ladder_screen.dart';
+import 'worry_time_screen.dart';
 
 /// One way to open a catalogue item, used by the Library and the Today card.
 ///
@@ -35,6 +37,22 @@ Future<void> openLibraryTool(
       // One card, two existing exercises in order: a long breath out, then
       // grounding. Nothing to type and nothing copied (owner's brief, 24 Nov 2026).
       context.push('/library/sos');
+      return;
+    case 'ws_worry_time':
+      // The daily window and the parked list are server state the worksheet
+      // runner cannot carry, so the card opens the screen that talks to
+      // /worry-time rather than a form that is mailed in at the end.
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const WorryTimeScreen()),
+      );
+      return;
+    case 'ws_exposure_ladder':
+      // Therapist-only: the api never lists it and never answers for a locked
+      // step. This case exists for the one door that does exist — the client's
+      // unlocked ladder — and never adds a card anywhere.
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const ExposureLadderScreen()),
+      );
       return;
     case 'ws_safety_plan':
       // Co-created in session: the card only exists once the therapist has

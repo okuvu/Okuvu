@@ -40,6 +40,15 @@ const DOC_24_NOV = readFileSync(
 );
 
 /**
+ * The third approved document: the nine Anxiety & Worry worksheets the owner
+ * approved on 24 Nov 2026, six as written and four after revisions.
+ */
+const DOC_ANXIETY = readFileSync(
+  join(__dirname, '../../../docs/exercise-library/34-approved-anxiety-worry-copy.md'),
+  'utf8',
+);
+
+/**
  * Normalise for comparison: the document quotes its own copy ("…"), uses curly
  * apostrophes and wraps lines, so a literal comparison would fail on typography
  * rather than on wording.
@@ -56,10 +65,15 @@ function norm(s: string): string {
 
 const DOC_NORM = norm(DOC);
 const DOC_24_NOV_NORM = norm(DOC_24_NOV);
+const DOC_ANXIETY_NORM = norm(DOC_ANXIETY);
 
 function inDoc(s: string): boolean {
   const needle = norm(s);
-  return DOC_NORM.includes(needle) || DOC_24_NOV_NORM.includes(needle);
+  return (
+    DOC_NORM.includes(needle) ||
+    DOC_24_NOV_NORM.includes(needle) ||
+    DOC_ANXIETY_NORM.includes(needle)
+  );
 }
 
 /** Every client-facing string in a body, with the path it came from. */
@@ -100,8 +114,10 @@ function entry(toolId: string): CatalogueEntry {
 }
 
 describe('catalogue content', () => {
-  it('has twenty-six approved Library entries (worksheets 1-16, plus the ten of 24 Nov)', () => {
-    expect(LISTABLE_CATALOGUE).toHaveLength(26);
+  it('has thirty-five approved entries (16 of 9 Nov, 10 and 9 of 24 Nov)', () => {
+    // The count includes the exposure ladder: it is approved, and `access_mode`
+    // is what keeps it out of the client Library.
+    expect(LISTABLE_CATALOGUE).toHaveLength(35);
   });
 
   it('validates every approved row with the same checks a save runs', () => {

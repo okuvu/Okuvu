@@ -267,6 +267,26 @@ class LibraryApi {
     );
   }
 
+  /// The read-back: the client's own words inside fixed sentences.
+  ///
+  /// The frames come from the api, never from this screen. That is the whole
+  /// point of the route: the thought is safety-checked before it is shown back,
+  /// so a thought that raises anything is withheld (`withheld: true`, no frames)
+  /// and the caller raises the safety response instead. Building the frame here
+  /// from the answer in memory would draw the words with no check at all — which
+  /// is exactly what the owner's rule (24 Nov 2026) forbids.
+  Future<WorksheetReadback> readback(String toolId, String fieldId, String text) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/worksheets/$toolId/readback',
+      data: {'fieldId': fieldId, 'text': text},
+    );
+    final rawFrames = res.data?['frames'];
+    return WorksheetReadback(
+      withheld: res.data?['withheld'] == true,
+      frames: rawFrames is List ? rawFrames.whereType<String>().toList() : const [],
+    );
+  }
+
   /// Keep a finished worksheet in the client's Treasure Box.
   ///
   /// The note is a copy of the client's own answers, so it is client-typed text
@@ -302,6 +322,17 @@ class LibraryApi {
 }
 
 /// What the api answered when a finished worksheet was handed over.
+/// What the api said about a read-back.
+///
+/// `withheld` means the safety check raised something: the frames are empty on
+/// purpose and the screen shows the safety response instead.
+class WorksheetReadback {
+  const WorksheetReadback({required this.withheld, required this.frames});
+
+  final bool withheld;
+  final List<String> frames;
+}
+
 class WorksheetSubmitResult {
   const WorksheetSubmitResult({
     required this.id,

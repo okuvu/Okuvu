@@ -14,8 +14,24 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 const mockClassifySafety = vi.hoisted(() => vi.fn());
 const mockSendWorryTimeEmail = vi.hoisted(() => vi.fn());
 
+/**
+ * The reminder copy is not approved yet, which is a real production state. These
+ * tests are about the sweep's behaviour, so the flag is a switch here: approved
+ * for the send tests, unapproved for the one that checks nothing is mailed.
+ */
+const copy = vi.hoisted(() => ({ approved: true }));
+
 vi.mock('../agents/a1/agent.js', () => ({ classifySafety: mockClassifySafety }));
 vi.mock('../lib/email.js', () => ({ sendWorryTimeEmail: mockSendWorryTimeEmail }));
+vi.mock('@okuvu/shared-types/worksheets/anxiety-worry', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    get WORRY_REMINDER_COPY_APPROVED() {
+      return copy.approved;
+    },
+  };
+});
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
@@ -265,11 +281,29 @@ describe('the worry-time reminder sweep', () => {
     }
     mockClassifySafety.mockReset();
     mockSendWorryTimeEmail.mockReset();
+    copy.approved = true;
     mockSendWorryTimeEmail.mockResolvedValue({ sent: true });
   });
 
   afterEach(() => {
     process.env = { ...ORIGINAL_ENV };
+  });
+
+  it('sends nothing at all while the wording is unapproved', async () => {
+    // The owner approves every client-facing string. A reminder arrives on a
+    // phone by itself, so an unapproved sentence is a sentence nobody signed.
+    copy.approved = false;
+    process.env.OKUVU_INTERNAL_SECRET = 'secret';
+    const server = await app();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/internal/worry-time/reminders',
+      headers: { 'x-okuvu-internal': 'secret' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ sent: 0, skipped: 0, waitingForApproval: true });
+    expect(db.worryTimeSetting.findMany).not.toHaveBeenCalled();
+    expect(mockSendWorryTimeEmail).not.toHaveBeenCalled();
   });
 
   it('is inert when no secret is configured', async () => {

@@ -133,6 +133,14 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   /// 'before' | 'pieces' | 'after' | 'did' | 'closing'
   String _stage = 'before';
 
+  /// The read-back frames the api returned, keyed by piece id, and the pieces
+  /// whose check is still running. A piece that failed is remembered so the
+  /// screen does not ask again on every rebuild — it shows the approved helper
+  /// line and no frames, which is the safe direction.
+  final Map<String, WorksheetReadback> _readbacks = {};
+  final Set<String> _readbackLoading = {};
+  final Set<String> _readbackFailed = {};
+
   /// One "what does this mean?" request at a time.
   bool _helpLoading = false;
   bool _savingToTreasure = false;
@@ -279,6 +287,37 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
         ),
       ),
     );
+  }
+
+  /// Ask the api for the read-back, and raise the safety response if it withholds
+  /// one.
+  ///
+  /// The words never pass through this screen's own substitution any more: the
+  /// api screens them with the journal's check and either returns the frames or
+  /// withholds them. A withheld read-back raises the same crisis overlay every
+  /// other screened surface raises, and the frames are not drawn.
+  Future<void> _loadReadback(WorksheetField field, String words) async {
+    if (_readbackLoading.contains(field.id)) return;
+    setState(() => _readbackLoading.add(field.id));
+    try {
+      final result = await ref
+          .read(libraryApiProvider)
+          .readback(widget.toolId, field.id, words);
+      if (!mounted) return;
+      setState(() {
+        _readbackLoading.remove(field.id);
+        _readbacks[field.id] = result;
+      });
+      if (result.withheld) {
+        ref.read(crisisOverlayProvider.notifier).show();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _readbackLoading.remove(field.id);
+        _readbackFailed.add(field.id);
+      });
+    }
   }
 
   void _goToAfter() {
@@ -885,7 +924,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       case 'instruction':
         return const SizedBox.shrink();
 
-      case 'echo':
+      case 'echo': {
         // The read-back: the client's own words inside fixed sentences. Nothing
         // is rewritten, shortened or corrected — the substitution is the whole
         // piece. When the earlier answer is missing or hidden, the frame is not
@@ -901,19 +940,53 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
             ),
           );
         }
+
+        // The frames come from the api, and only after the thought has been
+        // through the same safety check the journal uses (owner's decision,
+        // 24 Nov 2026). Building them here from `_answers` would show the words
+        // with no check at all, which is what the route exists to stop.
+        final shown = _readbacks[field.id];
+        if (shown == null) {
+          if (!_readbackLoading.contains(field.id) && !_readbackFailed.contains(field.id)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _loadReadback(field, words);
+            });
+          }
+          // Nothing is drawn while the check runs. A spinner is honest; the
+          // words are not shown until the server has cleared them.
+          if (_readbackFailed.contains(field.id)) {
+            return Text(
+              field.helper ?? '',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.inkSoft,
+                fontStyle: FontStyle.italic,
+              ),
+            );
+          }
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: LinearProgressIndicator(),
+          );
+        }
+
+        // Withheld: the check raised something, so the read-back is never drawn
+        // and the safety response takes the screen instead.
+        if (shown.withheld) return const SizedBox.shrink();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final frame in field.frames)
+            for (final frame in shown.frames)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
-                  frame.replaceAll('{answer}', words),
+                  frame,
                   style: theme.textTheme.titleMedium?.copyWith(height: 1.5),
                 ),
               ),
           ],
         );
+      }
 
       case 'short_text':
       case 'long_text':

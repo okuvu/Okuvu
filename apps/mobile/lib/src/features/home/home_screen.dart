@@ -10,6 +10,7 @@ import 'widgets/next_session_card.dart';
 import 'widgets/today_card.dart';
 import '../goals/widgets/goals_card.dart';
 import 'widgets/pending_summary_access_banner.dart';
+import 'widgets/sos_calm_card.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../settings/profile_provider.dart';
 import '../notifications/notifications_provider.dart';
@@ -135,6 +136,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Breathe, Journal, Mood check-in, Library, Treasure Box — lives under
           // the Toolkit tab so this screen stays simple.
           const TodayCard(),
+          // SOS calm, when the worksheet is approved and visible. It draws
+          // nothing at all otherwise, so the card is never a promise the
+          // Library cannot keep (owner's brief, 24 Nov 2026).
+          const SosCalmCard(),
           // The goal the pair is on now, so the client can see what they are
           // working towards between sessions. Renders nothing when there are
           // no goals.

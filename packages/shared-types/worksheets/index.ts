@@ -49,6 +49,19 @@ export const LISTABLE_CATALOGUE: CatalogueEntry[] = CATALOGUE.filter(isListable)
   (a, b) => a.sort_order - b.sort_order,
 );
 
+/**
+ * What the **client** Library may list.
+ *
+ * Approval is not publication. The exposure ladder is approved and
+ * `therapist_only`: it is built with the therapist in session, never a Library
+ * card, never assignable, never suggested by chat (owner's rule, 24 Nov 2026).
+ * The api's list query filters `access_mode` itself; this export exists so the
+ * rule has one home for anything that reads the catalogue directly.
+ */
+export const CLIENT_LIBRARY_CATALOGUE: CatalogueEntry[] = LISTABLE_CATALOGUE.filter(
+  (entry) => entry.access_mode !== 'therapist_only',
+);
+
 export const PLACEHOLDER_CATALOGUE: CatalogueEntry[] = CATALOGUE.filter(
   (entry) => entry.status === 'placeholder',
 );

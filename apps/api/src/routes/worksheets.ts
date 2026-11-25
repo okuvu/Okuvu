@@ -510,4 +510,154 @@ export async function worksheetsRoute(app: FastifyInstance): Promise<void> {
       },
     },
   );
+
+  /**
+   * The read-back, screened before it is drawn.
+   *
+   * The owner's decision (24 Nov 2026): in the Unhooking from a thought
+   * worksheet, the thought the client writes goes through the same safety check
+   * the journal uses **before** the app shows it back inside "I'm having the
+   * thought that …". If the check raises anything, the client is shown the
+   * safety response instead and the words are never drawn in the frame.
+   *
+   * Why a route rather than a client-side substitution: the old screen built the
+   * frames in Dart from the answer it held in memory, so the text appeared with
+   * no check at all. The frames now come from the server, which means there is
+   * no path that renders a client's sentence without the check having run — and
+   * a worksheet whose read-back piece is not declared `screened` is refused at
+   * validation, so a future piece cannot quietly reintroduce the old behaviour.
+   *
+   * The words are not stored by this route. Nothing is saved at this point in
+   * the worksheet, and the owner's rule is that answers stay private by default
+   * with per-entry sharing — so an unsaved answer is not an entry. What is
+   * recorded is the flag: a check-in happened, with no content on it, exactly as
+   * every other flag is recorded. `subject_id` is derived from the client, the
+   * worksheet and the piece, so a retried request cannot double-count one
+   * disclosure.
+   */
+  app.post<{
+    Params: { toolId: string };
+    Body: { fieldId?: unknown; text?: unknown };
+  }>('/worksheets/:toolId/readback', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+      const { toolId } = request.params;
+      const body = request.body ?? {};
+
+      const user = await prisma.user.findUnique({
+        where: { auth_subject: uid },
+        select: { id: true },
+      });
+      if (!user) {
+        return reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'User not found' } });
+      }
+
+      const row = await prisma.toolRegistryEntry.findUnique({
+        where: { tool_id: toolId },
+        select: {
+          tool_id: true,
+          kind: true,
+          status: true,
+          access_mode: true,
+          load_level: true,
+          content_en: true,
+          content_hi: true,
+          therapy_modality: true,
+          therapist_note: true,
+          label: true,
+          summary: true,
+          section: true,
+          est_minutes: true,
+          library_group: true,
+          sensitive_check: true,
+        },
+      });
+
+      // Same reachability rules as the save path, and for the same reason: a
+      // draft or therapist-only worksheet does not exist as far as the client
+      // app is concerned, so its read-back does not either.
+      if (!row || row.status !== 'approved' || row.kind !== 'worksheet') {
+        return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+      }
+      if (row.access_mode === 'therapist_only' || row.access_mode === 'in_session') {
+        return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+      }
+
+      const fieldId = typeof body.fieldId === 'string' ? body.fieldId : '';
+      const text = typeof body.text === 'string' ? body.text.trim() : '';
+
+      const parsed = parseWorksheetRow(row as WorksheetRegistryRow);
+      const field = parsed.english.fields.find((candidate) => candidate.id === fieldId);
+      if (!field || field.type !== 'echo') {
+        return reply.status(404).send({
+          error: { code: 'STEP_NOT_FOUND', message: 'That step is not part of this worksheet.' },
+        });
+      }
+      if (text.length === 0) {
+        // Nothing typed is nothing to screen, and nothing to show back.
+        return reply.send({ frames: [], withheld: false });
+      }
+      if (text.length > 4000) {
+        return reply.status(413).send({
+          error: { code: 'ANSWER_TOO_LARGE', message: 'That answer is too long to read back.' },
+        });
+      }
+
+      const safety = await checkClientText(text, { sensitiveCheck: row.sensitive_check });
+
+      // Any concern at all, not only a flag: the owner's rule is that the check
+      // runs before the read-back is shown and that any concern withholds it.
+      // S0 is the only level that is not a concern — S2 (moderate, including an
+      // unavailable check) withholds too, so the frame is never drawn over a
+      // thought the system could not clear.
+      const raiseConcern = safety.level !== 'S0';
+
+      if (raiseConcern) {
+        if (safety.flagged) {
+          await flagSafetyEvent({
+            userId: user.id,
+            level: safety.level,
+            source: safety.screen === 'harm_to_someone' ? 'harm_to_someone' : 'worksheet_readback',
+            subjectKind: 'worksheet_readback',
+            subjectId: `${user.id}:${toolId}:${fieldId}`,
+            urgent: safety.urgent,
+          });
+        } else if (safety.recheck) {
+          await enqueueSafetyRecheck({
+            userId: user.id,
+            surface: 'worksheet_answer',
+            subjectId: `${user.id}:${toolId}:${fieldId}`,
+          });
+        }
+
+        request.log.info({
+          event: 'worksheet_readback_withheld',
+          user_id: user.id,
+          tool_id: toolId,
+          field_id: fieldId,
+          safety_level: safety.level,
+          safety_reason: safety.reason,
+        });
+
+        return reply.send({
+          frames: [],
+          withheld: true,
+          safety: {
+            showHelp: true,
+            helpOffer: safety.helpOffer,
+            screen: safety.screen === 'harm_to_someone' ? HARM_TO_SOMEONE_SCREEN : null,
+            urgent: safety.urgent,
+          },
+        });
+      }
+
+      // Clean: the frames, with the client's own words in them and nothing else
+      // changed. The substitution is the whole piece.
+      return reply.send({
+        frames: field.frames.map((frame) => frame.replaceAll('{answer}', text)),
+        withheld: false,
+      });
+    },
+  });
 }

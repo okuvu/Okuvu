@@ -54,7 +54,8 @@ const worryTime: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 60,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
@@ -134,7 +135,8 @@ const brainDump: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 70,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
@@ -192,14 +194,15 @@ const unhookingFromAThought: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 80,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
   content_en: {
     version: 1,
     intro:
-      "A thought can feel like a fact about the world. Saying it back as a thought — in your own words — is how it starts to sound like one.",
+      "A thought can feel like a fact about the world. Saying it back as a thought, in your own words, helps it sound like what it is: a thought.",
     fields: [
       {
         id: 'thought',
@@ -221,6 +224,10 @@ const unhookingFromAThought: CatalogueEntry = {
         prompt: 'Here it is again, a little further away.',
         helper: 'These are your own words. Nothing has been changed.',
         fromField: 'thought',
+        // Screened before it is drawn (owner's decision, 24 Nov 2026): the api
+        // checks the thought with the journal's check first, and a thought that
+        // raises anything is never shown inside the frame.
+        screened: true,
         frames: [
           "I'm having the thought that {answer}",
           'I notice I\'m having the thought that {answer}',
@@ -261,14 +268,15 @@ const sosCalm: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 3,
   sort_order: 40,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'sos_calm',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
   content_en: {
     version: 1,
     intro:
-      "You don't have to explain anything. Let's take one long breath out first, then look around the room together.",
+      "You don't have to explain anything. Let's take one long breath out first, then notice what's around you.",
     fields: [
       {
         id: 'first_step',
@@ -278,7 +286,7 @@ const sosCalm: CatalogueEntry = {
       },
     ],
     closing: {
-      text: "You're here. Take your time leaving.",
+      text: 'Stay here as long as you need.',
     },
   },
   content_hi: null,
@@ -298,14 +306,15 @@ const sittingWithNotKnowing: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 90,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
   content_en: {
     version: 1,
     intro:
-      "Some things don't have an answer yet. Trying to force one can keep you awake. This is a few minutes of letting a question stay open.",
+      "Some things don't have an answer yet. Trying to force one can keep you stuck. This is a few minutes of letting a question stay open.",
     fields: [
       {
         id: 'unsure',
@@ -319,7 +328,7 @@ const sittingWithNotKnowing: CatalogueEntry = {
         type: 'scale_0_10',
         prompt: 'How uncomfortable does leaving it unknown feel?',
         minLabel: '0 = not at all',
-        maxLabel: '10 = unbearable',
+        maxLabel: '10 = very hard',
       },
       {
         id: 'small_way',
@@ -333,7 +342,7 @@ const sittingWithNotKnowing: CatalogueEntry = {
         type: 'scale_0_10',
         prompt: 'And now, having written that?',
         minLabel: '0 = not at all',
-        maxLabel: '10 = unbearable',
+        maxLabel: '10 = very hard',
       },
       {
         id: 'noticed',
@@ -363,7 +372,8 @@ const bigDayPlanner: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 70,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
@@ -431,12 +441,13 @@ const socialSituationPrep: CatalogueEntry = {
   section: 'do_what_matters',
   therapy_modality: 'Behavioural experiment for social anxiety',
   therapist_note:
-    'the prediction is written before the event and checked after it. "Didn\'t do it" is a legitimate outcome, not a failure, and the after-question stays hidden unless one of the two done outcomes is chosen.',
+    'the prediction is written before the event and checked after it. "Didn\'t do it" is a legitimate outcome, not a failure: it asks what got in the way, and each after-question is shown only for the outcome it belongs to.',
   access_mode: 'assigned',
   load_level: 'light',
   est_minutes: 10,
   sort_order: 80,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
@@ -490,6 +501,16 @@ const socialSituationPrep: CatalogueEntry = {
         helper: 'Just what happened, in plain words.',
         visibleWhen: { field: 'outcome', in: ['as_feared', 'better'] },
       },
+      {
+        // Owner's decision, 24 Nov 2026: not doing it is a legitimate outcome,
+        // so it gets its own question rather than being left blank. Optional,
+        // because the useful answer ("I was too tired") is not owed to anyone.
+        id: 'what_got_in_the_way',
+        type: 'short_text',
+        prompt: 'What got in the way?',
+        helper: 'No judgement. This helps you and your therapist plan better.',
+        visibleWhen: { field: 'outcome', in: ['didnt_do'] },
+      },
     ],
     closing: {
       text: 'A prediction written down is a prediction you can check.',
@@ -512,7 +533,8 @@ const pressureMap: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 40,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
@@ -585,7 +607,8 @@ const exposureLadder: CatalogueEntry = {
   load_level: 'demanding',
   est_minutes: 20,
   sort_order: 90,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['anxiety_worry'],
   sensitive_check: false,
@@ -633,3 +656,60 @@ export const anxietyWorryEntries: CatalogueEntry[] = [
   pressureMap,
   exposureLadder,
 ];
+
+// ─── The daily reminder's wording — NOT approved ────────────────────────────
+
+/**
+ * The worry-time reminder email, as written for the owner to approve.
+ *
+ * It is deliberately dull. The owner's constraint (24 Nov 2026) is that the
+ * subject line and the preview line must not mention worry, anxiety or mental
+ * health, because a family member may see the notification on a shared phone
+ * before the client does. So the subject is a neutral "A reminder from OKUVU",
+ * the preview is a neutral half-sentence, and the body never names the
+ * worksheet — the client knows what the time is for, and nobody else needs to.
+ *
+ * It is written here rather than in the api's email template so that the copy
+ * the client receives has one home alongside the rest of the approved content,
+ * and so a test can read it and check the two forbidden lines.
+ */
+export const WORRY_REMINDER_EMAIL = {
+  subject: 'A reminder from OKUVU',
+  /** The preview/preheader line. Neutral by design: see the note above. */
+  preview: 'The time you set aside for today.',
+  body: [
+    'Hello,',
+    '',
+    'This is the time you set aside for yourself today. It has come round.',
+    '',
+    "Open OKUVU when you're ready — everything you put aside is waiting there.",
+    '',
+    "If today doesn't work, you can move it to another time. Nothing is lost.",
+    '',
+    'OKUVU',
+  ].join('\n'),
+} as const;
+
+/**
+ * The owner has not approved the reminder's wording yet, so nothing may send it.
+ *
+ * This is the single switch the sender and the caller both read. It is `false`
+ * on purpose and stays false until the owner says the wording is approved: the
+ * sweep then sends nothing and logs once that it is waiting, rather than
+ * mailing a client copy nobody signed off. Flip it in the same change that
+ * records the approval.
+ */
+export const WORRY_REMINDER_COPY_APPROVED = false;
+
+/** The nine rows the owner approved on 24 November 2026 (his second batch). */
+export const APPROVED_ANXIETY_IDS = [
+  'ws_worry_time',
+  'ws_brain_dump',
+  'ws_unhooking',
+  'ws_sos_calm',
+  'ws_sitting_with_not_knowing',
+  'ws_exam_career_pressure',
+  'ws_social_situation_prep',
+  'ws_family_expectations',
+  'ws_exposure_ladder',
+] as const;
