@@ -289,18 +289,42 @@ export async function notifyTherapistsOfSafetyFlag(flag: {
   /** Absent on a hand-rolled test double; the email then says "in OKUVU". */
   source?: SafetyFlagSource;
 }): Promise<void> {
+  // Logging a failure must not itself fail. `identityRef` hashes a string and
+  // throws on anything else, so a flag that reached here without a user id —
+  // or a store that answered `undefined` — used to turn a caught error into an
+  // unhandled rejection. This function's whole contract is that it never
+  // throws: the flag row is the durable record, and an alerting problem is a
+  // loud log, not a crashed process.
+  const userRef = () => {
+    try {
+      return identityRef('c', flag.user_id);
+    } catch {
+      return 'client_unknown';
+    }
+  };
+  const emailRef = (value: string) => {
+    try {
+      return identityRef('c', value);
+    } catch {
+      return 'address_unknown';
+    }
+  };
+
   try {
-    const assignments = await prisma.therapistClient.findMany({
-      where: { client_user_id: flag.user_id, ended_at: null },
-      select: {
-        client_label: true,
-        therapist: { select: { email: true, name: true } },
-      },
-    });
+    // A store that answers nothing is a store with no assignments. Never let a
+    // shape surprise become a throw.
+    const assignments =
+      (await prisma.therapistClient.findMany({
+        where: { client_user_id: flag.user_id, ended_at: null },
+        select: {
+          client_label: true,
+          therapist: { select: { email: true, name: true } },
+        },
+      })) ?? [];
 
     if (assignments.length === 0) {
       console.warn('[safety-flag] no active therapist assignment for flagged client', {
-        userRef: identityRef('c', flag.user_id),
+        userRef: userRef(),
       });
       return;
     }
@@ -324,8 +348,8 @@ export async function notifyTherapistsOfSafetyFlag(flag: {
         });
       } catch (err) {
         console.error('[safety-flag] ALERT EMAIL NOT SENT', {
-          clientRef: identityRef('c', flag.user_id),
-          toRef: identityRef('c', to),
+          clientRef: userRef(),
+          toRef: emailRef(to),
           level: flag.level,
           err: err instanceof Error ? err.message : String(err),
         });
@@ -333,7 +357,7 @@ export async function notifyTherapistsOfSafetyFlag(flag: {
     }
   } catch (err) {
     console.error('[safety-flag] alert lookup failed', {
-      userRef: identityRef('c', flag.user_id),
+      userRef: userRef(),
       err: err instanceof Error ? err.message : String(err),
     });
   }

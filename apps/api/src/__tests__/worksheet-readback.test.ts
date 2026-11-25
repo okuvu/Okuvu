@@ -86,7 +86,18 @@ describe('POST /worksheets/:toolId/readback', () => {
     p.user.findUnique.mockResolvedValue({ id: MOCK_USER_ID });
     p.toolRegistryEntry.findUnique.mockResolvedValue(rowFor(TOOL_ID));
     p.safetyState.findUnique.mockResolvedValue({ safety_state_current: 'S0' });
-    p.safetyFlag.create.mockResolvedValue({ id: 'flag-1' });
+    // A realistic row: Prisma's `select` returns these six fields, so the double
+    // must too. A bare `{ id }` used to hand `notifyTherapistsOfSafetyFlag` a
+    // flag with no user id, which turned the "no assignment" warning into a
+    // thrown error — the alerting path was right, the double was not.
+    p.safetyFlag.create.mockResolvedValue({
+      id: 'flag-1',
+      user_id: MOCK_USER_ID,
+      level: 'S3',
+      occurred_at: new Date('2026-11-24T09:00:00Z'),
+      urgent: false,
+      source: 's3_grounding',
+    });
     p.safetyRecheck.upsert.mockResolvedValue({ id: 'recheck-1' });
     p.therapistClient.findMany.mockResolvedValue([]);
     mockClassifySafety.mockResolvedValue(classified('S0'));

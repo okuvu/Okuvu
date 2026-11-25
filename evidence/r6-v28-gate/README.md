@@ -1,6 +1,8 @@
 # Round six — the v2.8 gate runs, and the exception
 
-Four runs, 24 Nov 2026, on `feat/worksheet-rules`. Same instrument (v2 judge, 133
+Five runs, 24 Nov 2026, on `feat/worksheet-rules` — runs 4 and 5 exist because the
+v2.8 file's footer still said "v2.7", which a test caught; the corrected bytes had
+to be scored before they could ship. Same instrument (v2 judge, 133
 scenarios, k=3, 399 judgements), same environment read from
 `aws ecs describe-task-definition evia-beta-api` at run time
 (`evia-beta-api:99`, `qwen.qwen3-32b-v1:0`, ap-south-1), same judge prompt. The

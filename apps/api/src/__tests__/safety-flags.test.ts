@@ -224,4 +224,38 @@ describe('notifyTherapistsOfSafetyFlag', () => {
       notifyTherapistsOfSafetyFlag({ user_id: 'user_1', level: 'S3', occurred_at: new Date() }),
     ).resolves.toBeUndefined();
   });
+
+  it('never throws when the flag reaches it without a user id', async () => {
+    // A hand-rolled double can produce this; so can a partial row. Logging a
+    // missing id used to hash `undefined` and reject — an unhandled rejection
+    // from a function whose contract is "never throws". The alert is lost, and
+    // that is logged; the process stays up.
+    prismaMock.therapistClient.findMany.mockResolvedValue([]);
+    const { notifyTherapistsOfSafetyFlag } = await load();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      notifyTherapistsOfSafetyFlag({
+        // @ts-expect-error — the shape the old read-back test double produced.
+        user_id: undefined,
+        level: 'S3',
+        occurred_at: new Date(),
+      }),
+    ).resolves.toBeUndefined();
+
+    warn.mockRestore();
+  });
+
+  it('treats a store that answers nothing as having no assignments', async () => {
+    prismaMock.therapistClient.findMany.mockResolvedValue(undefined);
+    const { notifyTherapistsOfSafetyFlag } = await load();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      notifyTherapistsOfSafetyFlag({ user_id: 'user_1', level: 'S3', occurred_at: new Date() }),
+    ).resolves.toBeUndefined();
+    expect(emailMock.sendSafetyAlertEmail).not.toHaveBeenCalled();
+
+    warn.mockRestore();
+  });
 });

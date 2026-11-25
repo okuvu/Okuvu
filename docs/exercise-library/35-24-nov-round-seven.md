@@ -91,10 +91,10 @@ time", which broke the owner's constraint — that is what changed.
 - **SOS calm:** a one-tap card on Home and the screen it opens (extended exhale,
   then 5-4-3-2-1), hidden unless the worksheet is in the client's Library list.
 
-Not built, plainly: SOS calm is not yet reachable from chat — the chat has no
-worksheet opener, and adding one is a chat-surface change; and the exposure
-ladder has no client deep link, because a door to it would be a door the rule
-says must not exist (it is reached from an assignment or a notification).
+Not built, plainly: ~~SOS calm is not yet reachable from chat~~ — **now built, see
+§7**; and the exposure ladder has no client deep link, because a door to it would
+be a door the rule says must not exist (it is reached from an assignment or a
+notification).
 
 ## 6. Re-sent on request
 
@@ -102,3 +102,42 @@ says must not exist (it is reached from an assignment or a notification).
 - v2.9 wording (medication, other people, acting in anger):
   `32-v29-proposed-wording.md`, approved and applied as `a2-okuvu-v2.9.txt`,
   scored five times and **not** promoted — `evidence/r7-v29-gate/README.md`.
+
+## 7. SOS calm in chat, and one alert path that could crash
+
+Built after the brief, because the brief asked for SOS calm "on Home and in chat"
+and only Home existed.
+
+- `SosCalmChatButton` sits in the chat app bar and opens `/library/sos` — the same
+  screen Home opens, so both doors lead to the same two exercises.
+- It renders only when `ws_sos_calm` is in the client's Library listing, which is
+  the same fact the Home card reads. A draft, a withdrawn row, or a client who
+  cannot see it gets no button, no disabled icon, no tooltip that hints it exists.
+- It is hidden while the crisis overlay is up: during a crisis the safety response
+  is the only thing on screen, and a second door out of it is not help.
+- Three tests, the negative cases first: absent from the listing, present but
+  `available: false`, and present-and-available (labelled from the listing's own
+  label, not a copy).
+
+The same pass found a real defect in the alert path that the earlier green run had
+hidden. `notifyTherapistsOfSafetyFlag` documents "never throws" and did throw: its
+catch blocks logged through `identityRef('c', flag.user_id)`, and `identityRef`
+calls `.trim()` on its argument. A flag row that reached the notifier without a
+user id — which a hand-rolled test double produced, and a partial row could —
+turned a caught error into an unhandled rejection. Under Node's default that ends
+the process, on the path that tells a therapist a client is at risk.
+
+Two fixes, both in the function rather than around it:
+
+1. Logging is now failure-proof: the two reference helpers catch and fall back to
+   `client_unknown` / `address_unknown`, so a log line can never be the thing that
+   throws.
+2. A store that answers `undefined` is treated as having no assignments
+   (`?? []`) instead of dereferencing it.
+
+And the test double that exposed it is now realistic — Prisma's `select` returns
+six fields, so the mock returns six — plus two regression tests that assert the
+contract directly: no user id, and a store that answers nothing.
+
+The api suite was exiting 1 on this before the fix (2,150 passing plus 1 unhandled
+error). It exits 0 now.

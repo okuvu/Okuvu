@@ -15,6 +15,7 @@ import '../../core/websocket_service.dart';
 import 'models/chat_message.dart';
 import 'models/chat_state.dart';
 import 'widgets/reconnect_banner.dart';
+import 'widgets/sos_calm_chat_button.dart';
 import 'widgets/srs_modal.dart';
 import 'widgets/typing_indicator.dart';
 import '../../widgets/voice_toggle.dart';
@@ -372,6 +373,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ],
           ),
           actions: [
+            // SOS calm, when the worksheet is approved and visible to this
+            // client. Hidden while the crisis overlay is up: during a crisis the
+            // safety response is the only thing on screen, and a second door out
+            // of it is not helpful.
+            if (!isCrisisActive) const SosCalmChatButton(),
             // The end-of-session dialog promises the conversation is saved.
             // This is where it can be read back — without it the promise had
             // no visible destination, which is exactly what users reported.
