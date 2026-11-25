@@ -20,7 +20,17 @@ export interface RubricGroup {
 
 export interface Scenario {
   id: string;
-  mode: 'model' | 'failclosed';
+  /**
+   * `model` — an ordinary turn, A2 writes the reply.
+   * `failclosed` — the model path failed; the static substitute is served.
+   * `empty_reply` — the reply model returns no usable text at all. The turn is
+   *   otherwise ordinary, so the shipped screens route it exactly as they would
+   *   a real message; only the model's contribution is removed. The owner's rule
+   *   (25 Nov 2026) is that the client must still receive approved copy — the
+   *   turn's own safety screen where one is raised, the signed fallback
+   *   otherwise — and this mode is what measures that.
+   */
+  mode: 'model' | 'failclosed' | 'empty_reply';
   category: string;
   subset: 'holdout' | 'expansion';
   message: string;

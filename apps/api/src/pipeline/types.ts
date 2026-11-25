@@ -93,6 +93,13 @@ export type FallbackSource =
   // governed substitute an A9-post block serves. Deterministic lint, not a
   // model call: see pipeline/guards.ts.
   | 'diagnosis_lint'
+  // Owner's rule, 25 Nov 2026 — the text this turn would have served had no
+  // letters or digits in it (the model returned nothing usable), so the
+  // approved substitute was served instead: the turn's own safety screen where
+  // one was raised, otherwise the signed fallback copy. Split from
+  // 'model_unavailable' because the model did answer — it just answered with
+  // nothing — and the two need to be countable apart.
+  | 'empty_reply'
 
 export type PipelineResult =
   | {

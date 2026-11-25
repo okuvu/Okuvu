@@ -691,15 +691,15 @@ export const WORRY_REMINDER_EMAIL = {
 } as const;
 
 /**
- * The owner has not approved the reminder's wording yet, so nothing may send it.
+ * Approved by the owner, 25 Nov 2026: "Reminder email: approved as written."
  *
- * This is the single switch the sender and the caller both read. It is `false`
- * on purpose and stays false until the owner says the wording is approved: the
- * sweep then sends nothing and logs once that it is waiting, rather than
- * mailing a client copy nobody signed off. Flip it in the same change that
- * records the approval.
+ * The switch stays in place rather than being deleted — it is what makes the
+ * sender fail closed if this copy is ever revised, because a revision voids the
+ * approval and a reminder is a string that arrives on a phone by itself. Until
+ * the owner approves new wording, a revised body must set this back to false in
+ * the same change that edits it.
  */
-export const WORRY_REMINDER_COPY_APPROVED = false;
+export const WORRY_REMINDER_COPY_APPROVED = true;
 
 /** The nine rows the owner approved on 24 November 2026 (his second batch). */
 export const APPROVED_ANXIETY_IDS = [

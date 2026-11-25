@@ -1,5 +1,6 @@
 import type { ServerFrame } from '@okuvu/shared-types';
 import { prisma } from './prisma.js';
+import { resolveEmptyReply } from '../pipeline/empty-reply.js';
 
 export type SendFrame = (frame: ServerFrame) => void;
 export type LogFn = (obj: Record<string, unknown>, msg: string) => void;
@@ -79,7 +80,14 @@ export async function handleSessionOpen(ctx: SessionOpenContext): Promise<void> 
           type: 'AGENT_TURN',
           payload: {
             session_id: existingSession.id,
-            message: matchingAssistantTurn.content,
+            // Owner's rule, 25 Nov 2026 — a stored turn is not exempt. Every
+            // Turn row written before this rule existed is unguarded, so a
+            // reconnect could replay a blank one. The resolver serves approved
+            // copy instead of the blank.
+            message: resolveEmptyReply({
+              text: matchingAssistantTurn.content,
+              safetyState: 'S0',
+            }).text,
             turn_count: matchingAssistantTurn.turn_number,
             turn_id: matchingAssistantTurn.id,
             tts_url: null,

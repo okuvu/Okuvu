@@ -24,6 +24,11 @@ import { applySessionFloor, diagnosisLint, medicationTitrationCap, medicationCap
 import { recordAuditEvent } from '../lib/audit-log.js';
 import type { SafetyNotice } from '@okuvu/shared-types';
 import type { PipelineResult, StageTiming, TestModeOptions, FallbackSource } from './types.js';
+import {
+  resolveEmptyReply,
+  emptyReplyAuditAction,
+  type EmptyReplySource,
+} from './empty-reply.js';
 
 function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
   return new Error(faultType === 'timeout' ? 'injected_timeout' : 'injected_api_error');
@@ -576,6 +581,16 @@ export async function processTurn(
     const screenText = thoughts ? HARM_TO_SOMEONE_THOUGHTS_RESPONSE : HARM_TO_SOMEONE_RESPONSE;
     const harmLevel: SafetyState = effectiveSafetyState === 'S4' ? 'S4' : 'S3';
 
+    // Owner's rule, 25 Nov 2026 — the screen wins over any substitute, and the
+    // client never receives a blank. The screen text is a constant, so passing
+    // it through the resolver changes nothing today; it makes the guarantee a
+    // property of the code rather than of my reading of it.
+    const servedScreenText = resolveEmptyReply({
+      text: screenText,
+      screenText,
+      safetyState: harmLevel,
+    }).text;
+
     const persistStart = now();
     const harmTurnCount = await incrementTurnCount(sessionId);
     await prisma.turn.create({
@@ -587,7 +602,7 @@ export async function processTurn(
     const harmAssistantTurn = await prisma.turn.create({
       data: {
         session_id: sessionId, user_id: user.id, turn_number: harmTurnCount,
-        role: 'assistant', content: screenText,
+        role: 'assistant', content: servedScreenText,
       },
       select: { id: true },
     });
@@ -633,7 +648,7 @@ export async function processTurn(
 
     return {
       type: 'agent_turn',
-      message: screenText,
+      message: servedScreenText,
       turnCount: harmTurnCount,
       turnId: harmAssistantTurn?.id ?? null,
       timing,
@@ -783,6 +798,13 @@ export async function processTurn(
   // to review), same shape as the existing A9-post-blocked path below but
   // triggered pre-emptively instead of post-hoc.
   let a9PreBlocked = false;
+  // ─── Owner's rule, 25 Nov 2026 — never serve a blank turn ────────────────
+  //
+  // Set when the text this turn would have served had no letters or digits in
+  // it and the approved substitute was served instead. Null on every ordinary
+  // turn. See pipeline/empty-reply.ts for why this exists and what each branch
+  // serves.
+  let emptyReplySource: EmptyReplySource | null = null;
   // OKUVU v2.0: set when A8 routed this turn to agent='deterministic-grounding'
   // — A1 classified S3 (elevated risk). Same shape as a9PreBlocked: a real,
   // persisted turn with static content, no real A2 call, no A9-post review.
@@ -1104,6 +1126,34 @@ export async function processTurn(
 
   const newTurnCount = await incrementTurnCount(sessionId);
 
+  // ─── Owner's rule, 25 Nov 2026 — the last gate before the client ─────────
+  //
+  // Everything above can produce text, and two of those paths produce text no
+  // human wrote: A2's own output, and anything a substitute put in its place.
+  // In the round-five and round-six runs the model sometimes returned nothing
+  // at all, and that nothing was persisted and sent. This is the one place
+  // every A2-path text passes through before it becomes a Turn row, so it is
+  // where "the client never receives a blank" is enforced rather than hoped
+  // for. On a turn that already raised a safety screen the screen wins; on any
+  // other it is the signed fallback copy (pipeline/empty-reply.ts).
+  //
+  // The static substitutes above (crisis card, grounding card, medical copy,
+  // A9-pre block) are constants, so this is a no-op for them by construction —
+  // which is the point: the guarantee does not depend on my reading of five
+  // branches.
+  {
+    const resolved = resolveEmptyReply({ text: finalText, safetyState: effectiveSafetyState });
+    if (resolved.source !== null) {
+      emptyReplySource = resolved.source;
+      finalText = resolved.text;
+      a2Fallback = true;
+      fallbackSource = 'empty_reply';
+      safetyNotice = { code: 'EMPTY_REPLY_SUBSTITUTED', reason: 'model_returned_no_text' };
+      turnModelVersion = null;
+      turnPromptVersion = null;
+    }
+  }
+
   const [userTurn, assistantTurn] = await prisma.$transaction([
     prisma.turn.create({
       data: {
@@ -1228,9 +1278,11 @@ export async function processTurn(
       ? 'SAFETY_UNAVAILABLE_FALLBACK'
       : fallbackSource === 'model_unavailable' || fallbackSource === 'model_throttled'
         ? 'MODEL_UNAVAILABLE_FALLBACK'
-        : fallbackSource
-          ? 'TURN_FALLBACK_SERVED'
-          : 'TURN_COMPLETED';
+        : fallbackSource === 'empty_reply'
+          ? emptyReplyAuditAction(emptyReplySource)
+          : fallbackSource
+            ? 'TURN_FALLBACK_SERVED'
+            : 'TURN_COMPLETED';
 
   await recordAuditEvent({
     actor: 'pipeline',
@@ -1240,6 +1292,9 @@ export async function processTurn(
       safety_state: effectiveSafetyState,
       governance_state: governanceState,
       fallback_source: fallbackSource ?? 'none',
+      // Owner's rule, 25 Nov 2026: null on every ordinary turn. When set, it
+      // says which approved substitute the client got instead of a blank.
+      empty_reply_source: emptyReplySource,
       safety_code: safetyNotice?.code ?? 'none',
       classifier_fallback: a1FallbackUsed,
       // §7 — what the model said versus what the session floor allowed. Null

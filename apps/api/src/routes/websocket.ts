@@ -8,6 +8,7 @@ import { closeSession } from '../lib/session-close.js';
 import type { ServerFrame, UserTurnFrame, SessionCloseFrame, CloseReason } from '@okuvu/shared-types';
 import { processTurn } from '../pipeline/orchestrator.js';
 import { BUDGET_PAUSED_RESPONSE } from '../pipeline/fallbacks.js';
+import { resolveEmptyReply } from '../pipeline/empty-reply.js';
 import { setToolResult, clearToolResult } from '../lib/tool-result-store.js';
 import { clearRetrievedContext } from '../lib/retrieved-context-cache.js';
 import { checkRateLimit } from '../lib/rate-limit.js';
@@ -369,7 +370,15 @@ export async function websocketRoute(app: FastifyInstance): Promise<void> {
             type: 'AGENT_TURN',
             payload: {
               session_id,
-              message: result.message,
+              // Owner's rule, 25 Nov 2026 — the last mile. The pipeline already
+              // substitutes before it persists, so this is a no-op on every turn
+              // that reaches here today; it is on the wire because "never blank"
+              // has to hold at the point the client actually reads, not only at
+              // the point the turn is written.
+              message: resolveEmptyReply({
+                text: result.message,
+                safetyState: result.safety?.code === 'CRISIS_FLOOR' ? 'S4' : 'S0',
+              }).text,
               turn_count: result.turnCount,
               turn_id: result.turnId,
               tts_url: null,

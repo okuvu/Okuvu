@@ -204,10 +204,15 @@ describe('the read-back cannot skip its check', () => {
 });
 
 describe('the worry-time reminder wording', () => {
-  it('is not approved, so nothing may send it', () => {
-    // A single switch, read by the sender and by the caller. It flips only in
-    // the change that records the owner's approval.
-    expect(WORRY_REMINDER_COPY_APPROVED).toBe(false);
+  it('is approved, and the switch that guards it still exists', () => {
+    // The owner approved this wording on 25 Nov 2026 ("Reminder email:
+    // approved as written"), and flipping the switch was that change. The
+    // switch is not deleted, because a later edit to the copy voids the
+    // approval: whoever revises the body must set this back to false in the
+    // same change. Asserted as a boolean rather than as a bare truth, so the
+    // guard cannot be removed by accident either.
+    expect(typeof WORRY_REMINDER_COPY_APPROVED).toBe('boolean');
+    expect(WORRY_REMINDER_COPY_APPROVED).toBe(true);
   });
 
   it('names nothing in the subject or the preview line', () => {

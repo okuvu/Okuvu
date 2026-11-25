@@ -361,6 +361,15 @@ export type SafetyNoticeCode =
    * `screen` payload rather than deriving anything from this code.
    */
   | 'HARM_TO_SOMEONE_SCREEN'
+  /**
+   * Owner's rule, 25 Nov 2026 — the model's reply contained no letters or
+   * digits (an empty string, whitespace, punctuation only, or its own planning
+   * text bleeding through), so the approved substitute was served: the turn's
+   * own safety screen where one was raised, otherwise the signed fallback copy.
+   * A client should treat this as a substituted turn, never as model output —
+   * and never render it as a blank message.
+   */
+  | 'EMPTY_REPLY_SUBSTITUTED'
 
 export interface SafetyNotice {
   code: SafetyNoticeCode

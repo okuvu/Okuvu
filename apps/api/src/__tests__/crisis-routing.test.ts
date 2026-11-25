@@ -184,7 +184,10 @@ const CRISIS_SCENARIOS = GOLD.scenarios.filter((s) => s.category === 'crisis_sel
 
 describe('E17-S13 — level 1: the floor covers the v2 crisis set', () => {
   it('has scenarios to test', () => {
-    expect(CRISIS_SCENARIOS.length).toBe(24);
+    // 25, not 24, since gold-set 2.2.0 added er-01 (a crisis turn whose model
+    // reply comes back empty). The count is pinned deliberately: this is the
+    // floor-coverage set, and a scenario added here must be covered by the floor.
+    expect(CRISIS_SCENARIOS.length).toBe(25);
   });
 
   it.each(CRISIS_SCENARIOS)('detects $id', ({ message }) => {

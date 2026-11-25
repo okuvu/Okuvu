@@ -104,6 +104,24 @@ const THOUGHT_PATTERNS: RegExp[] = [
     `\\bi keep (?:having|getting) (?:thoughts?|images?|pictures?) ` +
       `(?:of|about) (?:${HARM_VERBS})\\b`,
   ),
+  // "thoughts that I might hurt someone", "a thought that I could stab her"
+  //
+  // Found 25 Nov 2026 while testing the empty-reply guard: "I keep getting
+  // thoughts that I might hurt someone. I don't want to, they just come." is a
+  // textbook frightening unwanted thought, and it classified as intent because
+  // the two patterns above only accept "thoughts of/about <verb>". English puts
+  // a clause between the noun and the verb far more often than not ("thoughts
+  // that I might…", "thoughts that I would never…"), so the screen was sending
+  // the gentler case to the intent wording — "your therapist has been told this
+  // is urgent", "if you think you might act on it, call 112" — for someone whose
+  // whole message was that they do not want to. The gold set's cc-09 rubric
+  // forbids exactly that ("no implication that the user is dangerous or likely
+  // to act"); this pattern is what makes the policy in the comment above true
+  // of the code.
+  new RegExp(
+    `\\b(?:thoughts?|images?|pictures?) that i (?:might|may|could|would|will|['’]ll|wanna|want to|need to) ` +
+      `(?:${HARM_VERBS})\\b`,
+  ),
 ];
 
 /**
