@@ -11,9 +11,11 @@ import { describe, expect, it } from 'vitest';
 import {
   APPROVED_DOC_PATH,
   DRAFT_DOC_PATH,
+  LOW_MOOD_APPROVED_DOC_PATH,
   LOW_MOOD_DRAFT_DOC_PATH,
   buildApprovedDoc,
   buildDraftDoc,
+  buildLowMoodApprovedDoc,
   buildLowMoodDraftDoc,
 } from '../worksheets/emit-drafts';
 import { APPROVED_24_NOV_IDS, draftEntries } from '../worksheets/emit-sql';
@@ -23,6 +25,7 @@ const ROOT = join(__dirname, '../../..');
 const DRAFT_FILE = join(ROOT, DRAFT_DOC_PATH);
 const APPROVED_FILE = join(ROOT, APPROVED_DOC_PATH);
 const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFT_DOC_PATH);
+const LOW_MOOD_APPROVED_FILE = join(ROOT, LOW_MOOD_APPROVED_DOC_PATH);
 
 const writing = (): boolean => process.env.WRITE_DRAFT_DOC === '1';
 
@@ -99,22 +102,54 @@ describe('Low Mood draft review document', () => {
     expect(readFileSync(LOW_MOOD_FILE, 'utf8')).toBe(doc);
   });
 
-  it('covers all nine, in the owner’s order, and says it is not approved', () => {
+  it('reports nothing waiting once all nine are approved', () => {
     const doc = buildLowMoodDraftDoc();
-    expect(doc).toContain('NOT approved');
-    expect(doc).toContain('switched off for clients');
+    expect(doc).toContain('No worksheet is waiting for approval.');
+    // The nine were approved on 24 Nov 2026, so no row id is left in the draft
+    // document — it carries no bodies at all.
+    for (const id of LOW_MOOD_BATCH_IDS) {
+      expect(doc, id).not.toContain(`\`${id}\``);
+    }
+  });
+});
+
+describe('Low Mood approval document', () => {
+  it('matches the catalogue', () => {
+    const doc = buildLowMoodApprovedDoc();
+    if (writing()) {
+      write(LOW_MOOD_APPROVED_FILE, doc);
+      return;
+    }
+    expect(existsSync(LOW_MOOD_APPROVED_FILE)).toBe(true);
+    expect(readFileSync(LOW_MOOD_APPROVED_FILE, 'utf8')).toBe(doc);
+  });
+
+  it('covers all nine, in the owner’s order, and records the date', () => {
+    const doc = buildLowMoodApprovedDoc();
+    expect(doc).toContain('24 November 2026');
     let cursor = -1;
     for (const id of LOW_MOOD_BATCH_IDS) {
       const at = doc.indexOf(`\`${id}\``);
       expect(at, id).toBeGreaterThan(-1);
-      // In the owner's order, not the catalogue's append order.
       expect(at, id).toBeGreaterThan(cursor);
       cursor = at;
     }
   });
 
-  it('shows the two mechanisms in words, so they can be reviewed with the copy', () => {
-    const doc = buildLowMoodDraftDoc();
+  it('shows the four revised lines, not the text they replaced', () => {
+    const doc = buildLowMoodApprovedDoc();
+    expect(doc).toContain('Sitting outside at sunset');
+    expect(doc).not.toContain('Sitting on the terrace at sunset');
+    expect(doc).toContain('Who would you like to be back in touch with?');
+    expect(doc).not.toContain('Who do you miss?');
+    expect(doc).toContain('This is a question therapists often ask.');
+    expect(doc).not.toContain('This is an old question and it still works.');
+    expect(doc).toContain('Something of my own');
+    expect(doc).toContain('What strength would you add?');
+  });
+
+  it('shows the two mechanisms in words, so the approval covers them too', () => {
+    const doc = buildLowMoodApprovedDoc();
     expect(doc).toContain('Carries over:');
     expect(doc).toContain('ws_small_things');
     expect(doc).toContain('Nothing is saved on the client');
@@ -122,10 +157,8 @@ describe('Low Mood draft review document', () => {
     expect(doc).toContain('no score, no average, no ranking of feelings');
   });
 
-  it('never renders the therapist note to the reviewer as client copy', () => {
-    const doc = buildLowMoodDraftDoc();
-    // The header names the modality is therapist-only by omission: the row's
-    // therapist_note is not in the document at all.
+  it('never renders the therapist note as client copy', () => {
+    const doc = buildLowMoodApprovedDoc();
     expect(doc).not.toContain('Carry the deeper safety screen');
   });
 });

@@ -56,12 +56,13 @@ describe('worksheet preview', () => {
     }
   });
 
-  it('has Hinglish only for the sixteen approved earlier, not for the nineteen of 24 Nov', () => {
+  it('has no Hinglish for the rows approved on 24 Nov, only the sixteen of 9 Nov', () => {
     // The 24 Nov approvals were English-only: the Hinglish gate is released per
     // row after review, so a newly approved worksheet must not arrive with a
     // translation nobody has read. The translations are the owner's to approve
     // separately (his instruction, 24 Nov 2026: "noted for later"), so this list
-    // stays at nineteen until he releases them one by one.
+    // grows with every English-only batch: nineteen after Stress & Burnout and
+    // Anxiety & Worry, twenty-eight once the nine Low Mood rows were approved.
     const withoutHinglish = LISTABLE_CATALOGUE.filter(
       (entry) => parseWorksheetRow(row(entry)).hinglish === null,
     ).map((entry) => entry.tool_id);
@@ -70,16 +71,25 @@ describe('worksheet preview', () => {
       'ws_boundary_planner',
       'ws_brain_dump',
       'ws_caring_load_check',
+      'ws_comparison_check',
       'ws_exam_career_pressure',
       'ws_exposure_ladder',
       'ws_family_expectations',
+      'ws_inner_critic',
+      'ws_miracle_question',
+      'ws_mood_activity_log',
+      'ws_one_small_thing',
       'ws_priority_sorter',
       'ws_pros_cons_change',
+      'ws_reconnect_planner',
       'ws_rest_break',
       'ws_scrolling_log',
       'ws_sitting_with_not_knowing',
       'ws_social_situation_prep',
       'ws_sos_calm',
+      'ws_strengths',
+      'ws_things_i_might_enjoy',
+      'ws_tiny_steps',
       'ws_unhooking',
       'ws_unsent_letter',
       'ws_weekly_load_check',
@@ -100,5 +110,45 @@ describe('worksheet preview', () => {
       expect(listableIds.has(placeholder.tool_id)).toBe(false);
       expect(placeholder.content_en).toBeNull();
     }
+  });
+
+  /**
+   * The preview renders the read-back and the hand-off button from the parsed
+   * content, not from a hard-coded list, so both have to survive validation and
+   * name the fields they read. If either is dropped here, the therapist previews
+   * a worksheet that is missing a piece the client will see.
+   */
+  it('carries the weekly read-back through to the preview', () => {
+    const log = LISTABLE_CATALOGUE.find((entry) => entry.tool_id === 'ws_mood_activity_log');
+    expect(log).toBeTruthy();
+    const parsed = parseWorksheetRow(row(log!));
+    const review = parsed.english.review;
+    expect(review).toBeTruthy();
+    expect(review!.withinDays).toBe(7);
+    // Both named pieces exist earlier in the same body, with the right types.
+    const ids = parsed.english.fields.map((field) => field.id);
+    expect(ids).toContain(review!.activityField);
+    expect(ids).toContain(review!.feelingsField);
+    const activity = parsed.english.fields.find((field) => field.id === review!.activityField);
+    const feelings = parsed.english.fields.find((field) => field.id === review!.feelingsField);
+    expect(activity?.type).toBe('short_text');
+    expect(feelings?.type).toBe('feelings_picker');
+  });
+
+  it('carries the hand-off button through to the preview, pointing somewhere real', () => {
+    const enjoy = LISTABLE_CATALOGUE.find((entry) => entry.tool_id === 'ws_things_i_might_enjoy');
+    expect(enjoy).toBeTruthy();
+    const parsed = parseWorksheetRow(row(enjoy!));
+    const handOff = parsed.english.closing?.handOff;
+    expect(handOff).toBeTruthy();
+    expect(handOff!.label).toBe('Take these to my Small things planner');
+    // The target worksheet exists and has the column the picks land in, so the
+    // button can never point at nothing.
+    const target = LISTABLE_CATALOGUE.find((entry) => entry.tool_id === handOff!.toolId);
+    expect(target).toBeTruthy();
+    const targetParsed = parseWorksheetRow(row(target!));
+    const targetField = targetParsed.english.fields.find((field) => field.id === handOff!.targetField);
+    if (targetField?.type !== 'row_list') throw new Error('the hand-off target must be a list');
+    expect(targetField.columns.some((column) => column.id === handOff!.targetColumn)).toBe(true);
   });
 });

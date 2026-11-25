@@ -86,6 +86,16 @@ describe('rule 1 — care plan labels', () => {
     ['ws_social_situation_prep', ['anxiety_worry']],
     ['ws_family_expectations', ['anxiety_worry']],
     ['ws_exposure_ladder', ['anxiety_worry']],
+    // The nine the owner approved on 24 Nov 2026, all Low Mood.
+    ['ws_one_small_thing', ['low_mood']],
+    ['ws_mood_activity_log', ['low_mood']],
+    ['ws_strengths', ['low_mood']],
+    ['ws_things_i_might_enjoy', ['low_mood']],
+    ['ws_tiny_steps', ['low_mood']],
+    ['ws_inner_critic', ['low_mood']],
+    ['ws_reconnect_planner', ['low_mood']],
+    ['ws_comparison_check', ['low_mood']],
+    ['ws_miracle_question', ['low_mood']],
   ];
 
   it('labels every approved entry exactly as the owner listed them', () => {
@@ -167,11 +177,11 @@ describe('rule 2 — a new worksheet starts switched off', () => {
     };
     expect(LISTABLE_CATALOGUE.includes(draft)).toBe(false);
     // `isListable` is the one filter every list uses. Restated as the property
-    // rather than as "no row is a draft": the Low Mood batch briefed on 24 Nov
-    // 2026 is deliberately all draft, and every one of those rows has to be
-    // invisible to a client while staying previewable by a therapist.
+    // rather than as "no row is a draft", because the number of drafts depends
+    // on how far the owner has got through the wording. As of 24 Nov 2026 every
+    // worksheet that exists is approved, so that number is 0 — the property is
+    // what still matters for the next batch: a draft row is never listable.
     const drafts = CATALOGUE.filter((r) => r.status === 'draft');
-    expect(drafts.length).toBeGreaterThan(0);
     for (const row of drafts) expect(LISTABLE_CATALOGUE.includes(row)).toBe(false);
     const probe: CatalogueEntry = {
       ...entry('ws_worry_tree'),
@@ -213,12 +223,18 @@ describe('rule 3 — the deeper screen belongs to the five named worksheets', ()
   });
 
   it('leaves every approved worksheet on the screen its row asks for', () => {
-    // The Doomscroll log and the Unsent letter are both approved now and both
-    // carry the deeper screen, so "approved" and "deeper screen" are not
-    // exclusive sets. What must stay true: an approved row never quietly loses
-    // the deeper screen, and no other approved row gains it.
+    // Four approved rows carry the deeper screen now: the Doomscroll log, the
+    // Unsent letter, Meet the inner critic and the Comparison check. "Approved"
+    // and "deeper screen" are not exclusive sets. What must stay true: an
+    // approved row never quietly loses the deeper screen, and no other approved
+    // row gains it.
     const deeper = LISTABLE_CATALOGUE.filter((row) => row.sensitive_check).map((row) => row.tool_id);
-    expect(deeper.sort()).toEqual(['ws_scrolling_log', 'ws_unsent_letter']);
+    expect(deeper.sort()).toEqual([
+      'ws_comparison_check',
+      'ws_inner_critic',
+      'ws_scrolling_log',
+      'ws_unsent_letter',
+    ]);
   });
 
   it('never asks for weight, measurements, calories, food amounts or medicines', () => {
@@ -424,15 +440,20 @@ describe('the Low Mood batch of 24 November 2026', () => {
     expect(entry('ws_miracle_question').label).not.toBe('The miracle question');
   });
 
-  it('keeps every one switched off for clients', () => {
+  it('is on for clients only because the owner approved the wording', () => {
     // Rule 2: a new worksheet starts draft, and cannot be listed, opened or
-    // assigned. Approval is the only thing that changes this.
+    // assigned. Approval is the only thing that changes this — and on 24 Nov
+    // 2026 the owner approved all nine, so every row here is approved, dated,
+    // and listable. The draft half of the rule is proven where it lives: the
+    // generated Low Mood drafts migration still writes all nine as `draft`.
     for (const [id] of BATCH) {
       const row = entry(id);
-      expect(row.status, id).toBe('draft');
-      expect(isListable(row), id).toBe(false);
-      expect(LISTABLE_CATALOGUE.includes(row), id).toBe(false);
-      expect(CLIENT_LIBRARY_CATALOGUE.includes(row), id).toBe(false);
+      expect(row.status, id).toBe('approved');
+      expect(row.approved_at, id).toBe('2026-11-24');
+      expect(isListable(row), id).toBe(true);
+      expect(LISTABLE_CATALOGUE.includes(row), id).toBe(true);
+      // None of the nine is therapist-only, so all nine reach a client.
+      expect(CLIENT_LIBRARY_CATALOGUE.includes(row), id).toBe(true);
     }
   });
 

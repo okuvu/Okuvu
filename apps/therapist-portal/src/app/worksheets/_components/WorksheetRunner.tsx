@@ -71,6 +71,7 @@ export function WorksheetRunner({ content, personalNote, hingeContent }: Props) 
       <div className="space-y-4">
         <ProgressBar value={1} />
         {active.closing?.text && <p className="text-base text-gray-900">{active.closing.text}</p>}
+        {active.review && <ReviewPreview review={active.review} answers={answers} />}
         <div className="flex flex-wrap gap-2">
           {(active.closing?.buttons ?? []).map((button) => (
             <button
@@ -83,10 +84,22 @@ export function WorksheetRunner({ content, personalNote, hingeContent }: Props) 
               {button.label}
             </button>
           ))}
+          {active.closing?.handOff && (
+            <button
+              type="button"
+              disabled
+              className="rounded-lg border border-hairline px-4 py-2 text-sm font-medium text-gray-700 opacity-60"
+              title="Preview only — in the app this opens the planner prefilled and saves nothing"
+            >
+              {active.closing.handOff.label}
+            </button>
+          )}
         </div>
         <p className="text-xs text-gray-500">
           End of worksheet. In the app these buttons finish the worksheet, and where the copy offers
-          it, save an answer to the client&rsquo;s Treasure Box.
+          it, save an answer to the client&rsquo;s Treasure Box. The hand-off button opens the target
+          worksheet with the picked labels already in place &mdash; it shows the client their own draft
+          to save, and never saves anything for them.
         </p>
         <button
           type="button"
@@ -669,6 +682,59 @@ function RowCell({
 /** Kept exported so a page can show "does this worksheet ask anything yet". */
 export function previewIsEmpty(content: WorksheetContent): boolean {
   return content.fields.every((f) => f.type === 'instruction') || content.fields.length === 0;
+}
+
+/**
+ * The read-back a worksheet shows the client once it has saved entries.
+ *
+ * Rendered here so the therapist sees the same card the client sees, built from
+ * the same three content keys the api reads: the window, the activity piece and
+ * the feelings piece. In the app it is populated from the client's saved rows;
+ * in the preview there is one entry — whatever the therapist just typed — and
+ * the card says so, rather than faking a week of data.
+ */
+function ReviewPreview({
+  review,
+  answers,
+}: {
+  review: NonNullable<WorksheetContent['review']>;
+  answers: WorksheetAnswers;
+}) {
+  const activityRaw = answers[review.activityField];
+  const activity = typeof activityRaw === 'string' ? activityRaw.trim() : '';
+  const feelingsRaw = answers[review.feelingsField];
+  const feelings =
+    typeof feelingsRaw === 'object' &&
+    feelingsRaw !== null &&
+    'picked' in feelingsRaw &&
+    Array.isArray((feelingsRaw as { picked?: unknown }).picked)
+      ? ((feelingsRaw as { picked: string[] }).picked ?? [])
+      : [];
+
+  return (
+    <div className="rounded-xl bg-lavender-wash p-4" data-testid="worksheet-review-preview">
+      <p className="text-sm font-semibold text-gray-900">
+        Your last {review.withinDays} days, in your own words
+      </p>
+      {activity ? (
+        <div className="mt-2">
+          <p className="text-sm font-medium text-gray-900">{activity}</p>
+          {feelings.length > 0 && (
+            <p className="text-xs text-gray-600">{feelings.join(', ')}</p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-gray-500">
+          In the app this lists each entry the client saved, grouped by the activity words they wrote.
+        </p>
+      )}
+      <p className="mt-3 text-[11px] text-gray-500">
+        Preview &mdash; the app shows the client&rsquo;s own saved entries from the last{' '}
+        {review.withinDays} days, grouped by the words they used. No score, no average, and no
+        ranking of feelings.
+      </p>
+    </div>
+  );
 }
 
 export function answeredSomething(answers: WorksheetAnswers): boolean {

@@ -33,6 +33,15 @@ export const APPROVED_DOC_PATH = 'docs/exercise-library/25-approved-stress-burno
  */
 export const LOW_MOOD_DRAFT_DOC_PATH = 'docs/exercise-library/34-draft-low-mood-copy.md';
 
+/**
+ * The Low Mood approval record.
+ *
+ * Its own document, for the same reason the Stress & Burnout approval has one:
+ * the draft the owner read and the copy he approved are two records, not one
+ * file rewritten after the fact.
+ */
+export const LOW_MOOD_APPROVED_DOC_PATH = 'docs/exercise-library/38-approved-low-mood-copy.md';
+
 /** The batches the first draft document covers. */
 const EARLIER_BATCH_IDS = new Set<string>([...DRAFT_BATCH_IDS, ...ANXIETY_DRAFT_BATCH_IDS]);
 
@@ -294,19 +303,20 @@ export function buildDraftDoc(): string {
 }
 
 /**
- * The Low Mood batch of 24 November 2026, in the words that would ship.
+ * The Low Mood batch of 24 November 2026.
  *
  * Generated for the same reason as every other review document: what the owner
- * reads cannot describe a worksheet differently from the app. Every row is
- * `draft`, so nothing here is live.
+ * reads cannot describe a worksheet differently from the app. All nine were
+ * `draft` when he read them; he approved all nine on 24 November 2026, so this
+ * document now reports nothing waiting. The approved wording is recorded in
+ * `38-approved-low-mood-copy.md`.
  */
 export function buildLowMoodDraftDoc(): string {
   const out: string[] = [];
-  const drafts = LOW_MOOD_BATCH_IDS.map((id) => {
-    const found = CATALOGUE.find((row) => row.tool_id === id);
-    if (!found) throw new Error(`low mood doc row "${id}" is not in the catalogue`);
-    return found;
-  });
+  const drafts = draftEntries().filter((entry) =>
+    LOW_MOOD_BATCH_IDS.includes(entry.tool_id as never),
+  );
+  const waiting = drafts.length > 0;
 
   out.push(
     '# Low Mood worksheets — draft wording for review, NOT approved',
@@ -314,10 +324,18 @@ export function buildLowMoodDraftDoc(): string {
     'Generated from `packages/shared-types/worksheets/low-mood.ts`. Do not edit by hand:',
     'change the catalogue, then regenerate.',
     '',
-    `**Status: drafts.** These ${drafts.length} worksheets are written and none of them is`,
-    'approved. Every one is switched off for clients: no card in their Library, no direct',
-    'open, no assignment from the portal. A therapist can preview them. Nothing is switched',
-    'on until you say the wording is approved.',
+    waiting
+      ? `**Status: drafts.** These ${drafts.length} worksheets are written and none of them is`
+      : '**Status: none waiting.** The owner approved all nine Low Mood worksheets on',
+    waiting
+      ? 'approved. Every one is switched off for clients: no card in their Library, no direct'
+      : '24 November 2026, after the four revisions he asked for. The approved wording is in',
+    waiting
+      ? 'open, no assignment from the portal. A therapist can preview them. Nothing is switched'
+      : '`38-approved-low-mood-copy.md`. Nothing here is awaiting a read, and this document',
+    waiting
+      ? 'on until you say the wording is approved.'
+      : 'carries no worksheet bodies.',
     '',
     'All nine go through the same safety check the journal uses on every written and spoken',
     'answer, with the same response. Meet the inner critic and the Comparison check also',
@@ -333,6 +351,10 @@ export function buildLowMoodDraftDoc(): string {
     '',
   );
 
+  if (!waiting) {
+    out.push('No worksheet is waiting for approval.', '');
+  }
+
   for (const entry of drafts) {
     out.push(`## ${TITLE[entry.tool_id] ?? entry.label}`, '');
     out.push(`**The brief:** ${BRIEF[entry.tool_id] ?? ''}`, '');
@@ -342,14 +364,51 @@ export function buildLowMoodDraftDoc(): string {
     out.push('', '---', '');
   }
 
+  return out.join('\n');
+}
+
+/**
+ * The nine Low Mood rows the owner approved on 24 November 2026.
+ *
+ * The record of the approval, in the words that ship. Generated so it cannot
+ * describe a worksheet differently from the app, and separate from the draft
+ * document so the draft that was read and the copy that was approved are two
+ * documents rather than one silently rewritten.
+ */
+export function buildLowMoodApprovedDoc(): string {
+  const out: string[] = [];
+
   out.push(
-    '## To approve',
+    '# Low Mood worksheets — approved wording',
     '',
-    'Reply with the worksheet names whose wording is approved, and any line you want',
-    'changed. Approval flips that row to `approved` in a new migration: the wording itself',
-    'is edited in `packages/shared-types/worksheets/low-mood.ts`, never in a screen.',
+    'Generated from `packages/shared-types/worksheets/low-mood.ts`. Do not edit by hand:',
+    'change the catalogue, then regenerate.',
+    '',
+    '**Status: approved.** The owner approved these nine on 24 November 2026 — five as',
+    'written, four after the revisions he asked for: Things I might enjoy ("Sitting outside',
+    'at sunset"), Reconnect planner ("Who would you like to be back in touch with?" and its',
+    'helper), The morning after a miracle ("This is a question therapists often ask"), and',
+    'Strengths spotting (a "Something of my own" option with its own short answer).',
+    '',
+    'All nine go through the same safety check the journal uses on every written and spoken',
+    'answer. Meet the inner critic and the Comparison check also carry the deeper screen.',
+    'None asks for weight, body measurements, calories, food amounts or medicines, and none',
+    'adds answers into a total, a level or a label.',
+    '',
+    '---',
     '',
   );
+
+  for (const id of LOW_MOOD_BATCH_IDS) {
+    const entry = CATALOGUE.find((row) => row.tool_id === id);
+    if (!entry) throw new Error(`approved low mood doc row "${id}" is not in the catalogue`);
+    out.push(`## ${TITLE[id] ?? entry.label}`, '');
+    out.push(`**The brief:** ${BRIEF[id] ?? ''}`, '');
+    out.push(...header(entry));
+    out.push('');
+    if (entry.content_en) out.push(...bodyLines(entry.content_en));
+    out.push('', '---', '');
+  }
 
   return out.join('\n');
 }

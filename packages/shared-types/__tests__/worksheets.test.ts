@@ -49,6 +49,15 @@ const DOC_ANXIETY = readFileSync(
 );
 
 /**
+ * The fourth approved document: the nine Low Mood worksheets the owner approved
+ * on 24 Nov 2026, five as written and four after revisions.
+ */
+const DOC_LOW_MOOD = readFileSync(
+  join(__dirname, '../../../docs/exercise-library/38-approved-low-mood-copy.md'),
+  'utf8',
+);
+
+/**
  * Normalise for comparison: the document quotes its own copy ("…"), uses curly
  * apostrophes and wraps lines, so a literal comparison would fail on typography
  * rather than on wording.
@@ -66,13 +75,15 @@ function norm(s: string): string {
 const DOC_NORM = norm(DOC);
 const DOC_24_NOV_NORM = norm(DOC_24_NOV);
 const DOC_ANXIETY_NORM = norm(DOC_ANXIETY);
+const DOC_LOW_MOOD_NORM = norm(DOC_LOW_MOOD);
 
 function inDoc(s: string): boolean {
   const needle = norm(s);
   return (
     DOC_NORM.includes(needle) ||
     DOC_24_NOV_NORM.includes(needle) ||
-    DOC_ANXIETY_NORM.includes(needle)
+    DOC_ANXIETY_NORM.includes(needle) ||
+    DOC_LOW_MOOD_NORM.includes(needle)
   );
 }
 
@@ -114,10 +125,12 @@ function entry(toolId: string): CatalogueEntry {
 }
 
 describe('catalogue content', () => {
-  it('has thirty-five approved entries (16 of 9 Nov, 10 and 9 of 24 Nov)', () => {
+  it('has forty-four approved entries (16 of 9 Nov, 10, 9 and 9 of 24 Nov)', () => {
     // The count includes the exposure ladder: it is approved, and `access_mode`
-    // is what keeps it out of the client Library.
-    expect(LISTABLE_CATALOGUE).toHaveLength(35);
+    // is what keeps it out of the client Library. The last nine are the Low Mood
+    // batch, which joined this list only when the owner approved its wording on
+    // 24 Nov 2026 — before that they were drafts, invisible to a client.
+    expect(LISTABLE_CATALOGUE).toHaveLength(44);
   });
 
   it('validates every approved row with the same checks a save runs', () => {

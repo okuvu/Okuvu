@@ -1,12 +1,17 @@
 /**
  * LOW MOOD — the nine worksheets the owner briefed on 24 November 2026.
  *
- * STATUS, 24 November 2026: every row is `draft`. Not one of them is approved,
- * so none can be listed, opened, assigned or suggested in chat until the owner
- * reads the wording and says so. That is rule 2 of the standing rules: every new
- * worksheet starts switched off (owner's rule, 24 Nov 2026). The draft review
- * document (`docs/exercise-library/34-draft-low-mood-copy.md`) is generated from
- * this file so what he reads cannot drift from what would ship.
+ * STATUS, 24 November 2026: every row is `approved`. The owner read the draft
+ * wording and approved all nine — five as written, four after the revisions he
+ * asked for (Things I might enjoy: "Sitting outside at sunset"; Reconnect
+ * planner: "Who would you like to be back in touch with?"; The morning after a
+ * miracle: "This is a question therapists often ask"; Strengths spotting: a
+ * "Something of my own" option with its own short answer). The approval lives in
+ * its own generated migration, and this file is the copy that migration writes.
+ *
+ * Rule 2 of the standing rules (every new worksheet starts switched off) was
+ * honoured: all nine were `draft` — unlistable, unopenable, unassignable — from
+ * the moment they were built until the owner said the wording was approved.
  *
  * The owner's brief, one line each:
  *
@@ -41,7 +46,8 @@
  * (rules 3 and 5). The one log — Mood and activity log — reads back in words
  * only, with no score and no average.
  *
- * NOTHING HERE IS APPROVED COPY. It is draft wording awaiting the owner's read.
+ * This is the approved copy. If any of it changes, it changes as a revision the
+ * owner reads first, and the change carries its own migration.
  */
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 import { FEELINGS_EN } from '@okuvu/shared-types/worksheets/feelings';
@@ -60,7 +66,8 @@ const oneSmallThing: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 3,
   sort_order: 60,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: false,
@@ -125,7 +132,8 @@ const moodActivityLog: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 60,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: false,
@@ -188,7 +196,8 @@ const strengthsSpotting: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 30,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: false,
@@ -216,7 +225,16 @@ const strengthsSpotting: CatalogueEntry = {
           { value: 'thoughtful', label: 'Thoughtful' },
           { value: 'practical', label: 'Practical' },
           { value: 'brave', label: 'Brave' },
+          { value: 'something_of_my_own', label: 'Something of my own' },
         ],
+      },
+      {
+        id: 'own_strength',
+        type: 'short_text',
+        prompt: 'What strength would you add?',
+        helper: 'In your own words — anything you notice about yourself counts.',
+        required: true,
+        visibleWhen: { field: 'strengths', in: ['something_of_my_own'] },
       },
       {
         id: 'recent',
@@ -247,7 +265,8 @@ const thingsIMightEnjoy: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 100,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: false,
@@ -272,7 +291,7 @@ const thingsIMightEnjoy: CatalogueEntry = {
           { value: 'street_food', label: 'Street food you like' },
           { value: 'cycle', label: 'A cycle ride' },
           { value: 'cricket', label: 'Cricket, watching or playing' },
-          { value: 'terrace_sunset', label: 'Sitting on the terrace at sunset' },
+          { value: 'terrace_sunset', label: 'Sitting outside at sunset' },
           { value: 'drawing', label: 'Drawing or doodling' },
           { value: 'film_with_someone', label: 'A film with someone' },
         ],
@@ -309,7 +328,8 @@ const tinyStepsLadder: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 110,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: false,
@@ -370,7 +390,8 @@ const innerCritic: CatalogueEntry = {
   load_level: 'demanding',
   est_minutes: 15,
   sort_order: 40,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: true,
@@ -435,7 +456,8 @@ const reconnectPlanner: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 50,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: false,
@@ -447,8 +469,8 @@ const reconnectPlanner: CatalogueEntry = {
       {
         id: 'people',
         type: 'row_list',
-        prompt: 'Who do you miss?',
-        helper: 'One name per line. No need to say why.',
+        prompt: 'Who would you like to be back in touch with?',
+        helper: 'Someone you could actually reach. One name per line.',
         maxRows: 8,
         addLabel: 'Add someone',
         columns: [{ id: 'who', label: 'Who', type: 'text' }],
@@ -504,7 +526,8 @@ const comparisonCheck: CatalogueEntry = {
   load_level: 'demanding',
   est_minutes: 10,
   sort_order: 100,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: true,
@@ -576,14 +599,15 @@ const morningAfterMiracle: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 120,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-24',
   opens: 'worksheet',
   care_plans: ['low_mood'],
   sensitive_check: false,
   content_en: {
     version: 1,
     intro:
-      'This is an old question and it still works. Imagine you go to sleep tonight and, while you sleep, the problem gets easier — not solved, just easier. You wake up and nobody has explained anything to you.',
+      'This is a question therapists often ask. Imagine you go to sleep tonight and, while you sleep, the problem gets easier — not solved, just easier. You wake up and nobody has explained anything to you.',
     fields: [
       {
         id: 'notice',
@@ -645,3 +669,14 @@ export const LOW_MOOD_BATCH_IDS = [
   'ws_comparison_check',
   'ws_miracle_question',
 ] as const;
+
+/**
+ * The nine Low Mood rows the owner approved on 24 November 2026, after the four
+ * revisions he asked for.
+ *
+ * A list rather than "whatever is approved today", for the same reason as the
+ * other batches: each approval gets its own migration, and that migration must
+ * keep meaning this decision. Its own generated file, `20261124233000_approve_
+ * low_mood_nine`, writes the approved copy with the status.
+ */
+export const APPROVED_LOW_MOOD_IDS = [...LOW_MOOD_BATCH_IDS] as const;

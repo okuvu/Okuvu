@@ -22,7 +22,7 @@
  */
 import { CATALOGUE, LISTABLE_CATALOGUE } from '@okuvu/shared-types/worksheets';
 import { APPROVED_ANXIETY_IDS } from '@okuvu/shared-types/worksheets/anxiety-worry';
-import { LOW_MOOD_BATCH_IDS } from '@okuvu/shared-types/worksheets/low-mood';
+import { LOW_MOOD_BATCH_IDS, APPROVED_LOW_MOOD_IDS } from '@okuvu/shared-types/worksheets/low-mood';
 import { BREATHING_CHILD_TOOL_IDS } from '@okuvu/shared-types/worksheets/types';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
@@ -36,6 +36,9 @@ const ANXIETY_DRAFTS_MIGRATION_DIR = '20261124200000_seed_anxiety_worry_drafts';
 
 /** The Low Mood drafts of 24 Nov 2026, in their own migration. */
 const LOW_MOOD_DRAFTS_MIGRATION_DIR = '20261124230000_seed_low_mood_drafts';
+
+/** The Low Mood approvals of 24 Nov 2026, in their own migration. */
+const LOW_MOOD_APPROVALS_MIGRATION_DIR = '20261124233000_approve_low_mood_nine';
 
 /** The owner's 24 Nov 2026 approvals, in their own migration. */
 const APPROVALS_MIGRATION_DIR = '20261124160000_approve_stress_burnout_eight';
@@ -461,6 +464,7 @@ export const APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${APPROVALS_
 export const REVISED_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${REVISED_APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const ANXIETY_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${ANXIETY_APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const LOW_MOOD_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${LOW_MOOD_DRAFTS_MIGRATION_DIR}/migration.sql`;
+export const LOW_MOOD_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${LOW_MOOD_APPROVALS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
   const lines: string[] = [];
@@ -808,6 +812,52 @@ export function buildLowMoodDraftsSql(): string {
           entry: { ...entry, status: 'draft' as const, approved_at: undefined },
           index: LOW_MOOD_ID_BASE + i,
         };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The nine Low Mood rows the owner approved on 24 November 2026.
+ *
+ * Five as written, four after the revisions he asked for: Things I might enjoy
+ * ("Sitting outside at sunset"), Reconnect planner ("Who would you like to be
+ * back in touch with?" and its helper), The morning after a miracle ("This is a
+ * question therapists often ask"), Strengths spotting (a "Something of my own"
+ * option with its own short answer). The copy inserted here is the text he read
+ * back, so the migration carries the approved wording with the status rather
+ * than promoting a body nobody approved.
+ */
+export function buildLowMoodApprovalsSql(): string {
+  const lines: string[] = [
+    '-- The owner approved the nine Low Mood worksheets on 24 November 2026: five',
+    '-- as written, four after the revisions he asked for.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- The copy written here is the revised, approved text. The drafts migration',
+    '-- that preceded it leaves every row `draft`; this one is the approval, and it',
+    '-- carries the wording with it so a row cannot be promoted without its',
+    '-- approved body.',
+    '--',
+    '-- Meet the inner critic and the Comparison check are approved AND keep',
+    '-- `sensitive_check`: approval does not retire the deeper screen they carry.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      APPROVED_LOW_MOOD_IDS.map((id) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`approved low mood row "${id}" is not in the catalogue`);
+        if (entry.status !== 'approved') {
+          throw new Error(`"${id}" is in the approval batch but is ${entry.status} in the catalogue`);
+        }
+        // Same row id the drafts migration used, so the two agree about identity.
+        return { entry, index: LOW_MOOD_ID_BASE + LOW_MOOD_BATCH_IDS.indexOf(id) };
       }),
     ),
   );

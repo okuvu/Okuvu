@@ -167,6 +167,34 @@ void main() {
       );
       expect(isFieldVisible(branched, {'can_act': 'no'}), isTrue);
     });
+
+    test('shows a piece when any ticked box matches, which is how "Something of my own" works', () {
+      // Strengths spotting: the checklist holds several ticked values, and the
+      // own-words piece appears when one of them is the extra option.
+      final field = content.fields[3];
+      final branched = WorksheetField(
+        id: field.id,
+        type: field.type,
+        prompt: field.prompt,
+        visibleWhen: const WorksheetBranch(field: 'ticked', values: ['something_of_my_own']),
+      );
+      // Ticked alongside other options: shown.
+      expect(
+        isFieldVisible(branched, {
+          'ticked': ['kind', 'something_of_my_own'],
+        }),
+        isTrue,
+      );
+      // Ticked, but not that one: hidden.
+      expect(
+        isFieldVisible(branched, {
+          'ticked': ['kind', 'brave'],
+        }),
+        isFalse,
+      );
+      // Nothing ticked yet: hidden.
+      expect(isFieldVisible(branched, const {}), isFalse);
+    });
   });
 
   group('answers', () {

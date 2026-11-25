@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ANXIETY_APPROVALS_MIGRATION_PATH,
   ANXIETY_DRAFTS_MIGRATION_PATH,
+  LOW_MOOD_APPROVALS_MIGRATION_PATH,
   LOW_MOOD_DRAFTS_MIGRATION_PATH,
   APPROVALS_MIGRATION_PATH,
   DRAFTS_MIGRATION_PATH,
@@ -21,6 +22,7 @@ import {
   REVISED_APPROVALS_MIGRATION_PATH,
   buildAnxietyApprovalsSql,
   buildAnxietyDraftsSql,
+  buildLowMoodApprovalsSql,
   buildLowMoodDraftsSql,
   buildApprovalsSql,
   buildDraftsSql,
@@ -38,6 +40,7 @@ const REVISED_APPROVALS_FILE = join(ROOT, REVISED_APPROVALS_MIGRATION_PATH);
 const ANXIETY_FILE = join(ROOT, ANXIETY_DRAFTS_MIGRATION_PATH);
 const ANXIETY_APPROVALS_FILE = join(ROOT, ANXIETY_APPROVALS_MIGRATION_PATH);
 const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFTS_MIGRATION_PATH);
+const LOW_MOOD_APPROVALS_FILE = join(ROOT, LOW_MOOD_APPROVALS_MIGRATION_PATH);
 
 function wrote(path: string, sql: string): boolean {
   if (process.env.WRITE_WORKSHEET_SQL !== '1') return false;
@@ -79,10 +82,13 @@ describe('generated migration', () => {
 
   it('lists every approved Library entry and every placeholder', () => {
     // 16 from the 9 Nov approved document + the 10 the owner approved on 24 Nov
-    // + the 9 he approved on 24 Nov (Anxiety & Worry). The exposure ladder is in
-    // this count because it is approved; the api's client query excludes
-    // `therapist_only`, which is what keeps it out of the Library.
-    expect(listableToolIds()).toHaveLength(35);
+    // + the 9 he approved on 24 Nov (Anxiety & Worry) + the 9 he approved on
+    // 24 Nov (Low Mood) = 44. The exposure ladder is in this count because it is
+    // approved; the api's client query excludes `therapist_only`, which is what
+    // keeps it out of the Library. The nine Low Mood rows are here only because
+    // approval is what moves a row from draft into this list — they were absent
+    // from it, at 35, until the owner approved their wording.
+    expect(listableToolIds()).toHaveLength(44);
     const sql = buildMigrationSql();
     expect(sql).toContain("'ws_safety_plan'");
     expect(sql).toContain("'ws_energy_audit'");
@@ -408,5 +414,60 @@ describe('generated Low Mood drafts migration', () => {
       const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
       expect(row, id).toContain("'assigned'");
     }
+  });
+});
+
+describe('generated Low Mood approvals migration', () => {
+  it('matches the catalogue', () => {
+    const sql = buildLowMoodApprovalsSql();
+    if (wrote(LOW_MOOD_APPROVALS_FILE, sql)) return;
+
+    expect(existsSync(LOW_MOOD_APPROVALS_FILE)).toBe(true);
+    expect(readFileSync(LOW_MOOD_APPROVALS_FILE, 'utf8')).toBe(sql);
+  });
+
+  it('carries all nine rows, every one approved on 24 November 2026', () => {
+    const sql = buildLowMoodApprovalsSql();
+    expect(sql.match(/'approved'/g)?.length).toBe(9);
+    expect(sql.match(/'2026-11-24'::timestamp/g)?.length).toBe(9);
+    expect(sql.match(/'low_mood'/g)?.length).toBe(9);
+    expect(sql).not.toContain("'draft'");
+  });
+
+  it('writes the four revised lines, and none of the text they replaced', () => {
+    const sql = buildLowMoodApprovalsSql();
+    // Things I might enjoy.
+    expect(sql).toContain('Sitting outside at sunset');
+    expect(sql).not.toContain('Sitting on the terrace at sunset');
+    // Reconnect planner.
+    expect(sql).toContain('Who would you like to be back in touch with?');
+    expect(sql).toContain('Someone you could actually reach. One name per line.');
+    expect(sql).not.toContain('Who do you miss?');
+    // The morning after a miracle.
+    expect(sql).toContain('This is a question therapists often ask.');
+    expect(sql).not.toContain('This is an old question and it still works.');
+    // Strengths spotting: the extra option and its own short answer.
+    expect(sql).toContain('Something of my own');
+    expect(sql).toContain('What strength would you add?');
+    expect(sql).toContain('own_strength');
+  });
+
+  it('keeps the deeper safety screen on the two rows that carry it', () => {
+    const sql = buildLowMoodApprovalsSql();
+    for (const id of ['ws_inner_critic', 'ws_comparison_check']) {
+      const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
+      expect(row, id).toBeTruthy();
+      expect(row, id).toContain("'demanding'");
+      // The sensitive_check column is the last boolean before updated_at.
+      expect(row, id).toMatch(/'low_mood'\]::TEXT\[\], true,/);
+    }
+  });
+
+  it('promotes an approved row without ever re-opening it to clients', () => {
+    // Approval moves a row into the client Library; it must never move a row
+    // out of the screen it carries, and the drafts file must stay byte-stable.
+    const drafts = buildLowMoodDraftsSql();
+    expect(drafts.match(/'draft'/g)?.length).toBe(9);
+    expect(drafts).not.toContain("'approved'");
   });
 });

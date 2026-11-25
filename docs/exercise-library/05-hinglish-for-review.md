@@ -969,6 +969,45 @@ _No Hinglish body._
 
 ---
 
+## Strengths spotting
+
+- id: `ws_strengths`
+- Library description (English): Notice what you're already good at, and one time you used it.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Low mood makes strengths hard to see. They stop feeling like strengths and start feeling like nothing special. They are still there. This is a few minutes of looking properly.
+
+- **checklist** — Which of these are true of you, at least some of the time?
+  - helper: Tick as many as fit. This isn't boasting — it's just true.
+  - option `kind`: Kind
+  - option `loyal`: Loyal
+  - option `funny`: Funny
+  - option `good_listener`: A good listener
+  - option `curious`: Curious
+  - option `patient`: Patient
+  - option `honest`: Honest
+  - option `creative`: Creative
+  - option `determined`: Determined
+  - option `thoughtful`: Thoughtful
+  - option `practical`: Practical
+  - option `brave`: Brave
+  - option `something_of_my_own`: Something of my own
+- **short text** — What strength would you add?
+  - helper: In your own words — anything you notice about yourself counts.
+- **short text** — One time recently you used one of them
+  - helper: Even a small time counts — holding a door, remembering something, saying no.
+
+> You didn't have to become someone else to have these. They were already yours.
+
+---
+
 ## Priority sorter
 
 - id: `ws_priority_sorter`
@@ -1070,6 +1109,36 @@ _No Hinglish body._
 
 ---
 
+## Meet the inner critic
+
+- id: `ws_inner_critic`
+- Library description (English): Get to know the critical voice — what it says, and what you'd say back.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Most people have a voice inside that is harsher than they would ever be to a friend. This is a place to describe it properly, as something separate from you, with its own habits.
+
+- **short text** — If this voice had a name, what would it be?
+  - helper: Something silly is fine. A name makes it easier to hear as one voice rather than the truth.
+- **long text** — What does it usually say?
+  - helper: Write it the way it actually speaks, as harsh as it is. Nothing here is edited or softened.
+- **short text** — When is it loudest?
+  - helper: A time of day, a situation, a kind of person. Anything you have noticed.
+- **short text** — What might it be trying to protect you from?
+  - helper: Critics often started as protection. There's no right answer here.
+- **short text** — What would you like to say back to it?
+  - helper: In your own words. It doesn't have to be kind — it just has to be yours.
+
+> You named it, so it's a voice now, not the truth about you.
+
+---
+
 ## Weighing it up
 
 - id: `ws_pros_cons_change`
@@ -1135,6 +1204,40 @@ _No Hinglish body._
 
 ---
 
+## Reconnect planner
+
+- id: `ws_reconnect_planner`
+- Library description (English): Pick someone you miss, choose how to reach out, and set a day.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> When you've been low, people can drift without anyone deciding to. Picking one person and one small way to reach out is easier than trying to fix everything at once.
+
+- **row list** — Who would you like to be back in touch with?
+  - helper: Someone you could actually reach. One name per line.
+  - column `who`: Who (text)
+- **choice** — How would you like to reach out?
+  - helper: The smallest one that feels possible is the right one.
+  - option `message`: A message
+  - option `meme`: Send a meme
+  - option `call`: A call
+  - option `meet`: Meet up
+- **datetime** — When?
+- **choice** — How did it go?
+  - helper: Not yet is fine. It stays here for whenever you're ready.
+  - option `yes`: Did it
+  - option `no`: Not yet
+
+> Reaching out once doesn't undo the distance. It's still a start.
+
+---
+
 ## Worry time
 
 - id: `ws_worry_time`
@@ -1165,6 +1268,79 @@ _No Hinglish body._
   - helper: Optional. A word is enough.
 
 > A worry kept for later is a worry you're not carrying all day.
+
+---
+
+## One small thing
+
+- id: `ws_one_small_thing`
+- Library description (English): One tiny thing for a heavy day. Tiny is the point.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> On a heavy day, the list of everything you should be doing can be the heaviest thing of all. Let's shrink it to one small thing — something so small it almost feels too easy.
+
+- **choice** — What's one small thing you could do right now?
+  - helper: Pick whatever feels possible today. Nothing here is too small.
+  - option `drink_water`: Drink a glass of water
+  - option `open_window`: Open a window
+  - option `wash_face`: Wash my face
+  - option `step_outside`: Step outside for two minutes
+  - option `message_someone`: Message one person
+  - option `one_song`: Put on one song
+  - option `something_else`: Something of my own
+- **short text** — What's your small thing?
+  - helper: Anything at all. It only has to be doable today.
+- **choice** — Did it happen?
+  - helper: Both answers are fine.
+  - option `yes`: Did it
+  - option `no`: Not this time
+
+> Either way, you showed up on a heavy day. That isn't nothing.
+
+---
+
+## Mood and activity log
+
+- id: `ws_mood_activity_log`
+- Library description (English): Note what you were doing and how it felt, then read the week in your own words.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> How you feel and what you're doing are more connected than they look. Log a few moments across the week, and you can read back which things tended to come with which feelings.
+
+- **datetime** — When was this?
+- **short text** — What were you doing?
+  - helper: A few words is plenty — "chai with a friend", "walk after dinner", "scrolling in bed".
+- **feelings picker** — How did you feel?
+  - helper: Pick up to three.
+  - feeling `sad`: sad
+  - feeling `scared`: scared
+  - feeling `angry`: angry
+  - feeling `ashamed`: ashamed
+  - feeling `happy`: happy
+  - feeling `calm`: calm
+  - feeling `numb`: numb
+  - feeling `worried`: worried (under scared)
+  - feeling `panicky`: panicky (under scared)
+  - feeling `unsafe`: unsafe (under scared)
+  - feeling `on_edge`: on edge (under scared)
+- **Closing reflection** — Anything you notice, looking back over the week?
+  - helper: There's no right answer. This is just for you.
+
+> Each entry is one moment. It is not a verdict on the week.
 
 ---
 
@@ -1343,5 +1519,137 @@ _No Hinglish body._
 - **scale 0 100** — And afterwards?
 
 > Each step is yours to take when you are ready.
+
+---
+
+## Things I might enjoy
+
+- id: `ws_things_i_might_enjoy`
+- Library description (English): Everyday things worth trying, and a way to carry the ones you pick into your planner.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> When you've felt low for a while, it's easy to forget what you actually enjoy, or to believe nothing would help anyway. Here are some ordinary things. Tick anything that sounds even slightly possible.
+
+- **checklist** — Which of these might be worth a try?
+  - helper: Nothing here is a rule, and nothing has to be done today.
+  - option `chai_with_friend`: Chai with a friend
+  - option `walk`: A walk, anywhere
+  - option `cook_something`: Cooking something simple
+  - option `game`: A game — phone, board or cards
+  - option `music`: Music, loud or quiet
+  - option `call_cousin`: Calling a cousin
+  - option `street_food`: Street food you like
+  - option `cycle`: A cycle ride
+  - option `cricket`: Cricket, watching or playing
+  - option `terrace_sunset`: Sitting outside at sunset
+  - option `drawing`: Drawing or doodling
+  - option `film_with_someone`: A film with someone
+
+> Picking is the easy half. When you're ready, the planner is somewhere to put the ones you chose.
+
+---
+
+## Comparison check
+
+- id: `ws_comparison_check`
+- Library description (English): Look at where comparison happens, what it leaves out, and one small thing to do now.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Comparing yourself to other people is close to automatic, and phones make it constant. This is a few minutes of looking at it closely, without deciding you should stop feeling it.
+
+- **choice** — Where were you when it happened?
+  - option `instagram`: Instagram
+  - option `youtube`: YouTube
+  - option `college`: College
+  - option `family`: Family
+  - option `other`: Somewhere else
+- **feelings picker** — How did it leave you feeling?
+  - helper: Pick up to three.
+  - feeling `sad`: sad
+  - feeling `scared`: scared
+  - feeling `angry`: angry
+  - feeling `ashamed`: ashamed
+  - feeling `happy`: happy
+  - feeling `calm`: calm
+  - feeling `numb`: numb
+  - feeling `worried`: worried (under scared)
+  - feeling `panicky`: panicky (under scared)
+  - feeling `unsafe`: unsafe (under scared)
+  - feeling `on_edge`: on edge (under scared)
+- **short text** — What were you comparing yourself to?
+  - helper: A post, a person, a way someone's life looked.
+- **short text** — What doesn't that post or person show?
+  - helper: Everyone's day has parts nobody photographs.
+- **short text** — One small thing you'll do now
+  - helper: Something for you, not for how it looks. Closing the app counts.
+
+> You saw it clearly for a minute. That's the skill, and it gets easier with practice.
+
+---
+
+## Tiny steps ladder
+
+- id: `ws_tiny_steps`
+- Library description (English): Turn one big thing into steps, from the smallest to the biggest.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> A big task stays impossible while it's still one big task. Broken into steps, the first one is usually something you could do today.
+
+- **short text** — What's the thing you've been putting off?
+  - helper: One line. It doesn't have to be worded well.
+- **row list** — What are the steps, smallest first?
+  - helper: Start with something almost too easy. The last one can be big — you won't be doing it today.
+  - column `step`: Step (text)
+- **datetime** — When will you do the first one?
+  - helper: A day is enough. If it slips, it slips — you can change it.
+- **Closing reflection** — Which step feels most doable right now?
+
+> You don't have to climb it today. You just have to know where the first step is.
+
+---
+
+## The morning after a miracle
+
+- id: `ws_miracle_question`
+- Library description (English): Imagine things had changed overnight, and find the first small step.
+- Library description (Hinglish): _missing_
+- who can open it: assigned
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> This is a question therapists often ask. Imagine you go to sleep tonight and, while you sleep, the problem gets easier — not solved, just easier. You wake up and nobody has explained anything to you.
+
+- **long text** — What would you notice first, before anyone told you anything?
+  - helper: Small and ordinary is good — what you'd see, who you'd speak to, what you'd do differently.
+- **scale 0 10** — Where are you now, on the way to that morning?
+- **short text** — What would one step up from here look like?
+  - helper: One step. Not the whole way.
+
+> You don't need the whole picture. One step you can actually see is enough to move.
 
 ---
