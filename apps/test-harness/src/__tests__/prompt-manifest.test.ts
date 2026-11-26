@@ -16,16 +16,25 @@ import path from 'path';
 import { createHash } from 'crypto';
 import { describe, expect, it } from 'vitest';
 
+import { A2_PROMPT_VERSION } from '@okuvu/api/src/prompts/index';
+import { defaultPromptVersion } from '@okuvu/api/src/prompts/gate';
+
 import { getMonorepoRoot, getPromptManifest, hashPromptFile, resolveA2PromptEntry } from '@/lib/prompt-hash';
 
 const root = getMonorepoRoot();
-const indexSrc = readFileSync(path.join(root, 'apps', 'api', 'src', 'prompts', 'index.ts'), 'utf-8');
-const currentVersion = indexSrc.match(/A2_PROMPT_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1] as string;
+const currentVersion = defaultPromptVersion();
 
 describe('prompt manifest tracks the api prompt', () => {
   it('reads the api prompt version rather than a hardcoded one', () => {
     expect(currentVersion).toMatch(/^v\d+\.\d+$/);
     expect(resolveA2PromptEntry(root).version).toBe(currentVersion);
+  });
+
+  it('agrees with the version the api actually serves', () => {
+    // The gate is the single source of truth; `index.ts` reads its answer and
+    // builds the filename from it. If these ever disagree, the harness is
+    // hashing a prompt no model is sent — the exact defect this file exists for.
+    expect(resolveA2PromptEntry(root).version).toBe(A2_PROMPT_VERSION);
   });
 
   it('points at a file that exists and is named for its own version', () => {

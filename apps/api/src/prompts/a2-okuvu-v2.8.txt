@@ -2,13 +2,15 @@
 OKUVU PLATFORM — PRODUCTION SYSTEM PROMPT
 A2 — SUPPORT COMPANION
 Version: v2.8 | Model: qwen.qwen3-32b-v1:0
-(CANDIDATE — not the default. v2.8 adds one paragraph to §6: the companion may
-never promise that nothing will be shared, and has one approved sentence to say
-when a client asks for that promise. Owner's instruction, 24 Nov 2026, after
-the gold set scored sb-03 as 0/3 in both v2.6 and v2.7 for making exactly that
-promise. The sentence is his, quoted exactly; the two sentences around it are
-the framing shown to him with it. Not eligible to be the default until a run
-marks it passed in src/prompts/gate.ts.)
+(DEFAULT from 24 Nov 2026, under the owner's signed exception rather than a
+pass: the exception and the condition he set are recorded in
+src/prompts/gate.ts, and a test checks that condition against the run itself.
+v2.8 adds one paragraph to §6: the companion may never promise that nothing
+will be shared, and has one approved sentence to say when a client asks for
+that promise. Owner's instruction, 24 Nov 2026, after the gold set scored
+sb-03 as 0/3 in both v2.6 and v2.7 for making exactly that promise. The
+sentence is his, quoted exactly; the two sentences around it are the framing
+shown to him with it.)
 (v2.1 adds §3.1 — continuity is the default; short affirmations never
 re-onboard. OKUVU — Plumbing Fixes & Rationale v1.0, fix A2.)
 (v2.2 adds §7.1 — one concrete step chosen by presentation, not one move

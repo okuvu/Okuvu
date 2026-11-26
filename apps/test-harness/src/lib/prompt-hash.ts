@@ -1,6 +1,8 @@
 import { createHash } from 'crypto';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import path from 'path';
+
+import { PROMPT_GATE, isEligibleAsDefault } from '@okuvu/api/src/prompts/gate';
 
 /**
  * Hash a prompt file's contents with SHA-256, returned as a hex digest.
@@ -62,38 +64,44 @@ export interface PromptManifestEntry {
  */
 
 /**
- * Resolve A2's prompt file from the api's own constants.
+ * Resolve A2's prompt file from the api's own gate.
  *
  * The filename used to be hardcoded here as `a2-okuvu-v2.1.txt`, which drifted
  * to six versions behind the pipeline: a TestRun then recorded a `promptHash`
  * of a prompt no model had been sent, so the provenance stamp proved nothing.
- * `apps/api/src/prompts/index.ts` is the single source of truth (the same file
- * `scripts/generate-prompt-shim.mjs` builds the harness copy from). If its
- * shape changes, fail loudly rather than hash a guess.
+ *
+ * It then parsed the pair out of `apps/api/src/prompts/index.ts` with a regex —
+ * `A2_PROMPT_VERSION = '<literal>'` and a literal `.txt` filename. That worked
+ * until the strict gate made the default a decision: `index.ts` now exports
+ * `A2_PROMPT_VERSION = defaultPromptVersion()` and builds the filename from it,
+ * so there is no literal left to match and every harness run failed to resolve
+ * the prompt at all (five tests, while every product suite stayed green).
+ *
+ * There is no literal to parse and no need for one: `src/prompts/gate.ts`
+ * already owns "which version is the default", and `index.ts` reads the answer
+ * from it. Importing that module (it is pure data — no filesystem access, so it
+ * costs nothing at runtime and brings none of the Vercel packaging problem the
+ * shim exists for) means the harness cannot disagree with the api about which
+ * prompt is live. If nothing is eligible the gate throws its own error, which is
+ * the right failure: a build with no default prompt has nothing to hash.
  */
 export function resolveA2PromptEntry(root: string): PromptManifestEntry {
-  const indexPath = path.join(root, 'apps', 'api', 'src', 'prompts', 'index.ts');
-  let indexSrc: string;
-  try {
-    indexSrc = readFileSync(indexPath, 'utf-8');
-  } catch {
-    throw new Error(`prompt-hash: cannot read ${indexPath} — the A2 prompt manifest cannot be built.`);
+  const eligible = PROMPT_GATE.filter(isEligibleAsDefault);
+  if (eligible.length === 0) {
+    throw new Error('prompt-hash: no A2 prompt is eligible to be the default — see apps/api/src/prompts/gate.ts');
   }
 
-  const version = indexSrc.match(/A2_PROMPT_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1];
-  const file = indexSrc.match(/join\(__dirname,\s*['"]([^'"]+\.txt)['"]\)/)?.[1];
-  if (!version || !file) {
-    throw new Error(
-      'prompt-hash: apps/api/src/prompts/index.ts no longer exposes A2_PROMPT_VERSION and a prompt .txt path.',
-    );
+  // Promotion order is append order, and the newest eligible entry wins — the
+  // same rule `defaultPromptVersion()` applies.
+  const version = eligible[eligible.length - 1].version;
+  const file = `a2-okuvu-${version}.txt`;
+  const promptPath = path.join(root, 'apps', 'api', 'src', 'prompts', file);
+
+  if (!existsSync(promptPath)) {
+    throw new Error(`prompt-hash: the default A2 prompt is ${version} but ${file} does not exist.`);
   }
 
-  const fileVersion = file.match(/a2-okuvu-(v[\d.]+)\.txt/)?.[1];
-  if (fileVersion && fileVersion !== version) {
-    throw new Error(`prompt-hash: A2_PROMPT_VERSION=${version} but the prompt file is ${file}.`);
-  }
-
-  return { agentId: 'A2', version, path: path.join(root, 'apps', 'api', 'src', 'prompts', file) };
+  return { agentId: 'A2', version, path: promptPath };
 }
 
 export function getPromptManifest(): PromptManifestEntry[] {

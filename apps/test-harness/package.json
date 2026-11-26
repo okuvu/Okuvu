@@ -2,9 +2,9 @@
   "name": "@okuvu/test-harness",
   "private": true,
   "scripts": {
-    "predev": "node scripts/generate-prompt-shim.mjs",
+    "predev": "tsx scripts/generate-prompt-shim.mjs",
     "dev": "next dev --webpack -p 3002",
-    "prebuild": "node scripts/generate-prompt-shim.mjs",
+    "prebuild": "tsx scripts/generate-prompt-shim.mjs",
     "build": "next build --webpack",
     "start": "next start -p 3002",
     "lint": "tsc --noEmit",
