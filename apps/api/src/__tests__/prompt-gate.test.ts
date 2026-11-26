@@ -151,6 +151,15 @@ describe('the prompt gate', () => {
     ).toThrow(/no A2 prompt is eligible/);
   });
 
+  it('the release configuration is v2.8 (owner, 25 Nov 2026)', () => {
+    // "Release: v2.8 plus the medication net and the already-happened paragraph."
+    // The net and its paragraph are code, independent of the prompt, so the
+    // release prompt is still v2.8. Pinned so a later experiment cannot quietly
+    // leave a failed candidate in the default slot at release time.
+    expect(defaultPromptVersion()).toBe('v2.8');
+    expect(A2_PROMPT_VERSION).toBe('v2.8');
+  });
+
   it('serves a file whose header names its own version', () => {
     expect(A2_PROMPT).toContain(`Version: ${A2_PROMPT_VERSION} |`);
     expect(A2_PROMPT).toContain(`A2 Support Companion · ${A2_PROMPT_VERSION}`);

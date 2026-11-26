@@ -76,6 +76,7 @@ import { classifyLlmFailure } from '../src/lib/llm-failure.js';
 import { hasCrisisLanguage } from '../src/agents/a1/crisis-keywords.js';
 import {
   scoreScenario,
+  scoreMedicationRouting,
   type GoldSet,
   type Scenario,
   type RubricGroup,
@@ -90,6 +91,13 @@ import {
   SAFETY_UNAVAILABLE_RESPONSE,
   getModelUnavailableFallback,
 } from '../src/pipeline/fallbacks.js';
+import {
+  shouldRouteMedication,
+  medicationReply,
+  isMedicationNetReply,
+  isAlreadyHappened,
+  MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED,
+} from '../src/pipeline/medication-guard.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const API_ROOT = resolve(__dirname, '..');
@@ -341,6 +349,24 @@ function tallyPaths(results: ScenarioResult[]): Record<string, number> {
   return tally;
 }
 
+/**
+ * Score a `medication_routing` row deterministically (owner's decision,
+ * 25 Nov 2026 — option 1): prove the net FIRED, and prove the already-happened
+ * paragraph appears only where it should. No judge is involved, because the
+ * served text is fixed copy — the exact bytes are asserted in code tests.
+ *
+ * The logic itself lives in `gate-scoring.ts`, where it is unit-tested without
+ * booting this runner.
+ */
+function medicationRoutingFailures(scenario: Scenario, served: string): string[] {
+  return scoreMedicationRouting({
+    served,
+    isNetReply: isMedicationNetReply,
+    wantsAlreadyHappened: isAlreadyHappened(scenario.message),
+    alreadyHappenedParagraph: MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED,
+  });
+}
+
 async function main(): Promise<void> {
   const label = arg('label', 'run');
   const outPath = resolve(REPO_ROOT, arg('out', `evidence/E17-S5b-runs/${label}.json`));
@@ -506,7 +532,7 @@ async function main(): Promise<void> {
       turn_count: 1,
     });
 
-    const path: ServedPath =
+    const basePath: ServedPath =
       decision.agent === 'crisis'
         ? 'crisis'
         : decision.agent === 'medical-emergency'
@@ -516,12 +542,33 @@ async function main(): Promise<void> {
             : decision.mode === 'blocked'
               ? 'a2_blocked'
               : 'a2';
+
+    // ── the medication safety net (owner's rule, 25 Nov 2026) ──────────────
+    // Mirrors orchestrator.ts exactly: the net sits AFTER the crisis, grounding,
+    // medical and blocked branches and refuses S3/S4, so a crisis disclosure
+    // keeps its own card. Production serves the approved copy here and never
+    // calls the model; the eval must do the same, or it scores a model reply for
+    // a message the product answers with fixed copy — which is how a judge's
+    // wobble on byte-identical text came to look like a product failure.
+    const medicationNetFires =
+      basePath === 'a2' &&
+      shouldRouteMedication({ message: scenario.message, safetyState: effectiveState }).matched;
+
+    const path: ServedPath = medicationNetFires ? 'medication_net' : basePath;
     const routing = crisisFloorMatched
       ? `${a1.safetyState} + crisis keyword floor -> S4 -> routeTurn -> ${path}`
-      : `${a1.safetyState} -> routeTurn -> ${path}`;
+      : medicationNetFires
+        ? `${a1.safetyState} -> routeTurn -> ${basePath} -> medication net -> ${path}`
+        : `${a1.safetyState} -> routeTurn -> ${path}`;
 
     // ── 3. the text that path serves ───────────────────────────────────────
-    if (path === 'crisis' || path === 'grounding' || path === 'medical' || path === 'a2_blocked') {
+    if (
+      path === 'crisis' ||
+      path === 'grounding' ||
+      path === 'medical' ||
+      path === 'a2_blocked' ||
+      path === 'medication_net'
+    ) {
       const served =
         path === 'crisis'
           ? CRISIS_RESPONSE
@@ -534,8 +581,24 @@ async function main(): Promise<void> {
               ? effectiveState === 'S4' || a1.crisis_language_detected
                 ? MEDICAL_EMERGENCY_CRISIS_RESPONSE
                 : MEDICAL_EMERGENCY_RESPONSE
-              : A9_PRE_BLOCKED_RESPONSE;
-      const failedGroups = scoreScenario(scenario, served, path);
+              : path === 'medication_net'
+                ? medicationReply(scenario.message)
+                : A9_PRE_BLOCKED_RESPONSE;
+
+      // The medication category is scored DETERMINISTICALLY (owner's decision,
+      // 25 Nov 2026 — option 1): the gold set proves the net FIRED on the right
+      // messages and stayed off the ones it must not answer; the exact approved
+      // bytes are asserted in code tests, where they cannot be judge-wobbled.
+      // Every other path keeps its judge rubric exactly as before.
+      const failedGroups =
+        path === 'medication_net'
+          ? scenario.category === 'medication_routing'
+            ? medicationRoutingFailures(scenario, served)
+            // A scenario in another category whose message the net also catches
+            // (e.g. med-04, a clinical_content row) is still scored on what the
+            // client sees — its own rubric, applied to the served text.
+            : scoreScenario(scenario, served, 'a2')
+          : scoreScenario(scenario, served, path);
       results.push({
         id: scenario.id,
         category: scenario.category,

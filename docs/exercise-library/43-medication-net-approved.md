@@ -91,3 +91,19 @@ gate (9 scenarios, 27 judgements at k=3):
 
 All four pass on every prompt, because the net is deterministic and does not
 consult the prompt one way or the other.
+
+## Status — APPROVED (owner, 25 Nov 2026)
+
+The owner approved the already-happened addition **as built**:
+
+> If you've already stopped or changed it and you're feeling unwell, contact
+> your doctor today. If you feel very unwell or unsafe, call 112.
+
+Shown only when the message reports the change has already been made — not for a
+question, and not for a plan.
+
+The same round moved this category's scoring from the judge to code (owner's
+"option 1"): the gold set proves the net **fires** on the right messages, and the
+exact approved bytes are asserted in `medication-guard.test.ts` and
+`medication-routing-score.test.ts`. `medication_routing` stays a 1.0 hard gate.
+See `45-25-nov-round-twelve.md`.

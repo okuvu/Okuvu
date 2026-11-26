@@ -15,6 +15,12 @@ import { describe, expect, it } from 'vitest';
 import { minTrialsForPerfect, tallyCategory, wilson, wilsonArithmetic } from '../stats.js';
 import { appliesTo, buildJudgeMessage, parseJudgeOutput, requirementsFor } from '../judge.js';
 import type { GoldSet, Scenario } from '../types.js';
+import {
+  shouldRouteMedication,
+  isMedicationNetReply,
+  MEDICATION_ROUTE_RESPONSE,
+  MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED,
+} from '../../../src/pipeline/medication-guard.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const goldSet = JSON.parse(readFileSync(join(__dirname, '../gold-set.v2.json'), 'utf-8')) as GoldSet;
@@ -483,5 +489,66 @@ describe('the instrument does not become a phrase checklist', () => {
     expect(byCategory('medication_routing')).toBe(9); // 2.3.0 five + 2.4.0's four already-happened cases
     expect(goldSet.scenarios).toHaveLength(151);
     expect(goldSet.scenarios.filter((s) => s.subset === 'holdout')).toHaveLength(40);
+  });
+});
+
+/**
+ * The medication category is scored without the judge (owner's decision, 25 Nov
+ * 2026 — "option 1"). That only works if the deterministic net really does catch
+ * exactly the rows the category claims it catches. This asserts the pairing on
+ * the instrument itself, so a message edit or a regex change that broke it would
+ * fail here rather than turning into a mysterious 1.0 miss in a paid run.
+ */
+describe('medication_routing is deterministic — the net catches exactly its rows', () => {
+  const state = (s: Scenario) => ((s.context.safety_state as string | undefined) ?? 'S0') as never;
+
+  it('every medication_routing scenario is caught by the net', () => {
+    const rows = goldSet.scenarios.filter((s) => s.category === 'medication_routing');
+    expect(rows).toHaveLength(9);
+    for (const row of rows) {
+      const match = shouldRouteMedication({ message: row.message, safetyState: state(row) });
+      expect(match.matched, `${row.id}: ${row.message}`).toBe(true);
+    }
+  });
+
+  it('the already-happened paragraph is produced for med-11/12/13 only', () => {
+    const produced = (message: string) =>
+      `${MEDICATION_ROUTE_RESPONSE} ${MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED}`;
+    const catching = goldSet.scenarios.filter((s) => s.category === 'medication_routing');
+    for (const row of catching) {
+      const wantsParagraph = ['med-11', 'med-12', 'med-13'].includes(row.id);
+      // The predicate the runner uses to decide "was it the net?" must be true
+      // for the net's own output either way — that is what makes the check
+      // independent of which copy variant was served.
+      expect(isMedicationNetReply(produced(row.message)), row.id).toBe(true);
+      expect(isMedicationNetReply(`${MEDICATION_ROUTE_RESPONSE}`), row.id).toBe(true);
+      if (wantsParagraph) {
+        expect(row.message, `${row.id} should be caught as already-happened`).toMatch(/stopped|skipped|already/i);
+      }
+    }
+  });
+
+  it('the non-catching medication rows are NOT caught, so the net cannot widen', () => {
+    // med-04 is the one clinical_content row the net DOES catch (a plain report
+    // that the change already happened). The other four must stay with the model.
+    const byId = new Map(goldSet.scenarios.map((s) => [s.id, s]));
+    for (const id of ['med-07', 'med-08', 'med-09', 'med-10']) {
+      const row = byId.get(id)!;
+      expect(row.category).toBe('clinical_content');
+      expect(
+        shouldRouteMedication({ message: row.message, safetyState: state(row) }).matched,
+        `${id}: ${row.message}`,
+      ).toBe(false);
+    }
+    const med04 = byId.get('med-04')!;
+    expect(med04.category).toBe('clinical_content');
+    expect(shouldRouteMedication({ message: med04.message, safetyState: state(med04) }).matched).toBe(true);
+  });
+
+  it('a model-style reply is not mistaken for the net', () => {
+    expect(isMedicationNetReply('That sounds heavy — what would help today?')).toBe(false);
+    expect(isMedicationNetReply('')).toBe(false);
+    // The prefix alone must not be enough unless it is the approved opening.
+    expect(isMedicationNetReply("That's an important question, but I think you can stop.")).toBe(false);
   });
 });

@@ -79,6 +79,23 @@ export const MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED =
 export const MEDICATION_ROUTE_SOURCE = 'medication_route' as const;
 
 /**
+ * Did the deterministic net answer this turn?
+ *
+ * Exists so the gold set can prove the net FIRED on the right messages without
+ * asking a judge to grade wording it grades inconsistently. The exact bytes are
+ * asserted in the code tests (they are the owner's approved copy, frozen); this
+ * predicate only answers "was it the net, or the model?".
+ *
+ * The already-happened paragraph is appended after the main reply, so every net
+ * reply starts with `MEDICATION_ROUTE_RESPONSE`; both are accepted so the
+ * predicate stays correct if that order ever changes.
+ */
+export function isMedicationNetReply(text: string): boolean {
+  const t = (text ?? '').trim();
+  return t.startsWith(MEDICATION_ROUTE_RESPONSE) || t.startsWith(MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED);
+}
+
+/**
  * The change has already happened: the client is reporting something done, not
  * asking whether to do it.
  *

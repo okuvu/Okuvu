@@ -203,7 +203,12 @@ export const PROMPT_GATE: PromptGateEntry[] = [
       'which makes a 1.0 threshold on a 27-judgement category unachievable for any prompt. ' +
       'Recorded honestly rather than relaxed: the gate belongs to the owner. Per his standing ' +
       'instruction, the release ships v2.8 plus the medication net, and v3.x continues after ' +
-      'release. See docs/exercise-library/44-25-nov-round-eleven.md.',
+      'release. See docs/exercise-library/44-25-nov-round-eleven.md. ' +
+      'UPDATE 25 Nov 2026 — the owner APPROVED this wording, including the three changes the ' +
+      'drafter flagged ("that anger is real", dropping "or post", and the casual-speech ' +
+      'sentence). Approval is of the TEXT, not a promotion: the run above still fails his ' +
+      'condition, so v3.1 stays `failed` and is never the default. It is retained as the ' +
+      'starting point for v3.x work after release. See docs/exercise-library/45-25-nov-round-twelve.md.',
   },
 ];
 

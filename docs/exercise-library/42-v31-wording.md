@@ -1,9 +1,15 @@
 # v3.1 — the re-scoped anger row, for approval
 
-Status: **awaiting the owner's wording approval.** The file exists and has been
-scored, because the owner asked for the run in the same instruction. It is a
-candidate: v2.8 is still the default, and `src/prompts/gate.ts` marks v3.1
-`not_run` until a run marks it passed.
+Status: **APPROVED by the owner, 25 Nov 2026 — wording only, not promoted.**
+The owner approved the two re-scoped anger rows as written, including the three
+choices the drafter flagged: the worked example says "that anger is real" rather
+than "this is the moment it's most likely to cost you something"; "or post" is
+dropped from the action list; and the casual-speech sentence stays. Approval is
+of the **text**, not a promotion — the run still fails the owner's condition, so
+`src/prompts/gate.ts` keeps v3.1 `failed` and it is never the default. It is
+retained as the **starting point for v3.x work after release**. The release
+configuration is v2.8 plus the medication net. See
+`45-25-nov-round-twelve.md`.
 
 Owner's direction, 25 Nov 2026:
 
