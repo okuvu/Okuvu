@@ -2,27 +2,31 @@
  * ALL — the four extras the owner briefed on 25 November 2026, for every
  * client whatever their care plan.
  *
- * STATUS, 25 November 2026: every row is `draft`. Rule 2 of the standing rules
+ * STATUS, 26 November 2026: every row is `draft`. Rule 2 of the standing rules
  * (every new worksheet starts switched off) is honoured: none of these is
  * listable, openable or assignable from the portal until the owner says the
- * wording is approved. Two of them — Muscle relaxation and Safe place — are
- * audio-guided, and the owner asked to approve the words and the voice before
- * anything is recorded, so their scripts are here and nothing is recorded.
+ * wording is approved. Two of them — Unclench and My calm place — are
+ * audio-guided in intent, and the owner asked to approve the words and the voice
+ * before anything is recorded, so their scripts are here and nothing is recorded.
  *
- * The owner's brief, one line each:
+ * The owner rewrote the copy for all four on 26 November 2026 and approved it on
+ * that basis. The ids, access modes, load levels and safety settings are
+ * unchanged from the brief; only the names and the wording moved. The owner's
+ * brief, one line each, with the approved name:
  *
- *  1 Body map                open  tap where you feel something, then the feelings picker for that spot
- *  2 Sleep diary             open  bedtime, wake time, how rested, screens before bed, short notes
- *  3 Muscle relaxation       open  audio-guided (script only, nothing recorded)
- *  4 Safe place              open  audio-guided (script only, nothing recorded)
+ *  1 Where do I feel it?     open  tap where you feel something, then the feelings picker for that spot
+ *  2 Sleep check             open  bedtime, wake time, how rested, screens before bed, short notes
+ *  3 Unclench                open  audio-guided, about 5 minutes (script only, nothing recorded)
+ *  4 My calm place           open  audio-guided (script only, nothing recorded)
  *
- * Two of them were already placeholders and keep their ids: Body map
- * (`ws_body_map`) and Sleep diary (`ws_sleep_diary`). Their placeholder rows are
- * removed from `placeholders.ts` in the same change, and the generated seed
- * migration that created them stays byte-identical — the drafts migration
- * upgrades those rows in place through ON CONFLICT.
+ * Two of them were already placeholders and keep their ids: Where do I feel it?
+ * (`ws_body_map`, born "Body map") and Sleep check (`ws_sleep_diary`, born "Sleep
+ * diary"). Their placeholder rows are removed from `placeholders.ts` in the same
+ * change, and the generated seed migration that created them stays
+ * byte-identical — the drafts migration upgrades those rows in place through ON
+ * CONFLICT.
  *
- * The Sleep diary carries the deeper safety screen (`sensitive_check: true`),
+ * The Sleep check carries the deeper safety screen (`sensitive_check: true`),
  * because the owner named it in the standing rules of 24 Nov 2026: skipped
  * meals, restricted food, making yourself sick, punishing exercise, hating your
  * body, days without sleep, wanting not to wake up, wanting to hurt someone,
@@ -30,25 +34,25 @@
  * safety check the journal uses.
  *
  * No row asks for weight, body measurements, calories, food amounts or
- * medicines — the Sleep diary deliberately has no medicine field, which is the
+ * medicines — the Sleep check deliberately has no medicine field, which is the
  * most likely place one would have crept in — and none of them adds answers into
  * a total, a level or a label (rules 3 and 5).
  */
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 import { FEELINGS_EN } from '@okuvu/shared-types/worksheets/feelings';
 
-// ─── 1. Body map ──────────────────────────────────────────────────────────
+// ─── 1. Where do I feel it? ───────────────────────────────────────────────
 
 const bodyMap: CatalogueEntry = {
   tool_id: 'ws_body_map',
-  label: 'Body map',
+  label: 'Where do I feel it?',
   label_hi: null,
-  summary: 'Mark where in the body a feeling shows up, and how strong it is there.',
+  summary: 'Feelings often show up in your body first. Find where.',
   summary_hi: null,
   section: 'notice_and_name',
   therapy_modality: 'Interoceptive awareness (body scan, somatic mapping)',
   therapist_note:
-    'the client taps the parts of the outline where something is present, then picks feelings for each tapped part and rates how strong it is there. Per part, never a total — two places can carry different feelings and the exercise is about noticing that.',
+    'the client taps the parts of the outline where something is present, up to three, then picks feelings for each tapped part. Per part, never a total — two places can carry different feelings and the exercise is about noticing that. There is no strength rating: the approved copy asks only where and what, so the screen asks only that.',
   access_mode: 'open',
   load_level: 'light',
   est_minutes: 5,
@@ -60,19 +64,18 @@ const bodyMap: CatalogueEntry = {
   content_en: {
     version: 1,
     intro:
-      "Feelings show up in the body before we have words for them — a tight chest, a heavy stomach, shoulders up by the ears. Tap wherever you notice something today. There's no right place to find.",
+      'Before you have words for a feeling, your body often already knows. A tight chest. A knot in your stomach. Shoulders up near your ears. Tap where you notice something.',
     fields: [
       {
         id: 'where',
         type: 'body_outline',
-        prompt: 'Where do you notice something right now?',
-        helper: 'Tap as many places as fit, up to three. Nothing has to be there.',
+        prompt: 'Where do you feel it right now?',
+        helper: "Tap up to three spots. If you can't find anything, that's okay too.",
         required: true,
         maxSelections: 3,
-        withStrength: true,
-        strengthPrompt: 'How strong is it there?',
+        fullMessage: 'You can pick up to three. Tap a spot again to remove it.',
         withFeelings: true,
-        feelingsPrompt: 'What does it feel like there?',
+        feelingsPrompt: "What's the feeling there?",
         feelings: FEELINGS_EN,
         regions: [
           { id: 'head', label: 'Head' },
@@ -96,19 +99,19 @@ const bodyMap: CatalogueEntry = {
       },
     ],
     closing: {
-      text: 'You noticed where it lives. That is often the first step to it easing.',
+      text: 'Now you know where it sits. Next time it turns up, you might notice it sooner.',
     },
   },
   content_hi: null,
 };
 
-// ─── 2. Sleep diary ───────────────────────────────────────────────────────
+// ─── 2. Sleep check ───────────────────────────────────────────────────────
 
 const sleepDiary: CatalogueEntry = {
   tool_id: 'ws_sleep_diary',
-  label: 'Sleep diary',
+  label: 'Sleep check',
   label_hi: null,
-  summary: 'Record sleep and wake times and how the day felt, to spot a pattern.',
+  summary: 'Two minutes each morning. See how your sleep and your days connect.',
   summary_hi: null,
   section: 'energy_life',
   therapy_modality: 'Sleep hygiene monitoring (self-report diary)',
@@ -125,13 +128,13 @@ const sleepDiary: CatalogueEntry = {
   content_en: {
     version: 1,
     intro:
-      "Sleep and mood pull on each other, and it's hard to see the pattern from inside a tired week. A short note each morning is enough — this isn't a test, and a bad night is still useful information.",
+      "Bad sleep makes everything feel heavier, and when you're tired it's hard to see why. Jot down last night in under two minutes. A rough night is worth writing down too.",
     fields: [
       {
         id: 'night',
         type: 'datetime',
-        prompt: 'Which night is this?',
-        helper: 'The night you are writing about.',
+        prompt: 'Which night are you writing about?',
+        helper: 'Usually last night.',
         required: true,
         withDate: true,
         withTime: false,
@@ -139,29 +142,30 @@ const sleepDiary: CatalogueEntry = {
       {
         id: 'bedtime',
         type: 'datetime',
-        prompt: 'What time did you get into bed?',
+        prompt: 'When did you get into bed?',
         withDate: false,
         withTime: true,
       },
       {
         id: 'wake_time',
         type: 'datetime',
-        prompt: 'What time did you get up?',
-        helper: 'Getting up, not waking — they are often different.',
+        prompt: 'When did you actually get up?',
+        helper: "Getting up, not waking up. They're often different.",
         withDate: false,
         withTime: true,
       },
       {
         id: 'rested',
         type: 'scale_0_10',
-        prompt: 'How rested do you feel today?',
-        minLabel: 'not at all rested',
-        maxLabel: 'very rested',
+        prompt: 'How rested do you feel?',
+        minLabel: 'running on empty',
+        maxLabel: 'fully charged',
       },
       {
         id: 'screens',
         type: 'choice',
-        prompt: 'Were you on a screen in the hour before bed?',
+        prompt: 'Were you on your phone or a screen in the hour before bed?',
+        helper: 'No judgement. Most of us were.',
         options: [
           { value: 'yes', label: 'Yes' },
           { value: 'no', label: 'No' },
@@ -170,32 +174,33 @@ const sleepDiary: CatalogueEntry = {
       {
         id: 'notes',
         type: 'short_text',
-        prompt: 'Anything worth noting about last night?',
-        helper: 'Waking in the night, a racing mind, a late message, something on your mind. A few words is enough.',
+        prompt: 'Anything about last night worth remembering?',
+        helper:
+          'Woke up a lot, mind racing, a late-night call, a noisy house. A few words is enough.',
       },
     ],
     closing: {
-      text: 'One night is a data point, not a verdict. The pattern is what helps.',
+      text: 'Done for today. Over a few mornings, you may start to see how your nights and days connect.',
     },
   },
   content_hi: null,
 };
 
-// ─── 3. Muscle relaxation ─────────────────────────────────────────────────
+// ─── 3. Unclench ──────────────────────────────────────────────────────────
 
 const muscleRelaxation: CatalogueEntry = {
   tool_id: 'ws_muscle_relaxation',
-  label: 'Muscle relaxation',
+  label: 'Unclench',
   label_hi: null,
-  summary: 'Tense and release each part of the body in turn, guided step by step.',
+  summary: "You're probably holding more tension than you think. Five minutes to let it go.",
   summary_hi: null,
   section: 'calm_my_body',
   therapy_modality: 'Progressive muscle relaxation',
   therapist_note:
-    'guided tense-and-release through the main muscle groups. Audio-guided once the owner approves the script and the voice; until then the script is read on screen and nothing is recorded.',
+    'guided tense-and-release through the main muscle groups, about five minutes. Audio-guided once the owner approves the script and the voice; until then the script is read on screen and nothing is recorded. The approved voice brief is warm Indian English, slow, with about five seconds of silence at each "Hold…" and between steps.',
   access_mode: 'open',
   load_level: 'light',
-  est_minutes: 10,
+  est_minutes: 5,
   sort_order: 150,
   status: 'draft',
   opens: 'worksheet',
@@ -204,77 +209,77 @@ const muscleRelaxation: CatalogueEntry = {
   content_en: {
     version: 1,
     intro:
-      "When the body holds tension for a long time, it stops noticing it. This is a few minutes of tensing each part gently, then letting it go — so the difference becomes something you can feel again. Nothing here should hurt. If a part is injured, skip it.",
+      "Stress hides in your body: a clenched jaw, tight shoulders, fists you didn't know you were making. You'll gently tighten one part at a time, then let it go. Nothing should hurt. Skip any part that's sore or injured.",
     fields: [
       {
         id: 'settle',
         type: 'instruction',
         prompt:
-          'Sit or lie somewhere comfortable. Let your hands rest. Take one slow breath out, and let your shoulders drop.',
+          'Get comfortable, sitting or lying down. Let your hands rest. Breathe out slowly, and let your shoulders drop a little.',
       },
       {
         id: 'hands_arms',
         type: 'instruction',
         prompt:
-          'Make a loose fist with both hands and gently tighten your arms. Hold for a moment — not hard, just enough to feel it. Now let go completely. Notice the difference for a few seconds.',
+          'Hands and arms. Make two loose fists and tighten your arms, just a little. Hold… and let go. Notice how your hands feel now.',
       },
       {
         id: 'shoulders_neck',
         type: 'instruction',
         prompt:
-          'Lift your shoulders towards your ears and hold them there. Then let them fall. Feel how far down they go when you stop holding them.',
+          'Shoulders. Lift them up towards your ears. Hold them there… and drop them. Feel how far they fall.',
       },
       {
         id: 'face',
         type: 'instruction',
         prompt:
-          'Scrunch your face gently — eyes, jaw, forehead. Hold, then release. Let your jaw come slightly apart.',
+          'Face. Scrunch it up: eyes, forehead, jaw. Hold… and let go. Let your teeth come slightly apart.',
       },
       {
         id: 'stomach',
         type: 'instruction',
         prompt:
-          'Tighten your stomach muscles gently, as if bracing. Hold, then let them soften. Let your breath go low into your belly.',
+          "Stomach. Tighten it gently, like you're bracing. Hold… and soften. Let your breath reach your belly.",
       },
       {
         id: 'legs_feet',
         type: 'instruction',
         prompt:
-          'Point your toes away and tighten your legs. Hold, then release. Let your legs feel heavy where they are.',
+          'Legs and feet. Point your toes and tighten your legs. Hold… and release. Let them feel heavy.',
       },
       {
         id: 'whole_body',
         type: 'instruction',
         prompt:
-          'Now the whole body at once, gently. Hold for a moment, then let everything go and breathe out slowly.',
+          'Now all of you together, gently. Hold… and let everything go. One long breath out.',
       },
       {
         id: 'after',
         type: 'scale_0_10',
         prompt: 'How does your body feel now?',
-        minLabel: 'still tense',
-        maxLabel: 'much softer',
+        minLabel: 'still tight',
+        maxLabel: 'loose and easy',
       },
     ],
     closing: {
-      text: "You don't have to carry it all in your muscles. Come back to this whenever the tension builds.",
+      text: "That's it. Check in with your jaw and shoulders again later today.",
     },
   },
   content_hi: null,
 };
 
-// ─── 4. Safe place ────────────────────────────────────────────────────────
+// ─── 4. My calm place ─────────────────────────────────────────────────────
 
 const safePlace: CatalogueEntry = {
   tool_id: 'ws_safe_place',
-  label: 'Safe place',
+  label: 'My calm place',
   label_hi: null,
-  summary: 'Build a calm place in your mind, guided, to return to when things feel too much.',
+  summary: 'Build a place in your head you can go to when things get too loud.',
   summary_hi: null,
   section: 'calm_my_body',
   therapy_modality: 'Guided imagery (safe place)',
   therapist_note:
-    'guided imagery to a place the client builds themselves. Audio-guided once the owner approves the script and the voice; until then the script is read on screen and nothing is recorded. The place is the client\'s own — nothing is suggested for them.',
+    'guided imagery to a place the client builds themselves. The place is asked for first, before any settling step, so the client names it in their own words before the guided part begins. Audio-guided once the owner approves the script and the voice; until then the script is read on screen and nothing is recorded. The place is the client\'s own — nothing is suggested for them.',
   access_mode: 'open',
   load_level: 'light',
   est_minutes: 10,
@@ -286,55 +291,56 @@ const safePlace: CatalogueEntry = {
   content_en: {
     version: 1,
     intro:
-      "Somewhere in your mind there is a place that feels calmer than here. It can be real or made up, somewhere you have been or somewhere you would like to be. We're going to spend a few minutes there.",
+      'Think of a place where you feel calmer. It can be real or made up: your nani\'s kitchen, a quiet beach, your bed on a rainy afternoon. You\'ll spend a few minutes there. If anything feels uncomfortable, open your eyes and stop. You can come back another time.',
     fields: [
+      // The question comes first: the client names their place in their own
+      // words before the guided part starts, so nothing is typed mid-script.
+      {
+        id: 'choose',
+        type: 'short_text',
+        prompt: "Where's your place?",
+        helper:
+          "A few words is enough. If nowhere real feels calm, make one up. That's completely fine.",
+        required: true,
+      },
       {
         id: 'settle',
         type: 'instruction',
         prompt:
-          'Sit or lie somewhere comfortable. Let your eyes close if that feels alright, or soften your gaze. Take one slow breath out.',
-      },
-      {
-        id: 'choose',
-        type: 'short_text',
-        prompt: 'Where is your place?',
-        helper: 'A room, a beach, a hill, a corner of someone\'s house, somewhere you invent. A few words is enough.',
-        required: true,
+          'Get comfortable. Close your eyes if that feels okay, or rest your eyes on one spot on the floor. Breathe out slowly.',
       },
       {
         id: 'see',
         type: 'instruction',
-        prompt:
-          'Picture it now. What can you see there — colours, light, the shape of things? Take a moment to look around it slowly.',
+        prompt: 'Look around. What do you see? Colours, light, the shape of things.',
       },
       {
         id: 'hear',
         type: 'instruction',
         prompt:
-          'What can you hear in this place? Maybe it is quiet. Let the sounds be there without needing to change them.',
+          'Listen. What can you hear? Rain, waves, quiet, someone humming in the next room.',
       },
       {
         id: 'feel',
         type: 'instruction',
-        prompt:
-          'What does it feel like on your skin — the air, the ground under you, the temperature? Let yourself settle into that.',
+        prompt: "Feel it. The air on your skin, what's under you, warm or cool.",
       },
       {
         id: 'stay',
         type: 'instruction',
         prompt:
-          'Stay here a little longer. Nothing is needed from you in this place. When you are ready, take one slow breath and come back.',
+          "Stay a little longer. Nothing is expected of you here. When you're ready, take one slow breath and open your eyes.",
       },
       {
         id: 'after',
         type: 'scale_0_10',
         prompt: 'How do you feel now?',
-        minLabel: 'still unsettled',
-        maxLabel: 'calmer',
+        minLabel: 'very unsettled',
+        maxLabel: 'very calm',
       },
     ],
     closing: {
-      text: 'This place is yours. You can come back to it whenever you need somewhere to put yourself down.',
+      text: 'Your place is yours. You can come back to it any time.',
     },
   },
   content_hi: null,

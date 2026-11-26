@@ -360,4 +360,75 @@ void feelingsTests() {
     final feelings = answer['feelings'] as Map<Object?, Object?>;
     expect(feelings.containsKey('chest'), isFalse);
   });
+
+  testWidgets('tells the client what the cap is instead of swallowing the tap',
+      (tester) async {
+    // Owner's decision, 26 Nov 2026: "You can pick up to three. Tap a spot
+    // again to remove it." A fourth tap that silently does nothing reads like a
+    // broken screen, so the line has to appear — and disappear again once a
+    // part is removed, or it would look like a permanent warning.
+    setTallSurface(tester);
+    final content = parseWorksheetContent({
+      'version': 1,
+      'fields': [
+        {
+          'id': 'where',
+          'type': 'body_outline',
+          'prompt': 'Where do you feel it right now?',
+          'required': true,
+          'maxSelections': 3,
+          'fullMessage': 'You can pick up to three. Tap a spot again to remove it.',
+          'regions': [
+            {'id': 'head', 'label': 'Head'},
+            {'id': 'chest', 'label': 'Chest'},
+            {'id': 'stomach', 'label': 'Stomach'},
+            {'id': 'shoulders', 'label': 'Shoulders'},
+          ],
+        },
+      ],
+      'closing': {
+        'text': 'Done.',
+        'buttons': [
+          {'label': 'Done', 'action': 'done'},
+        ],
+      },
+    });
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [libraryApiProvider.overrideWithValue(_NoHelpApi())],
+      child: MaterialApp(
+        home: WorksheetRunnerScreen(
+          toolId: 'ws_body_map',
+          userId: 'u1',
+          content: content,
+          draftStore: WorksheetDraftStore(),
+          onFinished: (answers, _) async {},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+
+    expect(find.byKey(const ValueKey('body_cap_where')), findsNothing);
+
+    for (final id in ['head', 'chest', 'stomach']) {
+      await tester.tap(find.byKey(ValueKey('body_spot_$id')));
+      await tester.pumpAndSettle();
+    }
+    // Three picked, no complaint: the cap has not been reached past.
+    expect(find.byKey(const ValueKey('body_cap_where')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('body_spot_shoulders')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('body_cap_where')), findsOneWidget);
+    expect(
+      find.text('You can pick up to three. Tap a spot again to remove it.'),
+      findsOneWidget,
+    );
+
+    // Removing a part clears it: the limit is no longer in the way.
+    await tester.tap(find.byKey(const ValueKey('body_spot_head')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('body_cap_where')), findsNothing);
+  });
 }

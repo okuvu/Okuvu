@@ -355,6 +355,7 @@ describe('rule 7 — the two new pieces', () => {
         id: 'where',
         type: 'body_outline',
         prompt: 'Tap where you feel it.',
+        fullMessage: 'You can pick up to three. Tap a spot again to remove it.',
         regions: [
           { id: 'head', label: 'Head' },
           { id: 'chest', label: 'Chest' },

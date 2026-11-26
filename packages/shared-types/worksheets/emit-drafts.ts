@@ -49,6 +49,21 @@ export const ALL_PLANS_DRAFT_DOC_PATH = 'docs/exercise-library/46-draft-all-plan
 /** The batches the first draft document covers. */
 const EARLIER_BATCH_IDS = new Set<string>([...DRAFT_BATCH_IDS, ...ANXIETY_DRAFT_BATCH_IDS]);
 
+/**
+ * Heading for a worksheet, read from the catalogue.
+ *
+ * The "All" batch was renamed after this document was first generated, and the
+ * hard-coded names survived the rename — the document kept showing "Body map"
+ * and "Safe place" while the app had moved on. Reading the label from
+ * `CATALOGUE` means a rename cannot drift again: the heading and the app get the
+ * words from the same place.
+ */
+const numbered = (n: number, id: string): string => {
+  const entry = CATALOGUE.find((e) => e.tool_id === id);
+  if (!entry) throw new Error(`no catalogue entry for ${id}`);
+  return `${n}. ${entry.label}`;
+};
+
 const TITLE: Record<string, string> = {
   ws_whats_on_my_plate: "1. What's on my plate",
   ws_basics_check: '2. Basics check',
@@ -78,10 +93,10 @@ const TITLE: Record<string, string> = {
   ws_reconnect_planner: '7. Reconnect planner',
   ws_comparison_check: '8. Comparison check',
   ws_miracle_question: '9. The morning after a miracle',
-  ws_body_map: '1. Body map',
-  ws_sleep_diary: '2. Sleep diary',
-  ws_muscle_relaxation: '3. Muscle relaxation',
-  ws_safe_place: '4. Safe place',
+  ws_body_map: numbered(1, 'ws_body_map'),
+  ws_sleep_diary: numbered(2, 'ws_sleep_diary'),
+  ws_muscle_relaxation: numbered(3, 'ws_muscle_relaxation'),
+  ws_safe_place: numbered(4, 'ws_safe_place'),
 };
 
 const BRIEF: Record<string, string> = {
@@ -113,7 +128,7 @@ const BRIEF: Record<string, string> = {
   ws_reconnect_planner: 'A list of people you miss. Pick one, choose how to reach out and a date. Afterwards: did it / not yet.',
   ws_comparison_check: 'Where you were, how it left you feeling, what you compared yourself to, what the post does not show, one small thing now. High load. No weight, body or food fields.',
   ws_miracle_question: 'If things got better overnight, what would you notice first? Where you are now on 0–10, and what one step up would look like.',
-  ws_body_map: 'The body outline piece. Tap where you feel something, then use the feelings picker for that spot, with how strong it is there.',
+  ws_body_map: 'The body outline piece. The client taps where they feel something, then uses the feelings picker for that spot. No strength rating: the approved copy asks only where and what.',
   ws_sleep_diary: 'Bedtime, wake time, 0–10 how rested, screens before bed (yes/no), short notes. No medicine field. The deeper safety screen applies.',
   ws_muscle_relaxation: 'Audio-guided. Tense and release each part of the body in turn. Script only — nothing recorded until the words and the voice are approved.',
   ws_safe_place: 'Audio-guided. Build a calm place in the mind and return to it. Script only — nothing recorded until the words and the voice are approved.',
@@ -125,6 +140,12 @@ function fieldLines(field: WorksheetField): string[] {
   if (field.required) lines.push('  - required');
   if (field.helper) lines.push(`  - helper: ${field.helper}`);
   if (field.example) lines.push(`  - example: ${field.example}`);
+  // What the client is told when a tap would go past the cap. Client copy, so
+  // the review document has to show it — otherwise the owner approves a screen
+  // with a line on it he has never read.
+  if ('fullMessage' in field && field.fullMessage) {
+    lines.push(`  - when the limit is reached: ${field.fullMessage}`);
+  }
   if ('options' in field) {
     for (const option of field.options) {
       lines.push(`  - option: ${option.label}`);
@@ -413,16 +434,16 @@ export function buildAllPlansDraftDoc(): string {
       : '',
     '',
     'All four go through the same safety check the journal uses on every written and spoken',
-    'answer, with the same response. The Sleep diary also carries the deeper screen you named',
+    'answer, with the same response. The Sleep check also carries the deeper screen you named',
     'on 24 November 2026: skipping meals, restricting food, making yourself sick, exercising',
     'to punish yourself, hating your body, days without sleep, wanting not to wake up,',
     'wanting to hurt someone, and self-harm.',
     '',
     'None of them asks for weight, body measurements, calories, food amounts or medicines —',
-    'the Sleep diary deliberately has no medicine field — and none of them adds answers into',
+    'the Sleep check deliberately has no medicine field — and none of them adds answers into',
     'a total, a level or a label.',
     '',
-    'Muscle relaxation and Safe place are audio-guided in intent. Nothing is recorded: the',
+    'Unclench and My calm place are audio-guided in intent. Nothing is recorded: the',
     'bodies below are the scripts you have to approve, and the voice is a separate decision.',
     '',
     '---',

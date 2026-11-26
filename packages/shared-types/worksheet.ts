@@ -310,6 +310,16 @@ export interface BodyOutlineField extends WorksheetFieldBase {
    * refused when it is not — a vocabulary nobody can pick from is dead copy.
    */
   feelings?: WorksheetFeeling[];
+  /**
+   * Shown when the client tries to tap one part past `maxSelections`.
+   *
+   * The client is told what the limit is and that tapping again removes a part,
+   * rather than the tap silently doing nothing (owner's decision, 26 Nov 2026:
+   * "You can pick up to three. Tap a spot again to remove it."). Optional, so a
+   * piece with no approved line stays quiet — but a silent dead tap is never
+   * acceptable, so when `maxSelections` is set the catalogue requires this.
+   */
+  fullMessage?: string;
 }
 
 /**
@@ -515,7 +525,7 @@ const TYPE_KEYS: Record<WorksheetFieldType, string[]> = {
   row_list: ['columns', 'minRows', 'maxRows', 'addLabel'],
   datetime: ['withDate', 'withTime'],
   countdown_timer: ['seconds', 'startLabel', 'doneLabel', 'minSeconds'],
-  body_outline: ['regions', 'maxSelections', 'withStrength', 'strengthPrompt', 'withFeelings', 'feelingsPrompt', 'feelings'],
+  body_outline: ['regions', 'maxSelections', 'withStrength', 'strengthPrompt', 'withFeelings', 'feelingsPrompt', 'feelings', 'fullMessage'],
   echo: ['fromField', 'frames', 'screened'],
   closing_reflection: [],
 };
@@ -1037,6 +1047,17 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
         errors.push(...feelingListProblems(raw.feelings, at));
       } else if (raw.feelings !== undefined) {
         errors.push(`${at}.feelings: needs withFeelings`);
+      }
+      // A capped outline has to say what happens at the cap. `maxSelections`
+      // defaults to 3, so every outline is capped, and a tap that silently does
+      // nothing reads like a broken screen. The copy is therefore required
+      // rather than optional (owner's decision, 26 Nov 2026).
+      if (raw.fullMessage === undefined) {
+        errors.push(`${at}.fullMessage: required, so a tap past the cap is never silent`);
+      } else if (!isNonEmptyString(raw.fullMessage)) {
+        errors.push(`${at}.fullMessage: must be a non-empty string`);
+      } else if ((raw.fullMessage as string).length > WORKSHEET_LIMITS.helper) {
+        errors.push(`${at}.fullMessage: over ${WORKSHEET_LIMITS.helper} characters`);
       }
     }
 

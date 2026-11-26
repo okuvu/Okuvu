@@ -59,7 +59,7 @@ describe('the "All" batch', () => {
   });
 });
 
-describe('the body map', () => {
+describe('Where do I feel it?', () => {
   const bodyMap = entryById('ws_body_map')!;
   const field = bodyMap.content_en!.fields[0];
 
@@ -67,9 +67,31 @@ describe('the body map', () => {
     expect(field.type).toBe('body_outline');
     if (field.type !== 'body_outline') throw new Error('unreachable');
     expect(field.withFeelings).toBe(true);
-    expect(field.withStrength).toBe(true);
     expect(field.feelingsPrompt).toBeTruthy();
     expect(field.feelings?.length).toBe(FEELINGS_EN.length);
+  });
+
+  it('asks only where and what, with no strength rating', () => {
+    // The approved copy asks "Where do you feel it right now?" and "What's the
+    // feeling there?", and nothing about how strong it is. A slider with no
+    // approved wording would be client copy the owner never saw, so the piece
+    // carries no strength rating and no strength prompt.
+    if (field.type !== 'body_outline') throw new Error('unreachable');
+    expect(field.withStrength).toBeFalsy();
+    expect(field.strengthPrompt).toBeFalsy();
+  });
+
+  it('says what happens at the three-spot cap', () => {
+    if (field.type !== 'body_outline') throw new Error('unreachable');
+    expect(field.maxSelections).toBe(3);
+    expect(field.fullMessage).toBe(
+      'You can pick up to three. Tap a spot again to remove it.',
+    );
+  });
+
+  it('carries the approved name and Library line', () => {
+    expect(bodyMap.label).toBe('Where do I feel it?');
+    expect(bodyMap.summary).toBe('Feelings often show up in your body first. Find where.');
   });
 
   it('offers every part on the outline the app can draw', () => {
@@ -97,6 +119,7 @@ describe('body outline with per-part feelings', () => {
           id: 'where',
           type: 'body_outline',
           prompt: 'Where?',
+          fullMessage: 'You can pick up to three. Tap a spot again to remove it.',
           regions: [
             { id: 'chest', label: 'Chest' },
             { id: 'stomach', label: 'Stomach' },

@@ -96,6 +96,7 @@ class WorksheetField {
     this.strengthPrompt,
     this.withFeelings = false,
     this.feelingsPrompt,
+    this.fullMessage,
     this.fromField,
     this.frames = const [],
   });
@@ -164,6 +165,9 @@ class WorksheetField {
 
   /// Question above the per-part feelings pickers, from the approved copy.
   final String? feelingsPrompt;
+
+  /// Shown when a tap goes past `maxSelections`, so the cap is never silent.
+  final String? fullMessage;
 
   // echo (read-back)
   /// The earlier text piece whose answer is shown inside [frames].
@@ -648,6 +652,8 @@ WorksheetContent parseWorksheetContent(Object? raw) {
         withFeelings: rawField['withFeelings'] == true,
         feelingsPrompt:
             rawField['feelingsPrompt'] is String ? rawField['feelingsPrompt'] as String : null,
+        fullMessage:
+            rawField['fullMessage'] is String ? rawField['fullMessage'] as String : null,
         fromField: rawField['fromField'] is String ? rawField['fromField'] as String : null,
         frames: rawField['frames'] is List
             ? (rawField['frames'] as List).whereType<String>().toList(growable: false)

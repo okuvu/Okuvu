@@ -162,6 +162,11 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   bool _submitting = false;
   bool _saveFailed = false;
 
+  /// Set when a body-outline tap goes past its cap, so the client is told why
+  /// nothing happened instead of the tap dying silently. Keyed by field id and
+  /// cleared on the next successful tap.
+  String? _bodyCapFieldId;
+
   /// One controller per text-ish piece (and per row-list cell), created on
   /// first render. Creating them inside build would reset the caret on every
   /// keystroke, which on a phone reads as the keyboard fighting you.
@@ -1284,6 +1289,19 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
     );
   }
 
+  /// Tells the client a body-outline tap went past the cap, in the approved
+  /// words. Not a snackbar: the line sits under the outline, next to the parts
+  /// it is about, so it is still on screen while they undo a pick.
+  void _showBodyCap(String fieldId) {
+    if (_bodyCapFieldId == fieldId) return;
+    setState(() => _bodyCapFieldId = fieldId);
+  }
+
+  void _clearBodyCap(String fieldId) {
+    if (_bodyCapFieldId != fieldId) return;
+    setState(() => _bodyCapFieldId = null);
+  }
+
   /// The body-outline piece (owner's rule 7, 24 Nov 2026).
   ///
   /// The words are the worksheet's (`field.regions`); the drawing is the app's.
@@ -1328,9 +1346,16 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
         picked.remove(id);
         strength.remove(id);
         feelings.remove(id);
+        _clearBodyCap(field.id);
       } else {
-        if (picked.length >= max) return;
+        if (picked.length >= max) {
+          // The tap would be dead otherwise: say what the limit is and how to
+          // undo a pick (owner's decision, 26 Nov 2026).
+          _showBodyCap(field.id);
+          return;
+        }
         picked.add(id);
+        _clearBodyCap(field.id);
       }
       write();
     }
@@ -1412,6 +1437,14 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
         ],
         const SizedBox(height: 8),
         Text('$max at most', style: theme.textTheme.bodySmall),
+        if (_bodyCapFieldId == field.id && field.fullMessage != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            field.fullMessage!,
+            key: ValueKey('body_cap_${field.id}'),
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
+          ),
+        ],
         if (field.withStrength && picked.isNotEmpty) ...[
           const SizedBox(height: 12),
           if (field.strengthPrompt != null)

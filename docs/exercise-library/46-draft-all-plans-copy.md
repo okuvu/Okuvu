@@ -9,121 +9,123 @@ open, no assignment from the portal. A therapist can preview them. Nothing is sw
 on until you say the wording is approved.
 
 All four go through the same safety check the journal uses on every written and spoken
-answer, with the same response. The Sleep diary also carries the deeper screen you named
+answer, with the same response. The Sleep check also carries the deeper screen you named
 on 24 November 2026: skipping meals, restricting food, making yourself sick, exercising
 to punish yourself, hating your body, days without sleep, wanting not to wake up,
 wanting to hurt someone, and self-harm.
 
 None of them asks for weight, body measurements, calories, food amounts or medicines —
-the Sleep diary deliberately has no medicine field — and none of them adds answers into
+the Sleep check deliberately has no medicine field — and none of them adds answers into
 a total, a level or a label.
 
-Muscle relaxation and Safe place are audio-guided in intent. Nothing is recorded: the
+Unclench and My calm place are audio-guided in intent. Nothing is recorded: the
 bodies below are the scripts you have to approve, and the voice is a separate decision.
 
 ---
 
-## 1. Body map
+## 1. Where do I feel it?
 
-**The brief:** The body outline piece. Tap where you feel something, then use the feelings picker for that spot, with how strong it is there.
+**The brief:** The body outline piece. The client taps where they feel something, then uses the feelings picker for that spot. No strength rating: the approved copy asks only where and what.
 
 - id: `ws_body_map`
-- Library description: Mark where in the body a feeling shows up, and how strong it is there.
+- Library description: Feelings often show up in your body first. Find where.
 - opens: S — the client can open it themselves
 - load: light · about 5 minutes
 - care plan label: all
 - deeper safety screen: no (the shared check on every answer still runs)
 
-> Feelings show up in the body before we have words for them — a tight chest, a heavy stomach, shoulders up by the ears. Tap wherever you notice something today. There's no right place to find.
+> Before you have words for a feeling, your body often already knows. A tight chest. A knot in your stomach. Shoulders up near your ears. Tap where you notice something.
 
-- **body outline** — Where do you notice something right now?
+- **body outline** — Where do you feel it right now?
   - required
-  - helper: Tap as many places as fit, up to three. Nothing has to be there.
+  - helper: Tap up to three spots. If you can't find anything, that's okay too.
+  - when the limit is reached: You can pick up to three. Tap a spot again to remove it.
   - feelings offered: sad, scared, angry, ashamed, happy, calm, numb, worried, panicky, unsafe, on edge
 
-> You noticed where it lives. That is often the first step to it easing.
+> Now you know where it sits. Next time it turns up, you might notice it sooner.
 
 ---
 
-## 2. Sleep diary
+## 2. Sleep check
 
 **The brief:** Bedtime, wake time, 0–10 how rested, screens before bed (yes/no), short notes. No medicine field. The deeper safety screen applies.
 
 - id: `ws_sleep_diary`
-- Library description: Record sleep and wake times and how the day felt, to spot a pattern.
+- Library description: Two minutes each morning. See how your sleep and your days connect.
 - opens: S — the client can open it themselves
 - load: light · about 3 minutes
 - care plan label: all
 - deeper safety screen: yes
 
-> Sleep and mood pull on each other, and it's hard to see the pattern from inside a tired week. A short note each morning is enough — this isn't a test, and a bad night is still useful information.
+> Bad sleep makes everything feel heavier, and when you're tired it's hard to see why. Jot down last night in under two minutes. A rough night is worth writing down too.
 
-- **datetime** — Which night is this?
+- **datetime** — Which night are you writing about?
   - required
-  - helper: The night you are writing about.
-- **datetime** — What time did you get into bed?
-- **datetime** — What time did you get up?
-  - helper: Getting up, not waking — they are often different.
-- **scale 0 10** — How rested do you feel today?
-- **choice** — Were you on a screen in the hour before bed?
+  - helper: Usually last night.
+- **datetime** — When did you get into bed?
+- **datetime** — When did you actually get up?
+  - helper: Getting up, not waking up. They're often different.
+- **scale 0 10** — How rested do you feel?
+- **choice** — Were you on your phone or a screen in the hour before bed?
+  - helper: No judgement. Most of us were.
   - option: Yes
   - option: No
-- **short text** — Anything worth noting about last night?
-  - helper: Waking in the night, a racing mind, a late message, something on your mind. A few words is enough.
+- **short text** — Anything about last night worth remembering?
+  - helper: Woke up a lot, mind racing, a late-night call, a noisy house. A few words is enough.
 
-> One night is a data point, not a verdict. The pattern is what helps.
+> Done for today. Over a few mornings, you may start to see how your nights and days connect.
 
 ---
 
-## 3. Muscle relaxation
+## 3. Unclench
 
 **The brief:** Audio-guided. Tense and release each part of the body in turn. Script only — nothing recorded until the words and the voice are approved.
 
 - id: `ws_muscle_relaxation`
-- Library description: Tense and release each part of the body in turn, guided step by step.
+- Library description: You're probably holding more tension than you think. Five minutes to let it go.
 - opens: S — the client can open it themselves
-- load: light · about 10 minutes
+- load: light · about 5 minutes
 - care plan label: all
 - deeper safety screen: no (the shared check on every answer still runs)
 
-> When the body holds tension for a long time, it stops noticing it. This is a few minutes of tensing each part gently, then letting it go — so the difference becomes something you can feel again. Nothing here should hurt. If a part is injured, skip it.
+> Stress hides in your body: a clenched jaw, tight shoulders, fists you didn't know you were making. You'll gently tighten one part at a time, then let it go. Nothing should hurt. Skip any part that's sore or injured.
 
-- **instruction** — Sit or lie somewhere comfortable. Let your hands rest. Take one slow breath out, and let your shoulders drop.
-- **instruction** — Make a loose fist with both hands and gently tighten your arms. Hold for a moment — not hard, just enough to feel it. Now let go completely. Notice the difference for a few seconds.
-- **instruction** — Lift your shoulders towards your ears and hold them there. Then let them fall. Feel how far down they go when you stop holding them.
-- **instruction** — Scrunch your face gently — eyes, jaw, forehead. Hold, then release. Let your jaw come slightly apart.
-- **instruction** — Tighten your stomach muscles gently, as if bracing. Hold, then let them soften. Let your breath go low into your belly.
-- **instruction** — Point your toes away and tighten your legs. Hold, then release. Let your legs feel heavy where they are.
-- **instruction** — Now the whole body at once, gently. Hold for a moment, then let everything go and breathe out slowly.
+- **instruction** — Get comfortable, sitting or lying down. Let your hands rest. Breathe out slowly, and let your shoulders drop a little.
+- **instruction** — Hands and arms. Make two loose fists and tighten your arms, just a little. Hold… and let go. Notice how your hands feel now.
+- **instruction** — Shoulders. Lift them up towards your ears. Hold them there… and drop them. Feel how far they fall.
+- **instruction** — Face. Scrunch it up: eyes, forehead, jaw. Hold… and let go. Let your teeth come slightly apart.
+- **instruction** — Stomach. Tighten it gently, like you're bracing. Hold… and soften. Let your breath reach your belly.
+- **instruction** — Legs and feet. Point your toes and tighten your legs. Hold… and release. Let them feel heavy.
+- **instruction** — Now all of you together, gently. Hold… and let everything go. One long breath out.
 - **scale 0 10** — How does your body feel now?
 
-> You don't have to carry it all in your muscles. Come back to this whenever the tension builds.
+> That's it. Check in with your jaw and shoulders again later today.
 
 ---
 
-## 4. Safe place
+## 4. My calm place
 
 **The brief:** Audio-guided. Build a calm place in the mind and return to it. Script only — nothing recorded until the words and the voice are approved.
 
 - id: `ws_safe_place`
-- Library description: Build a calm place in your mind, guided, to return to when things feel too much.
+- Library description: Build a place in your head you can go to when things get too loud.
 - opens: S — the client can open it themselves
 - load: light · about 10 minutes
 - care plan label: all
 - deeper safety screen: no (the shared check on every answer still runs)
 
-> Somewhere in your mind there is a place that feels calmer than here. It can be real or made up, somewhere you have been or somewhere you would like to be. We're going to spend a few minutes there.
+> Think of a place where you feel calmer. It can be real or made up: your nani's kitchen, a quiet beach, your bed on a rainy afternoon. You'll spend a few minutes there. If anything feels uncomfortable, open your eyes and stop. You can come back another time.
 
-- **instruction** — Sit or lie somewhere comfortable. Let your eyes close if that feels alright, or soften your gaze. Take one slow breath out.
-- **short text** — Where is your place?
+- **short text** — Where's your place?
   - required
-  - helper: A room, a beach, a hill, a corner of someone's house, somewhere you invent. A few words is enough.
-- **instruction** — Picture it now. What can you see there — colours, light, the shape of things? Take a moment to look around it slowly.
-- **instruction** — What can you hear in this place? Maybe it is quiet. Let the sounds be there without needing to change them.
-- **instruction** — What does it feel like on your skin — the air, the ground under you, the temperature? Let yourself settle into that.
-- **instruction** — Stay here a little longer. Nothing is needed from you in this place. When you are ready, take one slow breath and come back.
+  - helper: A few words is enough. If nowhere real feels calm, make one up. That's completely fine.
+- **instruction** — Get comfortable. Close your eyes if that feels okay, or rest your eyes on one spot on the floor. Breathe out slowly.
+- **instruction** — Look around. What do you see? Colours, light, the shape of things.
+- **instruction** — Listen. What can you hear? Rain, waves, quiet, someone humming in the next room.
+- **instruction** — Feel it. The air on your skin, what's under you, warm or cool.
+- **instruction** — Stay a little longer. Nothing is expected of you here. When you're ready, take one slow breath and open your eyes.
 - **scale 0 10** — How do you feel now?
 
-> This place is yours. You can come back to it whenever you need somewhere to put yourself down.
+> Your place is yours. You can come back to it any time.
 
 ---
