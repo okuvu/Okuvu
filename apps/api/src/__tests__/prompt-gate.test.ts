@@ -184,11 +184,14 @@ describe('the prompt gate', () => {
     expect(text).toContain('Exception —\n   medicine.');
   });
 
-  it('keeps v3.0 scoreable and out of the default until a run says otherwise', () => {
+  it('keeps v3.0 scoreable and out of the default, with its failure on record', () => {
     const v30 = PROMPT_GATE.find((entry) => entry.version === 'v3.0');
     expect(v30).toBeDefined();
-    // The strict gate: a candidate that has not run cannot be the default.
-    expect(v30!.state).toBe('not_run');
+    // The strict gate: a scored candidate that did not pass cannot be the
+    // default, and its state is `failed` with the run behind it — not `not_run`,
+    // which would imply it had never been measured.
+    expect(v30!.state).toBe('failed');
+    expect(v30!.evidence).toBe('evidence/r9-v30-gate/last-v30.json');
     expect(isEligibleAsDefault(v30!)).toBe(false);
     const file = join(API_ROOT, 'src', 'prompts', 'a2-okuvu-v3.0.txt');
     expect(existsSync(file)).toBe(true);
