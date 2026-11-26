@@ -62,6 +62,7 @@ import {
 import { processTurn } from '../pipeline/orchestrator.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
+import { MEDICATION_ROUTE_RESPONSE } from '../pipeline/medication-guard.js';
 import {
   A8_S3_GROUNDING_RESPONSE,
   CRISIS_RESPONSE,
@@ -505,18 +506,22 @@ describe('the cap through the real pipeline is dark by default', () => {
     }
   });
 
-  it('routes the same message to A2 when the flag is on', async () => {
+  it('routes the same message to the medication net when the flag is on', async () => {
     process.env.OKUVU_MED_CAP = 'on';
     try {
-      const reply = 'I would not change a dose without your psychiatrist. Can you call them this week?';
-      model({ a1: a1Json('S3'), a2: reply });
+      model({ a1: a1Json('S3') });
       const res = await processTurn(UID, SESSION_ID, 'I have decided to halve my dose this week. Does that sound reasonable?');
-      // A2 answered, so the S3 grounding card was not served: the cap fired.
       expect(res.type).toBe('agent_turn');
       if (res.type === 'agent_turn') {
-        expect(res.message).toBe(reply);
+        // Owner's rule, 25 Nov 2026: a medication-change question is answered by
+        // the fixed prescriber reply before the model is called. Before the net
+        // existed this test asserted the cap let A2 answer it, because the only
+        // alternative was the S3 grounding card — which answers a dose question
+        // with a breathing exercise. The net is the better answer to the same
+        // problem: the question is answered, and no model gets to phrase it.
+        expect(res.message).toBe(MEDICATION_ROUTE_RESPONSE);
         expect(res.message).not.toBe(A8_S3_GROUNDING_RESPONSE);
-        expect(res.fallbackSource).toBeUndefined();
+        expect(res.fallbackSource).toBe('medication_route');
       }
     } finally {
       delete process.env.OKUVU_MED_CAP;

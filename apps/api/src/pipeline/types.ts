@@ -100,6 +100,11 @@ export type FallbackSource =
   // 'model_unavailable' because the model did answer — it just answered with
   // nothing — and the two need to be countable apart.
   | 'empty_reply'
+  // Owner's rule, 25 Nov 2026 — the message asked about starting, stopping,
+  // skipping or changing a medicine, so the fixed approved reply naming the
+  // prescriber was served instead of a model reply. Deterministic: the model is
+  // never called on this path (see pipeline/medication-guard.ts).
+  | 'medication_route'
 
 export type PipelineResult =
   | {

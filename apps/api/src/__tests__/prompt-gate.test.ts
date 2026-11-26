@@ -184,6 +184,35 @@ describe('the prompt gate', () => {
     expect(text).toContain('Exception —\n   medicine.');
   });
 
+  it('keeps v3.0 scoreable and out of the default until a run says otherwise', () => {
+    const v30 = PROMPT_GATE.find((entry) => entry.version === 'v3.0');
+    expect(v30).toBeDefined();
+    // The strict gate: a candidate that has not run cannot be the default.
+    expect(v30!.state).toBe('not_run');
+    expect(isEligibleAsDefault(v30!)).toBe(false);
+    const file = join(API_ROOT, 'src', 'prompts', 'a2-okuvu-v3.0.txt');
+    expect(existsSync(file)).toBe(true);
+
+    const text = readFileSync(file, 'utf-8');
+    // Every v3.0 rule is a prohibition followed by what to do instead — the
+    // owner's direction. Pinned verbatim so a later edit cannot drop the
+    // replacement half and quietly restore the v2.9 shape that scored worse.
+    expect(text).toContain('**About someone else, never guess — instead, reflect how worrying it is for the user and ask how they are coping with it.**');
+    expect(text).toContain('**Instead, do this, in this order:**');
+    expect(text).toContain('**Food and diet are a clinical question, not a coaching one.**');
+    expect(text).toContain('**first\n  name the feeling in one line, then offer exactly one settling step, and only\n  then help with what they want to say.**');
+    expect(text).toContain('"it could be a sign of…"');
+
+    // The food rule must forbid the whole family, not just "diet".
+    for (const word of ['food', 'eating', 'diet', 'nutrition', 'supplements', 'exercise amounts']) {
+      expect(text).toContain(word);
+    }
+
+    // Nothing from v2.9 was deleted — v3.0 is a rewrite of three rules, not a cut.
+    expect(text).toContain('**A medication question is never a goodbye.**');
+    expect(text).toContain('Exception —\n   medicine.');
+  });
+
   it('has no entry that claims a pass with no run behind it', () => {
     for (const entry of PROMPT_GATE) {
       if (entry.state === 'passed') {

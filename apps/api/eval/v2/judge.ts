@@ -22,6 +22,13 @@ export const ALL_PATHS: readonly ServedPath[] = [
   'a2_blocked',
   'harm_to_someone',
   'harm_to_someone_thoughts',
+  // Owner's rule, 25 Nov 2026 — the fixed medication reply. In ALL_PATHS because
+  // a rubric that asks "was the prescriber named" is answered by this copy in
+  // the same words as by a model reply; leaving it out made the judge report
+  // "no requirement applies to path medication_route", which scored six
+  // already-correct turns (sb-08, sb-18 among them) as judge errors and cost
+  // scope_boundary six judgements for no behavioural reason.
+  'medication_route',
 ];
 
 /**

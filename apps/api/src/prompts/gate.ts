@@ -157,7 +157,22 @@ export const PROMPT_GATE: PromptGateEntry[] = [
       'four, out for six"), and three of its four additions are prohibitions that say what not ' +
       'to do without saying what to do instead. "Nothing is worse than v2.8" was therefore ' +
       'false, and the owner ruled in advance that v2.8 then stays. Not promoted; no exception ' +
-      'signed. See evidence/r8-empty-reply/README.md.',
+      "signed. See evidence/r8-empty-reply/README.md.",
+  },
+  {
+    version: 'v3.0',
+    state: 'not_run',
+    evidence: null,
+    date: '2026-11-25',
+    note:
+      'Candidate: v2.9 with three rules rewritten so every prohibition is followed by what ' +
+      'to do instead — about someone else (reflect the worry, ask how they are coping), ' +
+      'anger before acting (name the feeling, one settling step, then the words), food and ' +
+      'diet (never advise; route to a doctor or dietitian and return to the feeling with one ' +
+      'step). Written because v2.9 was measured worse than v2.8 on clinical content, and the ' +
+      'failing replies showed why: it offered a step where v2.8 named one, and its additions ' +
+      'were prohibitions with no replacement behaviour. Not scored yet; not eligible as the ' +
+      'default until a run marks it passed.',
   },
 ];
 

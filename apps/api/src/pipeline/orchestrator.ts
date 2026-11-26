@@ -29,6 +29,11 @@ import {
   emptyReplyAuditAction,
   type EmptyReplySource,
 } from './empty-reply.js';
+import {
+  matchMedicationQuestion,
+  shouldRouteMedication,
+  MEDICATION_ROUTE_RESPONSE,
+} from './medication-guard.js';
 
 function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
   return new Error(faultType === 'timeout' ? 'injected_timeout' : 'injected_api_error');
@@ -805,6 +810,13 @@ export async function processTurn(
   // turn. See pipeline/empty-reply.ts for why this exists and what each branch
   // serves.
   let emptyReplySource: EmptyReplySource | null = null;
+  // ─── Owner's rule, 25 Nov 2026 — the medication safety net ───────────────
+  //
+  // Set when the turn was answered with the fixed medication reply instead of a
+  // model reply. Carries which words matched ("meds + stop + question") so the
+  // audit row can say why the model was not consulted, without carrying any
+  // client text.
+  let medicationRouteReason: string | null = null;
   // OKUVU v2.0: set when A8 routed this turn to agent='deterministic-grounding'
   // — A1 classified S3 (elevated risk). Same shape as a9PreBlocked: a real,
   // persisted turn with static content, no real A2 call, no A9-post review.
@@ -902,6 +914,24 @@ export async function processTurn(
     a9PreBlocked = true;
     a2Fallback = true;
     fallbackSource = 'a9_pre_blocked';
+  } else if (shouldRouteMedication({ message, safetyState: effectiveSafetyState }).matched) {
+    // ─── Owner's rule, 25 Nov 2026 — the medication safety net ─────────────
+    //
+    // "any message about starting, stopping, skipping or changing medicine gets
+    // this reply, whatever the model would have said." Served here, before the
+    // model call, so the client gets the approved copy on every turn of this
+    // kind and the model never gets the chance to read it as a goodbye. This
+    // branch sits after the crisis, harm-to-someone, medical-emergency, S3
+    // grounding and A9-pre-blocked branches on purpose: a message that is also
+    // a crisis disclosure must serve its own card, and the guard refuses
+    // S3/S4 for the same reason.
+    //
+    // Deterministic — the model is not called, so this counts as a substitute
+    // like the other static paths (A4).
+    finalText = MEDICATION_ROUTE_RESPONSE;
+    medicationRouteReason = matchMedicationQuestion(message).reason;
+    a2Fallback = true;
+    fallbackSource = 'medication_route';
   } else {
     try {
       if (testMode?.faults?.boundary === 'A2') throw injectedFaultError(testMode.faults.type);
@@ -1295,6 +1325,9 @@ export async function processTurn(
       // Owner's rule, 25 Nov 2026: null on every ordinary turn. When set, it
       // says which approved substitute the client got instead of a blank.
       empty_reply_source: emptyReplySource,
+      // Owner's rule, 25 Nov 2026: null unless the medication net answered this
+      // turn. Names the words that matched, never any client text.
+      medication_route: medicationRouteReason,
       safety_code: safetyNotice?.code ?? 'none',
       classifier_fallback: a1FallbackUsed,
       // §7 — what the model said versus what the session floor allowed. Null

@@ -10,7 +10,13 @@ export type ServedPath =
   /** Owner's rule, 24 Nov 2026: the approved harm-to-someone screen. */
   | 'harm_to_someone'
   /** The gentler variant for a frightening unwanted thought with no intent. */
-  | 'harm_to_someone_thoughts';
+  | 'harm_to_someone_thoughts'
+  /**
+   * Owner's rule, 25 Nov 2026: the fixed medication reply, served before the
+   * model is called for any message that asks about starting, stopping,
+   * skipping or changing a medicine.
+   */
+  | 'medication_route';
 
 export interface RubricGroup {
   label: string;
@@ -32,7 +38,7 @@ export interface Scenario {
    */
   mode: 'model' | 'failclosed' | 'empty_reply';
   category: string;
-  subset: 'holdout' | 'expansion';
+  subset: 'holdout' | 'expansion' | 'medication';
   message: string;
   context: Record<string, unknown>;
   must_include: RubricGroup[];

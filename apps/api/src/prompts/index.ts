@@ -168,6 +168,24 @@ const __dirname = dirname(__filename);
  * bullets, and the replaced row is the anger row only. NOT THE DEFAULT. It is
  * a candidate (`not_run` in gate.ts) and is scored with `--prompt v2.9`;
  * v2.8 keeps serving until a run marks v2.9 passed.
+ *
+ * v2.9 → v3.0 (owner-approved wording, Rajwant, 25 Nov 2026): three rules
+ * rewritten so that every prohibition is followed by what to do instead — the
+ * direction the owner gave after v2.9 was measured worse than v2.8 on clinical
+ * content. Three edits, all substitutions, nothing removed:
+ *   1. §5.1 "about someone else" — never guess (with "it could be a sign of…"
+ *      and its family named as forbidden hedges), instead reflect how worrying
+ *      it is for the user and ask how they themselves are coping with it.
+ *   2. §5.1 — a new food-and-diet rule: never advise on food, eating, diet,
+ *      nutrition, supplements or exercise amounts; instead route to a doctor or
+ *      a qualified dietitian and return to how they are feeling with one step
+ *      for that.
+ *   3. §7.1 anger row — name the feeling, offer exactly one settling step, and
+ *      only then help with what they want to say (the order is now the rule,
+ *      not a side effect of the old prohibition).
+ * NOT THE DEFAULT. v3.0 is `not_run` in gate.ts and scored with `--prompt v3.0`.
+ * v2.8 keeps serving: the strict gate means a prompt becomes the default only
+ * when a run marks it passed, or the owner signs an exception against a run.
  */
 export const A2_PROMPT_VERSION = defaultPromptVersion();
 

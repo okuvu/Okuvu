@@ -88,6 +88,10 @@ import { hasCrisisLanguage, hasSelfIngestion } from '../../src/agents/a1/crisis-
 import { screenHarmToSomeone } from '../../src/agents/a1/harm-to-someone-keywords.js';
 import { applySessionFloor, diagnosisLint, medicationTitrationCap } from '../../src/pipeline/guards.js';
 import { resolveEmptyReply } from '../../src/pipeline/empty-reply.js';
+import {
+  shouldRouteMedication,
+  MEDICATION_ROUTE_RESPONSE,
+} from '../../src/pipeline/medication-guard.js';
 import { hasMedicalEmergencyLanguage } from '../../src/agents/a1/medical-emergency-keywords.js';
 import {
   CRISIS_RESPONSE,
@@ -288,6 +292,12 @@ const counters = {
   session_floor_raised: 0,
   diagnosis_lint_blocked: 0,
   med_cap_applied: 0,
+  /**
+   * Turns the medication net answered instead of the model (owner's rule,
+   * 25 Nov 2026). Deterministic, so this counts what the guard caught rather
+   * than what a model did.
+   */
+  medication_routed: 0,
 };
 
 async function sleep(ms: number): Promise<void> {
@@ -498,6 +508,15 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
   if (floor.floorApplied) counters.session_floor_raised += 1;
   const effectiveState = floor.state;
 
+  // ─── Owner's rule, 25 Nov 2026 — the medication safety net ───────────────
+  //
+  // The same guard the product applies, at the same point: before the model is
+  // called, and only below S3, so a crisis disclosure keeps its own card. The
+  // instrument imports the shipped function rather than restating it, so a
+  // scenario scores the copy the client would actually have read.
+  const medMatch = shouldRouteMedication({ message: scenario.message, safetyState: effectiveState });
+  const wantEffective: ServedPath | null = want ?? (medMatch.matched ? 'medication_route' : null);
+
   const decision = routeTurn({
     message: scenario.message,
     safety_state: effectiveState,
@@ -522,7 +541,7 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
   const routing = crisisFloorMatched
     ? `${classified.safety_state} + crisis keyword floor -> S4 -> routeTurn -> ${path}`
     : `${classified.safety_state} -> routeTurn -> ${path}`;
-  const invariant = want === null || want === path ? 'ok' : `expected ${want}, served ${path}`;
+  const invariant = wantEffective === null || wantEffective === path ? 'ok' : `expected ${wantEffective}, served ${path}`;
 
   if (path !== 'a2') {
     const served =
@@ -555,6 +574,27 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
       classified,
       model_call: { ok: true, usage: null, stop_reason: `deterministic:${path}`, error: null },
       routing_invariant: invariant,
+      lint_blocked: null,
+      elapsed_ms: Date.now() - started,
+    };
+  }
+
+  // The medication net serves before the model is called, exactly as the
+  // pipeline does. `medMatch` was computed above with the shipped function.
+  if (medMatch.matched) {
+    counters.medication_routed += 1;
+    return {
+      path: 'medication_route',
+      routing: `${routing}; medication net -> fixed prescriber reply (${medMatch.reason})`,
+      served_text: MEDICATION_ROUTE_RESPONSE,
+      classified,
+      model_call: { ok: true, usage: null, stop_reason: 'deterministic:medication_route', error: null },
+      // The turn never reaches `path` (a2): the net answers first, so the
+      // invariant is judged against medication_route, not against a2.
+      routing_invariant:
+        wantEffective === null || wantEffective === 'medication_route'
+          ? 'ok'
+          : `expected ${wantEffective}, served medication_route`,
       lint_blocked: null,
       elapsed_ms: Date.now() - started,
     };
@@ -705,7 +745,7 @@ interface RepResult {
 interface ScenarioResult {
   id: string;
   category: string;
-  subset: 'holdout' | 'expansion';
+  subset: 'holdout' | 'expansion' | 'medication';
   mode: string;
   declared_safety_state: string | null;
   classified: ClassifiedState | null;
@@ -837,7 +877,11 @@ async function runGate(): Promise<void> {
   for (const scenario of goldSet.scenarios) {
     if (!goldSet.thresholds[scenario.category]) shapeErrors.push(`${scenario.id}: no threshold for ${scenario.category}`);
     if (scenario.must_include.length === 0) shapeErrors.push(`${scenario.id}: empty must_include`);
-    if (scenario.subset !== 'holdout' && scenario.subset !== 'expansion') shapeErrors.push(`${scenario.id}: bad subset`);
+    // 2.3.0 adds `medication` as a documented third subset; the anti-widening
+    // half of the net is its own body of evidence rather than folded in.
+    if (scenario.subset !== 'holdout' && scenario.subset !== 'expansion' && scenario.subset !== 'medication') {
+      shapeErrors.push(`${scenario.id}: bad subset`);
+    }
     if (scenario.mode === 'model') {
       const scoredEverywhere = (['a2', 'crisis', 'grounding', 'medical'] as ServedPath[]).every((path) =>
         scenario.must_include.some((group) => appliesTo(group, path)),
