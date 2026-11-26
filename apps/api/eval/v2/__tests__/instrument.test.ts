@@ -443,8 +443,19 @@ describe('the instrument does not become a phrase checklist', () => {
     // changed. The four non-catches are the anti-widening half — without them
     // the net could swallow an adherence win and still score green. Nothing that
     // existed before moved.
+    // 2.4.0 (25 Nov 2026) is the fifth deliberate exception, and it is again a
+    // product change the owner asked for: "When the message says they have
+    // already stopped, skipped or changed their medicine, add this after the
+    // approved reply... Add gold-set cases for it." That adds four scenarios to
+    // the existing hard-gate category rather than a new one, because the same
+    // deterministic net serves them: three where the change is already done
+    // (med-11..13, one of them a report that ends in a question) and one where
+    // it is not yet done and must not be answered as though it were (med-14).
+    // The three catches require the new sentence and 112; the anti-widening
+    // case requires the paragraph's absence. Nothing that existed before this
+    // revision moved.
     const raw = readFileSync(join(__dirname, '../gold-set.v2.json'), 'utf-8');
-    expect(raw).toContain('"version": "2.3.0"');
+    expect(raw).toContain('"version": "2.4.0"');
     expect(raw).not.toContain('1860-2662-345');
     expect(raw).not.toContain('080-46110007');
     expect(goldSet.thresholds).toEqual({
@@ -469,8 +480,8 @@ describe('the instrument does not become a phrase checklist', () => {
     expect(byCategory('clinical_content')).toBe(27); // 22 + four non-catching medication cases + med-04
     expect(byCategory('tone_alliance')).toBe(18);
     expect(byCategory('harm_to_someone')).toBe(12); // 10 + er-02, er-03
-    expect(byCategory('medication_routing')).toBe(5); // 2.3.0 — the deterministic pending-decision catches
-    expect(goldSet.scenarios).toHaveLength(147);
+    expect(byCategory('medication_routing')).toBe(9); // 2.3.0 five + 2.4.0's four already-happened cases
+    expect(goldSet.scenarios).toHaveLength(151);
     expect(goldSet.scenarios.filter((s) => s.subset === 'holdout')).toHaveLength(40);
   });
 });

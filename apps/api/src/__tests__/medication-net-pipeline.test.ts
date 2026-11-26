@@ -57,7 +57,10 @@ vi.mock('../lib/prisma.js', async () => {
 import { processTurn } from '../pipeline/orchestrator.js';
 import { prisma } from '../lib/prisma.js';
 import { getAgentContextBundle } from '../lib/agent-context.js';
-import { MEDICATION_ROUTE_RESPONSE } from '../pipeline/medication-guard.js';
+import {
+  MEDICATION_ROUTE_RESPONSE,
+  MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED,
+} from '../pipeline/medication-guard.js';
 import { A8_S3_GROUNDING_RESPONSE, CRISIS_RESPONSE } from '../pipeline/fallbacks.js';
 import { HARM_TO_SOMEONE_RESPONSE } from '../lib/harm-to-someone.js';
 
@@ -224,5 +227,55 @@ describe('every safety path outranks the net', () => {
     // served at S1 and S0 on the recorded runs), so this is the edge, not the
     // path.
     expect(result.message).toBe(A8_S3_GROUNDING_RESPONSE);
+  });
+});
+
+/**
+ * Owner's rule, 25 Nov 2026 — the already-happened addition, through the
+ * shipped pipeline.
+ *
+ * The same net answers, and the paragraph is appended only when the client
+ * reported the change rather than asking about it. Asserted on the text the
+ * client reads and on the Turn row the therapist later sees, so the two cannot
+ * drift.
+ */
+describe('the already-happened paragraph, end to end', () => {
+  const FULL = `${MEDICATION_ROUTE_RESPONSE}\n\n${MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED}`;
+
+  it('serves the approved reply plus the paragraph when the change is already done', async () => {
+    model({ a1: a1Json('S1') });
+
+    const result = await processTurn(UID, SESSION_ID, 'I stopped my antidepressants three days ago and I feel awful.');
+    expect(result.type).toBe('agent_turn');
+    if (result.type !== 'agent_turn') return;
+
+    expect(result.message).toBe(FULL);
+    expect(result.fallbackSource).toBe('medication_route');
+    expect(a2CallCount()).toBe(0);
+    expect(persistedAssistantText()).toBe(FULL);
+    // The approved block is still intact at the front, byte for byte.
+    expect(result.message.startsWith(MEDICATION_ROUTE_RESPONSE)).toBe(true);
+  });
+
+  it('serves only the approved block when the question is still open', async () => {
+    model({ a1: a1Json('S1') });
+
+    const result = await processTurn(UID, SESSION_ID, 'I feel fine now, so can I just stop my medication on my own?');
+    expect(result.type).toBe('agent_turn');
+    if (result.type !== 'agent_turn') return;
+
+    expect(result.message).toBe(MEDICATION_ROUTE_RESPONSE);
+    expect(result.message).not.toContain(MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED);
+  });
+
+  it('the paragraph never appears on a path that outranks the net', async () => {
+    // A crisis disclosure that also reports a stopped medicine: the crisis card
+    // wins, and the "contact your doctor today" line does not ride along.
+    model({ a1: a1Json('S4', true) });
+    const result = await processTurn(UID, SESSION_ID, 'I stopped my meds and now I want to kill myself.');
+    expect(result.type).toBe('crisis');
+    if (result.type !== 'crisis') return;
+    expect(result.message).not.toContain(MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED);
+    expect(result.message).toBe(CRISIS_RESPONSE);
   });
 });

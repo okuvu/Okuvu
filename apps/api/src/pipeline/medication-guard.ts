@@ -63,8 +63,122 @@ import type { SafetyState } from '@okuvu/shared-types';
 export const MEDICATION_ROUTE_RESPONSE =
   "That's an important question, and it's one for the doctor who prescribed your medicine. Please speak to them before you start, stop or change anything, even if you're feeling better. If it helps, we can think together about what you'd like to ask them.";
 
+/**
+ * The approved addition for the already-happened case, verbatim (owner,
+ * 25 Nov 2026). Shown ONLY when the message reports that the change has already
+ * been made — not for a question, and not for a plan.
+ *
+ * Kept as its own constant so `MEDICATION_ROUTE_RESPONSE` above stays
+ * byte-identical to the string the owner approved on 25 Nov. The two are joined
+ * by `medicationReply()` and never edited in place.
+ */
+export const MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED =
+  "If you've already stopped or changed it and you're feeling unwell, contact your doctor today. If you feel very unwell or unsafe, call 112.";
+
 /** Audit label for the mechanism, kept beside the copy it produced. */
 export const MEDICATION_ROUTE_SOURCE = 'medication_route' as const;
+
+/**
+ * The change has already happened: the client is reporting something done, not
+ * asking whether to do it.
+ *
+ * Why this needs its own detector rather than reusing `DECISION_FRAMING`: that
+ * pattern deliberately accepts all three kinds of decision (question, plan,
+ * fresh report), because all three get the same prescriber route. Only the
+ * third kind gets the "contact your doctor today" paragraph, and the sentence
+ * "speak to them before you start, stop or change anything" reads as advice
+ * arriving after the event for exactly that third kind.
+ *
+ * Completion is signalled by first-person past tense ("I stopped", "I've
+ * skipped", "I came off") or an explicit temporal marker ("on Monday", "three
+ * days ago", "since last week"). Forward-looking forms are then excluded, so
+ * "I want to stop", "should I stop" and "I'm thinking of coming off" stay on
+ * the plain reply.
+ */
+const ALREADY_HAPPENED: readonly RegExp[] = [
+  // First-person past tense, with or without the auxiliary.
+  /\bi\s+(?:have\s+|had\s+)?(?:already\s+)?(?:stopped|skipped|missed|changed|reduced|lowered|increased|raised|doubled|halved|quit|came\s+off|tapered|weaned|switched|adjusted)\b/i,
+  /\bi(?:'ve|'d)\s+(?:already\s+)?(?:stopped|skipped|missed|changed|reduced|lowered|increased|raised|doubled|halved|quit|come\s+off|tapered|weaned|switched|adjusted)\b/i,
+  // Change reported as a bare past-tense verb without a pronoun: "stopped them
+  // on Monday", "stopped my antidepressants three days ago". Requires a
+  // temporal or possessive anchor so "stopped" alone cannot fire it.
+  /\b(?:stopped|skipped|missed|changed|reduced|halved|doubled|quit|tapered)\s+(?:them|it|my|the)\b[^.?!]{0,40}\b(?:on|since|last|yesterday|ago|this\s+week|for\s+\w+\s+days?)\b/i,
+  // Unambiguous "since then I have been off it" shape.
+  /\b(?:been|be)\s+off\s+(?:them|it|my)\b/i,
+];
+
+/**
+ * Forward-looking signals. If any of these is present the change is still in
+ * the future or the hypothetical, so the already-happened paragraph is wrong.
+ *
+ * "Should I have stopped?" and "would it have been better to stop?" are
+ * retrospective questions about a decision already taken; they are excluded
+ * deliberately, because the paragraph addresses the client's current state and
+ * they have not said how they are now.
+ */
+const FORWARD_LOOKING: readonly RegExp[] = [
+  /\b(?:can|could|should|shall|may|might|would|will|do|does)\s+i\b/i,
+  /\b(?:can|could|should|shall|would|will|might|may)\s+i\s+have\b/i,
+  /\bi\s+(?:want|wanna|need|plan|intend|am\s+planning|'m\s+planning|am\s+thinking|'m\s+thinking|am\s+considering|'m\s+considering|am\s+going|'m\s+going|have\s+decided|'ve\s+decided)\b/i,
+  /\bi\s+(?:should|must|have\s+to|need\s+to|ought\s+to|gotta|think\s+i\s+should|think\s+i\s+need\s+to)\b/i,
+  /\bthinking\s+(?:of|about)\b/i,
+  /\bwhat\s+(?:if|happens)\b/i,
+];
+
+/**
+ * Forms where the medicine is carried by a pronoun rather than named — "I have
+ * been off them since Monday". In these the referent is unambiguous inside the
+ * clause, so they do not need a medicine word beside them.
+ */
+const ALREADY_REFERENT_BOUND: readonly RegExp[] = [
+  /\b(?:been|be|am|is)\s+off\s+(?:them|it|my)\b/i,
+];
+
+/** Clauses, so a past-tense verb has to belong to the same thought as the medicine. */
+function clausesOf(message: string): string[] {
+  return message
+    .split(/[,.;!?\n]+/)
+    .map((c) => c.trim())
+    .filter((c) => c !== '');
+}
+
+/**
+ * Did the message report a change as already done?
+ *
+ * Pure, no I/O, no clock. Called only after `matchMedicationQuestion` has
+ * already established that this is a medication-change message, so it does not
+ * re-check the medicine or the change verb.
+ *
+ * Matched **per clause**, not across the whole message. "I stopped going to the
+ * gym, is that why my meds aren't working?" mentions a stopping and a medicine,
+ * but the stopping is the gym — serving "if you've already stopped or changed
+ * it and you're feeling unwell" to that person is answering a question they did
+ * not ask. Requiring both in one clause is what keeps it out. Found by probing.
+ */
+export function isAlreadyHappened(message: string): boolean {
+  if (typeof message !== 'string' || message.trim() === '') return false;
+  for (const clause of clausesOf(message)) {
+    // Scoped per clause, not per message. "I stopped them on Monday and I feel
+    // awful, should I start again?" reports a change and then asks what to do
+    // about it — the paragraph is exactly right for that person. A message-wide
+    // check would cancel it because of the second clause.
+    if (firstMatch(FORWARD_LOOKING, clause) !== null) continue;
+    if (firstMatch(ALREADY_HAPPENED, clause) === null) continue;
+    if (firstMatch(MEDICINE_TERMS, clause) !== null) return true;
+    if (firstMatch(ALREADY_REFERENT_BOUND, clause) !== null) return true;
+  }
+  return false;
+}
+
+/**
+ * The full reply for a turn: the approved block, plus the already-happened
+ * paragraph when the client reported the change rather than asking about it.
+ */
+export function medicationReply(message: string): string {
+  return isAlreadyHappened(message)
+    ? `${MEDICATION_ROUTE_RESPONSE}\n\n${MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED}`
+    : MEDICATION_ROUTE_RESPONSE;
+}
 
 /**
  * A medicine, by the words people actually use. Deliberately broad — a false
@@ -190,7 +304,11 @@ const DECISION_FRAMING: readonly RegExp[] = [
   /\bi(?:'d|would)\s+(?:like|rather)\b/i,
   /\bthinking\s+(?:of|about)\b/i,
   // A change already made, reported first-person.
-  /\bi\s+(?:have\s+|'ve\s+)?(?:stopped|started|skipped|missed|changed|reduced|lowered|increased|raised|doubled|halved|quit|come\s+off|came\s+off|tapered|weaned|switched|adjusted)\b/i,
+  /\bi\s+(?:have\s+)?(?:stopped|started|skipped|missed|changed|reduced|lowered|increased|raised|doubled|halved|quit|come\s+off|came\s+off|tapered|weaned|switched|adjusted)\b/i,
+  // Contracted past tense. `\bi\s+` above needs whitespace after "I", so
+  // "I've stopped my meds" — the plainest way anyone reports this — was never
+  // matched at all. Found by probing, not by review.
+  /\bi(?:'ve|'d)\s+(?:already\s+)?(?:stopped|started|skipped|missed|changed|reduced|lowered|increased|raised|doubled|halved|quit|come\s+off|tapered|weaned|switched|adjusted)\b/i,
 ];
 
 /**
@@ -206,6 +324,10 @@ const PRESCRIBER_ATTRIBUTED: readonly RegExp[] = [
 /** Negated intent: no decision is being raised. */
 const NEGATED_INTENT: readonly RegExp[] = [
   /\b(?:don'?t|do\s+not|wouldn'?t|would\s+not|won'?t|will\s+not|never|not\s+going\s+to|not\s+planning\s+to)\s+(?:ever\s+)?(?:want\s+to\s+)?(?:stop|quit|come\s+off|skip|change|reduce|lower|increase|double|halve)\b/i,
+  // Past tense, so the contracted report added to DECISION_FRAMING cannot drag
+  // a denial into the net: "I've never stopped my meds", "I never skipped them".
+  /\b(?:never|not\s+once)\s+(?:ever\s+)?(?:have\s+i\s+)?(?:stopped|skipped|missed|changed|reduced|lowered|increased|raised|doubled|halved|quit|come\s+off|tapered|weaned|switched|adjusted)\b/i,
+  /\b(?:haven'?t|have\s+not|hadn'?t)\s+(?:ever\s+)?(?:stopped|skipped|missed|changed|reduced|lowered|increased|raised|doubled|halved|quit|come\s+off|tapered|weaned|switched|adjusted)\b/i,
   /\bno\s+(?:intention|plans?)\s+(?:of|to)\s+(?:stopping|quitting|coming\s+off|changing|skipping)\b/i,
 ];
 

@@ -32,7 +32,8 @@ import {
 import {
   matchMedicationQuestion,
   shouldRouteMedication,
-  MEDICATION_ROUTE_RESPONSE,
+  isAlreadyHappened,
+  medicationReply,
 } from './medication-guard.js';
 
 function injectedFaultError(faultType: 'timeout' | 'api_error'): Error {
@@ -928,8 +929,10 @@ export async function processTurn(
     //
     // Deterministic — the model is not called, so this counts as a substitute
     // like the other static paths (A4).
-    finalText = MEDICATION_ROUTE_RESPONSE;
-    medicationRouteReason = matchMedicationQuestion(message).reason;
+    finalText = medicationReply(message);
+    medicationRouteReason = isAlreadyHappened(message)
+      ? `${matchMedicationQuestion(message).reason} + already_happened`
+      : matchMedicationQuestion(message).reason;
     a2Fallback = true;
     fallbackSource = 'medication_route';
   } else {

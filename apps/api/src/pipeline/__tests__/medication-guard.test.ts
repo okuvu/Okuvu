@@ -18,7 +18,10 @@ import { describe, it, expect } from 'vitest';
 import {
   matchMedicationQuestion,
   shouldRouteMedication,
+  isAlreadyHappened,
+  medicationReply,
   MEDICATION_ROUTE_RESPONSE,
+  MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED,
 } from '../medication-guard.js';
 import type { SafetyState } from '@okuvu/shared-types';
 
@@ -164,5 +167,111 @@ describe('degenerate input', () => {
   it('an empty message matches nothing', () => {
     expect(matchMedicationQuestion('').matched).toBe(false);
     expect(matchMedicationQuestion('   ').matched).toBe(false);
+  });
+});
+
+/**
+ * Owner's rule, 25 Nov 2026 — the already-happened case.
+ *
+ * "When the message says they have already stopped, skipped or changed their
+ * medicine, add this after the approved reply ... Show it only for the
+ * already-happened case."
+ *
+ * The approved block is unchanged and still asserted above, byte for byte. This
+ * block is appended, never merged into it, so the string the owner signed stays
+ * the string the owner signed.
+ */
+describe('the already-happened addition', () => {
+  it('is the exact sentence the owner approved, byte for byte', () => {
+    expect(MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED).toBe(
+      "If you've already stopped or changed it and you're feeling unwell, contact your doctor today. If you feel very unwell or unsafe, call 112.",
+    );
+  });
+
+  it('is appended after the approved reply, never before it', () => {
+    const reply = medicationReply('I stopped my antidepressants three days ago and I feel awful');
+    expect(reply.startsWith(MEDICATION_ROUTE_RESPONSE)).toBe(true);
+    expect(reply.endsWith(MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED)).toBe(true);
+    expect(reply).toBe(`${MEDICATION_ROUTE_RESPONSE}\n\n${MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED}`);
+  });
+
+  /**
+   * The rule: shown for a report, never for a question or a plan. A question
+   * answered with "if you've already stopped" reads as though the companion was
+   * not listening.
+   */
+  const ALREADY: readonly string[] = [
+    'I stopped my antidepressants three days ago and I feel awful',
+    "I've stopped taking my meds",
+    'I skipped two days of my tablets',
+    'I came off my medication last week',
+    'I missed my meds yesterday',
+    'stopped my antidepressants three days ago',
+  ];
+  it.each(ALREADY)('adds the paragraph for a report: %s', (message) => {
+    expect(isAlreadyHappened(message)).toBe(true);
+    expect(medicationReply(message)).toContain(MEDICATION_ROUTE_RESPONSE_ALREADY_HAPPENED);
+  });
+
+  const NOT_ALREADY: readonly string[] = [
+    'I feel fine now, so can I just stop my medication on my own?',
+    'should I skip my meds today',
+    'I want to stop my medication',
+    "I'm thinking of coming off my tablets",
+    'what if I halve my dose',
+    'is it safe to stop olanzapine suddenly',
+    'should I have stopped my meds earlier',
+    // A stopping that belongs to something else entirely. The message is a
+    // medication question and does route — but not as already-happened.
+    'I stopped going to the gym, is that why my meds are not working?',
+  ];
+  it.each(NOT_ALREADY)('leaves the reply unextended for a question or plan: %s', (message) => {
+    expect(isAlreadyHappened(message)).toBe(false);
+    expect(medicationReply(message)).toBe(MEDICATION_ROUTE_RESPONSE);
+  });
+
+  it('a report with no medicine named anywhere routes nowhere at all', () => {
+    // "them" has no referent in this message, so there is nothing for the net
+    // to be about — it does not fire, and the paragraph never appears.
+    expect(matchMedicationQuestion('I already stopped them').matched).toBe(false);
+    expect(medicationReply('I already stopped them')).toBe(MEDICATION_ROUTE_RESPONSE);
+  });
+
+  it('an ordinary reply never carries the already-happened paragraph', () => {
+    // Both halves are true of a turn the net does not answer at all.
+    for (const m of ['my doctor told me to stop my medication', 'I took my meds today and felt proud']) {
+      expect(medicationReply(m)).toBe(MEDICATION_ROUTE_RESPONSE);
+    }
+  });
+});
+
+/**
+ * Two gaps found by probing this round rather than by review. Both are recorded
+ * here because a regression in either is silent: the first drops the net on the
+ * plainest phrasing anyone uses, the second puts an emergency number in front of
+ * someone who mentioned a gym.
+ */
+describe('phrasings the net must not lose', () => {
+  it("routes the contracted report, which had no framing pattern at all", () => {
+    // `\bi\s+` needs whitespace after "I", so "I've stopped my meds" matched no
+    // decision framing and the net never fired on it.
+    const m = matchMedicationQuestion("I've stopped taking my meds");
+    expect(m.matched).toBe(true);
+    expect(isAlreadyHappened("I've stopped taking my meds")).toBe(true);
+  });
+
+  it.each([
+    "I've never stopped my meds",
+    "I haven't skipped my tablets",
+    'I never changed my dose',
+    "I've never missed my meds",
+  ])('still refuses a denial: %s', (message) => {
+    expect(matchMedicationQuestion(message).matched).toBe(false);
+  });
+
+  it('binds the past-tense verb to the medicine, not to the whole message', () => {
+    // Contains "stopped" and "meds" in different clauses.
+    expect(isAlreadyHappened('I stopped going to the gym, is that why my meds are not working?')).toBe(false);
+    expect(isAlreadyHappened('I stopped my meds, is that why the gym feels harder?')).toBe(true);
   });
 });

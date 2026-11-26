@@ -90,7 +90,7 @@ import { applySessionFloor, diagnosisLint, medicationTitrationCap } from '../../
 import { resolveEmptyReply } from '../../src/pipeline/empty-reply.js';
 import {
   shouldRouteMedication,
-  MEDICATION_ROUTE_RESPONSE,
+  medicationReply,
 } from '../../src/pipeline/medication-guard.js';
 import { hasMedicalEmergencyLanguage } from '../../src/agents/a1/medical-emergency-keywords.js';
 import {
@@ -586,7 +586,7 @@ async function serve(scenario: Scenario, client: BedrockRuntimeClient, modelId: 
     return {
       path: 'medication_route',
       routing: `${routing}; medication net -> fixed prescriber reply (${medMatch.reason})`,
-      served_text: MEDICATION_ROUTE_RESPONSE,
+      served_text: medicationReply(scenario.message),
       classified,
       model_call: { ok: true, usage: null, stop_reason: 'deterministic:medication_route', error: null },
       // The turn never reaches `path` (a2): the net answers first, so the
