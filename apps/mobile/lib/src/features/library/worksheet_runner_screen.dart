@@ -376,6 +376,12 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   // screen, one line at a time, advanced by a timer, with Pause and Stop always
   // on screen. No answer is written here and nothing is timed against the
   // client — the countdown only decides when the next line appears.
+  //
+  // The timing is per line, not one number for the run: `lineSeconds` gives the
+  // read (a second for every three words, never under six) plus the hold when
+  // the line says "hold", and every line is followed by `gapSeconds` of quiet
+  // with the line still on screen. That is the owner's rule of 26 Nov 2026, and
+  // it lives in WorksheetScript so the types side and the app cannot disagree.
 
   /// The contiguous run of instruction pieces, or null when this body has no
   /// script. Read from [_steps] so a branch that hides a line takes it out of
@@ -444,7 +450,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       _scriptLine = 0;
       _scriptInGap = false;
       _scriptPaused = false;
-      _scriptSecondsLeft = script.holdSeconds;
+      _scriptSecondsLeft = script.lineSeconds(_scriptLines.first.prompt);
       _stage = 'script';
     });
     _runScriptTimer();
@@ -476,7 +482,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       if (_scriptLine + 1 < _scriptLines.length) {
         _scriptLine += 1;
         _scriptInGap = false;
-        _scriptSecondsLeft = script.holdSeconds;
+        _scriptSecondsLeft = script.lineSeconds(_scriptLines[_scriptLine].prompt);
       } else {
         finished = true;
       }

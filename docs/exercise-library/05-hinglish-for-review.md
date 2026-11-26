@@ -1653,3 +1653,124 @@ _No Hinglish body._
 > You don't need the whole picture. One step you can actually see is enough to move.
 
 ---
+
+## Where do I feel it?
+
+- id: `ws_body_map`
+- Library description (English): Feelings often show up in your body first. Find where.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Before you have words for a feeling, your body often already knows. A tight chest. A knot in your stomach. Shoulders up near your ears. Tap where you notice something.
+
+- **body outline** — Where do you feel it right now?
+  - helper: Tap up to three spots. If you can't find anything, that's okay too.
+  - feeling `sad`: sad
+  - feeling `scared`: scared
+  - feeling `angry`: angry
+  - feeling `ashamed`: ashamed
+  - feeling `happy`: happy
+  - feeling `calm`: calm
+  - feeling `numb`: numb
+  - feeling `worried`: worried (under scared)
+  - feeling `panicky`: panicky (under scared)
+  - feeling `unsafe`: unsafe (under scared)
+  - feeling `on_edge`: on edge (under scared)
+
+> Now you know where it sits. Next time it turns up, you might notice it sooner.
+
+---
+
+## Sleep check
+
+- id: `ws_sleep_diary`
+- Library description (English): Two minutes each morning. See how your sleep and your days connect.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Bad sleep makes everything feel heavier, and when you're tired it's hard to see why. Jot down last night in under two minutes. A rough night is worth writing down too.
+
+- **datetime** — Which night are you writing about?
+  - helper: Usually last night.
+- **datetime** — When did you get into bed?
+- **datetime** — When did you actually get up?
+  - helper: Getting up, not waking up. They're often different.
+- **scale 0 10** — How rested do you feel?
+- **choice** — Were you on your phone or a screen in the hour before bed?
+  - helper: No judgement. Most of us were.
+  - option `yes`: Yes
+  - option `no`: No
+- **short text** — Anything about last night worth remembering?
+  - helper: Woke up a lot, mind racing, a late-night call, a noisy house. A few words is enough.
+
+> Done for today. Over a few mornings, you may start to see how your nights and days connect.
+
+---
+
+## Unclench
+
+- id: `ws_muscle_relaxation`
+- Library description (English): You're probably holding more tension than you think. Five minutes to let it go.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Stress hides in your body: a clenched jaw, tight shoulders, fists you didn't know you were making. You'll gently tighten one part at a time, then let it go. Nothing should hurt. Skip any part that's sore or injured.
+
+- **Text** — Get comfortable, sitting or lying down. Let your hands rest. Breathe out slowly, and let your shoulders drop a little.
+- **Text** — Hands and arms. Make two loose fists and tighten your arms, just a little. Hold… and let go. Notice how your hands feel now.
+- **Text** — Shoulders. Lift them up towards your ears. Hold them there… and drop them. Feel how far they fall.
+- **Text** — Face. Scrunch it up: eyes, forehead, jaw. Hold… and let go. Let your teeth come slightly apart.
+- **Text** — Stomach. Tighten it gently, like you're bracing. Hold… and soften. Let your breath reach your belly.
+- **Text** — Legs and feet. Point your toes and tighten your legs. Hold… and release. Let them feel heavy.
+- **Text** — Now all of you together, gently. Hold… and let everything go. One long breath out.
+- **scale 0 10** — How does your body feel now?
+
+> That's it. Check in with your jaw and shoulders again later today.
+
+---
+
+## My calm place
+
+- id: `ws_safe_place`
+- Library description (English): Build a place in your head you can go to when things get too loud.
+- Library description (Hinglish): _missing_
+- who can open it: open
+
+### Hinglish
+
+_No Hinglish body._
+
+### English (approved, for comparison)
+
+> Think of a place where you feel calmer. It can be real or made up: your nani's kitchen, a quiet beach, your bed on a rainy afternoon. You'll spend a few minutes there. If anything feels uncomfortable, open your eyes and stop. You can come back another time.
+
+- **short text** — Where's your place?
+  - helper: A few words is enough. If nowhere real feels calm, make one up. That's completely fine.
+- **Text** — Get comfortable. Close your eyes if that feels okay, or rest your eyes on one spot on the floor. Breathe out slowly.
+- **Text** — Look around. What do you see? Colours, light, the shape of things.
+- **Text** — Listen. What can you hear? Rain, waves, quiet, someone humming in the next room.
+- **Text** — Feel it. The air on your skin, what's under you, warm or cool.
+- **Text** — Stay a little longer. Nothing is expected of you here. When you're ready, take one slow breath and open your eyes.
+- **scale 0 10** — How do you feel now?
+
+> Your place is yours. You can come back to it any time.
+
+---

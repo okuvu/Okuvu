@@ -288,28 +288,18 @@ describe('care plan labels migration — a database that already ran the old set
     }
   });
 
-  it('writes the same labels the edited seed writes, so both paths agree', () => {
-    // A database built from zero gets its labels from the seed migration; an
-    // upgraded one gets them here. The two files must not drift.
+  it('leaves the applied seed alone, so a deployed database is not asked to re-run it', () => {
+    // The seed migration was applied to every deployed database on 9 Nov 2026,
+    // before the care-plan column existed. A migration's bytes are an interface
+    // with each database that applied it: editing the seed to carry labels makes
+    // `prisma migrate deploy` refuse it as modified, in POST_BUILD, against the
+    // live database. So the seed keeps its original shape and the labels arrive
+    // only through this UPDATE migration — which is why that migration is the one
+    // that has to be right.
     const seed = migrationSql('20261109130000_seed_library_worksheets');
-
-    // Split the seed into one chunk per inserted row. Each row starts at a new
-    // line with the id and tool_id; the chunk ends where the next one starts.
-    const starts = [...seed.matchAll(/\n\s*\('[^']+',\s*'([^']+)',/g)];
-    const rowsByToolId = new Map<string, string>();
-    starts.forEach((match, index) => {
-      const from = match.index ?? 0;
-      const to = index + 1 < starts.length ? (starts[index + 1].index ?? seed.length) : seed.length;
-      rowsByToolId.set(match[1], seed.slice(from, to));
-    });
-
-    for (const [toolId, labels] of ORIGINAL_SIXTEEN) {
-      const chunk = rowsByToolId.get(toolId);
-      expect(chunk, `${toolId} has no row in the seed migration`).toBeDefined();
-      const match = chunk!.match(/ARRAY\[([^\]]*)\]::TEXT\[\]/);
-      expect(match, `${toolId} has no care_plans array in the seed migration`).not.toBeNull();
-      const seeded = [...match![1].matchAll(/'([^']+)'/g)].map((value) => value[1]);
-      expect({ tool_id: toolId, care_plans: seeded }).toEqual({ tool_id: toolId, care_plans: labels });
+    expect(seed).not.toContain('care_plans');
+    for (const [toolId] of ORIGINAL_SIXTEEN) {
+      expect(seed, toolId).toContain(`'${toolId}'`);
     }
   });
 });

@@ -294,16 +294,54 @@ class WorksheetContent {
 ///
 /// The two audio-guided exercises are a run of `instruction` pieces with no
 /// answers to give. Shown one per page they are eleven taps for five minutes of
-/// stillness, so the runner shows the run on one screen and advances it itself:
-/// [holdSeconds] on each line, [gapSeconds] of quiet between them, with Pause and
-/// Stop on screen the whole time. The pieces stay in [WorksheetContent.fields] —
-/// this only says how to present that run, so the preview, the progress count
-/// and the stored answers keep reading one list.
+/// stillness, so the runner shows the run on one screen and advances it itself,
+/// with Pause and Stop on screen the whole time. The pieces stay in
+/// [WorksheetContent.fields] — this only says how to present that run, so the
+/// preview, the progress count and the stored answers keep reading one list.
+///
+/// Timing is the owner's, set 26 November 2026: a line stays long enough to read
+/// it — one second for every [secondsPerWords] words, and never less than
+/// [minSeconds] — then [gapSeconds] of quiet with the line still on screen. A
+/// line that says "hold" also gets [holdExtraSeconds] for the hold itself.
+/// [lineSeconds] and [runSeconds] are the one implementation of that rule; the
+/// TypeScript side (`scriptLineSeconds` in `@okuvu/shared-types/worksheet`) has
+/// the same three functions and the same expected numbers in its tests.
 class WorksheetScript {
-  const WorksheetScript({required this.holdSeconds, required this.gapSeconds});
+  const WorksheetScript({
+    required this.secondsPerWords,
+    required this.minSeconds,
+    required this.gapSeconds,
+    required this.holdExtraSeconds,
+  });
 
-  final int holdSeconds;
+  final int secondsPerWords;
+  final int minSeconds;
   final int gapSeconds;
+  final int holdExtraSeconds;
+
+  /// Words in a line: whitespace-separated tokens carrying a letter or a digit,
+  /// so a bare "…" buys no time and every script counts the same way.
+  static int wordCount(String line) => line
+      .split(RegExp(r'\s+'))
+      .where((token) => RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(token))
+      .length;
+
+  /// Seconds a line is shown for reading it, before any hold or quiet.
+  int readSeconds(String line) {
+    final words = wordCount(line);
+    final byWords = (words / secondsPerWords).ceil();
+    return byWords < minSeconds ? minSeconds : byWords;
+  }
+
+  /// Seconds one line is on screen: the read, plus the hold when it says "hold".
+  int lineSeconds(String line) {
+    final holds = holdExtraSeconds > 0 && RegExp(r'\bhold\b', caseSensitive: false).hasMatch(line);
+    return readSeconds(line) + (holds ? holdExtraSeconds : 0);
+  }
+
+  /// Total running time: every line, plus the quiet after each one.
+  int runSeconds(List<String> lines) =>
+      lines.fold(0, (total, line) => total + lineSeconds(line) + gapSeconds);
 }
 
 /// Thrown when a body cannot be trusted. The runner shows this as a plain
@@ -772,22 +810,42 @@ WorksheetContent parseWorksheetContent(Object? raw) {
       problems.add('content.script: must be an object');
     } else {
       for (final key in rawScript.keys) {
-        if (key != 'holdSeconds' && key != 'gapSeconds') {
+        if (key != 'secondsPerWords' &&
+            key != 'minSeconds' &&
+            key != 'gapSeconds' &&
+            key != 'holdExtraSeconds') {
           problems.add('content.script: unknown key "$key"');
         }
       }
-      final hold = rawScript['holdSeconds'];
+      final perWords = rawScript['secondsPerWords'];
+      final minSeconds = rawScript['minSeconds'];
       final gap = rawScript['gapSeconds'];
-      final holdOk = hold is int && hold >= 1 && hold <= 60;
-      final gapOk = gap is int && gap >= 1 && gap <= 60;
-      if (!holdOk) {
-        problems.add('content.script.holdSeconds: must be a whole number of seconds between 1 and 60');
+      final holdExtra = rawScript.containsKey('holdExtraSeconds')
+          ? rawScript['holdExtraSeconds']
+          : 0;
+      final perWordsOk = perWords is int && perWords >= 1 && perWords <= 10;
+      final minOk = minSeconds is int && minSeconds >= 1 && minSeconds <= 60;
+      final gapOk = gap is int && gap >= 0 && gap <= 120;
+      final holdExtraOk = holdExtra is int && holdExtra >= 0 && holdExtra <= 60;
+      if (!perWordsOk) {
+        problems.add('content.script.secondsPerWords: must be a whole number between 1 and 10');
+      }
+      if (!minOk) {
+        problems.add('content.script.minSeconds: must be a whole number between 1 and 60');
       }
       if (!gapOk) {
-        problems.add('content.script.gapSeconds: must be a whole number of seconds between 1 and 60');
+        problems.add('content.script.gapSeconds: must be a whole number between 0 and 120');
       }
-      if (holdOk && gapOk) {
-        script = WorksheetScript(holdSeconds: hold, gapSeconds: gap);
+      if (!holdExtraOk) {
+        problems.add('content.script.holdExtraSeconds: must be a whole number between 0 and 60');
+      }
+      if (perWordsOk && minOk && gapOk && holdExtraOk) {
+        script = WorksheetScript(
+          secondsPerWords: perWords,
+          minSeconds: minSeconds,
+          gapSeconds: gap,
+          holdExtraSeconds: holdExtra,
+        );
       }
 
       // One unbroken run of instruction pieces, or the stage would silently

@@ -13,16 +13,19 @@ import {
   DRAFT_DOC_PATH,
   LOW_MOOD_APPROVED_DOC_PATH,
   LOW_MOOD_DRAFT_DOC_PATH,
+  ALL_PLANS_APPROVED_DOC_PATH,
   ALL_PLANS_DRAFT_DOC_PATH,
   buildApprovedDoc,
   buildDraftDoc,
   buildLowMoodApprovedDoc,
   buildLowMoodDraftDoc,
+  buildAllPlansApprovedDoc,
   buildAllPlansDraftDoc,
 } from '../worksheets/emit-drafts';
 import { APPROVED_24_NOV_IDS, draftEntries } from '../worksheets/emit-sql';
 import { LOW_MOOD_BATCH_IDS } from '../worksheets/low-mood';
 import { ALL_PLANS_BATCH_IDS } from '../worksheets/all-plans';
+import { CATALOGUE } from '../worksheets/index';
 
 const ROOT = join(__dirname, '../../..');
 const DRAFT_FILE = join(ROOT, DRAFT_DOC_PATH);
@@ -30,6 +33,7 @@ const APPROVED_FILE = join(ROOT, APPROVED_DOC_PATH);
 const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFT_DOC_PATH);
 const LOW_MOOD_APPROVED_FILE = join(ROOT, LOW_MOOD_APPROVED_DOC_PATH);
 const ALL_PLANS_FILE = join(ROOT, ALL_PLANS_DRAFT_DOC_PATH);
+const ALL_PLANS_APPROVED_FILE = join(ROOT, ALL_PLANS_APPROVED_DOC_PATH);
 
 const writing = (): boolean => process.env.WRITE_DRAFT_DOC === '1';
 
@@ -182,25 +186,66 @@ describe('"All" drafts review document', () => {
     expect(readFileSync(ALL_PLANS_FILE, 'utf8')).toBe(doc);
   });
 
-  it('says plainly that the wording is not approved, and covers all four', () => {
+  it('reports the batch closed once the owner has approved it', () => {
+    // The draft document stays as the record of what was read. It must not go on
+    // saying the wording is unapproved, and it points at the approval record
+    // rather than carrying a second copy of the copy.
     const doc = buildAllPlansDraftDoc();
-    expect(doc).toContain('NOT approved');
-    expect(doc).toContain('These 4 worksheets are written');
+    expect(doc).toContain('Status: closed');
+    expect(doc).toContain('50-approved-all-plans-copy.md');
+    expect(doc).not.toContain('NOT approved');
+    expect(doc).toContain('No worksheet in this batch is waiting for approval.');
+  });
+
+  it('carries no worksheet outside this one', () => {
+    const doc = buildAllPlansDraftDoc();
+    for (const id of LOW_MOOD_BATCH_IDS) {
+      expect(doc).not.toContain(`\`${id}\``);
+    }
+    for (const id of APPROVED_24_NOV_IDS) {
+      expect(doc).not.toContain(`\`${id}\``);
+    }
+  });
+});
+
+describe('"All" approval document', () => {
+  it('matches the catalogue', () => {
+    const doc = buildAllPlansApprovedDoc();
+    if (writing()) {
+      write(ALL_PLANS_APPROVED_FILE, doc);
+      return;
+    }
+    expect(existsSync(ALL_PLANS_APPROVED_FILE)).toBe(true);
+    expect(readFileSync(ALL_PLANS_APPROVED_FILE, 'utf8')).toBe(doc);
+  });
+
+  it('says approved and switched on, and covers all four', () => {
+    const doc = buildAllPlansApprovedDoc();
+    expect(doc).toContain('Status: approved and switched on');
+    expect(doc).toContain('26 November 2026');
+    expect(doc).toContain('20261126130000_approve_all_plans_extras');
+    let cursor = -1;
     for (const id of ALL_PLANS_BATCH_IDS) {
-      const entry = draftEntries().find((e) => e.tool_id === id);
+      const at = doc.indexOf(`\`${id}\``);
+      expect(at, id).toBeGreaterThan(cursor);
+      cursor = at;
+      const entry = CATALOGUE.find((row) => row.tool_id === id);
       expect(entry, id).toBeTruthy();
-      expect(doc).toContain(entry!.label);
+      expect(doc, id).toContain(entry!.label);
     }
   });
 
-  it('states that the two audio-guided ones are unrecorded scripts', () => {
-    const doc = buildAllPlansDraftDoc();
-    expect(doc).toContain('Nothing is recorded');
-    expect(doc).toContain('the voice is a separate decision');
+  it('records the running time the owner was given', () => {
+    // Quoted back to him on 26 Nov 2026 after he changed the timing. Computed
+    // from the lines in the document, so a wording change that shortens the
+    // exercise breaks this rather than silently leaving the old figure in place.
+    const doc = buildAllPlansApprovedDoc();
+    expect(doc).toContain('2 min 25 sec (145 seconds)');
+    expect(doc).toContain('1 min 23 sec (83 seconds)');
   });
 
-  it('carries no approved batch, and no worksheet outside this one', () => {
-    const doc = buildAllPlansDraftDoc();
+  it('carries no worksheet outside this batch', () => {
+    const doc = buildAllPlansApprovedDoc();
     for (const id of LOW_MOOD_BATCH_IDS) {
       expect(doc).not.toContain(`\`${id}\``);
     }

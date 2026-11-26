@@ -129,7 +129,7 @@ class _WeeklySummaryLink extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text('Your week in words', style: theme.textTheme.titleMedium),
+              child: Text('Your week, in your words', style: theme.textTheme.titleMedium),
             ),
             const Icon(LucideIcons.chevronRight, size: 20),
           ],

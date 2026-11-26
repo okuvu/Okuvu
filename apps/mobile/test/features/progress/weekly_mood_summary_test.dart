@@ -178,6 +178,8 @@ void main() {
 
     await tester.ensureVisible(find.byKey(const Key('progress_weekly_summary_link')));
     await tester.pumpAndSettle();
+    // The owner's labels, 26 Nov 2026: the card and the screen it opens.
+    expect(find.text('Your week, in your words'), findsOneWidget);
     await tester.tap(find.byKey(const Key('progress_weekly_summary_link')));
     await tester.pumpAndSettle();
 

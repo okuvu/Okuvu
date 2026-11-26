@@ -10,9 +10,11 @@ import 'package:okuvu/src/features/library/worksheet_spec.dart';
 
 /// Unclench and My calm place are a run of instruction pieces the client
 /// follows without tapping. These tests pin the behaviour the owner asked for:
-/// one screen, one line at a time, advanced on its own, `holdSeconds` on each
-/// line and `gapSeconds` of quiet between them, with Pause and Stop visible the
-/// whole way through and Stop going back to the Library.
+/// one screen, one line at a time, advanced on its own, each line held long
+/// enough to read (a second for every three words, never under six), five extra
+/// seconds on a line that says "hold", and ten seconds of quiet after every
+/// line — with Pause and Stop visible the whole way through and Stop going back
+/// to the Library.
 ///
 /// What is deliberately NOT here: any audio. There is no player, no recording
 /// and no timing against the client — the countdown only decides when the next
@@ -41,7 +43,7 @@ Map<String, Object?> placeBody() => {
           'maxLabel': 'very calm',
         },
       ],
-      'script': {'holdSeconds': 5, 'gapSeconds': 5},
+      'script': {'secondsPerWords': 3, 'minSeconds': 6, 'gapSeconds': 10},
       'closing': {'text': 'Your place is yours.'},
     };
 
@@ -57,7 +59,12 @@ Map<String, Object?> unclenchBody() => {
           'prompt': 'How does your body feel now?',
         },
       ],
-      'script': {'holdSeconds': 5, 'gapSeconds': 5},
+      'script': {
+        'secondsPerWords': 3,
+        'minSeconds': 6,
+        'gapSeconds': 10,
+        'holdExtraSeconds': 5,
+      },
       'closing': {'text': "That's it."},
     };
 
@@ -143,23 +150,23 @@ void main() {
     expect(find.text('Look around.'), findsNothing);
   });
 
-  testWidgets('holds each line for five seconds, then five seconds of quiet, then advances', (tester) async {
+  testWidgets('reads each line for at least six seconds, then ten seconds of quiet, then advances', (tester) async {
     await tester.pumpWidget(harness(parseWorksheetContent(placeBody())));
     await tester.pumpAndSettle();
     await enterScript(tester);
 
-    // Four seconds in, still the first line at full strength.
-    await tester.pump(const Duration(seconds: 4));
+    // 'Get comfortable.' is two words: the six-second floor, not one second.
+    await tester.pump(const Duration(seconds: 5));
     expect(scriptLine(tester), 'Get comfortable.');
     expect(lineOpacity(tester), 1.0);
 
-    // The hold is over at five: same line, dimmed for the quiet before the next.
+    // The read is over at six: same line, dimmed for the ten seconds of quiet.
     await tester.pump(const Duration(seconds: 1));
     expect(scriptLine(tester), 'Get comfortable.');
     expect(lineOpacity(tester), 0.45);
 
-    // Five more and the next line arrives.
-    await tester.pump(const Duration(seconds: 5));
+    // Ten more and the next line arrives — sixteen seconds for a two-word line.
+    await tester.pump(const Duration(seconds: 10));
     expect(scriptLine(tester), 'Look around.');
     expect(lineOpacity(tester), 1.0);
     expect(find.text('2 of 3'), findsOneWidget);
@@ -184,7 +191,8 @@ void main() {
 
     await tester.tap(find.byKey(const Key('worksheet_script_pause')));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 10));
+    // Six seconds of read and ten of quiet still in front of it after Resume.
+    await tester.pump(const Duration(seconds: 16));
     expect(scriptLine(tester), 'Look around.');
   });
 
@@ -216,11 +224,45 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Two lines, ten seconds each: hold plus quiet.
-    await tester.pump(const Duration(seconds: 20));
+    // 'Get comfortable.' is 16s (six read, ten quiet); 'Hands. Hold… and let
+    // go.' is 21s (six read, five hold, ten quiet). Thirty-seven in all.
+    await tester.pump(const Duration(seconds: 37));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('worksheet_script_line')), findsNothing);
     expect(find.text('How does your body feel now?'), findsOneWidget);
+  });
+
+  group('the timing rule itself', () {
+    const script = WorksheetScript(
+      secondsPerWords: 3,
+      minSeconds: 6,
+      gapSeconds: 10,
+      holdExtraSeconds: 5,
+    );
+
+    test('one second for every three words, and never less than six', () {
+      expect(script.readSeconds('Listen.'), 6); // one word still gets six
+      expect(script.readSeconds('Look around. What do you see?'), 6); // five words
+      expect(
+        script.readSeconds('a b c d e f g h i j k l m n o p q r s t u'),
+        7, // twenty-one words, one second for every three
+      );
+    });
+
+    test('the extra five seconds go to a line that says hold, and only then', () {
+      expect(script.lineSeconds('Hands. Hold… and let go.'), 11);
+      expect(script.lineSeconds('Look around. What do you see?'), 6);
+    });
+
+    test('the run is every line plus the quiet after each one', () {
+      expect(script.runSeconds(['Look around.', 'Listen.']), 32);
+    });
+
+    test('a line of punctuation alone buys no reading time', () {
+      // A bare ellipsis is not a word: the line falls to the six-second floor.
+      expect(WorksheetScript.wordCount('… — ...'), 0);
+      expect(script.readSeconds('…'), 6);
+    });
   });
 }

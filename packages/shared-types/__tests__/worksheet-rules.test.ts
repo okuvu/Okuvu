@@ -96,6 +96,11 @@ describe('rule 1 — care plan labels', () => {
     ['ws_reconnect_planner', ['low_mood']],
     ['ws_comparison_check', ['low_mood']],
     ['ws_miracle_question', ['low_mood']],
+    // The four the owner approved on 26 Nov 2026, all "All".
+    ['ws_body_map', ['all']],
+    ['ws_sleep_diary', ['all']],
+    ['ws_muscle_relaxation', ['all']],
+    ['ws_safe_place', ['all']],
   ];
 
   it('labels every approved entry exactly as the owner listed them', () => {
@@ -223,16 +228,17 @@ describe('rule 3 — the deeper screen belongs to the five named worksheets', ()
   });
 
   it('leaves every approved worksheet on the screen its row asks for', () => {
-    // Four approved rows carry the deeper screen now: the Doomscroll log, the
-    // Unsent letter, Meet the inner critic and the Comparison check. "Approved"
-    // and "deeper screen" are not exclusive sets. What must stay true: an
-    // approved row never quietly loses the deeper screen, and no other approved
-    // row gains it.
+    // Five approved rows carry the deeper screen: the Doomscroll log, the Unsent
+    // letter, Meet the inner critic, the Comparison check and — once the owner
+    // switched it on on 26 Nov 2026 — the Sleep check. "Approved" and "deeper
+    // screen" are not exclusive sets. What must stay true: an approved row never
+    // quietly loses the deeper screen, and no other approved row gains it.
     const deeper = LISTABLE_CATALOGUE.filter((row) => row.sensitive_check).map((row) => row.tool_id);
     expect(deeper.sort()).toEqual([
       'ws_comparison_check',
       'ws_inner_critic',
       'ws_scrolling_log',
+      'ws_sleep_diary',
       'ws_unsent_letter',
     ]);
   });

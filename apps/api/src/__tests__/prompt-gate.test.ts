@@ -13,6 +13,7 @@
  * failure rather than an edit nobody notices.
  */
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -120,7 +121,34 @@ describe('the prompt gate', () => {
           `${entry.version}: ${category} is ${row!.satisfied}/${row!.judgements} — the exception's condition is void`,
         ).toBe(row!.judgements);
       }
+
+      // When the owner has read the condition run and said it meets his
+      // condition, the record must name him, the day, and the exact bytes he was
+      // shown. A run with the same path but rewritten content cannot inherit it.
+      const confirmed = ex!.condition_confirmed;
+      if (confirmed) {
+        expect(confirmed.by, `${entry.version}: confirmation with no reader`).toBeTruthy();
+        expect(confirmed.date, `${entry.version}: confirmation with no date`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        const digest = createHash('sha256').update(readFileSync(runPath)).digest('hex');
+        expect(
+          digest,
+          `${entry.version}: the confirmation is for a different file than ${ex!.condition_run} now holds`,
+        ).toBe(confirmed.sha256);
+      }
     }
+  });
+
+  it("records the owner's confirmation of the clean v2.8 run (26 Nov 2026)", () => {
+    // Owner, 26 Nov 2026: "The clean v2.8 run meets my exception condition.
+    // Record that against this run." Pinned to v2.8 and to the r11 run so a
+    // later exception cannot claim a confirmation nobody gave.
+    const v28 = PROMPT_GATE.find((entry) => entry.version === 'v2.8')!;
+    expect(v28.exception?.condition_run).toBe('evidence/r11-v28-corrected/run-1.json');
+    expect(v28.exception?.condition_confirmed).toEqual({
+      by: 'Rajwant (product owner)',
+      date: '2026-11-26',
+      sha256: 'bd59094fb5ff805c9b88617d2d1ca01253bc347a835168784b4bd54dd4528f43',
+    });
   });
 
   it('grandfathers only what is actually in production, and nothing else', () => {

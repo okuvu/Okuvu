@@ -40,6 +40,7 @@ const LOW_MOOD_DRAFTS_MIGRATION_DIR = '20261124230000_seed_low_mood_drafts';
 
 /** The four "All" extras of 25 Nov 2026. */
 const ALL_PLANS_DRAFTS_MIGRATION_DIR = '20261125120000_seed_all_plans_drafts';
+const ALL_PLANS_APPROVALS_MIGRATION_DIR = '20261126130000_approve_all_plans_extras';
 
 /** The Low Mood approvals of 24 Nov 2026, in their own migration. */
 const LOW_MOOD_APPROVALS_MIGRATION_DIR = '20261124233000_approve_low_mood_nine';
@@ -108,9 +109,6 @@ const LEGACY_SEED_ORDER = [
   'ws_sleep_diary',
   'ws_scrolling_log',
   'ws_family_expectations',
-  'ws_comparison_check',
-  'ws_inner_critic',
-  'ws_exposure_ladder',
   'ws_pros_cons_change',
 ] as const;
 
@@ -409,11 +407,31 @@ const COLUMNS = [
   'updated_at',
 ];
 
+/**
+ * The columns the applied seed migration writes.
+ *
+ * `care_plans` and `sensitive_check` are deliberately absent: the seed
+ * (`20261109130000`) was applied to every deployed database months before those
+ * columns existed, and a migration's bytes are an interface with each of them.
+ * Editing it — even to add a column it would have written had it been generated
+ * today — makes `prisma migrate deploy` refuse the migration as modified, and the
+ * refuse happens in POST_BUILD against RDS. So the seed keeps its original
+ * shape; the columns arrive in `20261124090000` (IF NOT EXISTS) and the values
+ * for rows that already exist arrive in their own UPDATE migrations.
+ */
+const LEGACY_COLUMNS = COLUMNS.filter((c) => c !== 'care_plans' && c !== 'sensitive_check');
+
 type IndexedEntry = { entry: CatalogueEntry; index: number };
 
-function buildInsert(rows: IndexedEntry[]): string[] {
+/**
+ * `legacy` writes the applied seed's frozen shape: no care-plan or deeper-screen
+ * columns in the insert, and neither in the ON CONFLICT branch.
+ */
+function buildInsert(rows: IndexedEntry[], options: { legacy?: boolean } = {}): string[] {
+  const legacy = options.legacy === true;
+  const columns = legacy ? LEGACY_COLUMNS : COLUMNS;
   const lines: string[] = [];
-  lines.push(`INSERT INTO "ToolRegistryEntry" (${COLUMNS.map((c) => `"${c}"`).join(', ')}) VALUES`);
+  lines.push(`INSERT INTO "ToolRegistryEntry" (${columns.map((c) => `"${c}"`).join(', ')}) VALUES`);
 
   const values = rows.map(({ entry, index }) => {
     const cells = [
@@ -444,8 +462,12 @@ function buildInsert(rows: IndexedEntry[]): string[] {
       entry.status === 'approved' ? q(entry.approved_at ?? '2026-11-09') + '::timestamp' : 'NULL',
       String(entry.sort_order),
       q(entry.library_group ?? null),
-      `ARRAY[${entry.care_plans.map((label) => q(label)).join(', ')}]::TEXT[]`,
-      entry.sensitive_check ? 'true' : 'false',
+      ...(legacy
+        ? []
+        : [
+            `ARRAY[${entry.care_plans.map((label) => q(label)).join(', ')}]::TEXT[]`,
+            entry.sensitive_check ? 'true' : 'false',
+          ]),
       // Prisma sets @updatedAt on the client, so the column has no default.
       'CURRENT_TIMESTAMP',
     ];
@@ -472,8 +494,7 @@ function buildInsert(rows: IndexedEntry[]): string[] {
     '    "approved_at" = EXCLUDED."approved_at",',
     '    "sort_order" = EXCLUDED."sort_order",',
     '    "library_group" = EXCLUDED."library_group",',
-    '    "care_plans" = EXCLUDED."care_plans",',
-    '    "sensitive_check" = EXCLUDED."sensitive_check",',
+    ...(legacy ? [] : ['    "care_plans" = EXCLUDED."care_plans",', '    "sensitive_check" = EXCLUDED."sensitive_check",']),
     '    "updated_at" = CURRENT_TIMESTAMP;',
     '',
   );
@@ -489,6 +510,7 @@ export const ANXIETY_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${AN
 export const LOW_MOOD_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${LOW_MOOD_DRAFTS_MIGRATION_DIR}/migration.sql`;
 export const ALL_PLANS_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${ALL_PLANS_DRAFTS_MIGRATION_DIR}/migration.sql`;
 export const LOW_MOOD_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${LOW_MOOD_APPROVALS_MIGRATION_DIR}/migration.sql`;
+export const ALL_PLANS_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${ALL_PLANS_APPROVALS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
   const lines: string[] = [];
@@ -520,20 +542,6 @@ export function buildMigrationSql(): string {
     '-- off the one Breathing card; a row with NULL here is its own card.',
     'ALTER TABLE "ToolRegistryEntry" ADD COLUMN "library_group" TEXT;',
     '',
-    '-- Which care plan(s) a row belongs to: anxiety_worry, low_mood,',
-    '-- stress_burnout, or `all`. Drives the ORDER a client sees; never sent to',
-    '-- the client as a label. Empty means not decided (placeholders).',
-    'ALTER TABLE "ToolRegistryEntry" ADD COLUMN "care_plans" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];',
-    'ALTER TABLE "ToolRegistryEntry" DROP CONSTRAINT IF EXISTS "ToolRegistryEntry_care_plans_check";',
-    'ALTER TABLE "ToolRegistryEntry" ADD CONSTRAINT "ToolRegistryEntry_care_plans_check"',
-    "    CHECK (\"care_plans\" <@ ARRAY['anxiety_worry', 'low_mood', 'stress_burnout', 'all']::TEXT[]);",
-    '',
-    '-- True when this row also runs the deeper risk screen (eating and body,',
-    '-- sleep, self-harm, harm to someone else). A property of the row, not a list',
-    '-- of ids in code. Defaults false so an insert that says nothing gets the',
-    '-- ordinary screen rather than silently claiming the deeper one.',
-    'ALTER TABLE "ToolRegistryEntry" ADD COLUMN "sensitive_check" BOOLEAN NOT NULL DEFAULT false;',
-    '',
   );
 
   lines.push(
@@ -544,6 +552,7 @@ export function buildMigrationSql(): string {
         if (!entry) throw new Error(`seed row "${id}" is not in the catalogue`);
         return { entry, index };
       }),
+      { legacy: true },
     ),
   );
 
@@ -886,6 +895,57 @@ export function buildAllPlansDraftsSql(): string {
           entry: { ...entry, status: 'draft' as const, approved_at: undefined },
           index: ALL_PLANS_ID_BASE + i,
         };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The owner's approval of the four "All" extras, 26 November 2026.
+ *
+ * Same shape as the other approvals: one INSERT ... ON CONFLICT per row, so the
+ * approved copy travels with the status. That matters here more than usual —
+ * the copy is not identical to the drafts migration. The owner set the script
+ * timing for Unclench and My calm place on 26 November, and a status-only
+ * UPDATE would leave every deployed row reading at the old five-and-five while
+ * the catalogue, the tests and a fresh database all read the new rule.
+ *
+ * The rows reuse the ids the drafts migration wrote, so the two agree about
+ * identity and the ON CONFLICT branch upgrades them in place.
+ */
+export function buildAllPlansApprovalsSql(): string {
+  const lines: string[] = [
+    '-- The owner approved the four "All" extras on 26 November 2026 and asked',
+    '-- for them to be switched on: Where do I feel it?, Sleep check, Unclench',
+    '-- and My calm place.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- The wording is the copy he approved. Unclench and My calm place carry the',
+    '-- script timing he set the same day: a second for every three words, never',
+    '-- under six; ten seconds of quiet after every line; and on Unclench, five',
+    '-- extra seconds on each line that says "hold".',
+    '--',
+    '-- Approval switches them on: the client Library lists them, a client can',
+    '-- open them, and the portal can assign them. Nothing else about them moves',
+    '-- — access modes, care-plan labels and the Sleep check\'s deeper screen are',
+    '-- as the drafts migration left them.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      ALL_PLANS_BATCH_IDS.map((id, i) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`all-plans approval row "${id}" is not in the catalogue`);
+        if (entry.status !== 'approved') {
+          throw new Error(`"${id}" is in the approval batch but is ${entry.status} in the catalogue`);
+        }
+        // Same row id the drafts migration used, so the two agree about identity.
+        return { entry, index: ALL_PLANS_ID_BASE + i };
       }),
     ),
   );

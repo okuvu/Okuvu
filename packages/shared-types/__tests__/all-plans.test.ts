@@ -6,7 +6,12 @@
  * `46-draft-all-plans-copy.md`, so this file never becomes a second copy of it.
  */
 import { describe, expect, it } from 'vitest';
-import { validateWorksheetAnswers, validateWorksheetContent, type WorksheetContent } from '../worksheet';
+import {
+  scriptRunSeconds,
+  validateWorksheetAnswers,
+  validateWorksheetContent,
+  type WorksheetContent,
+} from '../worksheet';
 import { CATALOGUE, FEELINGS_EN, toRegistryRow } from '../worksheets/index';
 import { ALL_PLANS_BATCH_IDS } from '../worksheets/all-plans';
 import { worksheetRequestProblems, worksheetRowProblems } from '../worksheet';
@@ -28,11 +33,12 @@ describe('the "All" batch', () => {
     }
   });
 
-  it('leaves every one of them switched off for clients', () => {
-    // Rule 2: draft until the owner reads the wording. A draft cannot be
-    // listed, opened or assigned.
+  it('switches every one of them on, dated the day the owner approved them', () => {
+    // Owner, 26 Nov 2026: "Approve and switch on the four extras." The catalogue
+    // says approved; the deployed rows are moved by their own migration.
     for (const id of ALL_PLANS_BATCH_IDS) {
-      expect(entryById(id)!.status, id).toBe('draft');
+      expect(entryById(id)!.status, id).toBe('approved');
+      expect(entryById(id)!.approved_at, id).toBe('2026-11-26');
     }
   });
 
@@ -208,22 +214,27 @@ describe('the read-along script stage', () => {
     ],
   });
 
+  const timing = { secondsPerWords: 3, minSeconds: 6, gapSeconds: 10 };
+
   it('accepts a script whose instruction pieces are one run', () => {
-    expect(validateWorksheetContent(body({ holdSeconds: 5, gapSeconds: 5 })).ok).toBe(true);
+    expect(validateWorksheetContent(body(timing)).ok).toBe(true);
+  });
+
+  it('accepts the hold, and accepts a script that has none', () => {
+    expect(validateWorksheetContent(body({ ...timing, holdExtraSeconds: 5 })).ok).toBe(true);
+    expect(validateWorksheetContent(body(timing)).ok).toBe(true);
   });
 
   it('refuses a script with no line to read', () => {
     const result = validateWorksheetContent(
-      body({ holdSeconds: 5, gapSeconds: 5 }, [
-        { id: 'after', type: 'scale_0_10', prompt: 'How do you feel now?' },
-      ]),
+      body(timing, [{ id: 'after', type: 'scale_0_10', prompt: 'How do you feel now?' }]),
     );
     expect(result.errors.join(' ')).toContain('needs at least one instruction piece');
   });
 
   it('refuses instructions split into two runs', () => {
     const result = validateWorksheetContent(
-      body({ holdSeconds: 5, gapSeconds: 5 }, [
+      body(timing, [
         { id: 'a', type: 'instruction', prompt: 'One.' },
         { id: 'b', type: 'short_text', prompt: 'A question.' },
         { id: 'c', type: 'instruction', prompt: 'Two.' },
@@ -232,25 +243,87 @@ describe('the read-along script stage', () => {
     expect(result.errors.join(' ')).toContain('one unbroken run');
   });
 
-  it('refuses seconds that are not whole numbers between 1 and 60', () => {
-    expect(validateWorksheetContent(body({ holdSeconds: 0, gapSeconds: 5 })).errors.join(' ')).toContain(
-      'holdSeconds',
-    );
-    expect(validateWorksheetContent(body({ holdSeconds: 5, gapSeconds: 2.5 })).errors.join(' ')).toContain(
-      'gapSeconds',
-    );
-    expect(validateWorksheetContent(body({ holdSeconds: 5, gapSeconds: 61 })).errors.join(' ')).toContain(
-      'gapSeconds',
-    );
+  it('refuses seconds that are not whole numbers in range', () => {
+    const errors = (patch: Record<string, unknown>) =>
+      validateWorksheetContent(body({ ...timing, ...patch })).errors.join(' ');
+    expect(errors({ secondsPerWords: 0 })).toContain('secondsPerWords');
+    expect(errors({ secondsPerWords: 2.5 })).toContain('secondsPerWords');
+    expect(errors({ minSeconds: 0 })).toContain('minSeconds');
+    expect(errors({ gapSeconds: 2.5 })).toContain('gapSeconds');
+    expect(errors({ gapSeconds: 121 })).toContain('gapSeconds');
+    expect(errors({ holdExtraSeconds: 61 })).toContain('holdExtraSeconds');
+  });
+
+  it('refuses the old fixed-hold shape: a script must state the reading rule', () => {
+    // `holdSeconds` was one number for every line. The owner replaced it on
+    // 26 Nov 2026, and a body still written the old way is a body whose timing
+    // nobody set — refuse it rather than guess.
+    const old = validateWorksheetContent(body({ holdSeconds: 5, gapSeconds: 5 })).errors.join(' ');
+    expect(old).toContain('unknown key "holdSeconds"');
+    expect(old).toContain('secondsPerWords');
+    expect(old).toContain('minSeconds');
   });
 
   it('is declared on Unclench and My calm place, and on nothing else', () => {
-    for (const id of ['ws_muscle_relaxation', 'ws_safe_place']) {
-      expect(entryById(id)!.content_en!.script, id).toEqual({ holdSeconds: 5, gapSeconds: 5 });
-    }
+    expect(entryById('ws_muscle_relaxation')!.content_en!.script).toEqual({
+      secondsPerWords: 3,
+      minSeconds: 6,
+      gapSeconds: 10,
+      holdExtraSeconds: 5,
+    });
+    expect(entryById('ws_safe_place')!.content_en!.script).toEqual({
+      secondsPerWords: 3,
+      minSeconds: 6,
+      gapSeconds: 10,
+    });
     for (const row of CATALOGUE) {
       if (row.tool_id === 'ws_muscle_relaxation' || row.tool_id === 'ws_safe_place') continue;
       expect(row.content_en?.script, row.tool_id).toBeUndefined();
     }
+  });
+});
+
+describe('the two read-along scripts', () => {
+  const lines = (id: string): string[] => {
+    const fields = entryById(id)!.content_en!.fields;
+    return fields.filter((field) => field.type === 'instruction').map((field) => field.prompt!);
+  };
+
+  it('uses the owner\'s timing rule, and nothing else', () => {
+    // Set 26 Nov 2026: a second for every three words, never under six; ten
+    // seconds of quiet after every line; five extra seconds on each "hold" line,
+    // which belongs to Unclench only.
+    expect(entryById('ws_muscle_relaxation')!.content_en!.script).toEqual({
+      secondsPerWords: 3,
+      minSeconds: 6,
+      gapSeconds: 10,
+      holdExtraSeconds: 5,
+    });
+    expect(entryById('ws_safe_place')!.content_en!.script).toEqual({
+      secondsPerWords: 3,
+      minSeconds: 6,
+      gapSeconds: 10,
+    });
+  });
+
+  it('runs for the time quoted to the owner: Unclench 2m25s, My calm place 1m23s', () => {
+    // 145s and 83s. Pinned as totals so a wording change that halves the
+    // exercise cannot pass silently; the per-line numbers are in the report the
+    // owner was given on 26 Nov 2026.
+    expect(
+      scriptRunSeconds(lines('ws_muscle_relaxation'), entryById('ws_muscle_relaxation')!.content_en!.script!),
+    ).toBe(145);
+    expect(scriptRunSeconds(lines('ws_safe_place'), entryById('ws_safe_place')!.content_en!.script!)).toBe(83);
+  });
+
+  it('gives the hold to Unclench\'s tense lines and to no line of My calm place', () => {
+    const unclench = entryById('ws_muscle_relaxation')!.content_en!.script!;
+    const holds = lines('ws_muscle_relaxation').filter((line) => /\bhold\b/i.test(line));
+    // Six of the seven lines say "hold": the settle line does not.
+    expect(holds.length).toBe(6);
+    const place = entryById('ws_safe_place')!.content_en!.script!;
+    expect(lines('ws_safe_place').some((line) => /\bhold\b/i.test(line))).toBe(false);
+    expect(unclench.holdExtraSeconds).toBe(5);
+    expect(place.holdExtraSeconds).toBeUndefined();
   });
 });

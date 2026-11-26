@@ -396,9 +396,16 @@ export interface WorksheetContent {
    * page they turn a five-minute relaxation into eleven taps, and the point of
    * the exercise is that nothing needs tapping. So a body may declare that its
    * single contiguous run of `instruction` pieces is a script: the app shows
-   * them on ONE screen, one line at a time, advancing on its own — `holdSeconds`
-   * on each line (the time to hold, or to look or listen) and `gapSeconds` of
-   * quiet between them — with Pause and Stop visible the whole way through.
+   * them on ONE screen, one line at a time, advancing on its own, with Pause and
+   * Stop visible the whole way through.
+   *
+   * The timing is the owner's, set 26 Nov 2026. A line stays long enough to
+   * read it: one second for every three words, and never less than six seconds
+   * however short it is. After every line there is quiet with the line still on
+   * screen — ten seconds, so the client can picture it (My calm place) or notice
+   * the release (Unclench). Unclench adds the hold itself: five extra seconds on
+   * any line that says "hold", because the tense-and-release is what that line
+   * is for. No voice, no recording, nothing timed against the client.
    *
    * The pieces stay in `fields`. Nothing is duplicated: the therapist's preview,
    * the ordering, the progress count and the stored answers all read the same
@@ -407,10 +414,14 @@ export interface WorksheetContent {
    * the recording is an addition to these lines, not a second content model.
    */
   script?: {
-    /** Seconds each line stays before the next one. */
-    holdSeconds: number;
-    /** Seconds of quiet between lines, with the line still on screen. */
+    /** One second for every this many words when reading a line. */
+    secondsPerWords: number;
+    /** A line never shows for less than this, however short it is. */
+    minSeconds: number;
+    /** Quiet after every line, with the line still on screen. */
     gapSeconds: number;
+    /** Extra seconds on a line that says "hold" — the hold itself. */
+    holdExtraSeconds?: number;
   };
   /** Line under the last piece, plus the buttons that end the worksheet. */
   closing?: {
@@ -1148,15 +1159,25 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
       errors.push('content.script: must be an object');
     } else {
       for (const key of Object.keys(value.script)) {
-        if (!['holdSeconds', 'gapSeconds'].includes(key)) {
+        if (!['secondsPerWords', 'minSeconds', 'gapSeconds', 'holdExtraSeconds'].includes(key)) {
           errors.push(`content.script: unknown key "${key}"`);
         }
       }
-      for (const key of ['holdSeconds', 'gapSeconds'] as const) {
-        const seconds = value.script[key];
-        if (!Number.isInteger(seconds) || (seconds as number) < 1 || (seconds as number) > 60) {
-          errors.push(`content.script.${key}: must be a whole number of seconds between 1 and 60`);
+      const whole = (key: string, min: number, max: number): void => {
+        const seconds = (value.script as Record<string, unknown>)[key];
+        if (!Number.isInteger(seconds) || (seconds as number) < min || (seconds as number) > max) {
+          errors.push(`content.script.${key}: must be a whole number between ${min} and ${max}`);
         }
+      };
+      // Reading speed: one second for every `secondsPerWords` words.
+      whole('secondsPerWords', 1, 10);
+      // The floor, so a two-word line is still readable.
+      whole('minSeconds', 1, 60);
+      // Quiet after each line. Zero is allowed only in a script that has no
+      // quiet at all — the two in the catalogue both have ten.
+      whole('gapSeconds', 0, 120);
+      if ('holdExtraSeconds' in (value.script as Record<string, unknown>)) {
+        whole('holdExtraSeconds', 0, 60);
       }
     }
 
@@ -2084,4 +2105,49 @@ export function toClientWorksheetView(
     estMinutes: row.est_minutes,
     content: stripTherapistCopy(content),
   };
+}
+
+// ─── Script timing ───────────────────────────────────────────────────────────
+//
+// One implementation of the owner's timing rule (26 Nov 2026), so the app, the
+// tests and the totals quoted back to him cannot drift apart:
+//
+//   • a line stays long enough to read: one second for every three words, and
+//     never less than six seconds however short it is;
+//   • a line that says "hold" gets the hold itself, five extra seconds;
+//   • after every line, ten seconds of quiet with the line still on screen.
+//
+// The app mirrors these three functions in Dart (`worksheet_spec.dart`) because
+// the client is not generated from this package; both sides are pinned by tests
+// with the same expected numbers.
+
+/** The script block of a body, when it has one. */
+export type WorksheetScript = NonNullable<WorksheetContent['script']>;
+
+/**
+ * Words in a script line.
+ *
+ * Whitespace-separated tokens that carry at least one letter or digit, so a
+ * bare "…" or a stray dash does not buy the client extra seconds, and scripts
+ * in any writing system count the same way.
+ */
+export function scriptWordCount(line: string): number {
+  return line.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token)).length;
+}
+
+/** Seconds a line is shown for reading it, before any hold or quiet. */
+export function scriptReadSeconds(line: string, script: WorksheetScript): number {
+  return Math.max(script.minSeconds, Math.ceil(scriptWordCount(line) / script.secondsPerWords));
+}
+
+/** Seconds one line is on screen: the read, plus the hold when it says "hold". */
+export function scriptLineSeconds(line: string, script: WorksheetScript): number {
+  const hold = script.holdExtraSeconds ?? 0;
+  const hasHold = hold > 0 && /\bhold\b/i.test(line);
+  return scriptReadSeconds(line, script) + (hasHold ? hold : 0);
+}
+
+/** Total running time of a script: every line, plus the quiet after each one. */
+export function scriptRunSeconds(lines: string[], script: WorksheetScript): number {
+  return lines.reduce((total, line) => total + scriptLineSeconds(line, script) + script.gapSeconds, 0);
 }

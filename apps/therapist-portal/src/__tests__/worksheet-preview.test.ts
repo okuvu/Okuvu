@@ -56,18 +56,20 @@ describe('worksheet preview', () => {
     }
   });
 
-  it('has no Hinglish for the rows approved on 24 Nov, only the sixteen of 9 Nov', () => {
-    // The 24 Nov approvals were English-only: the Hinglish gate is released per
-    // row after review, so a newly approved worksheet must not arrive with a
+  it('has no Hinglish for the rows approved after 9 Nov, only the original sixteen', () => {
+    // Every approval after 9 Nov was English-only: the Hinglish gate is released
+    // per row after review, so a newly approved worksheet must not arrive with a
     // translation nobody has read. The translations are the owner's to approve
     // separately (his instruction, 24 Nov 2026: "noted for later"), so this list
     // grows with every English-only batch: nineteen after Stress & Burnout and
-    // Anxiety & Worry, twenty-eight once the nine Low Mood rows were approved.
+    // Anxiety & Worry, twenty-eight once the nine Low Mood rows were approved, and
+    // thirty-two once the four All extras were switched on on 26 Nov 2026.
     const withoutHinglish = LISTABLE_CATALOGUE.filter(
       (entry) => parseWorksheetRow(row(entry)).hinglish === null,
     ).map((entry) => entry.tool_id);
     expect(withoutHinglish.sort()).toEqual([
       'ws_basics_check',
+      'ws_body_map',
       'ws_boundary_planner',
       'ws_brain_dump',
       'ws_caring_load_check',
@@ -78,13 +80,16 @@ describe('worksheet preview', () => {
       'ws_inner_critic',
       'ws_miracle_question',
       'ws_mood_activity_log',
+      'ws_muscle_relaxation',
       'ws_one_small_thing',
       'ws_priority_sorter',
       'ws_pros_cons_change',
       'ws_reconnect_planner',
       'ws_rest_break',
+      'ws_safe_place',
       'ws_scrolling_log',
       'ws_sitting_with_not_knowing',
+      'ws_sleep_diary',
       'ws_social_situation_prep',
       'ws_sos_calm',
       'ws_strengths',

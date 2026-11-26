@@ -318,12 +318,15 @@ describe('GET /library/:toolId', () => {
   });
 
   it('returns 404 for a placeholder, exactly as if it did not exist', async () => {
+    // ws_fear_ladder is still a placeholder. This used to be ws_body_map, which
+    // the owner switched on as "Where do I feel it?" on 26 Nov 2026 — an approved
+    // row answering 200 is the switch working, not a regression.
     const prisma = await importMocks();
     vi.mocked(prisma.toolRegistryEntry.findUnique).mockResolvedValue(
-      rowFor('ws_body_map') as any,
+      rowFor('ws_fear_ladder') as any,
     );
 
-    const res = await app.inject({ method: 'GET', url: '/library/ws_body_map' });
+    const res = await app.inject({ method: 'GET', url: '/library/ws_fear_ladder' });
     expect(res.statusCode).toBe(404);
   });
 

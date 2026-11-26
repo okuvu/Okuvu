@@ -16,6 +16,7 @@ import {
   ANXIETY_DRAFTS_MIGRATION_PATH,
   LOW_MOOD_APPROVALS_MIGRATION_PATH,
   LOW_MOOD_DRAFTS_MIGRATION_PATH,
+  ALL_PLANS_APPROVALS_MIGRATION_PATH,
   ALL_PLANS_DRAFTS_MIGRATION_PATH,
   APPROVALS_MIGRATION_PATH,
   DRAFTS_MIGRATION_PATH,
@@ -25,6 +26,7 @@ import {
   buildAnxietyDraftsSql,
   buildLowMoodApprovalsSql,
   buildLowMoodDraftsSql,
+  buildAllPlansApprovalsSql,
   buildAllPlansDraftsSql,
   buildApprovalsSql,
   buildDraftsSql,
@@ -46,6 +48,7 @@ const ANXIETY_APPROVALS_FILE = join(ROOT, ANXIETY_APPROVALS_MIGRATION_PATH);
 const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFTS_MIGRATION_PATH);
 const LOW_MOOD_APPROVALS_FILE = join(ROOT, LOW_MOOD_APPROVALS_MIGRATION_PATH);
 const ALL_PLANS_FILE = join(ROOT, ALL_PLANS_DRAFTS_MIGRATION_PATH);
+const ALL_PLANS_APPROVALS_FILE = join(ROOT, ALL_PLANS_APPROVALS_MIGRATION_PATH);
 
 function wrote(path: string, sql: string): boolean {
   if (process.env.WRITE_WORKSHEET_SQL !== '1') return false;
@@ -88,12 +91,13 @@ describe('generated migration', () => {
   it('lists every approved Library entry and every placeholder', () => {
     // 16 from the 9 Nov approved document + the 10 the owner approved on 24 Nov
     // + the 9 he approved on 24 Nov (Anxiety & Worry) + the 9 he approved on
-    // 24 Nov (Low Mood) = 44. The exposure ladder is in this count because it is
-    // approved; the api's client query excludes `therapist_only`, which is what
-    // keeps it out of the Library. The nine Low Mood rows are here only because
-    // approval is what moves a row from draft into this list — they were absent
-    // from it, at 35, until the owner approved their wording.
-    expect(listableToolIds()).toHaveLength(44);
+    // 24 Nov (Low Mood) + the 4 he approved on 26 Nov (the "All" extras) = 48.
+    // The exposure ladder is in this count because it is approved; the api's
+    // client query excludes `therapist_only`, which is what keeps it out of the
+    // Library. Rows are here only because approval is what moves a row from
+    // draft into this list — they were absent from it until the owner approved
+    // their wording.
+    expect(listableToolIds()).toHaveLength(48);
     const sql = buildMigrationSql();
     expect(sql).toContain("'ws_safety_plan'");
     expect(sql).toContain("'ws_energy_audit'");
@@ -372,14 +376,19 @@ describe('generated Low Mood drafts migration', () => {
     expect(sql.match(/'low_mood'/g)?.length).toBe(9);
   });
 
-  it('upgrades the five placeholder ids in place, and leaves the seed alone', () => {
+  it('upgrades the three placeholder ids in place, and leaves the seed alone', () => {
     const seed = buildMigrationSql();
     // The applied seed still creates them as placeholders, byte for byte.
     expect(seed).toContain("'ws_strengths', 'Strengths'");
     expect(seed).toContain("'ws_tiny_steps', 'Tiny steps'");
     expect(seed).toContain("'ws_miracle_question', 'The miracle question'");
-    expect(seed).toContain("'ws_comparison_check', 'Comparison check'");
-    expect(seed).toContain("'ws_inner_critic', 'Meet the inner critic'");
+    // Meet the inner critic and the Comparison check are NOT in the applied
+    // seed: they were written after it was applied, so the drafts migration below
+    // creates them. Adding them to the seed would change the bytes of a migration
+    // every deployed database has already run, and `prisma migrate deploy`
+    // refuses a migration whose checksum moved.
+    expect(seed).not.toContain("'ws_comparison_check'");
+    expect(seed).not.toContain("'ws_inner_critic'");
     // ...and the four genuinely new ids never appear there.
     for (const id of [
       'ws_one_small_thing',
@@ -538,5 +547,57 @@ describe('generated "All" drafts migration', () => {
       expect(entry, id).toBeTruthy();
       expect({ id, problems: worksheetRequestProblems(entry!.content_en) }).toEqual({ id, problems: [] });
     }
+  });
+});
+
+describe('generated "All" approvals migration', () => {
+  it('matches the catalogue', () => {
+    const sql = buildAllPlansApprovalsSql();
+    if (wrote(ALL_PLANS_APPROVALS_FILE, sql)) return;
+
+    expect(existsSync(ALL_PLANS_APPROVALS_FILE)).toBe(true);
+    expect(readFileSync(ALL_PLANS_APPROVALS_FILE, 'utf8')).toBe(sql);
+  });
+
+  it('switches on exactly the four the owner approved, dated 26 Nov 2026', () => {
+    const sql = buildAllPlansApprovalsSql();
+    expect(sql.match(/'approved'/g)?.length).toBe(4);
+    expect(sql.match(/'all'/g)?.length).toBe(4);
+    for (const id of ['ws_body_map', 'ws_sleep_diary', 'ws_muscle_relaxation', 'ws_safe_place']) {
+      const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
+      expect(row, id).toBeTruthy();
+      expect(row, id).toContain("'approved'");
+      expect(row, id).toContain("'2026-11-26'::timestamp");
+    }
+  });
+
+  it('carries the script timing the owner set on 26 Nov 2026', () => {
+    const sql = buildAllPlansApprovalsSql();
+    const unclench = sql.split('\n').find((line) => line.includes("'ws_muscle_relaxation',"))!;
+    const place = sql.split('\n').find((line) => line.includes("'ws_safe_place',"))!;
+    // A second for every three words, never under six; ten seconds of quiet.
+    for (const row of [unclench, place]) {
+      expect(row).toContain('"secondsPerWords":3');
+      expect(row).toContain('"minSeconds":6');
+      expect(row).toContain('"gapSeconds":10');
+    }
+    // The hold belongs to Unclench only.
+    expect(unclench).toContain('"holdExtraSeconds":5');
+    expect(place).not.toContain('holdExtraSeconds');
+    // The old fixed five-and-five must not survive anywhere in the file.
+    expect(sql).not.toContain('"holdSeconds"');
+  });
+
+  it('leaves the other rows and the drafts migration alone', () => {
+    // The approval is the four; it cannot reach a fifth row.
+    const sql = buildAllPlansApprovalsSql();
+    const ids = [...sql.matchAll(/'(ws_[a-z_]+)'/g)].map((m) => m[1]);
+    expect(new Set(ids)).toEqual(
+      new Set(['ws_body_map', 'ws_sleep_diary', 'ws_muscle_relaxation', 'ws_safe_place']),
+    );
+    // The drafts migration stays a drafts migration: byte-identical rows, drafts.
+    const drafts = buildAllPlansDraftsSql();
+    expect(drafts.match(/'draft'/g)?.length).toBe(4);
+    expect(drafts).not.toContain("'approved'");
   });
 });

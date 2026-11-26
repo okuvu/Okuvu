@@ -58,6 +58,17 @@ const DOC_LOW_MOOD = readFileSync(
 );
 
 /**
+ * The fifth approved document: the four "All" extras the owner approved on
+ * 26 Nov 2026. A row is checked against the document that recorded its
+ * approval, so a new approval needs a new document rather than an edit to an old
+ * one — which is also why the four are not quoted from the draft document.
+ */
+const DOC_ALL_PLANS = readFileSync(
+  join(__dirname, '../../../docs/exercise-library/50-approved-all-plans-copy.md'),
+  'utf8',
+);
+
+/**
  * Normalise for comparison: the document quotes its own copy ("…"), uses curly
  * apostrophes and wraps lines, so a literal comparison would fail on typography
  * rather than on wording.
@@ -76,6 +87,7 @@ const DOC_NORM = norm(DOC);
 const DOC_24_NOV_NORM = norm(DOC_24_NOV);
 const DOC_ANXIETY_NORM = norm(DOC_ANXIETY);
 const DOC_LOW_MOOD_NORM = norm(DOC_LOW_MOOD);
+const DOC_ALL_PLANS_NORM = norm(DOC_ALL_PLANS);
 
 function inDoc(s: string): boolean {
   const needle = norm(s);
@@ -83,7 +95,8 @@ function inDoc(s: string): boolean {
     DOC_NORM.includes(needle) ||
     DOC_24_NOV_NORM.includes(needle) ||
     DOC_ANXIETY_NORM.includes(needle) ||
-    DOC_LOW_MOOD_NORM.includes(needle)
+    DOC_LOW_MOOD_NORM.includes(needle) ||
+    DOC_ALL_PLANS_NORM.includes(needle)
   );
 }
 
@@ -125,12 +138,12 @@ function entry(toolId: string): CatalogueEntry {
 }
 
 describe('catalogue content', () => {
-  it('has forty-four approved entries (16 of 9 Nov, 10, 9 and 9 of 24 Nov)', () => {
+  it('has forty-eight approved entries (16 of 9 Nov, 10, 9, 9 and 4)', () => {
     // The count includes the exposure ladder: it is approved, and `access_mode`
-    // is what keeps it out of the client Library. The last nine are the Low Mood
-    // batch, which joined this list only when the owner approved its wording on
-    // 24 Nov 2026 — before that they were drafts, invisible to a client.
-    expect(LISTABLE_CATALOGUE).toHaveLength(44);
+    // is what keeps it out of the client Library. A batch joins this list only
+    // when the owner approves its wording — the four "All" extras joined on
+    // 26 Nov 2026, before which they were drafts, invisible to a client.
+    expect(LISTABLE_CATALOGUE).toHaveLength(48);
   });
 
   it('validates every approved row with the same checks a save runs', () => {

@@ -18,6 +18,7 @@ import { LOW_MOOD_BATCH_IDS } from '@okuvu/shared-types/worksheets/low-mood';
 import { ALL_PLANS_BATCH_IDS } from '@okuvu/shared-types/worksheets/all-plans';
 import { CATALOGUE } from '@okuvu/shared-types/worksheets/index';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
+import { scriptLineSeconds, scriptRunSeconds, scriptWordCount } from '@okuvu/shared-types/worksheet';
 import type { WorksheetContent, WorksheetField } from '@okuvu/shared-types/worksheet';
 
 export const DRAFT_DOC_PATH = 'docs/exercise-library/23-draft-stress-burnout-copy.md';
@@ -45,6 +46,17 @@ export const LOW_MOOD_APPROVED_DOC_PATH = 'docs/exercise-library/38-approved-low
 
 /** The "All" extras' own review document. */
 export const ALL_PLANS_DRAFT_DOC_PATH = 'docs/exercise-library/46-draft-all-plans-copy.md';
+
+/**
+ * The approval record for the same batch.
+ *
+ * Its own document, for the same reason the Stress & Burnout and Low Mood
+ * batches have one: the draft the owner read and the copy he approved are two
+ * records. This one also carries the script timing he set on 26 November 2026
+ * and the running time that follows from it, computed from the lines in the
+ * document rather than quoted from memory.
+ */
+export const ALL_PLANS_APPROVED_DOC_PATH = 'docs/exercise-library/50-approved-all-plans-copy.md';
 
 /** The batches the first draft document covers. */
 const EARLIER_BATCH_IDS = new Set<string>([...DRAFT_BATCH_IDS, ...ANXIETY_DRAFT_BATCH_IDS]);
@@ -404,8 +416,10 @@ export function buildLowMoodDraftDoc(): string {
  * The "All" extras of 25 November 2026.
  *
  * Generated for the same reason as every other review document: what the owner
- * reads cannot describe a worksheet differently from the app. All four are
- * `draft`, so this document reports four waiting.
+ * reads cannot describe a worksheet differently from the app. All four were
+ * approved on 26 November 2026, so this document now reports the batch closed
+ * and points at the approval record; it keeps its own file so the drafts he read
+ * remain readable on their own.
  */
 export function buildAllPlansDraftDoc(): string {
   const out: string[] = [];
@@ -415,24 +429,33 @@ export function buildAllPlansDraftDoc(): string {
   const waiting = drafts.length > 0;
 
   out.push(
-    '# "All" worksheets — draft wording for review, NOT approved',
+    waiting
+      ? '# "All" worksheets — draft wording for review, NOT approved'
+      : '# "All" worksheets — the draft read of 25 November 2026, now closed',
     '',
     'Generated from `packages/shared-types/worksheets/all-plans.ts`. Do not edit by hand:',
     'change the catalogue, then regenerate.',
     '',
-    waiting
-      ? `**Status: drafts.** These ${drafts.length} worksheets are written and none of them is`
-      : '**Status: none waiting.** Every worksheet in this batch has been',
-    waiting
-      ? 'approved. Every one is switched off for clients: no card in their Library, no direct'
-      : 'approved. Nothing here is awaiting a read, and this document carries no worksheet',
-    waiting
-      ? 'open, no assignment from the portal. A therapist can preview them. Nothing is switched'
-      : 'bodies.',
-    waiting
-      ? 'on until you say the wording is approved.'
-      : '',
-    '',
+  );
+
+  if (waiting) {
+    out.push(
+      `**Status: drafts.** These ${drafts.length} worksheets are written and none of them is`,
+      'approved. Every one is switched off for clients: no card in their Library, no direct',
+      'open, no assignment from the portal. A therapist can preview them. Nothing is switched',
+      'on until you say the wording is approved.',
+      '',
+    );
+  } else {
+    out.push(
+      '**Status: closed.** All four were approved and switched on on 26 November 2026.',
+      'Nothing is waiting for a read here. The approved copy, the script timing and the',
+      'running time that follows from it are in `50-approved-all-plans-copy.md`.',
+      '',
+    );
+  }
+
+  out.push(
     'All four go through the same safety check the journal uses on every written and spoken',
     'answer, with the same response. The Sleep check also carries the deeper screen you named',
     'on 24 November 2026: skipping meals, restricting food, making yourself sick, exercising',
@@ -443,20 +466,113 @@ export function buildAllPlansDraftDoc(): string {
     'the Sleep check deliberately has no medicine field — and none of them adds answers into',
     'a total, a level or a label.',
     '',
-    'Unclench and My calm place are audio-guided in intent. Nothing is recorded: the',
-    'bodies below are the scripts you have to approve, and the voice is a separate decision.',
-    '',
-    '---',
-    '',
   );
 
+  if (waiting) {
+    out.push(
+      'Unclench and My calm place are audio-guided in intent. Nothing is recorded: the',
+      'bodies below are the scripts you have to approve, and the voice is a separate decision.',
+      '',
+    );
+  }
+
+  out.push('---', '');
+
   if (!waiting) {
-    out.push('No worksheet is waiting for approval.', '');
+    out.push('No worksheet in this batch is waiting for approval.', '');
   }
 
   for (const entry of drafts) {
     out.push(`## ${TITLE[entry.tool_id] ?? entry.label}`, '');
     out.push(`**The brief:** ${BRIEF[entry.tool_id] ?? ''}`, '');
+    out.push(...header(entry));
+    out.push('');
+    if (entry.content_en) out.push(...bodyLines(entry.content_en));
+    out.push('', '---', '');
+  }
+
+  return out.join('\n');
+}
+
+/**
+ * The four "All" extras, approved on 26 November 2026.
+ *
+ * The record of the approval, in the words that ship, plus the timing the owner
+ * set that day. The running time is computed from the lines below with the same
+ * function the app uses, so "Unclench runs 2 minutes 25" cannot survive a change
+ * to the script without this document changing with it.
+ */
+export function buildAllPlansApprovedDoc(): string {
+  const out: string[] = [];
+
+  out.push(
+    '# "All" worksheets — approved wording',
+    '',
+    'Generated from `packages/shared-types/worksheets/all-plans.ts`. Do not edit by hand:',
+    'change the catalogue, then regenerate.',
+    '',
+    '**Status: approved and switched on.** The owner approved these four on 26 November',
+    '2026 and asked for them to be switched on the same day. The catalogue says',
+    '`approved`; rows in a deployed database are moved by their own migration',
+    '(`20261126130000_approve_all_plans_extras`), so a database that already ran the',
+    'drafts migration gets the approved wording and the current script timing, not a',
+    'stale body.',
+    '',
+    'All four go through the same safety check the journal uses on every written and',
+    'spoken answer, with the same response. The Sleep check also carries the deeper',
+    'screen the owner named on 24 November 2026: skipping meals, restricting food,',
+    'making yourself sick, exercising to punish yourself, hating your body, days',
+    'without sleep, wanting not to wake up, wanting to hurt someone, and self-harm.',
+    '',
+    'None of them asks for weight, body measurements, calories, food amounts or',
+    'medicines — the Sleep check deliberately has no medicine field — and none of them',
+    'adds answers into a total, a level or a label.',
+    '',
+    'Unclench and My calm place are audio-guided in intent. No audio ships: the script',
+    'is read on screen one line at a time and nothing is recorded. The timing is the',
+    'owner\'s, set on 26 November 2026 — a line stays long enough to read it (one',
+    'second for every three words, never less than six), a line that says "hold" adds',
+    'five seconds for the hold, and every line is followed by ten seconds of quiet with',
+    'the line still on screen. The running times below are computed from the lines in',
+    'this document with the same rule the app uses.',
+    '',
+    '---',
+    '',
+    '## Running time',
+    '',
+  );
+
+  for (const id of ['ws_muscle_relaxation', 'ws_safe_place'] as const) {
+    const entry = CATALOGUE.find((row) => row.tool_id === id);
+    if (!entry?.content_en?.script) throw new Error(`approved all-plans doc row "${id}" has no script`);
+    const script = entry.content_en.script;
+    const lines = entry.content_en.fields
+      .filter((field) => field.type === 'instruction')
+      .map((field) => field.prompt ?? '');
+    const total = scriptRunSeconds(lines, script);
+    out.push(
+      `**${entry.label}** — ${Math.floor(total / 60)} min ${String(total % 60).padStart(2, '0')} sec (${total} seconds), ${lines.length} lines.`,
+      '',
+      '| Line | Words | Read | Hold | Quiet | On screen |',
+      '| --- | --- | --- | --- | --- | --- |',
+    );
+    for (const line of lines) {
+      const read = Math.max(script.minSeconds, Math.ceil(scriptWordCount(line) / script.secondsPerWords));
+      const hold = scriptLineSeconds(line, script) - read;
+      out.push(
+        `| ${line.replace(/\|/g, '\\|')} | ${scriptWordCount(line)} | ${read}s | ${hold ? `${hold}s` : '—'} | ${script.gapSeconds}s | ${read + hold + script.gapSeconds}s |`,
+      );
+    }
+    out.push('');
+  }
+
+  out.push('---', '');
+
+  for (const id of ALL_PLANS_BATCH_IDS) {
+    const entry = CATALOGUE.find((row) => row.tool_id === id);
+    if (!entry) throw new Error(`approved all-plans doc row "${id}" is not in the catalogue`);
+    out.push(`## ${TITLE[id] ?? entry.label}`, '');
+    out.push(`**The brief:** ${BRIEF[id] ?? ''}`, '');
     out.push(...header(entry));
     out.push('');
     if (entry.content_en) out.push(...bodyLines(entry.content_en));

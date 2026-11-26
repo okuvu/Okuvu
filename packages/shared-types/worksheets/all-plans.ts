@@ -2,12 +2,15 @@
  * ALL — the four extras the owner briefed on 25 November 2026, for every
  * client whatever their care plan.
  *
- * STATUS, 26 November 2026: every row is `draft`. Rule 2 of the standing rules
- * (every new worksheet starts switched off) is honoured: none of these is
- * listable, openable or assignable from the portal until the owner says the
- * wording is approved. Two of them — Unclench and My calm place — are
- * audio-guided in intent, and the owner asked to approve the words and the voice
- * before anything is recorded, so their scripts are here and nothing is recorded.
+ * STATUS, 26 November 2026: every row is `approved` and switched on. The owner
+ * approved the wording on 26 November 2026 and told us to switch all four on in
+ * the same breath ("Approve and switch on the four extras"). The catalogue says
+ * `approved`; the switch itself is its own migration
+ * (`20261126130000_approve_all_plans_extras`), because a deployed database must
+ * be moved by an UPDATE, not by a seed it has already run. Two of them —
+ * Unclench and My calm place — are audio-guided in intent, and the owner asked
+ * to approve the words and the voice before anything is recorded, so their
+ * scripts are here and nothing is recorded.
  *
  * The owner rewrote the copy for all four on 26 November 2026 and approved it on
  * that basis. The ids, access modes, load levels and safety settings are
@@ -57,7 +60,8 @@ const bodyMap: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 5,
   sort_order: 130,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-26',
   opens: 'worksheet',
   care_plans: ['all'],
   sensitive_check: false,
@@ -121,7 +125,8 @@ const sleepDiary: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 3,
   sort_order: 140,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-26',
   opens: 'worksheet',
   care_plans: ['all'],
   sensitive_check: true,
@@ -197,12 +202,13 @@ const muscleRelaxation: CatalogueEntry = {
   section: 'calm_my_body',
   therapy_modality: 'Progressive muscle relaxation',
   therapist_note:
-    'guided tense-and-release through the main muscle groups, about five minutes. Audio-guided once the owner approves the script and the voice; until then the script is read on screen and nothing is recorded. The approved voice brief is warm Indian English, slow, with about five seconds of silence at each "Hold…" and between steps.',
+    'guided tense-and-release through the main muscle groups. Audio-guided in intent; until the owner approves a voice the script is read on screen and nothing is recorded. Timing set by the owner on 26 November 2026: each line stays long enough to read it — one second for every three words, never less than six — a line that says "hold" gets five seconds for the hold itself, and every line is followed by ten seconds of quiet to notice the release.',
   access_mode: 'open',
   load_level: 'light',
   est_minutes: 5,
   sort_order: 150,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-26',
   opens: 'worksheet',
   care_plans: ['all'],
   sensitive_check: false,
@@ -262,8 +268,10 @@ const muscleRelaxation: CatalogueEntry = {
       },
     ],
     script: {
-      holdSeconds: 5,
-      gapSeconds: 5,
+      secondsPerWords: 3,
+      minSeconds: 6,
+      gapSeconds: 10,
+      holdExtraSeconds: 5,
     },
     closing: {
       text: "That's it. Check in with your jaw and shoulders again later today.",
@@ -288,7 +296,8 @@ const safePlace: CatalogueEntry = {
   load_level: 'light',
   est_minutes: 10,
   sort_order: 160,
-  status: 'draft',
+  status: 'approved',
+  approved_at: '2026-11-26',
   opens: 'worksheet',
   care_plans: ['all'],
   sensitive_check: false,
@@ -344,8 +353,9 @@ const safePlace: CatalogueEntry = {
       },
     ],
     script: {
-      holdSeconds: 5,
-      gapSeconds: 5,
+      secondsPerWords: 3,
+      minSeconds: 6,
+      gapSeconds: 10,
     },
     closing: {
       text: 'Your place is yours. You can come back to it any time.',
