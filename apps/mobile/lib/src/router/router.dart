@@ -16,6 +16,7 @@ import '../features/chat/chat_screen.dart';
 import '../features/history/session_history_screen.dart';
 import '../features/history/session_transcript_screen.dart';
 import '../features/progress/progress_screen.dart';
+import '../features/progress/weekly_mood_summary_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/profile_screen.dart';
 import '../features/settings/notifications_screen.dart';
@@ -193,6 +194,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/progress',
         builder: (context, state) => const ProgressScreen(),
+      ),
+      // The week in words, reached from the progress screen. Its own route so
+      // the progress screen stays the chart and the summary stays text.
+      GoRoute(
+        path: '/progress/week',
+        builder: (context, state) => const WeeklyMoodSummaryScreen(),
       ),
       GoRoute(
         path: '/appointments',

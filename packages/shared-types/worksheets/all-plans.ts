@@ -261,6 +261,10 @@ const muscleRelaxation: CatalogueEntry = {
         maxLabel: 'loose and easy',
       },
     ],
+    script: {
+      holdSeconds: 5,
+      gapSeconds: 5,
+    },
     closing: {
       text: "That's it. Check in with your jaw and shoulders again later today.",
     },
@@ -339,6 +343,10 @@ const safePlace: CatalogueEntry = {
         maxLabel: 'very calm',
       },
     ],
+    script: {
+      holdSeconds: 5,
+      gapSeconds: 5,
+    },
     closing: {
       text: 'Your place is yours. You can come back to it any time.',
     },

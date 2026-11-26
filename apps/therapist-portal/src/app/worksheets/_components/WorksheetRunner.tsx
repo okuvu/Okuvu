@@ -374,30 +374,7 @@ function FieldView({ field, answers, onChange }: FieldProps) {
       )}
 
       {field.type === 'body_outline' && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {field.regions.map((region) => (
-              <span
-                key={region.id}
-                className={`rounded-full border px-2.5 py-1 text-xs ${
-                  typeof value === 'object' &&
-                  value !== null &&
-                  'picked' in value &&
-                  Array.isArray(value.picked) &&
-                  value.picked.includes(region.id)
-                    ? 'border-royal-purple bg-lavender-tint text-royal-purple'
-                    : 'border-gray-300 text-gray-600'
-                }`}
-              >
-                {region.label}
-              </span>
-            ))}
-          </div>
-          <p className="text-xs text-gray-500">
-            A body outline the client taps. The preview lists the parts; the app draws the
-            figure the taps land on.
-          </p>
-        </div>
+        <BodyOutlinePreview field={field} value={value} onChange={(next) => onChange(field.id, next)} />
       )}
 
       {field.type === 'echo' && (
@@ -445,6 +422,128 @@ function FieldView({ field, answers, onChange }: FieldProps) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The body outline, as the therapist previews it.
+ *
+ * The outline itself is drawn by the app (the preview cannot paint the figure
+ * the taps land on), so this lists the parts. What it must NOT omit is what the
+ * client does after tapping one: when the piece carries `withFeelings`, every
+ * tapped part gets its own feelings picker, and the answer carries
+ * `feelings[regionId]`. Leaving that out let the preview show a worksheet with
+ * no picker at all while the client saw one, which is the version a therapist
+ * signs off on.
+ *
+ * Answer shape is the piece's own: `{ picked, strength?, feelings? }`, keyed by
+ * region id exactly as `strength` is. Untapping a part drops its feelings, so a
+ * preview cannot produce the answer the api refuses.
+ */
+export function BodyOutlinePreview({
+  field,
+  value,
+  onChange,
+}: {
+  field: Extract<WorksheetField, { type: 'body_outline' }>;
+  value: WorksheetAnswerValue | undefined;
+  onChange: (value: WorksheetAnswerValue | undefined) => void;
+}) {
+  const record =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  const picked = Array.isArray(record?.picked) ? (record!.picked as string[]) : [];
+  const feelings =
+    record?.feelings && typeof record.feelings === 'object' && !Array.isArray(record.feelings)
+      ? (record.feelings as Record<string, string[]>)
+      : {};
+  const maxFeelings = field.maxSelections ?? 3;
+
+  function toggleRegion(regionId: string) {
+    const nextPicked = picked.includes(regionId)
+      ? picked.filter((id) => id !== regionId)
+      : [...picked, regionId];
+    const nextFeelings = { ...feelings };
+    if (!nextPicked.includes(regionId)) delete nextFeelings[regionId];
+    onChange(
+      nextPicked.length > 0
+        ? { ...record, picked: nextPicked, feelings: nextFeelings }
+        : undefined,
+    );
+  }
+
+  function toggleFeeling(regionId: string, feelingId: string) {
+    const current = feelings[regionId] ?? [];
+    const next = current.includes(feelingId)
+      ? current.filter((id) => id !== feelingId)
+      : current.length >= maxFeelings
+        ? current
+        : [...current, feelingId];
+    onChange({ ...record, picked, feelings: { ...feelings, [regionId]: next } });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {field.regions.map((region) => (
+          <button
+            key={region.id}
+            type="button"
+            onClick={() => toggleRegion(region.id)}
+            className={`rounded-full border px-2.5 py-1 text-xs ${
+              picked.includes(region.id)
+                ? 'border-royal-purple bg-lavender-tint text-royal-purple'
+                : 'border-gray-300 text-gray-600'
+            }`}
+          >
+            {region.label}
+          </button>
+        ))}
+      </div>
+
+      {field.withFeelings && picked.length > 0 && (
+        <div className="space-y-3 rounded-xl border border-hairline bg-oat p-3">
+          {field.feelingsPrompt && (
+            <p className="text-xs font-semibold text-gray-700">{field.feelingsPrompt}</p>
+          )}
+          {picked.map((regionId) => {
+            const region = field.regions.find((candidate) => candidate.id === regionId);
+            const chosen = feelings[regionId] ?? [];
+            return (
+              <div key={regionId} data-spot={regionId} className="space-y-1.5">
+                <p className="text-xs text-gray-700">{region?.label ?? regionId}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(field.feelings ?? []).map((feeling) => (
+                    <button
+                      key={feeling.id}
+                      type="button"
+                      onClick={() => toggleFeeling(regionId, feeling.id)}
+                      disabled={!chosen.includes(feeling.id) && chosen.length >= maxFeelings}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] ${
+                        chosen.includes(feeling.id)
+                          ? 'border-royal-purple bg-royal-purple/10 font-semibold text-royal-purple'
+                          : 'border-hairline bg-white text-gray-700'
+                      } disabled:opacity-40`}
+                    >
+                      {feeling.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-gray-500">
+            {maxFeelings} feelings at most for each part, in the client&rsquo;s own choice.
+          </p>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">
+        A body outline the client taps. The preview lists the parts; the app draws the
+        figure the taps land on.
+      </p>
     </div>
   );
 }

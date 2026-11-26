@@ -196,3 +196,61 @@ describe('body outline with per-part feelings', () => {
     expect(errors.join(' ')).toContain('at most 3 feelings');
   });
 });
+
+describe('the read-along script stage', () => {
+  const body = (script: unknown, fields?: unknown[]) => ({
+    version: 1,
+    script,
+    fields: fields ?? [
+      { id: 'settle', type: 'instruction', prompt: 'Get comfortable.' },
+      { id: 'hold', type: 'instruction', prompt: 'Hold… and let go.' },
+      { id: 'after', type: 'scale_0_10', prompt: 'How do you feel now?' },
+    ],
+  });
+
+  it('accepts a script whose instruction pieces are one run', () => {
+    expect(validateWorksheetContent(body({ holdSeconds: 5, gapSeconds: 5 })).ok).toBe(true);
+  });
+
+  it('refuses a script with no line to read', () => {
+    const result = validateWorksheetContent(
+      body({ holdSeconds: 5, gapSeconds: 5 }, [
+        { id: 'after', type: 'scale_0_10', prompt: 'How do you feel now?' },
+      ]),
+    );
+    expect(result.errors.join(' ')).toContain('needs at least one instruction piece');
+  });
+
+  it('refuses instructions split into two runs', () => {
+    const result = validateWorksheetContent(
+      body({ holdSeconds: 5, gapSeconds: 5 }, [
+        { id: 'a', type: 'instruction', prompt: 'One.' },
+        { id: 'b', type: 'short_text', prompt: 'A question.' },
+        { id: 'c', type: 'instruction', prompt: 'Two.' },
+      ]),
+    );
+    expect(result.errors.join(' ')).toContain('one unbroken run');
+  });
+
+  it('refuses seconds that are not whole numbers between 1 and 60', () => {
+    expect(validateWorksheetContent(body({ holdSeconds: 0, gapSeconds: 5 })).errors.join(' ')).toContain(
+      'holdSeconds',
+    );
+    expect(validateWorksheetContent(body({ holdSeconds: 5, gapSeconds: 2.5 })).errors.join(' ')).toContain(
+      'gapSeconds',
+    );
+    expect(validateWorksheetContent(body({ holdSeconds: 5, gapSeconds: 61 })).errors.join(' ')).toContain(
+      'gapSeconds',
+    );
+  });
+
+  it('is declared on Unclench and My calm place, and on nothing else', () => {
+    for (const id of ['ws_muscle_relaxation', 'ws_safe_place']) {
+      expect(entryById(id)!.content_en!.script, id).toEqual({ holdSeconds: 5, gapSeconds: 5 });
+    }
+    for (const row of CATALOGUE) {
+      if (row.tool_id === 'ws_muscle_relaxation' || row.tool_id === 'ws_safe_place') continue;
+      expect(row.content_en?.script, row.tool_id).toBeUndefined();
+    }
+  });
+});

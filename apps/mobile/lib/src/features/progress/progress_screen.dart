@@ -72,6 +72,8 @@ class ProgressScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   const _ChartCaption(),
+                  const SizedBox(height: 24),
+                  const _WeeklySummaryLink(),
                 ],
               ),
             );
@@ -101,6 +103,40 @@ List<MoodDataPoint> _buildLast14Days(List<MoodDataPoint> entries) {
       mood: matchingEntry?.mood,
     );
   });
+}
+
+/// The way into the week in words.
+///
+/// The chart above is the trend; this is the same week said back in the client's
+/// own words. Kept on the progress screen rather than in a tab of its own,
+/// because it only makes sense next to the thing it summarises.
+class _WeeklySummaryLink extends StatelessWidget {
+  const _WeeklySummaryLink();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      key: const Key('progress_weekly_summary_link'),
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => context.go('/progress/week'),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text('Your week in words', style: theme.textTheme.titleMedium),
+            ),
+            const Icon(LucideIcons.chevronRight, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _CarePhaseCard extends StatelessWidget {

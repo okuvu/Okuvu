@@ -138,8 +138,23 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   /// question — they are screens like any other rather than a form bolted onto
   /// the last piece.
   ///
-  /// 'before' | 'pieces' | 'after' | 'did' | 'closing'
+  /// 'before' | 'pieces' | 'script' | 'after' | 'did' | 'closing'
   String _stage = 'before';
+
+  /// The read-along script stage, when the body declares one.
+  ///
+  /// The run of `instruction` pieces is shown on one screen and advanced here,
+  /// not by the client: a relaxation exercise that asks for a tap every line
+  /// interrupts the thing it is for. `_scriptStart`/`_scriptEnd` index that run
+  /// in [_steps]; the timer moves one line at a time, holding each for
+  /// `holdSeconds` and leaving `gapSeconds` of quiet before the next.
+  Timer? _scriptTimer;
+  List<WorksheetField> _scriptLines = const [];
+  int _scriptEnd = 0;
+  int _scriptLine = 0;
+  int _scriptSecondsLeft = 0;
+  bool _scriptInGap = false;
+  bool _scriptPaused = false;
 
   /// The read-back frames the api returned, keyed by piece id, and the pieces
   /// whose check is still running. A piece that failed is remembered so the
@@ -183,6 +198,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
 
   @override
   void dispose() {
+    _scriptTimer?.cancel();
     for (final controller in _controllers.values) {
       controller.dispose();
     }
@@ -224,6 +240,14 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
       }
       _restoring = false;
     });
+
+    // Opening on a script re-runs it from its first line rather than dropping
+    // the client into the middle of a relaxation that has already moved on.
+    // Only from `pieces`: the opening rating is still a screen of its own.
+    final range = _scriptRange();
+    if (_stage == 'pieces' && range != null && _stepIndex >= range.start && _stepIndex <= range.end) {
+      _startScript();
+    }
   }
 
   Future<void> _persist() async {
@@ -250,7 +274,14 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   }
 
   void _goTo(int index) {
-    setState(() => _stepIndex = index);
+    // Stepping back into the middle of a script would show one line as a page
+    // of its own; land on the piece before the script instead.
+    final range = _scriptRange();
+    var target = index;
+    if (range != null && target >= range.start && target <= range.end) {
+      target = range.start - 1;
+    }
+    setState(() => _stepIndex = target < 0 ? 0 : target);
     _persist();
   }
 
@@ -337,6 +368,155 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
     setState(() => _stage = 'after');
     _persist();
   }
+
+  // ─── The read-along script stage ──────────────────────────────────────────
+  //
+  // The body says, once, that its run of `instruction` pieces is a script (see
+  // WorksheetContent.script). Everything below is presentation of that run: one
+  // screen, one line at a time, advanced by a timer, with Pause and Stop always
+  // on screen. No answer is written here and nothing is timed against the
+  // client — the countdown only decides when the next line appears.
+
+  /// The contiguous run of instruction pieces, or null when this body has no
+  /// script. Read from [_steps] so a branch that hides a line takes it out of
+  /// the run as well.
+  _ScriptRange? _scriptRange() {
+    if (widget.content.script == null) return null;
+    final steps = _steps;
+    final first = steps.indexWhere((field) => field.type == 'instruction');
+    if (first < 0) return null;
+    var last = first;
+    while (last + 1 < steps.length && steps[last + 1].type == 'instruction') {
+      last += 1;
+    }
+    return _ScriptRange(first, last);
+  }
+
+  /// Leave the opening rating for the pieces — or straight into the script when
+  /// the worksheet opens with one (Unclench has no question before the body).
+  void _enterPieces() {
+    final range = _scriptRange();
+    if (range != null && range.start == 0) {
+      _startScript();
+      return;
+    }
+    setState(() => _stage = 'pieces');
+    _persist();
+  }
+
+  /// Next on a piece screen. Entering the script happens here rather than on a
+  /// dedicated page, so the run is never shown as its first line on a page.
+  void _advanceFrom(int index) {
+    final range = _scriptRange();
+    if (range != null && index + 1 == range.start) {
+      _startScript();
+      return;
+    }
+    if (index >= _steps.length - 1) {
+      _goToAfter();
+    } else {
+      _goTo(index + 1);
+    }
+  }
+
+  /// Where Back goes from a piece screen, or null to hide it.
+  ///
+  /// The piece after a script goes back to the piece before the run, never into
+  /// the run itself — one line of a relaxation shown as a page of its own is
+  /// the shape this stage exists to replace.
+  int? _backTarget(int index) {
+    if (index == 0) return null;
+    final range = _scriptRange();
+    if (range != null && index == range.end + 1) {
+      return range.start == 0 ? null : range.start - 1;
+    }
+    return index - 1;
+  }
+
+  void _startScript() {
+    final range = _scriptRange();
+    final script = widget.content.script;
+    if (range == null || script == null) return;
+    _scriptTimer?.cancel();
+    setState(() {
+      _scriptEnd = range.end;
+      _scriptLines = _steps.sublist(range.start, range.end + 1);
+      _scriptLine = 0;
+      _scriptInGap = false;
+      _scriptPaused = false;
+      _scriptSecondsLeft = script.holdSeconds;
+      _stage = 'script';
+    });
+    _runScriptTimer();
+    _persist();
+  }
+
+  void _runScriptTimer() {
+    _scriptTimer?.cancel();
+    if (_scriptPaused) return;
+    _scriptTimer = Timer.periodic(const Duration(seconds: 1), (_) => _scriptTick());
+  }
+
+  void _scriptTick() {
+    if (!mounted || _scriptPaused || _stage != 'script') return;
+    final script = widget.content.script;
+    if (script == null) return;
+
+    var finished = false;
+    setState(() {
+      _scriptSecondsLeft -= 1;
+      if (_scriptSecondsLeft > 0) return;
+      if (!_scriptInGap) {
+        // The hold is over; the line stays visible through the quiet before
+        // the next one.
+        _scriptInGap = true;
+        _scriptSecondsLeft = script.gapSeconds;
+        return;
+      }
+      if (_scriptLine + 1 < _scriptLines.length) {
+        _scriptLine += 1;
+        _scriptInGap = false;
+        _scriptSecondsLeft = script.holdSeconds;
+      } else {
+        finished = true;
+      }
+    });
+
+    if (finished) _finishScript();
+  }
+
+  void _finishScript() {
+    _scriptTimer?.cancel();
+    final next = _scriptEnd + 1;
+    if (next >= _steps.length) {
+      _goToAfter();
+      return;
+    }
+    setState(() {
+      _stage = 'pieces';
+      _stepIndex = next;
+      _scriptInGap = false;
+    });
+    _persist();
+  }
+
+  void _toggleScriptPause() {
+    setState(() => _scriptPaused = !_scriptPaused);
+    if (_scriptPaused) {
+      _scriptTimer?.cancel();
+    } else {
+      _runScriptTimer();
+    }
+  }
+
+  void _stopScript() {
+    _scriptTimer?.cancel();
+    if (!mounted) return;
+    // Stop is "I'm done", not "back one step": it leaves the exercise the same
+    // way the other calm screens do.
+    context.go('/library');
+  }
+
 
   void _goToWrap() {
     setState(() => _stage = 'wrap');
@@ -443,6 +623,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
 
     if (_finished) return _buildClosing(theme);
     if (_stage == 'before') return _buildBefore(theme);
+    if (_stage == 'script') return _buildScript(theme);
     if (_stage == 'after') return _buildAfter(theme);
     if (_stage == 'wrap') return _buildWrap(theme);
     return _buildPieceScreen(theme);
@@ -461,6 +642,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
     final rawIndex = _stepIndex < 0 ? 0 : _stepIndex;
     final index = rawIndex >= steps.length ? steps.length - 1 : rawIndex;
     final field = steps[index];
+    final back = _backTarget(index);
     final progress = worksheetProgress(widget.content, _answers);
 
     return Scaffold(
@@ -595,22 +777,18 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: Row(
                 children: [
-                  if (index > 0)
+                  if (back != null)
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => _goTo(index - 1),
+                        onPressed: () => _goTo(back),
                         child: const Text('Back'),
                       ),
                     ),
-                  if (index > 0) const SizedBox(width: 12),
+                  if (back != null) const SizedBox(width: 12),
                   Expanded(
                     flex: 2,
                     child: FilledButton(
-                      onPressed: canAdvanceFrom(field, _answers)
-                          ? () => index >= steps.length - 1
-                              ? _goToAfter()
-                              : _goTo(index + 1)
-                          : null,
+                      onPressed: canAdvanceFrom(field, _answers) ? () => _advanceFrom(index) : null,
                       child: Text(index >= steps.length - 1 ? 'Finish' : 'Next'),
                     ),
                   ),
@@ -618,6 +796,70 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// The script stage: one line on screen, advanced on its own, Pause and Stop
+  /// always in reach.
+  ///
+  /// There is deliberately no Back button and no tap-through: the client's only
+  /// controls are the two the owner asked for. The line dims (never disappears)
+  /// through the quiet between steps, so the next one arrives on a screen that
+  /// has not jumped.
+  Widget _buildScript(ThemeData theme) {
+    final line = _scriptLines.isEmpty ? '' : _scriptLines[_scriptLine].prompt;
+    final total = _scriptLines.length;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${_scriptLine + 1} of $total'),
+        automaticallyImplyLeading: false,
+        actions: [
+          TextButton(
+            key: const Key('worksheet_script_pause'),
+            onPressed: _toggleScriptPause,
+            child: Text(_scriptPaused ? 'Resume' : 'Pause'),
+          ),
+          TextButton(
+            key: const Key('worksheet_script_stop'),
+            onPressed: _stopScript,
+            child: const Text('Stop'),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Column(
+            children: [
+              LinearProgressIndicator(
+                value: total == 0 ? 0 : (_scriptLine + 1) / total,
+                minHeight: 6,
+              ),
+              const Spacer(),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 600),
+                opacity: _scriptInGap ? 0.45 : 1,
+                child: Text(
+                  line,
+                  key: const Key('worksheet_script_line'),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineSmall?.copyWith(height: 1.5, fontWeight: FontWeight.w500),
+                ),
+              ),
+              if (_scriptPaused) ...[
+                const SizedBox(height: 24),
+                Text(
+                  'Paused',
+                  key: const Key('worksheet_script_paused'),
+                  style: theme.textTheme.labelLarge,
+                ),
+              ],
+              const Spacer(),
+            ],
+          ),
         ),
       ),
     );
@@ -658,18 +900,12 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
               const Spacer(),
               FilledButton(
                 key: const Key('worksheet_before_continue'),
-                onPressed: () {
-                  setState(() => _stage = 'pieces');
-                  _persist();
-                },
+                onPressed: _enterPieces,
                 child: const Text('Next'),
               ),
               TextButton(
                 key: const Key('worksheet_before_skip'),
-                onPressed: () {
-                  setState(() => _stage = 'pieces');
-                  _persist();
-                },
+                onPressed: _enterPieces,
                 child: const Text('Skip'),
               ),
             ],
@@ -1979,4 +2215,12 @@ class _CountdownTimerPieceState extends State<_CountdownTimerPiece> {
       ],
     );
   }
+}
+
+/// The indices of the contiguous instruction run a body declares as a script.
+class _ScriptRange {
+  const _ScriptRange(this.start, this.end);
+
+  final int start;
+  final int end;
 }

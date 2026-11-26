@@ -277,6 +277,7 @@ class WorksheetContent {
     required this.version,
     required this.fields,
     this.intro,
+    this.script,
     this.closing,
     this.review,
   });
@@ -284,8 +285,25 @@ class WorksheetContent {
   final int version;
   final String? intro;
   final List<WorksheetField> fields;
+  final WorksheetScript? script;
   final WorksheetClosing? closing;
   final WorksheetReview? review;
+}
+
+/// A read-along script stage, when the body declares one.
+///
+/// The two audio-guided exercises are a run of `instruction` pieces with no
+/// answers to give. Shown one per page they are eleven taps for five minutes of
+/// stillness, so the runner shows the run on one screen and advances it itself:
+/// [holdSeconds] on each line, [gapSeconds] of quiet between them, with Pause and
+/// Stop on screen the whole time. The pieces stay in [WorksheetContent.fields] —
+/// this only says how to present that run, so the preview, the progress count
+/// and the stored answers keep reading one list.
+class WorksheetScript {
+  const WorksheetScript({required this.holdSeconds, required this.gapSeconds});
+
+  final int holdSeconds;
+  final int gapSeconds;
 }
 
 /// Thrown when a body cannot be trusted. The runner shows this as a plain
@@ -747,12 +765,57 @@ WorksheetContent parseWorksheetContent(Object? raw) {
     }
   }
 
+  WorksheetScript? script;
+  final rawScript = raw['script'];
+  if (rawScript != null) {
+    if (rawScript is! Map) {
+      problems.add('content.script: must be an object');
+    } else {
+      for (final key in rawScript.keys) {
+        if (key != 'holdSeconds' && key != 'gapSeconds') {
+          problems.add('content.script: unknown key "$key"');
+        }
+      }
+      final hold = rawScript['holdSeconds'];
+      final gap = rawScript['gapSeconds'];
+      final holdOk = hold is int && hold >= 1 && hold <= 60;
+      final gapOk = gap is int && gap >= 1 && gap <= 60;
+      if (!holdOk) {
+        problems.add('content.script.holdSeconds: must be a whole number of seconds between 1 and 60');
+      }
+      if (!gapOk) {
+        problems.add('content.script.gapSeconds: must be a whole number of seconds between 1 and 60');
+      }
+      if (holdOk && gapOk) {
+        script = WorksheetScript(holdSeconds: hold, gapSeconds: gap);
+      }
+
+      // One unbroken run of instruction pieces, or the stage would silently
+      // leave a line out of what the client sees.
+      final types = fields.map((field) => field.type).toList();
+      final first = types.indexOf('instruction');
+      if (first == -1) {
+        problems.add('content.script: needs at least one instruction piece to read');
+      } else {
+        var last = first;
+        while (last + 1 < types.length && types[last + 1] == 'instruction') {
+          last += 1;
+        }
+        final total = types.where((type) => type == 'instruction').length;
+        if (last - first + 1 != total) {
+          problems.add('content.script: the instruction pieces must form one unbroken run');
+        }
+      }
+    }
+  }
+
   if (problems.isNotEmpty) throw WorksheetContentException(problems);
 
   return WorksheetContent(
     version: worksheetContentVersion,
     intro: intro as String?,
     fields: fields,
+    script: script,
     closing: closing,
     review: review,
   );

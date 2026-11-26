@@ -388,6 +388,30 @@ export interface WorksheetContent {
   /** Opening paragraph, above the first piece. */
   intro?: string;
   fields: WorksheetField[];
+  /**
+   * A read-along script stage.
+   *
+   * The two audio-guided exercises (Unclench, My calm place) are a run of
+   * `instruction` pieces the client follows at their own pace. Shown one per
+   * page they turn a five-minute relaxation into eleven taps, and the point of
+   * the exercise is that nothing needs tapping. So a body may declare that its
+   * single contiguous run of `instruction` pieces is a script: the app shows
+   * them on ONE screen, one line at a time, advancing on its own — `holdSeconds`
+   * on each line (the time to hold, or to look or listen) and `gapSeconds` of
+   * quiet between them — with Pause and Stop visible the whole way through.
+   *
+   * The pieces stay in `fields`. Nothing is duplicated: the therapist's preview,
+   * the ordering, the progress count and the stored answers all read the same
+   * list, and a body that does not declare this renders exactly as before.
+   * Recorded audio is not part of this shape; when the owner approves a voice
+   * the recording is an addition to these lines, not a second content model.
+   */
+  script?: {
+    /** Seconds each line stays before the next one. */
+    holdSeconds: number;
+    /** Seconds of quiet between lines, with the line still on screen. */
+    gapSeconds: number;
+  };
   /** Line under the last piece, plus the buttons that end the worksheet. */
   closing?: {
     text?: string;
@@ -612,7 +636,7 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
     return { ok: false, errors: ['content must be an object'] };
   }
 
-  const topKeys = new Set(['version', 'intro', 'fields', 'closing', 'timeline', 'review']);
+  const topKeys = new Set(['version', 'intro', 'fields', 'script', 'closing', 'timeline', 'review']);
   for (const key of Object.keys(value)) {
     if (!topKeys.has(key)) errors.push(`content: unknown key "${key}"`);
   }
@@ -1118,6 +1142,42 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
       }
     });
   });
+
+  if (value.script !== undefined) {
+    if (!isPlainObject(value.script)) {
+      errors.push('content.script: must be an object');
+    } else {
+      for (const key of Object.keys(value.script)) {
+        if (!['holdSeconds', 'gapSeconds'].includes(key)) {
+          errors.push(`content.script: unknown key "${key}"`);
+        }
+      }
+      for (const key of ['holdSeconds', 'gapSeconds'] as const) {
+        const seconds = value.script[key];
+        if (!Number.isInteger(seconds) || (seconds as number) < 1 || (seconds as number) > 60) {
+          errors.push(`content.script.${key}: must be a whole number of seconds between 1 and 60`);
+        }
+      }
+    }
+
+    // A script needs lines, and one unbroken run of them: the app shows a
+    // single stage, so a second instruction block elsewhere in the body would
+    // silently be left out of the stage the client sees.
+    const types = (value.fields as unknown[]).map((field) =>
+      isPlainObject(field) ? (field as { type?: unknown }).type : undefined,
+    );
+    const first = types.indexOf('instruction');
+    if (first === -1) {
+      errors.push('content.script: needs at least one instruction piece to read');
+    } else {
+      let last = first;
+      while (last + 1 < types.length && types[last + 1] === 'instruction') last += 1;
+      const total = types.filter((type) => type === 'instruction').length;
+      if (last - first + 1 !== total) {
+        errors.push('content.script: the instruction pieces must form one unbroken run');
+      }
+    }
+  }
 
   if (value.closing !== undefined) {
     if (!isPlainObject(value.closing)) {
