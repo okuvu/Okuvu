@@ -286,6 +286,30 @@ export interface BodyOutlineField extends WorksheetFieldBase {
   withStrength?: boolean;
   /** Question above the per-part sliders, when the approved copy gives one. */
   strengthPrompt?: string;
+  /**
+   * When true the client also picks feeling words for each tapped part.
+   *
+   * The Body map needs this: "tap where you feel something, then use the
+   * feelings picker for that spot". It is deliberately per-part rather than a
+   * single picker after the outline, because the whole point of the exercise is
+   * that two places can feel different — a tight chest and a heavy stomach are
+   * not the same feeling, and one picker for both would erase that.
+   *
+   * The vocabulary is the same fixed list every other picker uses, so the words
+   * cannot drift apart; `feelings` in the answer is a map from region id to the
+   * chosen feeling ids, exactly as `strength` is a map from region id to 0-10.
+   */
+  withFeelings?: boolean;
+  /** Question above the per-part pickers, when the approved copy gives one. */
+  feelingsPrompt?: string;
+  /**
+   * The vocabulary offered for each tapped part, when `withFeelings` is on.
+   *
+   * The same shape the feelings picker uses, so one fixed list serves both and
+   * the words cannot drift apart. Required when `withFeelings` is true, and
+   * refused when it is not — a vocabulary nobody can pick from is dead copy.
+   */
+  feelings?: WorksheetFeeling[];
 }
 
 /**
@@ -434,7 +458,7 @@ export type WorksheetAnswerValue =
   | string
   | string[]
   | number
-  | { picked: string[]; strength?: Record<string, number> }
+  | { picked: string[]; strength?: Record<string, number>; feelings?: Record<string, string[]> }
   | Array<Record<string, string | number>>;
 
 /** Keyed by WorksheetField.id. */
@@ -491,7 +515,7 @@ const TYPE_KEYS: Record<WorksheetFieldType, string[]> = {
   row_list: ['columns', 'minRows', 'maxRows', 'addLabel'],
   datetime: ['withDate', 'withTime'],
   countdown_timer: ['seconds', 'startLabel', 'doneLabel', 'minSeconds'],
-  body_outline: ['regions', 'maxSelections', 'withStrength', 'strengthPrompt'],
+  body_outline: ['regions', 'maxSelections', 'withStrength', 'strengthPrompt', 'withFeelings', 'feelingsPrompt', 'feelings'],
   echo: ['fromField', 'frames', 'screened'],
   closing_reflection: [],
 };
@@ -512,6 +536,65 @@ function asInt(v: unknown): number | null {
  * Validate a worksheet body. Returns the typed content on success and a list
  * of human-readable errors on failure — the caller must not save on failure.
  */
+/**
+ * Validate a piece's declared feeling vocabulary.
+ *
+ * Extracted so the feelings picker and the body outline's per-part picker run
+ * the same rules — the same ids, the same one-level nesting, the same ceiling —
+ * and cannot drift apart. `at` is the path prefix the message is reported under.
+ */
+function feelingListProblems(feelings: unknown, at: string): string[] {
+  const errors: string[] = [];
+  if (!Array.isArray(feelings) || feelings.length === 0) {
+    errors.push(`${at}.feelings: at least one feeling is required`);
+    return errors;
+  }
+  if (feelings.length > WORKSHEET_LIMITS.feelings) {
+    errors.push(`${at}.feelings: at most ${WORKSHEET_LIMITS.feelings}`);
+    return errors;
+  }
+  const ids = new Set<string>();
+  feelings.forEach((f, fi) => {
+    if (!isPlainObject(f)) {
+      errors.push(`${at}.feelings[${fi}]: must be an object`);
+      return;
+    }
+    if (!isNonEmptyString(f.id)) errors.push(`${at}.feelings[${fi}].id: required`);
+    else if (ids.has(f.id as string)) errors.push(`${at}.feelings[${fi}].id: duplicate "${f.id}"`);
+    else ids.add(f.id as string);
+
+    if (!isNonEmptyString(f.label)) errors.push(`${at}.feelings[${fi}].label: required`);
+    else if ((f.label as string).length > WORKSHEET_LIMITS.label) {
+      errors.push(`${at}.feelings[${fi}].label: over ${WORKSHEET_LIMITS.label} characters`);
+    }
+
+    for (const key of Object.keys(f)) {
+      if (!['id', 'label', 'parent'].includes(key)) {
+        errors.push(`${at}.feelings[${fi}]: unknown key "${key}"`);
+      }
+    }
+  });
+  // Second pass: parents must exist, and only one level of nesting.
+  feelings.forEach((f, fi) => {
+    if (!isPlainObject(f) || f.parent === undefined) return;
+    if (!isNonEmptyString(f.parent)) {
+      errors.push(`${at}.feelings[${fi}].parent: must be a non-empty string`);
+      return;
+    }
+    if (f.parent === f.id) {
+      errors.push(`${at}.feelings[${fi}].parent: a feeling cannot be its own parent`);
+    } else if (!ids.has(f.parent as string)) {
+      errors.push(`${at}.feelings[${fi}].parent: unknown feeling "${f.parent}"`);
+    } else {
+      const parent = feelings.find((p) => isPlainObject(p) && p.id === f.parent);
+      if (isPlainObject(parent) && parent.parent !== undefined) {
+        errors.push(`${at}.feelings[${fi}].parent: feelings nest only one level deep`);
+      }
+    }
+  });
+  return errors;
+}
+
 export function validateWorksheetContent(value: unknown): WorksheetValidationResult {
   const errors: string[] = [];
 
@@ -729,52 +812,7 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
     }
 
     if (fieldType === 'feelings_picker') {
-      const feelings = raw.feelings;
-      if (!Array.isArray(feelings) || feelings.length === 0) {
-        errors.push(`${at}.feelings: at least one feeling is required`);
-      } else if (feelings.length > WORKSHEET_LIMITS.feelings) {
-        errors.push(`${at}.feelings: at most ${WORKSHEET_LIMITS.feelings}`);
-      } else {
-        const ids = new Set<string>();
-        feelings.forEach((f, fi) => {
-          if (!isPlainObject(f)) {
-            errors.push(`${at}.feelings[${fi}]: must be an object`);
-            return;
-          }
-          if (!isNonEmptyString(f.id)) errors.push(`${at}.feelings[${fi}].id: required`);
-          else if (ids.has(f.id as string)) errors.push(`${at}.feelings[${fi}].id: duplicate "${f.id}"`);
-          else ids.add(f.id as string);
-
-          if (!isNonEmptyString(f.label)) errors.push(`${at}.feelings[${fi}].label: required`);
-          else if ((f.label as string).length > WORKSHEET_LIMITS.label) {
-            errors.push(`${at}.feelings[${fi}].label: over ${WORKSHEET_LIMITS.label} characters`);
-          }
-
-          for (const key of Object.keys(f)) {
-            if (!['id', 'label', 'parent'].includes(key)) {
-              errors.push(`${at}.feelings[${fi}]: unknown key "${key}"`);
-            }
-          }
-        });
-        // Second pass: parents must exist, and only one level of nesting.
-        feelings.forEach((f, fi) => {
-          if (!isPlainObject(f) || f.parent === undefined) return;
-          if (!isNonEmptyString(f.parent)) {
-            errors.push(`${at}.feelings[${fi}].parent: must be a non-empty string`);
-            return;
-          }
-          if (f.parent === f.id) {
-            errors.push(`${at}.feelings[${fi}].parent: a feeling cannot be its own parent`);
-          } else if (!ids.has(f.parent as string)) {
-            errors.push(`${at}.feelings[${fi}].parent: unknown feeling "${f.parent}"`);
-          } else {
-            const parent = feelings.find((p) => isPlainObject(p) && p.id === f.parent);
-            if (isPlainObject(parent) && parent.parent !== undefined) {
-              errors.push(`${at}.feelings[${fi}].parent: feelings nest only one level deep`);
-            }
-          }
-        });
-      }
+      errors.push(...feelingListProblems(raw.feelings, at));
 
       const maxSel = raw.maxSelections === undefined ? 3 : asInt(raw.maxSelections);
       if (maxSel === null || maxSel < 1 || maxSel > WORKSHEET_LIMITS.options) {
@@ -979,6 +1017,26 @@ export function validateWorksheetContent(value: unknown): WorksheetValidationRes
         if (raw.withStrength !== true) {
           errors.push(`${at}.strengthPrompt: needs withStrength`);
         }
+      }
+      if (raw.withFeelings !== undefined && typeof raw.withFeelings !== 'boolean') {
+        errors.push(`${at}.withFeelings: must be true or false`);
+      }
+      if (raw.feelingsPrompt !== undefined) {
+        if (!isNonEmptyString(raw.feelingsPrompt)) {
+          errors.push(`${at}.feelingsPrompt: must be a non-empty string`);
+        } else if ((raw.feelingsPrompt as string).length > WORKSHEET_LIMITS.prompt) {
+          errors.push(`${at}.feelingsPrompt: over ${WORKSHEET_LIMITS.prompt} characters`);
+        }
+        if (raw.withFeelings !== true) {
+          errors.push(`${at}.feelingsPrompt: needs withFeelings`);
+        }
+      }
+      // The vocabulary and the flag must agree: a picker with nothing to pick
+      // from, or a vocabulary nobody is offered, is dead copy either way.
+      if (raw.withFeelings === true) {
+        errors.push(...feelingListProblems(raw.feelings, at));
+      } else if (raw.feelings !== undefined) {
+        errors.push(`${at}.feelings: needs withFeelings`);
       }
     }
 
@@ -1550,6 +1608,33 @@ export function validateWorksheetAnswers(
             }
           }
         }
+        // Per-part feelings, when the piece offers them: the same rules the
+        // feelings picker applies to its own answer, keyed by tapped part.
+        const feelings = (answer as { feelings?: Record<string, unknown> }).feelings;
+        if (feelings) {
+          if (field.withFeelings !== true) {
+            errors.push(`${field.id}: feelings given but this piece offers none`);
+          }
+          const allowed = (field.feelings ?? []).map((f) => f.id);
+          const maxFeelings = field.maxSelections ?? 3;
+          for (const [key, value] of Object.entries(feelings)) {
+            if (!picked.includes(key)) {
+              errors.push(`${field.id}: feelings given for untapped part "${key}"`);
+            }
+            if (!Array.isArray(value)) {
+              errors.push(`${field.id}.feelings.${key}: must be a list of feelings`);
+              continue;
+            }
+            if (value.length > maxFeelings) {
+              errors.push(`${field.id}.feelings.${key}: at most ${maxFeelings} feelings`);
+            }
+            for (const f of value) {
+              if (typeof f !== 'string' || !allowed.includes(f)) {
+                errors.push(`${field.id}.feelings.${key}: "${String(f)}" is not one of its feelings`);
+              }
+            }
+          }
+        }
         break;
       }
       default: {
@@ -1668,6 +1753,7 @@ export function clientFacingStrings(content: WorksheetContent): string[] {
     push(field.startLabel);
     push(field.doneLabel);
     push(field.strengthPrompt);
+    push(field.feelingsPrompt);
     push(field.addLabel);
     push(field.minLabel);
     push(field.maxLabel);

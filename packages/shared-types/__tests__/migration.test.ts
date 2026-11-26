@@ -16,6 +16,7 @@ import {
   ANXIETY_DRAFTS_MIGRATION_PATH,
   LOW_MOOD_APPROVALS_MIGRATION_PATH,
   LOW_MOOD_DRAFTS_MIGRATION_PATH,
+  ALL_PLANS_DRAFTS_MIGRATION_PATH,
   APPROVALS_MIGRATION_PATH,
   DRAFTS_MIGRATION_PATH,
   MIGRATION_PATH,
@@ -24,6 +25,7 @@ import {
   buildAnxietyDraftsSql,
   buildLowMoodApprovalsSql,
   buildLowMoodDraftsSql,
+  buildAllPlansDraftsSql,
   buildApprovalsSql,
   buildDraftsSql,
   buildMigrationSql,
@@ -31,6 +33,8 @@ import {
   draftEntries,
   listableToolIds,
 } from '../worksheets/emit-sql';
+import { worksheetRequestProblems } from '@okuvu/shared-types/worksheet';
+import { CATALOGUE } from '../worksheets/index';
 
 const ROOT = join(__dirname, '../../..');
 const FILE = join(ROOT, MIGRATION_PATH);
@@ -41,6 +45,7 @@ const ANXIETY_FILE = join(ROOT, ANXIETY_DRAFTS_MIGRATION_PATH);
 const ANXIETY_APPROVALS_FILE = join(ROOT, ANXIETY_APPROVALS_MIGRATION_PATH);
 const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFTS_MIGRATION_PATH);
 const LOW_MOOD_APPROVALS_FILE = join(ROOT, LOW_MOOD_APPROVALS_MIGRATION_PATH);
+const ALL_PLANS_FILE = join(ROOT, ALL_PLANS_DRAFTS_MIGRATION_PATH);
 
 function wrote(path: string, sql: string): boolean {
   if (process.env.WRITE_WORKSHEET_SQL !== '1') return false;
@@ -469,5 +474,69 @@ describe('generated Low Mood approvals migration', () => {
     const drafts = buildLowMoodDraftsSql();
     expect(drafts.match(/'draft'/g)?.length).toBe(9);
     expect(drafts).not.toContain("'approved'");
+  });
+});
+
+describe('generated "All" drafts migration', () => {
+  it('matches the catalogue', () => {
+    const sql = buildAllPlansDraftsSql();
+    if (wrote(ALL_PLANS_FILE, sql)) return;
+
+    expect(existsSync(ALL_PLANS_FILE)).toBe(true);
+    expect(readFileSync(ALL_PLANS_FILE, 'utf8')).toBe(sql);
+  });
+
+  it('carries all four rows, every one draft, labelled `all`', () => {
+    const sql = buildAllPlansDraftsSql();
+    expect(sql.match(/'draft'/g)?.length).toBe(4);
+    expect(sql.match(/'all'/g)?.length).toBe(4);
+    // Rule 2: nothing is approved until the owner reads the wording.
+    expect(sql).not.toContain("'approved'");
+    expect(sql).not.toContain('2026-11-24');
+  });
+
+  it('keeps the two audio-guided rows unrecorded and their scripts in the body', () => {
+    const sql = buildAllPlansDraftsSql();
+    for (const id of ['ws_muscle_relaxation', 'ws_safe_place']) {
+      const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
+      expect(row, id).toBeTruthy();
+      // The script is client-facing copy in the body, not an audio reference.
+      expect(row, id).toContain('instruction');
+    }
+  });
+
+  it('carries the deeper safety screen on the Sleep diary and on nothing else', () => {
+    const sql = buildAllPlansDraftsSql();
+    const sleep = sql.split('\n').find((line) => line.includes("'ws_sleep_diary',"));
+    expect(sleep).toBeTruthy();
+    expect(sleep).toMatch(/'all'\]::TEXT\[\], true,/);
+    for (const id of ['ws_body_map', 'ws_muscle_relaxation', 'ws_safe_place']) {
+      const row = sql.split('\n').find((line) => line.includes(`'${id}',`));
+      expect(row, id).toBeTruthy();
+      expect(row, id).toMatch(/'all'\]::TEXT\[\], false,/);
+    }
+  });
+
+  it('upgrades the two placeholder ids in place, and leaves the seed alone', () => {
+    const seed = buildMigrationSql();
+    // The applied seed still creates them as placeholders, byte for byte.
+    expect(seed).toContain("'ws_body_map', 'Body map'");
+    expect(seed).toContain("'ws_sleep_diary', 'Sleep diary'");
+    // ...and the two genuinely new ids never appear there.
+    for (const id of ['ws_muscle_relaxation', 'ws_safe_place']) {
+      expect(seed).not.toContain(`'${id}'`);
+    }
+  });
+
+  it('asks for no medicine, weight, measurement, calorie or food-amount field', () => {
+    // The Sleep diary is the likeliest place a medicine field would creep in, so
+    // it is asserted here by the real guard rather than by grepping the SQL —
+    // the therapist note deliberately *mentions* medicine to explain its absence,
+    // and a substring match would flag that explanation instead of a question.
+    for (const id of ['ws_body_map', 'ws_sleep_diary', 'ws_muscle_relaxation', 'ws_safe_place']) {
+      const entry = CATALOGUE.find((row) => row.tool_id === id);
+      expect(entry, id).toBeTruthy();
+      expect({ id, problems: worksheetRequestProblems(entry!.content_en) }).toEqual({ id, problems: [] });
+    }
   });
 });

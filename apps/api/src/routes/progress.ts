@@ -13,7 +13,9 @@ import {
   MOOD_MAX,
   STRENGTH_MAX,
   STRENGTH_MIN,
+  WEEKLY_SUMMARY_DAYS,
   isFeelingWord,
+  weeklyMoodSummary,
 } from '@okuvu/shared-types/mood';
 
 const DAYS_DEFAULT = 14;
@@ -228,6 +230,49 @@ export async function progressRoute(app: FastifyInstance): Promise<void> {
       }
 
       reply.send({ entries: result.entries });
+    },
+  });
+
+  /**
+   * The week, written back in words.
+   *
+   * The owner's instruction: in words, for the client, no score. So this sends
+   * their own days and plain sentences, and nothing that could be read as a
+   * result — no average, no level, no band, no chart series. A client who has
+   * checked in on none of the last seven days gets a sentence saying so, not an
+   * empty screen.
+   */
+  app.get('/progress/mood/week', {
+    preHandler: [verifyCognitoJWT],
+    handler: async (request, reply) => {
+      const { uid } = request.user;
+
+      const result = await getMoodHistory(uid, WEEKLY_SUMMARY_DAYS);
+
+      if (result.status === 'user_not_found') {
+        return reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'User not found' },
+        });
+      }
+
+      // getMoodHistory returns the stored rows; the summary shapes them. The
+      // mapping keeps the api's own field names out of the client contract.
+      // A row whose value falls outside 1-5 has no face and therefore no word,
+      // so it is dropped at the boundary rather than given an invented label.
+      const entries = result.entries
+        .filter((e): e is typeof e & { moodLabel: string } => typeof e.moodLabel === 'string')
+        .map((e) => ({
+          id: e.id,
+          date: e.date,
+          moodValue: e.mood_value,
+          moodLabel: e.moodLabel,
+          feelingWords: e.feeling_words,
+          feelingOther: e.feeling_other,
+          strength: e.strength_1_5,
+          shared: e.shared,
+        }));
+
+      reply.send(weeklyMoodSummary(entries));
     },
   });
 }

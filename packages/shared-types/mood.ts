@@ -129,3 +129,139 @@ export interface MoodEntry {
   /** Private by default; only the client's own toggle changes it. */
   shared: boolean
 }
+
+// ─── The weekly summary ───────────────────────────────────────────────────
+
+/**
+ * One day of the week, in the client's own words.
+ *
+ * There is no number here on purpose. The summary says what the client chose,
+ * never how the week scored: no average, no level, no band, no "you improved".
+ */
+export interface WeeklyMoodDay {
+  /** Calendar date, IST, `YYYY-MM-DD`. */
+  date: string
+  /** The word under the face they picked, verbatim. */
+  moodLabel: string
+  /** The chips they chose that day, verbatim. */
+  feelingWords: string[]
+}
+
+export interface WeeklyMoodSummary {
+  /** Days in the window that have a check-in. */
+  recordedDays: number
+  /** Days in the window, always 7. */
+  windowDays: number
+  /** The saved days, oldest first. */
+  days: WeeklyMoodDay[]
+  /**
+   * Feeling words the client chose on more than one day, most days first.
+   * Ties keep the order they were first chosen in.
+   */
+  repeatedFeelings: string[]
+  /**
+   * The summary in plain sentences, ready to show. Written for the client and
+   * about their own words — the api composes nothing on top of this.
+   */
+  sentences: string[]
+}
+
+/** The week the summary covers. Fixed, so the copy can name it. */
+export const WEEKLY_SUMMARY_DAYS = 7
+
+/**
+ * Write the week back in words.
+ *
+ * Deliberately arithmetic-free beyond counting days: counting how many days have
+ * a check-in is a fact the client can see for themselves, while an average mood
+ * is a score by another name. Nothing here is ranked, and no feeling word is
+ * described as better or worse than another.
+ */
+export function weeklyMoodSummary(
+  entries: readonly MoodEntry[],
+  windowDays: number = WEEKLY_SUMMARY_DAYS,
+): WeeklyMoodSummary {
+  const days: WeeklyMoodDay[] = entries
+    // A row with no date or no face cannot be described in the client's own
+    // words, and inventing a word for it would be putting words in their mouth.
+    // The stored value is constrained 1-5, so this drops only corrupt data.
+    .filter((e) => typeof e.date === 'string' && e.date.length > 0 && typeof e.moodLabel === 'string')
+    .map((e) => ({
+      date: e.date,
+      moodLabel: e.moodLabel as string,
+      feelingWords: Array.isArray(e.feelingWords) ? [...e.feelingWords] : [],
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const recordedDays = days.length
+
+  // Which feeling words came back, and on how many separate days. A word chosen
+  // twice on one day counts as one day: the summary is about days, not chips.
+  const dayCounts = new Map<string, number>()
+  const firstSeen = new Map<string, number>()
+  let order = 0
+  for (const day of days) {
+    const seenToday = new Set<string>()
+    for (const word of day.feelingWords) {
+      if (!firstSeen.has(word)) firstSeen.set(word, order++)
+      if (seenToday.has(word)) continue
+      seenToday.add(word)
+      dayCounts.set(word, (dayCounts.get(word) ?? 0) + 1)
+    }
+  }
+  const repeatedFeelings = [...dayCounts.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || (firstSeen.get(a[0]) ?? 0) - (firstSeen.get(b[0]) ?? 0))
+    .map(([word]) => word)
+
+  const sentences = weeklyMoodSentences(days, repeatedFeelings, windowDays)
+
+  return { recordedDays, windowDays, days, repeatedFeelings, sentences }
+}
+
+/** The sentences alone, so a caller that has no entries can still ask for the empty week. */
+function weeklyMoodSentences(
+  days: readonly WeeklyMoodDay[],
+  repeatedFeelings: readonly string[],
+  windowDays: number,
+): string[] {
+  if (days.length === 0) {
+    return [
+      `No check-ins in the last ${windowDays} days yet. There's no wrong time to start.`,
+    ]
+  }
+
+  const out: string[] = []
+
+  if (days.length === 1) {
+    out.push(`You checked in once in the last ${windowDays} days.`)
+  } else {
+    out.push(`You checked in on ${days.length} of the last ${windowDays} days.`)
+  }
+
+  if (repeatedFeelings.length > 0) {
+    out.push(`The word${repeatedFeelings.length > 1 ? 's' : ''} you came back to: ${joinWords(repeatedFeelings)}.`)
+  }
+
+  if (days.length === 1) {
+    out.push(`That day you picked ${days[0].moodLabel}.`)
+  } else {
+    const first = days[0]
+    const last = days[days.length - 1]
+    if (first.moodLabel === last.moodLabel) {
+      out.push(`You started and ended the week at ${first.moodLabel}.`)
+    } else {
+      out.push(`The week opened at ${first.moodLabel} and closed at ${last.moodLabel}.`)
+    }
+  }
+
+  return out
+}
+
+/** "a, b and c" — no Oxford comma, matching the rest of the client copy. */
+function joinWords(words: readonly string[]): string {
+  if (words.length === 0) return ''
+  if (words.length === 1) return words[0]
+  if (words.length === 2) return `${words[0]} and ${words[1]}`
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`
+}

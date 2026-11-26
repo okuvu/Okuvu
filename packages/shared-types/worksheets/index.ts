@@ -10,6 +10,7 @@
 import type { WorksheetRegistryRow } from '@okuvu/shared-types/worksheet';
 import { worksheetRowProblems } from '@okuvu/shared-types/worksheet';
 import { anxietyWorryEntries } from '@okuvu/shared-types/worksheets/anxiety-worry';
+import { allPlansEntries } from '@okuvu/shared-types/worksheets/all-plans';
 import { calmMyBodyEntries } from '@okuvu/shared-types/worksheets/calm-my-body';
 import { beKinderEntries } from '@okuvu/shared-types/worksheets/be-kinder';
 import { doWhatMattersEntries } from '@okuvu/shared-types/worksheets/do-what-matters';
@@ -44,6 +45,7 @@ export const CATALOGUE: CatalogueEntry[] = [
   ...stressAndBurnoutEntries,
   ...anxietyWorryEntries,
   ...lowMoodEntries,
+  ...allPlansEntries,
 ];
 
 /** What a client or therapist may see: approved rows only, in order. */

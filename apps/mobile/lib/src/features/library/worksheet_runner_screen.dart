@@ -1291,26 +1291,64 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   /// a chip under the drawing — because a part the client cannot reach is a part
   /// they cannot answer with.
   Widget _bodyOutline(WorksheetField field, Object? answer, ThemeData theme) {
+    // Growable: the toggles below add and remove in place.
     final picked = answer is Map && answer['picked'] is List
-        ? (answer['picked'] as List).whereType<String>().toList(growable: false)
+        ? (answer['picked'] as List).whereType<String>().toList()
         : <String>[];
     final strength = answer is Map && answer['strength'] is Map
         ? Map<String, int>.from(
             (answer['strength'] as Map).map((k, v) => MapEntry(k.toString(), v is int ? v : 5)),
           )
         : <String, int>{};
+    // Per-part feelings, keyed by region id exactly as `strength` is. Only read
+    // when the piece offers them, so a piece with no picker can never be sent a
+    // map the api would refuse.
+    final feelings = answer is Map && answer['feelings'] is Map
+        ? <String, List<String>>{
+            for (final entry in (answer['feelings'] as Map).entries)
+              entry.key.toString():
+                  (entry.value as List).whereType<String>().toList(growable: false),
+          }
+        : <String, List<String>>{};
     final max = field.maxSelections ?? 3;
+    final maxFeelings = field.maxSelections ?? 3;
+
+    void write() {
+      _setAnswer(field.id, picked.isEmpty
+          ? null
+          : {
+              'picked': picked,
+              if (field.withStrength) 'strength': strength,
+              if (field.withFeelings) 'feelings': feelings,
+            });
+    }
 
     void toggle(String id) {
-      final next = [...picked];
-      if (next.contains(id)) {
-        next.remove(id);
+      if (picked.contains(id)) {
+        picked.remove(id);
         strength.remove(id);
+        feelings.remove(id);
       } else {
-        if (next.length >= max) return;
-        next.add(id);
+        if (picked.length >= max) return;
+        picked.add(id);
       }
-      _setAnswer(field.id, next.isEmpty ? null : {'picked': next, 'strength': strength});
+      write();
+    }
+
+    void toggleFeeling(String regionId, String feelingId) {
+      final current = [...(feelings[regionId] ?? const <String>[])];
+      if (current.contains(feelingId)) {
+        current.remove(feelingId);
+      } else {
+        if (current.length >= maxFeelings) return;
+        current.add(feelingId);
+      }
+      if (current.isEmpty) {
+        feelings.remove(regionId);
+      } else {
+        feelings[regionId] = current;
+      }
+      write();
     }
 
     final onBody = field.regions.where((r) => _bodySpotFor(r.id) != null).toList(growable: false);
@@ -1344,6 +1382,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                         child: SizedBox(
                           width: 68,
                           child: _BodySpot(
+                            key: ValueKey('body_spot_${region.id}'),
                             label: region.label,
                             selected: picked.contains(region.id),
                             onTap: () => toggle(region.id),
@@ -1363,6 +1402,7 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
             children: [
               for (final region in offBody)
                 FilterChip(
+                  key: ValueKey('body_part_${region.id}'),
                   label: Text(region.label),
                   selected: picked.contains(region.id),
                   onSelected: (_) => toggle(region.id),
@@ -1389,8 +1429,37 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
               label: '${strength[id] ?? 5}',
               onChanged: (v) {
                 strength[id] = v.round();
-                _setAnswer(field.id, {'picked': picked, 'strength': strength});
+                write();
               },
+            ),
+          ],
+        ],
+        // The feelings picker for each spot, in the client's own words — the
+        // same fixed vocabulary the standalone picker uses. Per part, because
+        // two places can feel different and the exercise is about noticing that.
+        if (field.withFeelings && picked.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          if (field.feelingsPrompt != null)
+            Text(field.feelingsPrompt!, style: theme.textTheme.bodySmall),
+          for (final id in picked) ...[
+            const SizedBox(height: 4),
+            Text(
+              field.regions.firstWhere((r) => r.id == id).label,
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final feeling in field.feelings)
+                  FilterChip(
+                    key: ValueKey('body_feeling_${field.id}_${id}_${feeling.id}'),
+                    label: Text(feeling.label),
+                    selected: (feelings[id] ?? const <String>[]).contains(feeling.id),
+                    onSelected: (_) => toggleFeeling(id, feeling.id),
+                  ),
+              ],
             ),
           ],
         ],
@@ -1686,7 +1755,7 @@ class _ReviewSection extends StatelessWidget {
 }
 
 class _BodySpot extends StatelessWidget {
-  const _BodySpot({required this.label, required this.selected, required this.onTap});
+  const _BodySpot({super.key, required this.label, required this.selected, required this.onTap});
 
   final String label;
   final bool selected;

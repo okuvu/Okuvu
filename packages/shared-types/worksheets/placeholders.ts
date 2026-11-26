@@ -50,13 +50,6 @@ function placeholder(
 
 export const placeholderEntries: CatalogueEntry[] = [
   placeholder(
-    'ws_body_map',
-    'Body map',
-    'Mark where in the body a feeling shows up, and how strong it is there.',
-    'notice_and_name',
-    900,
-  ),
-  placeholder(
     'ws_fear_ladder',
     'Fear ladder',
     'Break an avoided situation into graded steps, from easiest to hardest.',
@@ -76,13 +69,5 @@ export const placeholderEntries: CatalogueEntry[] = [
     'Separate the problem from the person, so the problem can be talked about.',
     'people_boundaries',
     970,
-  ),
-  placeholder(
-    'ws_sleep_diary',
-    'Sleep diary',
-    'Record sleep and wake times and how the day felt, to spot a pattern.',
-    'energy_life',
-    1010,
-    { sensitiveCheck: true },
   ),
 ];

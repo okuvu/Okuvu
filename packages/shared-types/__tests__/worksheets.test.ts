@@ -152,12 +152,13 @@ describe('catalogue content', () => {
   });
 
   it('keeps every placeholder hidden, empty and unapproved', () => {
-    // Five left. The Stress & Burnout batch filled four in, the Anxiety & Worry
-    // batch three more, and the Low Mood batch five more (Strengths, Tiny steps,
-    // The miracle question, Comparison check, Meet the inner critic), each
-    // keeping its id. The exposure ladder left this list too, but as a real
-    // therapist-only approved row rather than a placeholder.
-    expect(PLACEHOLDER_CATALOGUE).toHaveLength(5);
+    // Three left. The Stress & Burnout batch filled four in, the Anxiety & Worry
+    // batch three more, the Low Mood batch five more (Strengths, Tiny steps,
+    // The miracle question, Comparison check, Meet the inner critic), and the
+    // "All" batch two more (Body map, Sleep diary), each keeping its id. The
+    // exposure ladder left this list too, but as a real therapist-only approved
+    // row rather than a placeholder.
+    expect(PLACEHOLDER_CATALOGUE).toHaveLength(3);
     for (const entry of PLACEHOLDER_CATALOGUE) {
       expect(entry.status).toBe('placeholder');
       expect(entry.content_en).toBeNull();

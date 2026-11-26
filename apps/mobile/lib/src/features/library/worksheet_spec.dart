@@ -94,6 +94,8 @@ class WorksheetField {
     this.doneLabel,
     this.regions = const [],
     this.strengthPrompt,
+    this.withFeelings = false,
+    this.feelingsPrompt,
     this.fromField,
     this.frames = const [],
   });
@@ -152,6 +154,16 @@ class WorksheetField {
 
   /// Question above the per-part sliders, when the approved copy gives one.
   final String? strengthPrompt;
+
+  /// When true the client also picks feeling words for each tapped part.
+  ///
+  /// The vocabulary is [feelings], the same fixed list the feelings picker
+  /// uses, and the answer carries `feelings` keyed by region id — exactly as it
+  /// carries `strength` keyed by region id.
+  final bool withFeelings;
+
+  /// Question above the per-part feelings pickers, from the approved copy.
+  final String? feelingsPrompt;
 
   // echo (read-back)
   /// The earlier text piece whose answer is shown inside [frames].
@@ -633,6 +645,9 @@ WorksheetContent parseWorksheetContent(Object? raw) {
         regions: regions,
         strengthPrompt:
             rawField['strengthPrompt'] is String ? rawField['strengthPrompt'] as String : null,
+        withFeelings: rawField['withFeelings'] == true,
+        feelingsPrompt:
+            rawField['feelingsPrompt'] is String ? rawField['feelingsPrompt'] as String : null,
         fromField: rawField['fromField'] is String ? rawField['fromField'] as String : null,
         frames: rawField['frames'] is List
             ? (rawField['frames'] as List).whereType<String>().toList(growable: false)

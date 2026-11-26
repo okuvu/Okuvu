@@ -13,19 +13,23 @@ import {
   DRAFT_DOC_PATH,
   LOW_MOOD_APPROVED_DOC_PATH,
   LOW_MOOD_DRAFT_DOC_PATH,
+  ALL_PLANS_DRAFT_DOC_PATH,
   buildApprovedDoc,
   buildDraftDoc,
   buildLowMoodApprovedDoc,
   buildLowMoodDraftDoc,
+  buildAllPlansDraftDoc,
 } from '../worksheets/emit-drafts';
 import { APPROVED_24_NOV_IDS, draftEntries } from '../worksheets/emit-sql';
 import { LOW_MOOD_BATCH_IDS } from '../worksheets/low-mood';
+import { ALL_PLANS_BATCH_IDS } from '../worksheets/all-plans';
 
 const ROOT = join(__dirname, '../../..');
 const DRAFT_FILE = join(ROOT, DRAFT_DOC_PATH);
 const APPROVED_FILE = join(ROOT, APPROVED_DOC_PATH);
 const LOW_MOOD_FILE = join(ROOT, LOW_MOOD_DRAFT_DOC_PATH);
 const LOW_MOOD_APPROVED_FILE = join(ROOT, LOW_MOOD_APPROVED_DOC_PATH);
+const ALL_PLANS_FILE = join(ROOT, ALL_PLANS_DRAFT_DOC_PATH);
 
 const writing = (): boolean => process.env.WRITE_DRAFT_DOC === '1';
 
@@ -49,8 +53,12 @@ describe('draft wording review document', () => {
     const doc = buildDraftDoc();
     expect(doc).toContain('NOT approved');
     // The stress/anxiety handover is complete, so this document now reports
-    // nothing waiting. The Low Mood drafts have their own document.
-    const earlier = draftEntries().filter((entry) => !LOW_MOOD_BATCH_IDS.includes(entry.tool_id as never));
+    // nothing waiting. The Low Mood and "All" drafts have their own documents.
+    const earlier = draftEntries().filter(
+      (entry) =>
+        !LOW_MOOD_BATCH_IDS.includes(entry.tool_id as never) &&
+        !ALL_PLANS_BATCH_IDS.includes(entry.tool_id as never),
+    );
     expect(earlier).toEqual([]);
     expect(doc).toContain('No worksheet is waiting for approval.');
     for (const id of LOW_MOOD_BATCH_IDS) {
@@ -160,5 +168,44 @@ describe('Low Mood approval document', () => {
   it('never renders the therapist note as client copy', () => {
     const doc = buildLowMoodApprovedDoc();
     expect(doc).not.toContain('Carry the deeper safety screen');
+  });
+});
+
+describe('"All" drafts review document', () => {
+  it('matches the catalogue', () => {
+    const doc = buildAllPlansDraftDoc();
+    if (writing()) {
+      write(ALL_PLANS_FILE, doc);
+      return;
+    }
+    expect(existsSync(ALL_PLANS_FILE)).toBe(true);
+    expect(readFileSync(ALL_PLANS_FILE, 'utf8')).toBe(doc);
+  });
+
+  it('says plainly that the wording is not approved, and covers all four', () => {
+    const doc = buildAllPlansDraftDoc();
+    expect(doc).toContain('NOT approved');
+    expect(doc).toContain('These 4 worksheets are written');
+    for (const id of ALL_PLANS_BATCH_IDS) {
+      const entry = draftEntries().find((e) => e.tool_id === id);
+      expect(entry, id).toBeTruthy();
+      expect(doc).toContain(entry!.label);
+    }
+  });
+
+  it('states that the two audio-guided ones are unrecorded scripts', () => {
+    const doc = buildAllPlansDraftDoc();
+    expect(doc).toContain('Nothing is recorded');
+    expect(doc).toContain('the voice is a separate decision');
+  });
+
+  it('carries no approved batch, and no worksheet outside this one', () => {
+    const doc = buildAllPlansDraftDoc();
+    for (const id of LOW_MOOD_BATCH_IDS) {
+      expect(doc).not.toContain(`\`${id}\``);
+    }
+    for (const id of APPROVED_24_NOV_IDS) {
+      expect(doc).not.toContain(`\`${id}\``);
+    }
   });
 });

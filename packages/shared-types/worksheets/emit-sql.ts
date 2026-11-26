@@ -23,6 +23,7 @@
 import { CATALOGUE, LISTABLE_CATALOGUE } from '@okuvu/shared-types/worksheets';
 import { APPROVED_ANXIETY_IDS } from '@okuvu/shared-types/worksheets/anxiety-worry';
 import { LOW_MOOD_BATCH_IDS, APPROVED_LOW_MOOD_IDS } from '@okuvu/shared-types/worksheets/low-mood';
+import { ALL_PLANS_BATCH_IDS } from '@okuvu/shared-types/worksheets/all-plans';
 import { BREATHING_CHILD_TOOL_IDS } from '@okuvu/shared-types/worksheets/types';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 
@@ -36,6 +37,9 @@ const ANXIETY_DRAFTS_MIGRATION_DIR = '20261124200000_seed_anxiety_worry_drafts';
 
 /** The Low Mood drafts of 24 Nov 2026, in their own migration. */
 const LOW_MOOD_DRAFTS_MIGRATION_DIR = '20261124230000_seed_low_mood_drafts';
+
+/** The four "All" extras of 25 Nov 2026. */
+const ALL_PLANS_DRAFTS_MIGRATION_DIR = '20261125120000_seed_all_plans_drafts';
 
 /** The Low Mood approvals of 24 Nov 2026, in their own migration. */
 const LOW_MOOD_APPROVALS_MIGRATION_DIR = '20261124233000_approve_low_mood_nine';
@@ -140,6 +144,9 @@ const ANXIETY_ID_BASE = 2000;
 /** First id index for the Low Mood batch, kept clear of the two before it. */
 const LOW_MOOD_ID_BASE = 3000;
 
+/** First id index for the "All" extras, kept clear of the three before them. */
+const ALL_PLANS_ID_BASE = 4000;
+
 /**
  * The ten Stress & Burnout rows of 24 Nov 2026, in the owner's order.
  *
@@ -238,6 +245,22 @@ function frozenPlaceholder(
 }
 
 const FROZEN_DRAFT_PLACEHOLDERS: Record<string, CatalogueEntry> = {
+  ws_body_map: frozenPlaceholder(
+    'ws_body_map',
+    'Body map',
+    'Mark where in the body a feeling shows up, and how strong it is there.',
+    'notice_and_name',
+    900,
+    false,
+  ),
+  ws_sleep_diary: frozenPlaceholder(
+    'ws_sleep_diary',
+    'Sleep diary',
+    'Record sleep and wake times and how the day felt, to spot a pattern.',
+    'energy_life',
+    1010,
+    true,
+  ),
   ws_boundary_planner: frozenPlaceholder(
     'ws_boundary_planner',
     'Boundary planner',
@@ -464,6 +487,7 @@ export const APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${APPROVALS_
 export const REVISED_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${REVISED_APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const ANXIETY_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${ANXIETY_APPROVALS_MIGRATION_DIR}/migration.sql`;
 export const LOW_MOOD_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${LOW_MOOD_DRAFTS_MIGRATION_DIR}/migration.sql`;
+export const ALL_PLANS_DRAFTS_MIGRATION_PATH = `packages/prisma/migrations/${ALL_PLANS_DRAFTS_MIGRATION_DIR}/migration.sql`;
 export const LOW_MOOD_APPROVALS_MIGRATION_PATH = `packages/prisma/migrations/${LOW_MOOD_APPROVALS_MIGRATION_DIR}/migration.sql`;
 
 export function buildMigrationSql(): string {
@@ -811,6 +835,56 @@ export function buildLowMoodDraftsSql(): string {
         return {
           entry: { ...entry, status: 'draft' as const, approved_at: undefined },
           index: LOW_MOOD_ID_BASE + i,
+        };
+      }),
+    ),
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * The four "All" extras of 25 Nov 2026.
+ *
+ * Same shape as the three batches before it: every row is written
+ * `status = 'draft'`, so a therapist can preview it and no client can list, open
+ * or be assigned one until the owner approves its wording. Two rows reuse ids
+ * the applied seed created as placeholders (Body map, Sleep diary) and are
+ * upgraded in place by the ON CONFLICT branch; the two audio-guided ones are new.
+ *
+ * The Sleep diary carries `sensitive_check`, so its answers also run the deeper
+ * screen the owner named on 24 Nov 2026.
+ */
+export function buildAllPlansDraftsSql(): string {
+  const lines: string[] = [
+    '-- The "All" extras, 25 November 2026: the four the owner briefed.',
+    '--',
+    '-- GENERATED from packages/shared-types/worksheets by emit-sql.ts.',
+    '-- Do not hand-edit; regenerate instead.',
+    '--',
+    '-- Every row is `draft`: a therapist can preview it, and no client can open,',
+    '-- list or be assigned one until the owner approves its wording. Two rows',
+    '-- reuse a placeholder id the applied seed already created (Body map, Sleep',
+    '-- diary) and are upgraded in place by the ON CONFLICT branch; Muscle',
+    '-- relaxation and Safe place are new.',
+    '--',
+    '-- The Sleep diary carries `sensitive_check`, so its answers also run the',
+    '-- deeper screen the owner named on 24 Nov 2026.',
+    '--',
+    '-- Muscle relaxation and Safe place are audio-guided in intent; nothing is',
+    '-- recorded yet, and their bodies carry the script the owner has to approve',
+    '-- before a voice is chosen.',
+    '',
+  ];
+
+  lines.push(
+    ...buildInsert(
+      ALL_PLANS_BATCH_IDS.map((id, i) => {
+        const entry = CATALOGUE.find((row) => row.tool_id === id);
+        if (!entry) throw new Error(`all-plans batch row "${id}" is not in the catalogue`);
+        return {
+          entry: { ...entry, status: 'draft' as const, approved_at: undefined },
+          index: ALL_PLANS_ID_BASE + i,
         };
       }),
     ),

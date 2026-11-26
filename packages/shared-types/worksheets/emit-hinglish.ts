@@ -32,7 +32,7 @@ function fieldLines(field: WorksheetField): string[] {
       );
     }
   }
-  if ('feelings' in field) {
+  if ('feelings' in field && field.feelings) {
     for (const feeling of field.feelings) {
       lines.push(
         `  - feeling \`${feeling.id}\`: ${feeling.label}${feeling.parent ? ` (under ${feeling.parent})` : ''}`,

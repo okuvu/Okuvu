@@ -15,6 +15,7 @@ import {
   DRAFT_BATCH_IDS,
 } from '@okuvu/shared-types/worksheets/emit-sql';
 import { LOW_MOOD_BATCH_IDS } from '@okuvu/shared-types/worksheets/low-mood';
+import { ALL_PLANS_BATCH_IDS } from '@okuvu/shared-types/worksheets/all-plans';
 import { CATALOGUE } from '@okuvu/shared-types/worksheets/index';
 import type { CatalogueEntry } from '@okuvu/shared-types/worksheets/types';
 import type { WorksheetContent, WorksheetField } from '@okuvu/shared-types/worksheet';
@@ -41,6 +42,9 @@ export const LOW_MOOD_DRAFT_DOC_PATH = 'docs/exercise-library/34-draft-low-mood-
  * file rewritten after the fact.
  */
 export const LOW_MOOD_APPROVED_DOC_PATH = 'docs/exercise-library/38-approved-low-mood-copy.md';
+
+/** The "All" extras' own review document. */
+export const ALL_PLANS_DRAFT_DOC_PATH = 'docs/exercise-library/46-draft-all-plans-copy.md';
 
 /** The batches the first draft document covers. */
 const EARLIER_BATCH_IDS = new Set<string>([...DRAFT_BATCH_IDS, ...ANXIETY_DRAFT_BATCH_IDS]);
@@ -74,6 +78,10 @@ const TITLE: Record<string, string> = {
   ws_reconnect_planner: '7. Reconnect planner',
   ws_comparison_check: '8. Comparison check',
   ws_miracle_question: '9. The morning after a miracle',
+  ws_body_map: '1. Body map',
+  ws_sleep_diary: '2. Sleep diary',
+  ws_muscle_relaxation: '3. Muscle relaxation',
+  ws_safe_place: '4. Safe place',
 };
 
 const BRIEF: Record<string, string> = {
@@ -105,6 +113,10 @@ const BRIEF: Record<string, string> = {
   ws_reconnect_planner: 'A list of people you miss. Pick one, choose how to reach out and a date. Afterwards: did it / not yet.',
   ws_comparison_check: 'Where you were, how it left you feeling, what you compared yourself to, what the post does not show, one small thing now. High load. No weight, body or food fields.',
   ws_miracle_question: 'If things got better overnight, what would you notice first? Where you are now on 0–10, and what one step up would look like.',
+  ws_body_map: 'The body outline piece. Tap where you feel something, then use the feelings picker for that spot, with how strong it is there.',
+  ws_sleep_diary: 'Bedtime, wake time, 0–10 how rested, screens before bed (yes/no), short notes. No medicine field. The deeper safety screen applies.',
+  ws_muscle_relaxation: 'Audio-guided. Tense and release each part of the body in turn. Script only — nothing recorded until the words and the voice are approved.',
+  ws_safe_place: 'Audio-guided. Build a calm place in the mind and return to it. Script only — nothing recorded until the words and the voice are approved.',
 };
 
 function fieldLines(field: WorksheetField): string[] {
@@ -119,7 +131,7 @@ function fieldLines(field: WorksheetField): string[] {
       if (option.description) lines.push(`    - helper: ${option.description}`);
     }
   }
-  if ('feelings' in field) {
+  if ('feelings' in field && field.feelings) {
     lines.push(`  - feelings offered: ${field.feelings.map((f) => f.label).join(', ')}`);
   }
   if ('columns' in field) {
@@ -346,6 +358,72 @@ export function buildLowMoodDraftDoc(): string {
     'None of them asks for weight, body measurements, calories, food amounts or medicines,',
     'and none of them adds answers into a total, a level or a label. The one log reads back',
     'in words only: no score, no average, no ranking of feelings.',
+    '',
+    '---',
+    '',
+  );
+
+  if (!waiting) {
+    out.push('No worksheet is waiting for approval.', '');
+  }
+
+  for (const entry of drafts) {
+    out.push(`## ${TITLE[entry.tool_id] ?? entry.label}`, '');
+    out.push(`**The brief:** ${BRIEF[entry.tool_id] ?? ''}`, '');
+    out.push(...header(entry));
+    out.push('');
+    if (entry.content_en) out.push(...bodyLines(entry.content_en));
+    out.push('', '---', '');
+  }
+
+  return out.join('\n');
+}
+
+/**
+ * The "All" extras of 25 November 2026.
+ *
+ * Generated for the same reason as every other review document: what the owner
+ * reads cannot describe a worksheet differently from the app. All four are
+ * `draft`, so this document reports four waiting.
+ */
+export function buildAllPlansDraftDoc(): string {
+  const out: string[] = [];
+  const drafts = draftEntries().filter((entry) =>
+    ALL_PLANS_BATCH_IDS.includes(entry.tool_id as never),
+  );
+  const waiting = drafts.length > 0;
+
+  out.push(
+    '# "All" worksheets — draft wording for review, NOT approved',
+    '',
+    'Generated from `packages/shared-types/worksheets/all-plans.ts`. Do not edit by hand:',
+    'change the catalogue, then regenerate.',
+    '',
+    waiting
+      ? `**Status: drafts.** These ${drafts.length} worksheets are written and none of them is`
+      : '**Status: none waiting.** Every worksheet in this batch has been',
+    waiting
+      ? 'approved. Every one is switched off for clients: no card in their Library, no direct'
+      : 'approved. Nothing here is awaiting a read, and this document carries no worksheet',
+    waiting
+      ? 'open, no assignment from the portal. A therapist can preview them. Nothing is switched'
+      : 'bodies.',
+    waiting
+      ? 'on until you say the wording is approved.'
+      : '',
+    '',
+    'All four go through the same safety check the journal uses on every written and spoken',
+    'answer, with the same response. The Sleep diary also carries the deeper screen you named',
+    'on 24 November 2026: skipping meals, restricting food, making yourself sick, exercising',
+    'to punish yourself, hating your body, days without sleep, wanting not to wake up,',
+    'wanting to hurt someone, and self-harm.',
+    '',
+    'None of them asks for weight, body measurements, calories, food amounts or medicines —',
+    'the Sleep diary deliberately has no medicine field — and none of them adds answers into',
+    'a total, a level or a label.',
+    '',
+    'Muscle relaxation and Safe place are audio-guided in intent. Nothing is recorded: the',
+    'bodies below are the scripts you have to approve, and the voice is a separate decision.',
     '',
     '---',
     '',

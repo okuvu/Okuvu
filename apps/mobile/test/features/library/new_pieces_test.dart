@@ -203,4 +203,161 @@ void main() {
     expect(field.regions.map((r) => r.id),
         ['head', 'chest', 'shoulders', 'left_elbow']);
   });
+
+  // Registered here so the per-part feelings tests run with the rest.
+  feelingsTests();
+}
+
+/// The Body map's per-part feelings (25 Nov 2026).
+///
+/// The owner's brief: "The client taps where they feel something, then uses the
+/// feelings picker for that spot." So the answer carries `feelings` keyed by the
+/// tapped part, exactly as it carries `strength` — two places can feel different
+/// and the exercise is about noticing that.
+Map<String, Object?> feelingsOutlineBody() => {
+      'version': 1,
+      'fields': [
+        {
+          'id': 'where',
+          'type': 'body_outline',
+          'prompt': 'Where do you notice something right now?',
+          'required': true,
+          'withStrength': true,
+          'strengthPrompt': 'How strong is it there?',
+          'withFeelings': true,
+          'feelingsPrompt': 'What does it feel like there?',
+          'feelings': [
+            {'id': 'sad', 'label': 'sad'},
+            {'id': 'scared', 'label': 'scared'},
+            {'id': 'angry', 'label': 'angry'},
+          ],
+          'regions': [
+            {'id': 'chest', 'label': 'Chest'},
+            {'id': 'stomach', 'label': 'Stomach'},
+          ],
+        },
+      ],
+      'closing': {
+        'text': 'Done.',
+        'buttons': [
+          {'label': 'Done', 'action': 'done'},
+        ],
+      },
+    };
+
+void feelingsTests() {
+  testWidgets('carries the flag, the prompt and the vocabulary through the parser',
+      (tester) async {
+    final content = parseWorksheetContent(feelingsOutlineBody());
+    final field = content.fields.first;
+    expect(field.type, 'body_outline');
+    expect(field.withFeelings, isTrue);
+    expect(field.feelingsPrompt, 'What does it feel like there?');
+    expect(field.feelings.map((f) => f.id), ['sad', 'scared', 'angry']);
+  });
+
+  testWidgets('offers a picker for each tapped part, and sends feelings per part',
+      (tester) async {
+    setTallSurface(tester);
+    final content = parseWorksheetContent(feelingsOutlineBody());
+    WorksheetAnswers? submitted;
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [libraryApiProvider.overrideWithValue(_NoHelpApi())],
+      child: MaterialApp(
+        home: WorksheetRunnerScreen(
+          toolId: 'ws_body_map',
+          userId: 'u1',
+          content: content,
+          draftStore: WorksheetDraftStore(),
+          onFinished: (answers, _) async => submitted = answers,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+
+    // No picker until a part is tapped: there is nothing to ask about yet.
+    expect(find.text('What does it feel like there?'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('body_spot_chest')));
+    await tester.pumpAndSettle();
+
+    // The question appears, and one chip per feeling in the vocabulary.
+    expect(find.text('What does it feel like there?'), findsOneWidget);
+    expect(find.byKey(const ValueKey('body_feeling_where_chest_sad')), findsOneWidget);
+    expect(find.byKey(const ValueKey('body_feeling_where_chest_angry')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('body_feeling_where_chest_scared')));
+    await tester.pumpAndSettle();
+
+    // Tapping a second part gives it its own picker, not a shared one.
+    await tester.tap(find.byKey(const ValueKey('body_spot_stomach')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('body_feeling_where_stomach_scared')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('body_feeling_where_stomach_angry')));
+    await tester.pumpAndSettle();
+
+    // Finish advances to the optional after-rating; the second confirm is the
+    // one that submits, exactly as every other worksheet does.
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('worksheet_after_skip')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('worksheet_finish')));
+    await tester.pumpAndSettle();
+
+    final answer = submitted!['where'] as Map<Object?, Object?>;
+    expect(answer['picked'], ['chest', 'stomach']);
+    final feelings = answer['feelings'] as Map<Object?, Object?>;
+    expect((feelings['chest'] as List), ['scared']);
+    expect((feelings['stomach'] as List), ['angry']);
+  });
+
+  testWidgets('dropping a part drops the feelings chosen for it', (tester) async {
+    setTallSurface(tester);
+    final content = parseWorksheetContent(feelingsOutlineBody());
+    WorksheetAnswers? submitted;
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [libraryApiProvider.overrideWithValue(_NoHelpApi())],
+      child: MaterialApp(
+        home: WorksheetRunnerScreen(
+          toolId: 'ws_body_map',
+          userId: 'u1',
+          content: content,
+          draftStore: WorksheetDraftStore(),
+          onFinished: (answers, _) async => submitted = answers,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+
+    await tester.tap(find.byKey(const ValueKey('body_spot_chest')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('body_feeling_where_chest_sad')));
+    await tester.pumpAndSettle();
+
+    // Untap the part: its feelings must not survive as a stray answer.
+    await tester.tap(find.byKey(const ValueKey('body_spot_chest')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('body_spot_stomach')));
+    await tester.pumpAndSettle();
+    // Finish advances to the optional after-rating; the second confirm is the
+    // one that submits, exactly as every other worksheet does.
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('worksheet_after_skip')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('worksheet_finish')));
+    await tester.pumpAndSettle();
+
+    final answer = submitted!['where'] as Map<Object?, Object?>;
+    expect(answer['picked'], ['stomach']);
+    final feelings = answer['feelings'] as Map<Object?, Object?>;
+    expect(feelings.containsKey('chest'), isFalse);
+  });
 }
