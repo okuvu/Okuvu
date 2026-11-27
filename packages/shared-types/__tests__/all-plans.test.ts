@@ -274,7 +274,7 @@ describe('the read-along script stage', () => {
     expect(entryById('ws_safe_place')!.content_en!.script).toEqual({
       secondsPerWords: 3,
       minSeconds: 6,
-      gapSeconds: 10,
+      gapSeconds: 15,
     });
     for (const row of CATALOGUE) {
       if (row.tool_id === 'ws_muscle_relaxation' || row.tool_id === 'ws_safe_place') continue;
@@ -290,9 +290,10 @@ describe('the two read-along scripts', () => {
   };
 
   it('uses the owner\'s timing rule, and nothing else', () => {
-    // Set 26 Nov 2026: a second for every three words, never under six; ten
-    // seconds of quiet after every line; five extra seconds on each "hold" line,
-    // which belongs to Unclench only.
+    // Set 26 Nov 2026, revised 27 Nov 2026: a second for every three words,
+    // never under six; five extra seconds on each "hold" line, which belongs to
+    // Unclench only; and the quiet after each line is per piece — ten seconds on
+    // Unclench to notice the release, fifteen on My calm place to picture it.
     expect(entryById('ws_muscle_relaxation')!.content_en!.script).toEqual({
       secondsPerWords: 3,
       minSeconds: 6,
@@ -302,18 +303,18 @@ describe('the two read-along scripts', () => {
     expect(entryById('ws_safe_place')!.content_en!.script).toEqual({
       secondsPerWords: 3,
       minSeconds: 6,
-      gapSeconds: 10,
+      gapSeconds: 15,
     });
   });
 
-  it('runs for the time quoted to the owner: Unclench 2m25s, My calm place 1m23s', () => {
-    // 145s and 83s. Pinned as totals so a wording change that halves the
+  it('runs for the time quoted to the owner: Unclench 2m25s, My calm place 1m48s', () => {
+    // 145s and 108s. Pinned as totals so a wording change that halves the
     // exercise cannot pass silently; the per-line numbers are in the report the
-    // owner was given on 26 Nov 2026.
+    // owner was given on 27 Nov 2026.
     expect(
       scriptRunSeconds(lines('ws_muscle_relaxation'), entryById('ws_muscle_relaxation')!.content_en!.script!),
     ).toBe(145);
-    expect(scriptRunSeconds(lines('ws_safe_place'), entryById('ws_safe_place')!.content_en!.script!)).toBe(83);
+    expect(scriptRunSeconds(lines('ws_safe_place'), entryById('ws_safe_place')!.content_en!.script!)).toBe(108);
   });
 
   it('gives the hold to Unclench\'s tense lines and to no line of My calm place', () => {

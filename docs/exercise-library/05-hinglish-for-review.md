@@ -1722,7 +1722,7 @@ _No Hinglish body._
 ## Unclench
 
 - id: `ws_muscle_relaxation`
-- Library description (English): You're probably holding more tension than you think. Five minutes to let it go.
+- Library description (English): You're probably holding more tension than you think. Three minutes to let it go.
 - Library description (Hinglish): _missing_
 - who can open it: open
 

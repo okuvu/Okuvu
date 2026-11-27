@@ -571,16 +571,19 @@ describe('generated "All" approvals migration', () => {
     }
   });
 
-  it('carries the script timing the owner set on 26 Nov 2026', () => {
+  it('carries the script timing the owner set on 26 Nov 2026, revised 27 Nov 2026', () => {
     const sql = buildAllPlansApprovalsSql();
     const unclench = sql.split('\n').find((line) => line.includes("'ws_muscle_relaxation',"))!;
     const place = sql.split('\n').find((line) => line.includes("'ws_safe_place',"))!;
-    // A second for every three words, never under six; ten seconds of quiet.
+    // A second for every three words, never under six, on both.
     for (const row of [unclench, place]) {
       expect(row).toContain('"secondsPerWords":3');
       expect(row).toContain('"minSeconds":6');
-      expect(row).toContain('"gapSeconds":10');
     }
+    // The quiet is per-piece: ten seconds on Unclench to notice the release,
+    // fifteen on My calm place to picture the place (owner, 27 Nov 2026).
+    expect(unclench).toContain('"gapSeconds":10');
+    expect(place).toContain('"gapSeconds":15');
     // The hold belongs to Unclench only.
     expect(unclench).toContain('"holdExtraSeconds":5');
     expect(place).not.toContain('holdExtraSeconds');

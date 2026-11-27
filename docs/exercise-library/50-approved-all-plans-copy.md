@@ -44,15 +44,15 @@ this document with the same rule the app uses.
 | Legs and feet. Point your toes and tighten your legs. Hold… and release. Let them feel heavy. | 17 | 6s | 5s | 10s | 21s |
 | Now all of you together, gently. Hold… and let everything go. One long breath out. | 15 | 6s | 5s | 10s | 21s |
 
-**My calm place** — 1 min 23 sec (83 seconds), 5 lines.
+**My calm place** — 1 min 48 sec (108 seconds), 5 lines.
 
 | Line | Words | Read | Hold | Quiet | On screen |
 | --- | --- | --- | --- | --- | --- |
-| Get comfortable. Close your eyes if that feels okay, or rest your eyes on one spot on the floor. Breathe out slowly. | 22 | 8s | — | 10s | 18s |
-| Look around. What do you see? Colours, light, the shape of things. | 12 | 6s | — | 10s | 16s |
-| Listen. What can you hear? Rain, waves, quiet, someone humming in the next room. | 14 | 6s | — | 10s | 16s |
-| Feel it. The air on your skin, what's under you, warm or cool. | 13 | 6s | — | 10s | 16s |
-| Stay a little longer. Nothing is expected of you here. When you're ready, take one slow breath and open your eyes. | 21 | 7s | — | 10s | 17s |
+| Get comfortable. Close your eyes if that feels okay, or rest your eyes on one spot on the floor. Breathe out slowly. | 22 | 8s | — | 15s | 23s |
+| Look around. What do you see? Colours, light, the shape of things. | 12 | 6s | — | 15s | 21s |
+| Listen. What can you hear? Rain, waves, quiet, someone humming in the next room. | 14 | 6s | — | 15s | 21s |
+| Feel it. The air on your skin, what's under you, warm or cool. | 13 | 6s | — | 15s | 21s |
+| Stay a little longer. Nothing is expected of you here. When you're ready, take one slow breath and open your eyes. | 21 | 7s | — | 15s | 22s |
 
 ---
 
@@ -115,9 +115,9 @@ this document with the same rule the app uses.
 **The brief:** Audio-guided. Tense and release each part of the body in turn. Script only — nothing recorded until the words and the voice are approved.
 
 - id: `ws_muscle_relaxation`
-- Library description: You're probably holding more tension than you think. Five minutes to let it go.
+- Library description: You're probably holding more tension than you think. Three minutes to let it go.
 - opens: S — the client can open it themselves
-- load: light · about 5 minutes
+- load: light · about 3 minutes
 - care plan label: all
 - deeper safety screen: no (the shared check on every answer still runs)
 
@@ -143,7 +143,7 @@ this document with the same rule the app uses.
 - id: `ws_safe_place`
 - Library description: Build a place in your head you can go to when things get too loud.
 - opens: S — the client can open it themselves
-- load: light · about 10 minutes
+- load: light · about 2 minutes
 - care plan label: all
 - deeper safety screen: no (the shared check on every answer still runs)
 

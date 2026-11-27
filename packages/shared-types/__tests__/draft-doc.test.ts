@@ -236,12 +236,13 @@ describe('"All" approval document', () => {
   });
 
   it('records the running time the owner was given', () => {
-    // Quoted back to him on 26 Nov 2026 after he changed the timing. Computed
-    // from the lines in the document, so a wording change that shortens the
-    // exercise breaks this rather than silently leaving the old figure in place.
+    // Quoted back to her on 27 Nov 2026 after she set My calm place to fifteen
+    // seconds of quiet. Computed from the lines in the document, so a wording
+    // change that shortens the exercise breaks this rather than silently
+    // leaving the old figure in place.
     const doc = buildAllPlansApprovedDoc();
     expect(doc).toContain('2 min 25 sec (145 seconds)');
-    expect(doc).toContain('1 min 23 sec (83 seconds)');
+    expect(doc).toContain('1 min 48 sec (108 seconds)');
   });
 
   it('carries no worksheet outside this batch', () => {
