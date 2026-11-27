@@ -32,6 +32,19 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
+      // Only a request that actually carried a bearer can tell us the session
+      // is dead: the API answers 401 for a missing Authorization header too,
+      // and one bearer-less startup GET destroying the session is what bounced
+      // clients back to the sign-in screen in a loop.
+      final sentBearer =
+          ((err.requestOptions.headers['Authorization'] as String?) ?? '')
+              .isNotEmpty;
+      if (!sentBearer) {
+        Logger.debug(
+            '[AuthInterceptor] 401 without a bearer — not signing out');
+        handler.next(err);
+        return;
+      }
       Logger.debug('[AuthInterceptor] 401 — signing out');
       await _authService.signOut();
       handler.next(err);
