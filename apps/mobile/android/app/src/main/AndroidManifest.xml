@@ -23,10 +23,19 @@
         </intent>
     </queries>
 
+    <!-- android:allowBackup="false" + the extraction rules are load-bearing, not
+         hygiene: the session token lives in shared_prefs, and Android auto-backup
+         restores it into a fresh install. A reinstall then comes up "already
+         signed in" as the previous person — or, if that token has expired, sits on
+         a spinner retrying 401s with no way back to the sign-in screen. Sign-in is
+         also an identity decision, so the token must never ride a device transfer. -->
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:roundIcon="@mipmap/ic_launcher">
 
         <activity
