@@ -12,6 +12,7 @@ import 'package:okuvu/src/core/providers.dart';
 import 'package:okuvu/src/core/tts_service.dart';
 import 'package:okuvu/src/core/websocket_service.dart';
 import 'package:okuvu/src/features/chat/chat_screen.dart';
+import 'package:okuvu/src/features/chat/models/chat_message.dart';
 import 'package:okuvu/src/features/chat/models/chat_state.dart';
 
 import '../../support/fake_auth_service.dart';
@@ -459,6 +460,55 @@ void main() {
 
       expect(find.text('This session has ended.'), findsNothing);
       expect(find.byType(TextField), findsOneWidget);
+    });
+
+    testWidgets('an agent turn carries the Okuvu mark, never a letter avatar', (
+      tester,
+    ) async {
+      // The bubble's avatar shipped as a hardcoded Text('E') — a leftover from
+      // an earlier agent name — so every agent turn wore a letter instead of
+      // the app's own mark. Assert the bubble really rendered (its text is on
+      // screen) so the "no letter" half cannot pass vacuously.
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final fakeWs = FakeWebSocketService(initialState: WsConnectionState.sessionActive);
+
+      await tester.pumpWidget(_buildChatScreenApp(webSocketService: fakeWs));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      container.read(chatMessagesProvider.notifier).state = ChatState(
+        messages: [
+          ChatMessage(
+            id: 'm1',
+            sender: MessageSender.agent,
+            content: 'I am here with you.',
+            timestamp: DateTime(2026, 11, 27),
+          ),
+        ],
+        turnCount: 1,
+        isSessionClosed: false,
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('I am here with you.'), findsOneWidget);
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              w.image is AssetImage &&
+              (w.image as AssetImage).assetName ==
+                  'assets/brand/okuvu-mark-dark.png',
+        ),
+        findsWidgets,
+      );
+      expect(find.text('E'), findsNothing);
     });
   });
 }

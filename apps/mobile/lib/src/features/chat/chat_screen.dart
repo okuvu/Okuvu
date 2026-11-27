@@ -626,13 +626,12 @@ class _ChatBubble extends ConsumerWidget {
                 children: [
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: theme.colorScheme.primary,
-                    child: Text(
-                      'E',
-                      style: TextStyle(
-                        color: theme.colorScheme.onPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                    backgroundColor: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: Image.asset(
+                        'assets/brand/okuvu-mark-dark.png',
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
