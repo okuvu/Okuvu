@@ -178,7 +178,11 @@ class PushService {
   /// The tap target, from the ids the `Notification` row already carries.
   ///
   /// Appointment detail wins over the list because a session change is
-  /// time-sensitive, and homework wins over the inbox for the same reason.
+  /// time-sensitive, and homework wins over the inbox for the same reason. A
+  /// homework tap carries the assignment id so the app can open the exercise
+  /// itself rather than the list that contains it; the id travels as a query
+  /// parameter because this is a route path, and the resolution happens once the
+  /// router is up (see `resolvePushTarget`).
   static String? routeFor(Map<String, dynamic> data) {
     final appointmentId = data['appointmentId'];
     if (appointmentId is String && appointmentId.isNotEmpty) {
@@ -186,6 +190,10 @@ class PushService {
     }
     final kind = data['kind'];
     if (kind == 'homework_assigned' || kind == 'homework_due_today') {
+      final homeworkId = data['homeworkId'];
+      if (homeworkId is String && homeworkId.isNotEmpty) {
+        return '/homework?assignment=${Uri.encodeComponent(homeworkId)}';
+      }
       return '/homework';
     }
     if (kind is String && kind.isNotEmpty) return '/notifications';

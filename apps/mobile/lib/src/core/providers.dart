@@ -255,7 +255,18 @@ final sessionIdProvider = Provider<String?>((ref) {
 });
 
 final voiceSyncProvider = Provider<void>((ref) {
-  final voiceSettings = ref.watch(voiceSettingsStateProvider);
+  final session = ref.watch(sessionProvider);
   final ttsService = ref.read(ttsServiceProvider);
+
+  // Reading the preference is an authenticated call, and App.build watches this
+  // provider above the router — so on every cold start it fired a bearer-less
+  // GET /settings/voice before the stored session was restored. That 401 signed
+  // the client out again; hold TTS at its default until there is a session.
+  if (session != SessionState.authenticated) {
+    ttsService.setVoiceEnabled(false);
+    return;
+  }
+
+  final voiceSettings = ref.watch(voiceSettingsStateProvider);
   ttsService.setVoiceEnabled(voiceSettings.voiceEnabled);
 });

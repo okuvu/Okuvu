@@ -26,6 +26,21 @@ void main() {
       expect(PushService.routeFor({'kind': 'homework_due_today'}), '/homework');
     });
 
+    // The row carries the assignment id, so the tap can land on the exercise
+    // rather than the list that contains it. The id travels in the path because
+    // the router is not up yet when a cold-start tap arrives; `resolvePushTarget`
+    // turns it into the exercise once the homework list has been read.
+    test('a homework tap carries the assignment id', () {
+      expect(
+        PushService.routeFor({'kind': 'homework_assigned', 'homeworkId': 'hw-1'}),
+        '/homework?assignment=hw-1',
+      );
+      expect(
+        PushService.routeFor({'kind': 'homework_due_today', 'homeworkId': 'harder/one'}),
+        '/homework?assignment=harder%2Fone',
+      );
+    });
+
     test('a reminder or treasure note opens the inbox', () {
       expect(PushService.routeFor({'kind': 'reminder_set'}), '/notifications');
       expect(PushService.routeFor({'kind': 'treasure_note_waiting'}), '/notifications');

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../../router/router.dart';
+import 'notification_target.dart';
 import 'notifications_provider.dart';
 
 /// Wires [PushService] to the app's own lifecycle.
@@ -30,16 +31,30 @@ class _PushLifecycleState extends ConsumerState<PushLifecycle> {
   StreamSubscription<String>? _openTargets;
   StreamSubscription<String>? _foreground;
 
+  /// A tap that arrives before the client is signed in — a cold start from the
+  /// notification shade — cannot navigate yet: the router's redirect would put
+  /// the sign-in screen back on top, which is what "the tap did nothing" looks
+  /// like. Held here and applied once the session is authenticated.
+  String? _pendingTarget;
+
   @override
   void initState() {
     super.initState();
     final push = ref.read(pushServiceProvider);
 
-    _openTargets = push.openTargets.listen((target) {
+    _openTargets = push.openTargets.listen((target) async {
       if (!mounted) return;
       ref.invalidate(notificationsProvider);
       ref.invalidate(unreadNotificationCountProvider);
-      ref.read(routerProvider).go(target);
+
+      final resolved = await resolvePushTarget(ref, target);
+      if (!mounted) return;
+
+      if (ref.read(sessionProvider) != SessionState.authenticated) {
+        _pendingTarget = resolved;
+        return;
+      }
+      ref.read(routerProvider).go(resolved);
     });
 
     _foreground = push.foregroundMessages.listen((_) {
@@ -65,8 +80,15 @@ class _PushLifecycleState extends ConsumerState<PushLifecycle> {
       if (next == SessionState.authenticated &&
           previous != SessionState.authenticated) {
         unawaited(push.signIn());
+        // A tap that arrived before sign-in lands now, on the screen it named.
+        final pending = _pendingTarget;
+        if (pending != null) {
+          _pendingTarget = null;
+          ref.read(routerProvider).go(pending);
+        }
       } else if (previous == SessionState.authenticated &&
           next == SessionState.unauthenticated) {
+        _pendingTarget = null;
         unawaited(push.signOut());
       }
     });

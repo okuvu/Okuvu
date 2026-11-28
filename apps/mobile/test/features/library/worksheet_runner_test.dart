@@ -59,6 +59,24 @@ Map<String, Object?> body() => {
       },
     };
 
+/// `body()` with the approved explanation the catalogue carries for step 2:
+/// the same sentence the api serves as its fallback, so the box has something
+/// to say whether or not the model answers.
+Map<String, Object?> bodyWithHelper() {
+  final map = Map<String, Object?>.from(body());
+  final fields = <Object?>[];
+  for (final raw in map['fields'] as List) {
+    final field = Map<String, Object?>.from(raw as Map);
+    if (field['id'] == 'facts') {
+      field['helper'] = 'Things that actually happened, not guesses.';
+      field['example'] = 'The 9am standup ran long.';
+    }
+    fields.add(field);
+  }
+  map['fields'] = fields;
+  return map;
+}
+
 Widget harness({
   required WorksheetContent content,
   WorksheetDraftStore? store,
@@ -464,14 +482,17 @@ void main() {
     expect(find.text('for when the 9am standup starts'), findsNothing);
   });
 
-  // ─── The help button when the reply cannot be shown (10 Nov 2026) ────────
+  // ─── The help box (28 Nov 2026) ──────────────────────────────────────────
   //
-  // The owner's rule: never tell someone who is already struggling that help
-  // "isn't available right now". The api serves the step's own approved helper
-  // line whenever it has one; when it has none it serves nothing, and silence
-  // is what the client sees — no snackbar, no apology, no error.
-  testWidgets('says nothing at all when there is no help to show', (tester) async {
-    final content = parseWorksheetContent(body());
+  // It used to wait for the api and return silently on a null reply — and the
+  // api withholds the model entirely while a client's safety state is S3 or S4,
+  // so on a bad week *every* step's button was dead. The box now opens at once
+  // with the step's own approved line, and the reviewed explanation is added
+  // underneath it when it arrives. A step the catalogue has no words for has no
+  // button, because there would be nothing to put in the box. The owner's rule
+  // still holds: never "help isn't available right now".
+  testWidgets('opens the box with the approved line even when the api says nothing', (tester) async {
+    final content = parseWorksheetContent(bodyWithHelper());
     await tester.pumpWidget(harness(content: content, api: _HelpApi(null)));
     await tester.pumpAndSettle();
     await skipBeforeRating(tester);
@@ -481,19 +502,20 @@ void main() {
     await tester.tap(find.byKey(const Key('worksheetHelpButton')));
     await tester.pumpAndSettle();
 
+    // The box is open, and it says something true even with no model.
+    expect(find.byKey(const Key('worksheet_help_sheet')), findsOneWidget);
+    expect(find.text('Things that actually happened, not guesses.'), findsWidgets);
     expect(find.byType(SnackBar), findsNothing);
     expect(find.textContaining("isn't available"), findsNothing);
     expect(find.textContaining('not available'), findsNothing);
-    // The step is untouched — the client keeps writing where they were.
-    expect(find.text('What happened?'), findsOneWidget);
   });
 
-  testWidgets('shows the approved helper line when the api sends one', (tester) async {
-    final content = parseWorksheetContent(body());
+  testWidgets('adds the reviewed explanation under the approved line', (tester) async {
+    final content = parseWorksheetContent(bodyWithHelper());
     await tester.pumpWidget(
       harness(
         content: content,
-        api: _HelpApi('Things that actually happened, not guesses.'),
+        api: _HelpApi('A fact is something that happened; a guess is what you think it means.'),
       ),
     );
     await tester.pumpAndSettle();
@@ -504,8 +526,30 @@ void main() {
     await tester.tap(find.byKey(const Key('worksheetHelpButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Things that actually happened, not guesses.'), findsOneWidget);
+    expect(
+      find.text('A fact is something that happened; a guess is what you think it means.'),
+      findsOneWidget,
+    );
+    // The approved lines stay: the model's paragraph is an addition, not a
+    // replacement for copy the clinical lead signed off.
+    expect(find.byKey(const Key('worksheet_help_sheet')), findsOneWidget);
+    expect(find.text('Things that actually happened, not guesses.'), findsWidgets);
     expect(find.textContaining('available'), findsNothing);
+  });
+
+  testWidgets('draws no help button where the catalogue has no words for the step',
+      (tester) async {
+    final content = parseWorksheetContent(body());
+    await tester.pumpWidget(harness(content: content, api: _HelpApi('unused')));
+    await tester.pumpAndSettle();
+    await skipBeforeRating(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+    await tester.pumpAndSettle();
+
+    // 'facts' carries no helper and no example, so a tap could not have opened
+    // anything: the button is not drawn rather than drawn and dead.
+    expect(find.text('What happened?'), findsOneWidget);
+    expect(find.byKey(const Key('worksheetHelpButton')), findsNothing);
   });
 
   // ─── A save that fails says so, and never shows the closing screen ───

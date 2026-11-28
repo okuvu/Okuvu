@@ -286,52 +286,114 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
   }
 
   Future<void> _askForHelp(WorksheetField field) async {
+    // The box opens at once, from copy the app already holds, and the reviewed
+    // explanation is added underneath it when the api answers.
+    //
+    // It used to wait for the api and return silently on a null, which is the
+    // one thing the owner's rule cannot cover: the button was on screen and
+    // tapping it did nothing at all. That null is not an edge case — the api
+    // withholds the model entirely while the client's safety state is S3 or S4,
+    // so on a bad week *every* step answered nothing. The approved helper line
+    // and the example for the step are already in the worksheet body, so the
+    // box has something true to say whether or not the model is available.
+    final approved = <String>[
+      if (field.helper != null && field.helper!.trim().isNotEmpty)
+        field.helper!.trim(),
+    ];
+
+    final explained = ValueNotifier<String?>(null);
+    // Set when the sheet closes, so a slow answer cannot write into a notifier
+    // that has been disposed.
+    var closed = false;
     setState(() => _helpLoading = true);
-    final text = await ref.read(libraryApiProvider).help(widget.toolId, field.id);
+
+    unawaited(() async {
+      final text = await ref.read(libraryApiProvider).help(widget.toolId, field.id);
+      if (!mounted) return;
+      setState(() => _helpLoading = false);
+      if (closed) return;
+      // A null here means the api refused (safety state, review, or a model
+      // failure). The approved lines above are still shown; nothing is
+      // improvised in its place.
+      explained.value = text;
+    }());
+
     if (!mounted) return;
-    setState(() => _helpLoading = false);
-
-    // Nothing to say. The step is already on screen, so the right thing to do
-    // is nothing at all — no error, no apology, no "help isn't available" (the
-    // owner's rule, 10 Nov 2026: that wording is one more broken thing landing
-    // on someone who is already struggling). The api sends the step's own
-    // approved helper line whenever it has one, so this branch is only the case
-    // where the step has no helper of its own.
-    if (text == null) return;
-
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.oatElevated,
       builder: (_) => SafeArea(
+        key: const Key('worksheet_help_sheet'),
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                field.prompt,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.charcoalInk,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  field.prompt,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.charcoalInk,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                text,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  color: AppColors.charcoalInk,
+                if (approved.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  for (final line in approved)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        line,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          height: 1.5,
+                          color: AppColors.charcoalInk,
+                        ),
+                      ),
+                    ),
+                ],
+                ValueListenableBuilder<String?>(
+                  valueListenable: explained,
+                  builder: (context, text, _) {
+                    if (text == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        text,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          height: 1.5,
+                          color: AppColors.charcoalInk,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
+
+    closed = true;
+    explained.dispose();
+    if (mounted && _helpLoading) setState(() => _helpLoading = false);
   }
+
+  /// Whether this step has an approved explanation to open a box with.
+  ///
+  /// The button is only drawn where the catalogue's own explanation for the
+  /// step exists (`helper` — an example is an illustration, not an
+  /// explanation). A step with neither had nothing to show when the api
+  /// withheld the model, so the tap was a promise the screen could not keep;
+  /// the fix for those steps is an approved helper line in the catalogue, not a
+  /// sentence invented here.
+  bool _canExplain(WorksheetField field) =>
+      field.helper != null && field.helper!.trim().isNotEmpty;
 
   /// Ask the api for the read-back, and raise the safety response if it withholds
   /// one.
@@ -731,9 +793,11 @@ class _WorksheetRunnerState extends ConsumerState<WorksheetRunnerScreen> {
                     // The only AI help a worksheet offers: explain the step,
                     // encourage, ask an open question. It never sees the
                     // answers and never writes them — and the api refuses any
-                    // reply that breaks those rules, so a null here means "say
-                    // nothing", not "improvise a line".
-                    if (field.type != 'instruction')
+                    // reply that breaks those rules. Drawn only where the
+                    // catalogue has its own words for the step, because a step
+                    // with no helper line had nothing to open a box with when
+                    // the api withheld the model (see `_canExplain`).
+                    if (field.type != 'instruction' && _canExplain(field))
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton(

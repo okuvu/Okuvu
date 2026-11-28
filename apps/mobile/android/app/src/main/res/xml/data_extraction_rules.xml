@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing in this app is worth restoring from a backup, and the session token is
+  worth actively keeping out of one: a restored token brings a reinstall up as
+  the previous person (or, once it expires, as a spinner retrying 401s with no
+  route back to sign-in). Covers Android 12+ cloud backup and device-to-device
+  transfer; android:allowBackup="false" covers older releases.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

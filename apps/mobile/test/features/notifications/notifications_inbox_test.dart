@@ -16,6 +16,7 @@ import 'package:okuvu/src/features/homework/homework_provider.dart';
 Dio _inboxDio({
   required Map<String, dynamic> listResponse,
   Map<String, dynamic>? countResponse,
+  Map<String, dynamic>? homeworkResponse,
   List<String>? postedPaths,
   List<Object?>? postedBodies,
 }) {
@@ -29,6 +30,14 @@ Dio _inboxDio({
           requestOptions: options,
           statusCode: 200,
           data: {'success': true, 'updated': 1},
+        ));
+        return;
+      }
+      if (options.path == '/users/me/homework') {
+        handler.resolve(Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: homeworkResponse ?? listResponse,
         ));
         return;
       }
@@ -63,6 +72,10 @@ Widget _app(Dio dio, Widget screen, {String path = '/notifications'}) {
           GoRoute(
             path: '/appointments/:id',
             builder: (_, __) => const Scaffold(body: Text('appointment-detail')),
+          ),
+          GoRoute(
+            path: '/library/worksheet/:toolId',
+            builder: (_, __) => const Scaffold(body: Text('worksheet-screen')),
           ),
         ],
       ),
@@ -179,6 +192,66 @@ void main() {
       expect(find.text('homework-screen'), findsOneWidget);
     });
 
+    testWidgets('tapping a worksheet row opens the exercise, not the list',
+        (tester) async {
+      final dio = _inboxDio(
+        listResponse: {
+          'notifications': [
+            _notificationJson(id: 'n3', homeworkId: 'hw-3'),
+          ],
+          'unreadCount': 0,
+        },
+        homeworkResponse: {
+          'homework': [
+            {
+              'id': 'hw-3',
+              'description': 'Doomscroll log',
+              'status': 'active',
+              'toolId': 'ws_doomscroll_log',
+              'toolLabel': 'Doomscroll log',
+              'assignedAt': '2026-11-27T00:00:00.000Z',
+              'repeats': false,
+              'doneToday': false,
+            },
+          ],
+          'reminders': [],
+        },
+      );
+
+      await tester.pumpWidget(_app(dio, const NotificationsInboxScreen()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('New homework'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('worksheet-screen'), findsOneWidget);
+      expect(find.text('homework-screen'), findsNothing);
+    });
+
+    // A "Due today" row carries no homework id, and used to have no tap target
+    // at all: it looked like a list item with nothing behind it.
+    testWidgets('a row with no id is still tappable and lands on the list',
+        (tester) async {
+      final dio = _inboxDio(listResponse: {
+        'notifications': [
+          _notificationJson(
+            id: 'n4',
+            kind: 'homework_due_today',
+            title: 'Due today',
+          ),
+        ],
+        'unreadCount': 0,
+      });
+
+      await tester.pumpWidget(_app(dio, const NotificationsInboxScreen()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Due today'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('homework-screen'), findsOneWidget);
+    });
+
     testWidgets('tapping an appointment row opens that appointment', (tester) async {
       final dio = _inboxDio(listResponse: {
         'notifications': [
@@ -209,12 +282,13 @@ void main() {
       required String description,
       String status = 'active',
       String? toolLabel,
+      String? toolId,
     }) {
       return {
         'id': id,
         'description': description,
         'status': status,
-        'toolId': toolLabel == null ? null : 'box_breathing',
+        'toolId': toolId ?? (toolLabel == null ? null : 'box_breathing'),
         'toolLabel': toolLabel,
         'assignedAt': '2026-11-06T08:00:00.000Z',
       };
@@ -323,6 +397,37 @@ void main() {
       // own default — a chip that looks like a button must do something.
       expect(find.text('Breathe'), findsOneWidget);
       expect(find.byKey(const Key('breathing_exercise_dropdown')), findsOneWidget);
+    });
+
+    // The blue label on an assignment is the exercise's name, and for a
+    // worksheet it used to be a label with nothing behind it: only breathing
+    // techniques were playable, so a worksheet assignment had no way in from
+    // this screen at all.
+    testWidgets('tapping a worksheet chip opens that worksheet', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final dio = _inboxDio(listResponse: {
+        'homework': [
+          homeworkJson(
+            id: 'hw-2',
+            description: 'Log the scroll sessions',
+            toolLabel: 'Doomscroll log',
+            toolId: 'ws_doomscroll_log',
+          ),
+        ],
+        'reminders': [],
+      });
+
+      await tester.pumpWidget(_app(dio, const HomeworkScreen(), path: '/homework'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('homework_tool_hw-2')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('worksheet-screen'), findsOneWidget);
     });
   });
 

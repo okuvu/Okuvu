@@ -67,8 +67,11 @@ void main() {
 
     /* ───────── 2. 401 handling  ───────── */
 
-    testWidgets('401: calls signOut and forwards the error', (tester) async {
-      final fakeAuth = FakeAuthService();
+    testWidgets('401 with a bearer: calls signOut and forwards the error', (tester) async {
+      final fakeAuth = FakeAuthService(
+        currentUser: const AuthUser(uid: 'sub-123'),
+        tokenToReturn: 'fake-id-token',
+      );
       final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
       dio.interceptors.add(AuthInterceptor(fakeAuth, dio.options));
       final adapter = MockHttpClientAdapter()..setStatus(401);
@@ -86,7 +89,33 @@ void main() {
       expect(captured, isNotNull);
       expect(captured!.response?.statusCode, 401);
       expect(fakeAuth.signOutCalled, isTrue,
-          reason: 'The interceptor should call AuthService.signOut() on 401');
+          reason: 'A rejected bearer means the session is dead — sign out');
+    });
+
+    testWidgets('401 without a bearer: does not sign out', (tester) async {
+      // The API answers 401 for a missing Authorization header as well. Signing
+      // out on that let one startup GET (/settings/voice, fired above the router
+      // before the stored session was restored) destroy a valid session and
+      // bounce the client back to /auth — the "back to the landing page" loop.
+      final fakeAuth = FakeAuthService();
+      final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8080'));
+      dio.interceptors.add(AuthInterceptor(fakeAuth, dio.options));
+      final adapter = MockHttpClientAdapter()..setStatus(401);
+      dio.httpClientAdapter = adapter;
+
+      Object? captured;
+      await tester.runAsync(() async {
+        try {
+          await dio.get('/settings/voice');
+        } on DioException catch (e) {
+          captured = e;
+        }
+      });
+
+      expect(captured, isA<DioException>());
+      expect(adapter.lastRequest?.headers['Authorization'], isNull);
+      expect(fakeAuth.signOutCalled, isFalse,
+          reason: 'A 401 to a bearer-less call proves nothing about the session');
     });
 
     /* ───────── 3. 503 Retry-After  ───────── */

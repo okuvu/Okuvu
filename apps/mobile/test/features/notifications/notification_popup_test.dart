@@ -16,6 +16,11 @@ class _FakeInbox {
   _FakeInbox({List<Map<String, dynamic>>? rows}) : rows = rows ?? [];
 
   final List<Map<String, dynamic>> rows;
+
+  /// The client's assignments, answered for `GET /users/me/homework` — the
+  /// lookup a tapped update uses to find the exercise behind an assignment.
+  final List<Map<String, dynamic>> homework = [];
+
   int listGets = 0;
   int countGets = 0;
   final List<String> posted = [];
@@ -34,6 +39,16 @@ class _FakeInbox {
                 requestOptions: options,
                 statusCode: 200,
                 data: {'success': true},
+              ),
+            );
+            return;
+          }
+          if (options.path == '/users/me/homework') {
+            handler.resolve(
+              Response(
+                requestOptions: options,
+                statusCode: 200,
+                data: {'homework': homework, 'reminders': []},
               ),
             );
             return;
@@ -131,6 +146,10 @@ GoRouter _router() {
       GoRoute(
         path: '/appointments/:id',
         builder: (_, __) => const Scaffold(body: Text('appointment-screen')),
+      ),
+      GoRoute(
+        path: '/library/worksheet/:toolId',
+        builder: (_, __) => const Scaffold(body: Text('worksheet-screen')),
       ),
     ],
   );
@@ -355,6 +374,39 @@ void main() {
 
       await _poll(tester, 'home-screen');
       expect(find.byKey(const ValueKey('notification_banner')), findsNothing);
+
+      await _teardown(tester);
+    });
+
+    testWidgets('a worksheet assignment opens the exercise itself, not the list', (
+      tester,
+    ) async {
+      final inbox = _FakeInbox();
+      // The assignment the update is about, with the catalogue item behind it.
+      inbox.homework.add({
+        'id': 'hw-1',
+        'description': 'Doomscroll log',
+        'status': 'active',
+        'toolId': 'ws_doomscroll_log',
+        'toolLabel': 'Doomscroll log',
+        'assignedAt': '2026-11-27T00:00:00.000Z',
+        'repeats': false,
+        'doneToday': false,
+      });
+      final router = _router();
+
+      await tester.pumpWidget(_app(inbox: inbox, router: router));
+      await tester.pumpAndSettle();
+
+      inbox.rows.insert(0, _row(id: 'n1', body: 'Your therapist set you an exercise.'));
+      await _poll(tester, 'home-screen');
+
+      await tester.tap(find.byKey(const ValueKey('notification_banner')));
+      await tester.pumpAndSettle();
+
+      // The exercise, not the list that contains it.
+      expect(find.text('worksheet-screen'), findsOneWidget);
+      expect(find.text('homework-screen'), findsNothing);
 
       await _teardown(tester);
     });

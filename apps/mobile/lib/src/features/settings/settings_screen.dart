@@ -7,9 +7,44 @@ import '../../widgets/quote_of_day_toggle.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../../theme/app_colors.dart';
 import '../../core/app_update/version_policy.dart';
+import '../../core/providers.dart';
 
 const _kIconColor = AppColors.inkSoft;
 const _kLabelColor = AppColors.charcoalInk;
+
+/// The only route back to the Google picker on a device that is already signed
+/// in — "Delete Account" is destructive, not a switch-user control. Signing out
+/// clears the stored session, and the router's unauthenticated redirect then
+/// drops the user on /auth; the explicit go() covers the case where the screen
+/// is still mounted while that redirect settles.
+Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Sign out?'),
+      content: const Text(
+        'Your journal, chats and care plan stay on your account. '
+        'You can sign back in with Google any time.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          key: const ValueKey('sign_out_confirm'),
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Sign out'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true) return;
+
+  await ref.read(authServiceProvider).signOut();
+  if (context.mounted) context.go('/auth');
+}
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -74,6 +109,11 @@ class SettingsScreen extends ConsumerWidget {
                   const QuoteOfDayToggle(),
                   const SizedBox(height: 8),
                   const Divider(height: 1),
+                  _SettingsTile(
+                    icon: LucideIcons.logOut,
+                    title: 'Sign out',
+                    onTap: () => _confirmSignOut(context, ref),
+                  ),
                   _SettingsTile(
                     icon: LucideIcons.trash2,
                     title: 'Delete Account',
