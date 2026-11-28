@@ -63,6 +63,40 @@ class _PastMeScreenState extends ConsumerState<PastMeScreen> {
     }
   }
 
+  /// Share or un-share one entry, from the timeline itself.
+  ///
+  /// Before this, Past me was a reading view: the only place a client could
+  /// share was the journal's own switch, so an exercise they finished on their
+  /// own — a Doomscroll log, say — showed "Private" with no way to change it,
+  /// and the only route left was the share question some worksheets happen to
+  /// ask at the end. The label is now the control it looks like.
+  Future<void> _setShared(PastMeItem item, bool value) async {
+    final notifier = ref.read(sharingProvider.notifier);
+    if (value) {
+      final firstTime = await notifier.shouldConfirmFirstShare();
+      if (firstTime) {
+        if (!mounted) return;
+        final confirmed = await confirmFirstShare(context);
+        if (!confirmed) return;
+        await notifier.markFirstShareSeen();
+      }
+    }
+
+    final ok = await notifier.setShared(
+      kind: item.kind,
+      id: item.id,
+      shared: value,
+    );
+    if (!mounted) return;
+    if (ok) {
+      ref.invalidate(pastMeProvider(_filter));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't change sharing. Please try again.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -172,7 +206,27 @@ class _PastMeScreenState extends ConsumerState<PastMeScreen> {
                                         ),
                                       ),
                                     ),
-                                    ShareLabel(shared: item.shared),
+                                    Semantics(
+                                      button: true,
+                                      label: item.shared
+                                          ? 'Shared with my therapist. Tap to stop sharing.'
+                                          : 'Private. Tap to share with my therapist.',
+                                      child: InkWell(
+                                        key: Key('past_me_share_${item.id}'),
+                                        borderRadius: BorderRadius.circular(999),
+                                        onTap: () => _setShared(item, !item.shared),
+                                        child: Padding(
+                                          // 48dp-ish target around a small chip:
+                                          // a label this size is a miss waiting
+                                          // to happen on a phone.
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                            horizontal: 4,
+                                          ),
+                                          child: ShareLabel(shared: item.shared),
+                                        ),
+                                      ),
+                                    ),
                                     IconButton(
                                       key: Key('past_me_delete_${item.id}'),
                                       visualDensity: VisualDensity.compact,

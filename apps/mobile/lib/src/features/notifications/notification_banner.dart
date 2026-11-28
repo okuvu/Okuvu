@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../router/router.dart';
 import '../../theme/app_colors.dart';
 import 'notification_popup.dart';
+import 'notification_target.dart';
 import 'notifications_provider.dart';
 
 /// App-wide host for the new-arrival banner.
@@ -87,18 +88,20 @@ class _NotificationBanner extends ConsumerWidget {
   /// Navigation goes through [routerProvider] rather than `context.go`: this
   /// widget sits above the Navigator (in `MaterialApp.builder`), where the
   /// router's inherited scope is not an ancestor.
-  void _open(BuildContext context, WidgetRef ref) {
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
     final id = notification.id;
     ref.read(notificationPopupProvider.notifier).dismiss(id: id);
     // Marking read is a courtesy, never a gate: if it fails the client still
     // lands on the thing they tapped.
     unawaited(ref.read(notificationReadProvider.notifier).markRead(id));
 
+    // The same resolution the inbox uses, so the banner cannot land somewhere
+    // the row does not — including straight on the exercise the update is
+    // about, rather than on the list that contains it.
+    final target = await notificationTarget(ref, notification);
     final router = ref.read(routerProvider);
-    if (notification.homeworkId != null) {
-      router.go('/homework');
-    } else if (notification.appointmentId != null) {
-      router.go('/appointments/${notification.appointmentId}');
+    if (target != null) {
+      router.push(target);
     } else {
       router.go('/notifications');
     }

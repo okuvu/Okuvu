@@ -7,6 +7,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
 import '../home/breathing_content.dart';
 import '../home/breathing_screen.dart';
+import '../library/library_launcher.dart';
 import 'homework_provider.dart';
 
 /// "12 Nov" — when the therapist set this, not a relative word (a stored
@@ -234,7 +235,12 @@ class _ToolChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final toolId = item.toolId;
-    final playable = toolId != null && breathingTechniqueFor(toolId) != null;
+    // Which player a technique inside the breathing card opens, and — for
+    // everything else the catalogue names — the route it lives at. A chip with
+    // neither is a label: there is nowhere honest to send the tap.
+    final technique = toolId == null ? null : breathingTechniqueFor(toolId);
+    final path = toolId == null ? null : libraryRoutePath(toolId);
+    final openable = technique != null || path != null;
 
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -251,7 +257,7 @@ class _ToolChip extends StatelessWidget {
               color: AppColors.violet,
             ),
           ),
-          if (playable) ...[
+          if (openable) ...[
             const SizedBox(width: 2),
             const Icon(
               LucideIcons.chevronRight,
@@ -263,16 +269,25 @@ class _ToolChip extends StatelessWidget {
       ),
     );
 
-    if (!playable) return chip;
+    if (!openable) return chip;
 
+    // The chip is the exercise's name in the catalogue's own words, and it
+    // reads as a link — so it has to be one. A worksheet opens its body, a
+    // breathing technique opens its player.
     return InkWell(
       key: ValueKey('homework_tool_${item.id}'),
       borderRadius: BorderRadius.circular(8),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => BreathingScreen(initialToolId: toolId),
-        ),
-      ),
+      onTap: () {
+        if (technique != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => BreathingScreen(initialToolId: toolId),
+            ),
+          );
+          return;
+        }
+        openLibraryTool(context, toolId: toolId!);
+      },
       child: chip,
     );
   }

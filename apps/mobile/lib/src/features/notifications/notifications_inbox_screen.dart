@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/okuvu_app_bar_title.dart';
+import 'notification_target.dart';
 import 'notifications_provider.dart';
 import 'updates_copy.dart';
 
@@ -245,11 +246,12 @@ class _NotificationTile extends ConsumerWidget {
 
     if (!context.mounted) return;
 
-    if (notification.homeworkId != null) {
-      context.go('/homework');
-    } else if (notification.appointmentId != null) {
-      context.go('/appointments/${notification.appointmentId}');
-    }
+    final target = await notificationTarget(ref, notification);
+    if (!context.mounted || target == null) return;
+
+    // Push rather than go: the inbox is a place the client came from, so Back
+    // returns them to it instead of throwing the list away.
+    context.push(target);
   }
 
   /// Keep: the note is copied into the client's box, then the box opens so they
@@ -276,9 +278,12 @@ class _NotificationTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final unread = notification.isUnread;
     final isTreasureNote = notification.kind == 'treasure_note_waiting';
-    final tappable =
-        !isTreasureNote &&
-        (notification.homeworkId != null || notification.appointmentId != null);
+    // Every row a client can act on is tappable, not only the ones whose ids
+    // arrived: a "Due today" or reminder row used to look like a list item with
+    // nothing behind it, and a tap that does nothing reads as a broken app.
+    // A Treasure note is the exception — its own two buttons are the action,
+    // and a third destination would compete with Keep.
+    final tappable = !isTreasureNote;
 
     return ListTile(
       key: ValueKey('notification_${notification.id}'),

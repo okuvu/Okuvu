@@ -2,8 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
+import '../home/breathing_content.dart';
 import 'exposure_ladder_screen.dart';
 import 'worry_time_screen.dart';
+
+/// The route a catalogue item lives at, when a path can name it.
+///
+/// [openLibraryTool] is the one way to *open* an item from a screen, and it is
+/// the authority on that; this is the same mapping reduced to a string, for the
+/// surfaces that sit above the Navigator (the in-app notification banner) or
+/// that only hold an id (a tapped update). Null means \"no route names this
+/// item\", and the caller must fall back to a list rather than pushing a
+/// worksheet route at something that is not a worksheet — that is how a client
+/// ends up reading \"this one isn't ready to open yet\" after tapping a
+/// reminder about a breathing exercise.
+String? libraryRoutePath(String toolId) {
+  switch (toolId) {
+    case 'breathing':
+      return '/library/breathing';
+    case 'grounding_5431':
+      return '/library/grounding';
+    case 'mood_checkin':
+      return '/library/mood';
+    case 'ws_sos_calm':
+      return '/library/sos';
+    case 'ws_safety_plan':
+      return '/safety-plan';
+  }
+
+  // A single technique inside the breathing player: the route takes the id as
+  // a query parameter, so a reminder about box breathing opens box breathing
+  // rather than the technique picker.
+  if (breathingTechniqueFor(toolId) != null) {
+    return '/library/breathing?tool=${Uri.encodeComponent(toolId)}';
+  }
+
+  // Worry time and the exposure ladder are pushed as widgets, not paths, and
+  // every worksheet body is a `ws_` id.
+  if (toolId.startsWith('ws_')) {
+    return '/library/worksheet/${Uri.encodeComponent(toolId)}';
+  }
+
+  return null;
+}
 
 /// One way to open a catalogue item, used by the Library and the Today card.
 ///
@@ -24,20 +65,6 @@ Future<void> openLibraryTool(
   int? feelingNow,
 }) async {
   switch (toolId) {
-    case 'breathing':
-      context.push('/library/breathing');
-      return;
-    case 'grounding_5431':
-      context.push('/library/grounding');
-      return;
-    case 'mood_checkin':
-      context.push('/library/mood');
-      return;
-    case 'ws_sos_calm':
-      // One card, two existing exercises in order: a long breath out, then
-      // grounding. Nothing to type and nothing copied (owner's brief, 24 Nov 2026).
-      context.push('/library/sos');
-      return;
     case 'ws_worry_time':
       // The daily window and the parked list are server state the worksheet
       // runner cannot carry, so the card opens the screen that talks to
@@ -54,11 +81,15 @@ Future<void> openLibraryTool(
         MaterialPageRoute<void>(builder: (_) => const ExposureLadderScreen()),
       );
       return;
-    case 'ws_safety_plan':
-      // Co-created in session: the card only exists once the therapist has
-      // saved a plan, and it opens the plan itself rather than a form.
-      context.push('/safety-plan');
-      return;
+  }
+
+  // Every other item that names a route opens at it — one mapping, shared with
+  // the surfaces that only hold an id (`libraryRoutePath`). A worksheet body is
+  // the exception: it asks the demanding question first.
+  final direct = libraryRoutePath(toolId);
+  if (direct != null && !direct.startsWith('/library/worksheet/')) {
+    context.push(direct);
+    return;
   }
 
   if (loadLevel == 'demanding' && feelingNow == null) {

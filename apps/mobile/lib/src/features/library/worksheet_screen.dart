@@ -179,11 +179,14 @@ class WorksheetScreen extends ConsumerWidget {
                 ),
               ),
             );
-          } else if (entry.accessMode == 'assigned' && responseId != null && !discardIt) {
-            // Owner's rule: after an assigned worksheet, ask whether to
-            // share it. Two equal buttons, neither chosen in advance, and
-            // nothing happens unless the client taps one. Not asked after a
-            // crisis or an unscreened save — help comes first.
+          } else if (responseId != null && !discardIt) {
+            // Owner's rule (28 Nov 2026): after EVERY worksheet — assigned or
+            // opened from the Library — ask whether to share it. It used to be
+            // assigned-only, so an exercise the client chose for themselves
+            // arrived private and stayed private unless they went hunting in
+            // Past me for the switch. Two equal buttons, neither chosen in
+            // advance, and nothing happens unless the client taps one. Not
+            // asked after a crisis or an unscreened save — help comes first.
             final share = await showDialog<bool>(
               context: context,
               barrierDismissible: false,
